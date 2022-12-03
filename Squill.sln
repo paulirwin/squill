@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Squill", "Squill\Squill.csproj", "{26E3F676-FEB3-420A-A4CB-DB34EF4C4CA4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Squill.IntegrationTests", "Squill.IntegrationTests\Squill.IntegrationTests.csproj", "{DE54C263-44E7-49BE-82E9-B4EFC31756FE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Squill.Core", "Squill.Core\Squill.Core.csproj", "{3C4D531C-4BAD-4378-AF0E-D8007C81A4D3}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{26E3F676-FEB3-420A-A4CB-DB34EF4C4CA4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{26E3F676-FEB3-420A-A4CB-DB34EF4C4CA4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{26E3F676-FEB3-420A-A4CB-DB34EF4C4CA4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{26E3F676-FEB3-420A-A4CB-DB34EF4C4CA4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DE54C263-44E7-49BE-82E9-B4EFC31756FE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DE54C263-44E7-49BE-82E9-B4EFC31756FE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DE54C263-44E7-49BE-82E9-B4EFC31756FE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DE54C263-44E7-49BE-82E9-B4EFC31756FE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3C4D531C-4BAD-4378-AF0E-D8007C81A4D3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3C4D531C-4BAD-4378-AF0E-D8007C81A4D3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3C4D531C-4BAD-4378-AF0E-D8007C81A4D3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3C4D531C-4BAD-4378-AF0E-D8007C81A4D3}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
