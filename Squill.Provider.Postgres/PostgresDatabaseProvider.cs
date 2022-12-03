@@ -1,6 +1,7 @@
 using Npgsql;
+using Squill.Core;
 
-namespace Squill.Core.Postgres;
+namespace Squill.Provider.Postgres;
 
 public class PostgresDatabaseProvider : IDatabaseProvider
 {

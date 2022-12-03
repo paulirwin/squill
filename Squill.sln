@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Squill.IntegrationTests", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Squill.Core", "Squill.Core\Squill.Core.csproj", "{3C4D531C-4BAD-4378-AF0E-D8007C81A4D3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Squill.Provider.Postgres", "Squill.Provider.Postgres\Squill.Provider.Postgres.csproj", "{17BF6389-5F6E-4588-A897-8AAA6016FE23}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -30,5 +32,9 @@ Global
 		{3C4D531C-4BAD-4378-AF0E-D8007C81A4D3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3C4D531C-4BAD-4378-AF0E-D8007C81A4D3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3C4D531C-4BAD-4378-AF0E-D8007C81A4D3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{17BF6389-5F6E-4588-A897-8AAA6016FE23}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{17BF6389-5F6E-4588-A897-8AAA6016FE23}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{17BF6389-5F6E-4588-A897-8AAA6016FE23}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{17BF6389-5F6E-4588-A897-8AAA6016FE23}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

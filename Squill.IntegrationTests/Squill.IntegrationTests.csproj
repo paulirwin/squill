@@ -22,6 +22,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\Squill.Provider.Postgres\Squill.Provider.Postgres.csproj" />
       <ProjectReference Include="..\Squill\Squill.csproj" />
     </ItemGroup>
 

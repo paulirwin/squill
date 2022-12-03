@@ -1,8 +1,9 @@
 using System.Data;
 using System.Diagnostics.CodeAnalysis;
 using Npgsql;
+using Squill.Core;
 
-namespace Squill.Core.Postgres;
+namespace Squill.Provider.Postgres;
 
 public class PostgresDatabase : IDatabase
 {

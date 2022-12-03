@@ -1,4 +1,4 @@
-namespace Squill.Core.Postgres;
+namespace Squill.Provider.Postgres;
 
 public static class PostgresPropertyNames
 {

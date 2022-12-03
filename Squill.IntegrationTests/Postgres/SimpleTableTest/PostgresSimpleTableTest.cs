@@ -1,5 +1,5 @@
 using Squill.Core;
-using Squill.Core.Postgres;
+using Squill.Provider.Postgres;
 
 namespace Squill.IntegrationTests.Postgres.SimpleTableTest;
 
