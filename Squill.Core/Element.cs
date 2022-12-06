@@ -19,7 +19,21 @@ public class Element : IRelationshipEntry
 
     public T GetRequiredProperty<T>(string name)
     {
-        return (T?)Properties.FirstOrDefault(i => i.Name == name)?.Value
+        return GetProperty<T>(name)
                ?? throw new InvalidOperationException("Required property not found: {name}");
     }
+    
+    public T? GetProperty<T>(string name)
+    {
+        return (T?)Properties.FirstOrDefault(i => i.Name == name)?.Value;
+    }
+
+    public byte[] Hash => HashUtility.Concat(
+        HashUtility.Compute(Type, Name ?? "null"),
+        HashUtility.Compute(Relationships),
+        HashUtility.Compute(Properties)
+    );
+
+
+    public Relationship? GetRelationship(string name) => Relationships.SingleOrDefault(i => i.Name.Equals(name));
 }

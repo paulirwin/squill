@@ -9,4 +9,6 @@ public interface IDatabase : IDisposable, IAsyncDisposable
     Task<Model> ExtractModelAsync(CancellationToken cancellationToken = default);
 
     Task DropAsync(CancellationToken cancellationToken = default);
+    
+    Task PublishAsync(SchemaComparison comparison, CancellationToken cancellationToken = default);
 }

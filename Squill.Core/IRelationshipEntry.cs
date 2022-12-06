@@ -1,5 +1,5 @@
 namespace Squill.Core;
 
-public interface IRelationshipEntry
+public interface IRelationshipEntry : IHashable
 {
 }
