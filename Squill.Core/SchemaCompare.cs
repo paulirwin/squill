@@ -5,6 +5,7 @@ public class SchemaCompare
     public static SchemaComparison Compare(IDatabaseProvider provider, Model source, Model target)
     {
         var comparison = new SchemaComparison();
+        var analyzer = provider.DependencyAnalyzer;
         
         if (HashUtility.HashesEqual(source.Hash, target.Hash))
         {
@@ -14,7 +15,7 @@ public class SchemaCompare
         foreach (var sourceElement in source.Elements)
         {
             // HACK.PI: PKs are dependent on their table
-            if (provider.IsDependentElementType(sourceElement.Type))
+            if (analyzer.IsDependentElementType(sourceElement.Type))
             {
                 continue;
             }
@@ -29,7 +30,7 @@ public class SchemaCompare
             var createDelta = new CreateDelta(sourceElement);
             comparison.Deltas.Add(createDelta);
 
-            var dependentElements = provider.GetDependentElements(sourceElement, source);
+            var dependentElements = analyzer.GetDependentElements(sourceElement, source);
 
             if (dependentElements != null)
             {

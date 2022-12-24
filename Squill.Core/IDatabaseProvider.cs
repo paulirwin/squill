@@ -8,7 +8,5 @@ public interface IDatabaseProvider
 
     IDatabaseModelBuilder CreateDatabaseModelBuilder(IDatabase database);
     
-    bool IsDependentElementType(string type);
-    
-    IList<Element>? GetDependentElements(Element sourceElement, Model model);
+    IDatabaseDependencyAnalyzer DependencyAnalyzer { get; }
 }
