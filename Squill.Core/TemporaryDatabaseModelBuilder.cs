@@ -1,10 +1,10 @@
 ﻿namespace Squill.Core;
 
-public class ModelBuilder
+public class TemporaryDatabaseModelBuilder
 {
     private readonly IDatabaseProvider _provider;
 
-    public ModelBuilder(IDatabaseProvider provider)
+    public TemporaryDatabaseModelBuilder(IDatabaseProvider provider)
     {
         _provider = provider;
     }

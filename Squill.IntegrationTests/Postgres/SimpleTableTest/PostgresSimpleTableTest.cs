@@ -3,14 +3,14 @@ using Squill.Provider.Postgres;
 
 namespace Squill.IntegrationTests.Postgres.SimpleTableTest;
 
-public class PostgresSimpleTableTest
+public class PostgresSimpleTableTest : PostgresIntegrationTestBase
 {
     [Fact]
     public async Task SimpleCreateTableTest()
     {
         IDatabaseProvider provider = new PostgresDatabaseProvider("Host=localhost;");
 
-        var modelBuilder = new ModelBuilder(provider);
+        var modelBuilder = new TemporaryDatabaseModelBuilder(provider);
 
         var workspace = new Workspace();
         workspace.Files.Add(new EmbeddedResourceFile("Squill.IntegrationTests.Postgres.SimpleTableTest.SimpleTable.sql", FileKind.Compile));
