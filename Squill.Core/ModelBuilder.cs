@@ -15,6 +15,8 @@ public class ModelBuilder
 
         await database.ConnectAsync(cancellationToken);
 
+        var modelBuilder = _provider.CreateDatabaseModelBuilder(database);
+
         Model model;
         
         try
@@ -23,10 +25,10 @@ public class ModelBuilder
             {
                 var sql = await file.ReadAllTextAsync(cancellationToken);
 
-                await database.RunScriptAsync(sql, cancellationToken);
+                await database.RunScriptAsync(sql, cancellationToken: cancellationToken);
             }
             
-            model = await database.ExtractModelAsync(cancellationToken);
+            model = await modelBuilder.ExtractModelAsync(cancellationToken);
         }
         finally
         {

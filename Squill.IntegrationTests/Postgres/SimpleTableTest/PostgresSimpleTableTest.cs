@@ -27,17 +27,18 @@ public class PostgresSimpleTableTest
         Assert.Equal(2, columns.Entries.Count);
 
         var testDb = await provider.CreateDatabaseAsync($"squill_test_{Guid.NewGuid():n}");
-
+        var dbModelBuilder = provider.CreateDatabaseModelBuilder(testDb);
+        
         try
         {
-            var testModel = await testDb.ExtractModelAsync();
+            var testModel = await dbModelBuilder.ExtractModelAsync();
 
             // HACK.PI: this API feels a little sloppy, but we'll get there
             var comparison = SchemaCompare.Compare(provider, model, testModel);
 
             await testDb.PublishAsync(comparison);
 
-            var newModel = await testDb.ExtractModelAsync();
+            var newModel = await dbModelBuilder.ExtractModelAsync();
             
             Assert.True(HashUtility.HashesEqual(model.Hash, newModel.Hash), "Model hashes do not match");
         }

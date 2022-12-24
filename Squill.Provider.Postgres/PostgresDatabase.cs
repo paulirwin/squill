@@ -1,4 +1,5 @@
 using System.Data;
+using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Npgsql;
@@ -9,292 +10,59 @@ namespace Squill.Provider.Postgres;
 public class PostgresDatabase : IDatabase
 {
     private readonly string _connectionString;
-    private readonly string _databaseName;
 
     private NpgsqlConnection? _connection;
 
     public PostgresDatabase(string connectionString, string databaseName)
     {
         _connectionString = connectionString;
-        _databaseName = databaseName;
+        Name = databaseName;
     }
+    
+    public string Name { get; }
 
     [MemberNotNull(nameof(_connection))]
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
+        if (_connection is { State: ConnectionState.Open })
+        {
+            // TODO.PI: handle connecting state?
+            return;
+        }
+        
         var builder = new NpgsqlConnectionStringBuilder(_connectionString)
         {
-            Database = _databaseName
+            Database = Name
         };
 
         _connection = new NpgsqlConnection(builder.ConnectionString);
         await _connection.OpenAsync(cancellationToken);
     }
 
-    public async Task RunScriptAsync(string sql, CancellationToken cancellationToken = default)
+    public async Task RunScriptAsync(string sql, 
+        IReadOnlyList<IDatabaseParameter>? parameters = null,
+        CancellationToken cancellationToken = default)
     {
         if (_connection == null)
         {
             throw new InvalidOperationException("Thou shalt connect first!");
         }
 
-        await using var cmd = _connection.CreateCommand();
-        cmd.CommandText = sql;
+        await using var cmd = PrepareCommand(_connection, sql, parameters);
 
         await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public async Task<Model> ExtractModelAsync(CancellationToken cancellationToken = default)
-    {
-        var model = new Model();
-
-        if (_connection == null)
-        {
-            await ConnectAsync(cancellationToken);
-        }
-
-        await using var cmd = _connection.CreateCommand();
-        cmd.CommandText = "SELECT * FROM information_schema.tables;";
-
-        var tables = new List<Element>();
-
-        await using (var reader = await cmd.ExecuteReaderAsync(cancellationToken))
-        {
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                var schema = reader.GetString("table_schema");
-
-                if (schema is "pg_catalog" or "information_schema")
-                {
-                    continue;
-                }
-
-                var name = reader.GetString("table_name");
-
-                var element = new Element(PostgresElementTypes.SqlTable)
-                {
-                    Name = name,
-                    Relationships =
-                    {
-                        new Relationship(PostgresRelationshipNames.Schema)
-                        {
-                            new Reference(schema)
-                            {
-                                ExternalSource = "BuiltIns"
-                            }
-                        }
-                    }
-                };
-
-                model.Elements.Add(element);
-                tables.Add(element);
-            }
-        }
-
-        foreach (var table in tables)
-        {
-            await ExtractColumnsAsync(table, cancellationToken);
-            await ExtractPrimaryKeyAsync(model, table, cancellationToken);
-        }
-
-        return model;
-    }
-
-    private async Task ExtractPrimaryKeyAsync(Model model, Element table, CancellationToken cancellationToken = default)
+    public async Task<DbDataReader> RunScriptReaderAsync(string sql, IReadOnlyList<IDatabaseParameter>? parameters = null, CancellationToken cancellationToken = default)
     {
         if (_connection == null)
         {
-            return;
+            throw new InvalidOperationException("Thou shalt connect first!");
         }
 
-        var schemaRelationship = table.Relationships.Single(i => i.Name == PostgresRelationshipNames.Schema);
-        // HACK.PI: assume built-in public schema for now
-        var schema = schemaRelationship.Entries.OfType<Reference>().First().Name;
+        await using var cmd = PrepareCommand(_connection, sql, parameters);
 
-        await using var cmd =
-            new NpgsqlCommand(
-                "SELECT * FROM information_schema.table_constraints " +
-                "WHERE table_catalog = @catalog " +
-                "AND table_schema = @schema " +
-                "AND table_name = @name " +
-                "AND constraint_type = 'PRIMARY KEY';",
-                _connection)
-            {
-                Parameters =
-                {
-                    new NpgsqlParameter<string>("@catalog", _databaseName),
-                    new NpgsqlParameter<string>("@schema", schema),
-                    new NpgsqlParameter<string>("@name", table.Name!),
-                }
-            };
-
-        string name, constraintSchema;
-        
-        await using (var reader = await cmd.ExecuteReaderAsync(cancellationToken))
-        {
-            if (!await reader.ReadAsync(cancellationToken))
-            {
-                return; // no PK
-            }
-
-            name = reader.GetString("constraint_name");
-            constraintSchema = reader.GetString("constraint_schema");
-        }
-
-        // TODO.PI: make this code less procedural
-        var constraint = new Element(PostgresElementTypes.SqlPrimaryKeyConstraint)
-        {
-            Name = name,
-            Relationships =
-            {
-                new Relationship(PostgresRelationshipNames.DefiningTable)
-                {
-                    new Reference(table.Name!)
-                }
-            }
-        };
-        model.Elements.Add(constraint);
-
-        var columnSpec = new Relationship(PostgresRelationshipNames.ColumnSpecifications);
-        constraint.Relationships.Add(columnSpec);
-
-        var indexedColumns = new Element(PostgresElementTypes.SqlIndexedColumnSpecification);
-        columnSpec.Entries.Add(indexedColumns);
-
-        await ExtractPrimaryKeyColumnsAsync(constraintSchema, name, table.Name!, indexedColumns, cancellationToken);
-    }
-
-    private async Task ExtractPrimaryKeyColumnsAsync(string constraintSchema, 
-        string constraintName, 
-        string tableName,
-        Element indexedColumns,
-        CancellationToken cancellationToken = default)
-    {
-        if (_connection == null)
-        {
-            return;
-        }
-
-        await using var cmd =
-            new NpgsqlCommand(
-                "SELECT * FROM information_schema.constraint_column_usage " +
-                "WHERE constraint_schema = @schema " +
-                "AND constraint_name = @name;",
-                _connection)
-            {
-                Parameters =
-                {
-                    new NpgsqlParameter<string>("@schema", constraintSchema),
-                    new NpgsqlParameter<string>("@name", constraintName),
-                }
-            };
-
-        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-
-        var columns = new List<string>();
-        
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            columns.Add(reader.GetString("column_name"));
-        }
-
-        if (columns.Count == 1)
-        {
-            indexedColumns.Relationships.Add(new Relationship(PostgresRelationshipNames.Column)
-            {
-                new Reference($"{tableName}.{columns[0]}")
-            });
-            return;
-        }
-
-        throw new NotImplementedException("Handle zero or multiple PK columns");
-    }
-
-    private async Task ExtractColumnsAsync(Element table,
-        CancellationToken cancellationToken = default)
-    {
-        if (_connection == null)
-        {
-            return;
-        }
-
-        var schemaRelationship = table.Relationships.Single(i => i.Name == PostgresRelationshipNames.Schema);
-        // HACK.PI: assume built-in public schema for now
-        var schema = schemaRelationship.Entries.OfType<Reference>().First().Name;
-
-        await using var cmd =
-            new NpgsqlCommand(
-                "SELECT * FROM information_schema.columns " +
-                "WHERE table_catalog = @catalog " +
-                "AND table_schema = @schema " +
-                "AND table_name = @name;",
-                _connection)
-            {
-                Parameters =
-                {
-                    new NpgsqlParameter<string>("@catalog", _databaseName),
-                    new NpgsqlParameter<string>("@schema", schema),
-                    new NpgsqlParameter<string>("@name", table.Name!),
-                }
-            };
-
-        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-
-        var columns = new Relationship(PostgresRelationshipNames.Columns);
-        table.Relationships.Add(columns);
-
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            var name = reader.GetString("column_name");
-            var nullable = reader.GetString("is_nullable") == "YES";
-            var dataType = reader.GetString("data_type");
-            var maxLength = reader.GetFieldValue<int?>("character_maximum_length");
-
-            var typeElement = new Element(PostgresElementTypes.SqlTypeSpecifier)
-            {
-                Relationships =
-                {
-                    new Relationship(PostgresRelationshipNames.Type)
-                    {
-                        Entries =
-                        {
-                            // TODO: support custom types
-                            new Reference(dataType)
-                            {
-                                ExternalSource = "BuiltIns"
-                            }
-                        }
-                    }
-                }
-            };
-
-            if (maxLength.HasValue)
-            {
-                typeElement.Properties.Add(new Property(PostgresPropertyNames.Length, maxLength.Value));
-            }
-
-            var column = new Element(PostgresElementTypes.SqlSimpleColumn)
-            {
-                Name = name,
-                Relationships =
-                {
-                    new Relationship(PostgresRelationshipNames.TypeSpecifier)
-                    {
-                        Entries =
-                        {
-                            typeElement,
-                        }
-                    }
-                }
-            };
-
-            if (!nullable)
-            {
-                column.Properties.Add(new Property(PostgresPropertyNames.IsNullable, false));
-            }
-
-            columns.Entries.Add(column);
-        }
+        return await cmd.ExecuteReaderAsync(cancellationToken);
     }
 
     public async Task DropAsync(CancellationToken cancellationToken = default)
@@ -310,7 +78,7 @@ public class PostgresDatabase : IDatabase
 
         await using var cmd = conn.CreateCommand();
         // HACK.PI: WITH (FORCE) only available in pgsql 13 and later
-        cmd.CommandText = $"DROP DATABASE {_databaseName} WITH (FORCE);";
+        cmd.CommandText = $"DROP DATABASE {Name} WITH (FORCE);";
 
         await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
@@ -320,7 +88,7 @@ public class PostgresDatabase : IDatabase
         foreach (var delta in comparison.Deltas)
         {
             var sql = GenerateScriptForDelta(delta);
-            await RunScriptAsync(sql, cancellationToken);
+            await RunScriptAsync(sql, cancellationToken: cancellationToken);
         }
     }
 
@@ -452,14 +220,32 @@ public class PostgresDatabase : IDatabase
             _ => typeReference.Name,
         };
     }
+    
+    private static NpgsqlCommand PrepareCommand(NpgsqlConnection connection, string sql, IReadOnlyList<IDatabaseParameter>? parameters)
+    {
+        var cmd = connection.CreateCommand();
+        cmd.CommandText = sql;
+
+        if (parameters != null)
+        {
+            foreach (var parameter in parameters)
+            {
+                cmd.Parameters.Add(new NpgsqlParameter(parameter.ParameterName, parameter.ParameterValue));
+            }
+        }
+
+        return cmd;
+    }
 
     public void Dispose()
     {
+        GC.SuppressFinalize(this);
         _connection?.Dispose();
     }
 
     public async ValueTask DisposeAsync()
     {
+        GC.SuppressFinalize(this);
         if (_connection != null)
         {
             await _connection.DisposeAsync();

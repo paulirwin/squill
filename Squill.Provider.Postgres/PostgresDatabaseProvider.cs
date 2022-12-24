@@ -30,6 +30,11 @@ public class PostgresDatabaseProvider : IDatabaseProvider
         return new PostgresDatabase(_connectionString, name);
     }
 
+    public IDatabaseModelBuilder CreateDatabaseModelBuilder(IDatabase database)
+    {
+        return new PostgresDatabaseModelBuilder(database);
+    }
+
     public bool IsDependentElementType(string type)
     {
         return type == PostgresElementTypes.SqlPrimaryKeyConstraint;
