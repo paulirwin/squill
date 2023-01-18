@@ -8,11 +8,17 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Antlr4.Runtime.Standard" Version="4.11.1" />
         <PackageReference Include="Npgsql" Version="7.0.0" />
     </ItemGroup>
     
     <ItemGroup>
       <ProjectReference Include="..\Squill.Core\Squill.Core.csproj" />
     </ItemGroup>
-
+    
+    <ItemGroup>
+      <None Include="AntlrParser\PostgresLexer.g4" />
+      <None Include="AntlrParser\PostgresParser.g4" />
+    </ItemGroup>
+    
 </Project>
