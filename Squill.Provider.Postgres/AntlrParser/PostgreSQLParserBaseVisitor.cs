@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-// Generated from PostgresParser.g4 by ANTLR 4.11.1
+// Generated from PostgreSQLParser.g4 by ANTLR 4.11.1
 
 // Unreachable code detected
 #pragma warning disable 0162
@@ -28,7 +28,7 @@ using IToken = Antlr4.Runtime.IToken;
 using ParserRuleContext = Antlr4.Runtime.ParserRuleContext;
 
 /// <summary>
-/// This class provides an empty implementation of <see cref="IPostgresParserVisitor{Result}"/>,
+/// This class provides an empty implementation of <see cref="IPostgreSQLParserVisitor{Result}"/>,
 /// which can be extended to create a visitor which only needs to handle a subset
 /// of the available methods.
 /// </summary>
@@ -36,9 +36,9 @@ using ParserRuleContext = Antlr4.Runtime.ParserRuleContext;
 [System.CodeDom.Compiler.GeneratedCode("ANTLR", "4.11.1")]
 [System.Diagnostics.DebuggerNonUserCode]
 [System.CLSCompliant(false)]
-public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisitor<Result>, IPostgresParserVisitor<Result> {
+public partial class PostgreSQLParserBaseVisitor<Result> : AbstractParseTreeVisitor<Result>, IPostgreSQLParserVisitor<Result> {
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.root"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.root"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -46,9 +46,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRoot([NotNull] PostgresParser.RootContext context) { return VisitChildren(context); }
+	public virtual Result VisitRoot([NotNull] PostgreSQLParser.RootContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.plsqlroot"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.plsqlroot"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -56,9 +56,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPlsqlroot([NotNull] PostgresParser.PlsqlrootContext context) { return VisitChildren(context); }
+	public virtual Result VisitPlsqlroot([NotNull] PostgreSQLParser.PlsqlrootContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmtblock"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmtblock"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -66,9 +66,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmtblock([NotNull] PostgresParser.StmtblockContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmtblock([NotNull] PostgreSQLParser.StmtblockContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmtmulti"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmtmulti"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -76,9 +76,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmtmulti([NotNull] PostgresParser.StmtmultiContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmtmulti([NotNull] PostgreSQLParser.StmtmultiContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -86,9 +86,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt([NotNull] PostgresParser.StmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt([NotNull] PostgreSQLParser.StmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.plsqlconsolecommand"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.plsqlconsolecommand"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -96,9 +96,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPlsqlconsolecommand([NotNull] PostgresParser.PlsqlconsolecommandContext context) { return VisitChildren(context); }
+	public virtual Result VisitPlsqlconsolecommand([NotNull] PostgreSQLParser.PlsqlconsolecommandContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.callstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.callstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -106,9 +106,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCallstmt([NotNull] PostgresParser.CallstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCallstmt([NotNull] PostgreSQLParser.CallstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createrolestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createrolestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -116,9 +116,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreaterolestmt([NotNull] PostgresParser.CreaterolestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreaterolestmt([NotNull] PostgreSQLParser.CreaterolestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_with"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_with"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -126,9 +126,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_with([NotNull] PostgresParser.Opt_withContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_with([NotNull] PostgreSQLParser.Opt_withContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.optrolelist"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.optrolelist"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -136,9 +136,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOptrolelist([NotNull] PostgresParser.OptrolelistContext context) { return VisitChildren(context); }
+	public virtual Result VisitOptrolelist([NotNull] PostgreSQLParser.OptrolelistContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alteroptrolelist"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alteroptrolelist"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -146,9 +146,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlteroptrolelist([NotNull] PostgresParser.AlteroptrolelistContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlteroptrolelist([NotNull] PostgreSQLParser.AlteroptrolelistContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alteroptroleelem"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alteroptroleelem"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -156,9 +156,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlteroptroleelem([NotNull] PostgresParser.AlteroptroleelemContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlteroptroleelem([NotNull] PostgreSQLParser.AlteroptroleelemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createoptroleelem"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createoptroleelem"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -166,9 +166,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreateoptroleelem([NotNull] PostgresParser.CreateoptroleelemContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreateoptroleelem([NotNull] PostgreSQLParser.CreateoptroleelemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createuserstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createuserstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -176,9 +176,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreateuserstmt([NotNull] PostgresParser.CreateuserstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreateuserstmt([NotNull] PostgreSQLParser.CreateuserstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alterrolestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alterrolestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -186,9 +186,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlterrolestmt([NotNull] PostgresParser.AlterrolestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlterrolestmt([NotNull] PostgreSQLParser.AlterrolestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_in_database"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_in_database"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -196,9 +196,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_in_database([NotNull] PostgresParser.Opt_in_databaseContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_in_database([NotNull] PostgreSQLParser.Opt_in_databaseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alterrolesetstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alterrolesetstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -206,9 +206,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlterrolesetstmt([NotNull] PostgresParser.AlterrolesetstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlterrolesetstmt([NotNull] PostgreSQLParser.AlterrolesetstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.droprolestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.droprolestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -216,9 +216,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDroprolestmt([NotNull] PostgresParser.DroprolestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitDroprolestmt([NotNull] PostgreSQLParser.DroprolestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.creategroupstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.creategroupstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -226,9 +226,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreategroupstmt([NotNull] PostgresParser.CreategroupstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreategroupstmt([NotNull] PostgreSQLParser.CreategroupstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.altergroupstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.altergroupstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -236,9 +236,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAltergroupstmt([NotNull] PostgresParser.AltergroupstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAltergroupstmt([NotNull] PostgreSQLParser.AltergroupstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.add_drop"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.add_drop"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -246,9 +246,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAdd_drop([NotNull] PostgresParser.Add_dropContext context) { return VisitChildren(context); }
+	public virtual Result VisitAdd_drop([NotNull] PostgreSQLParser.Add_dropContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createschemastmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createschemastmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -256,9 +256,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreateschemastmt([NotNull] PostgresParser.CreateschemastmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreateschemastmt([NotNull] PostgreSQLParser.CreateschemastmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.optschemaname"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.optschemaname"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -266,9 +266,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOptschemaname([NotNull] PostgresParser.OptschemanameContext context) { return VisitChildren(context); }
+	public virtual Result VisitOptschemaname([NotNull] PostgreSQLParser.OptschemanameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.optschemaeltlist"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.optschemaeltlist"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -276,9 +276,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOptschemaeltlist([NotNull] PostgresParser.OptschemaeltlistContext context) { return VisitChildren(context); }
+	public virtual Result VisitOptschemaeltlist([NotNull] PostgreSQLParser.OptschemaeltlistContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.schema_stmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.schema_stmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -286,9 +286,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSchema_stmt([NotNull] PostgresParser.Schema_stmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitSchema_stmt([NotNull] PostgreSQLParser.Schema_stmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.variablesetstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.variablesetstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -296,9 +296,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitVariablesetstmt([NotNull] PostgresParser.VariablesetstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitVariablesetstmt([NotNull] PostgreSQLParser.VariablesetstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.set_rest"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.set_rest"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -306,9 +306,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSet_rest([NotNull] PostgresParser.Set_restContext context) { return VisitChildren(context); }
+	public virtual Result VisitSet_rest([NotNull] PostgreSQLParser.Set_restContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.generic_set"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.generic_set"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -316,9 +316,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitGeneric_set([NotNull] PostgresParser.Generic_setContext context) { return VisitChildren(context); }
+	public virtual Result VisitGeneric_set([NotNull] PostgreSQLParser.Generic_setContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.set_rest_more"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.set_rest_more"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -326,9 +326,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSet_rest_more([NotNull] PostgresParser.Set_rest_moreContext context) { return VisitChildren(context); }
+	public virtual Result VisitSet_rest_more([NotNull] PostgreSQLParser.Set_rest_moreContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.var_name"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.var_name"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -336,9 +336,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitVar_name([NotNull] PostgresParser.Var_nameContext context) { return VisitChildren(context); }
+	public virtual Result VisitVar_name([NotNull] PostgreSQLParser.Var_nameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.var_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.var_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -346,9 +346,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitVar_list([NotNull] PostgresParser.Var_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitVar_list([NotNull] PostgreSQLParser.Var_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.var_value"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.var_value"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -356,9 +356,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitVar_value([NotNull] PostgresParser.Var_valueContext context) { return VisitChildren(context); }
+	public virtual Result VisitVar_value([NotNull] PostgreSQLParser.Var_valueContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.iso_level"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.iso_level"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -366,9 +366,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitIso_level([NotNull] PostgresParser.Iso_levelContext context) { return VisitChildren(context); }
+	public virtual Result VisitIso_level([NotNull] PostgreSQLParser.Iso_levelContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_boolean_or_string"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_boolean_or_string"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -376,9 +376,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_boolean_or_string([NotNull] PostgresParser.Opt_boolean_or_stringContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_boolean_or_string([NotNull] PostgreSQLParser.Opt_boolean_or_stringContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.zone_value"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.zone_value"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -386,9 +386,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitZone_value([NotNull] PostgresParser.Zone_valueContext context) { return VisitChildren(context); }
+	public virtual Result VisitZone_value([NotNull] PostgreSQLParser.Zone_valueContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_encoding"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_encoding"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -396,9 +396,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_encoding([NotNull] PostgresParser.Opt_encodingContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_encoding([NotNull] PostgreSQLParser.Opt_encodingContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.nonreservedword_or_sconst"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.nonreservedword_or_sconst"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -406,9 +406,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitNonreservedword_or_sconst([NotNull] PostgresParser.Nonreservedword_or_sconstContext context) { return VisitChildren(context); }
+	public virtual Result VisitNonreservedword_or_sconst([NotNull] PostgreSQLParser.Nonreservedword_or_sconstContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.variableresetstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.variableresetstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -416,9 +416,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitVariableresetstmt([NotNull] PostgresParser.VariableresetstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitVariableresetstmt([NotNull] PostgreSQLParser.VariableresetstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.reset_rest"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.reset_rest"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -426,9 +426,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitReset_rest([NotNull] PostgresParser.Reset_restContext context) { return VisitChildren(context); }
+	public virtual Result VisitReset_rest([NotNull] PostgreSQLParser.Reset_restContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.generic_reset"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.generic_reset"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -436,9 +436,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitGeneric_reset([NotNull] PostgresParser.Generic_resetContext context) { return VisitChildren(context); }
+	public virtual Result VisitGeneric_reset([NotNull] PostgreSQLParser.Generic_resetContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.setresetclause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.setresetclause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -446,9 +446,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSetresetclause([NotNull] PostgresParser.SetresetclauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitSetresetclause([NotNull] PostgreSQLParser.SetresetclauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.functionsetresetclause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.functionsetresetclause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -456,9 +456,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFunctionsetresetclause([NotNull] PostgresParser.FunctionsetresetclauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitFunctionsetresetclause([NotNull] PostgreSQLParser.FunctionsetresetclauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.variableshowstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.variableshowstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -466,9 +466,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitVariableshowstmt([NotNull] PostgresParser.VariableshowstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitVariableshowstmt([NotNull] PostgreSQLParser.VariableshowstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.constraintssetstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.constraintssetstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -476,9 +476,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitConstraintssetstmt([NotNull] PostgresParser.ConstraintssetstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitConstraintssetstmt([NotNull] PostgreSQLParser.ConstraintssetstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.constraints_set_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.constraints_set_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -486,9 +486,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitConstraints_set_list([NotNull] PostgresParser.Constraints_set_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitConstraints_set_list([NotNull] PostgreSQLParser.Constraints_set_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.constraints_set_mode"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.constraints_set_mode"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -496,9 +496,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitConstraints_set_mode([NotNull] PostgresParser.Constraints_set_modeContext context) { return VisitChildren(context); }
+	public virtual Result VisitConstraints_set_mode([NotNull] PostgreSQLParser.Constraints_set_modeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.checkpointstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.checkpointstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -506,9 +506,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCheckpointstmt([NotNull] PostgresParser.CheckpointstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCheckpointstmt([NotNull] PostgreSQLParser.CheckpointstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.discardstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.discardstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -516,9 +516,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDiscardstmt([NotNull] PostgresParser.DiscardstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitDiscardstmt([NotNull] PostgreSQLParser.DiscardstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.altertablestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.altertablestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -526,9 +526,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAltertablestmt([NotNull] PostgresParser.AltertablestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAltertablestmt([NotNull] PostgreSQLParser.AltertablestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alter_table_cmds"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alter_table_cmds"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -536,9 +536,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlter_table_cmds([NotNull] PostgresParser.Alter_table_cmdsContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlter_table_cmds([NotNull] PostgreSQLParser.Alter_table_cmdsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.partition_cmd"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.partition_cmd"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -546,9 +546,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPartition_cmd([NotNull] PostgresParser.Partition_cmdContext context) { return VisitChildren(context); }
+	public virtual Result VisitPartition_cmd([NotNull] PostgreSQLParser.Partition_cmdContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.index_partition_cmd"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.index_partition_cmd"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -556,9 +556,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitIndex_partition_cmd([NotNull] PostgresParser.Index_partition_cmdContext context) { return VisitChildren(context); }
+	public virtual Result VisitIndex_partition_cmd([NotNull] PostgreSQLParser.Index_partition_cmdContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alter_table_cmd"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alter_table_cmd"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -566,9 +566,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlter_table_cmd([NotNull] PostgresParser.Alter_table_cmdContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlter_table_cmd([NotNull] PostgreSQLParser.Alter_table_cmdContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alter_column_default"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alter_column_default"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -576,9 +576,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlter_column_default([NotNull] PostgresParser.Alter_column_defaultContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlter_column_default([NotNull] PostgreSQLParser.Alter_column_defaultContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_drop_behavior"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_drop_behavior"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -586,9 +586,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_drop_behavior([NotNull] PostgresParser.Opt_drop_behaviorContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_drop_behavior([NotNull] PostgreSQLParser.Opt_drop_behaviorContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_collate_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_collate_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -596,9 +596,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_collate_clause([NotNull] PostgresParser.Opt_collate_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_collate_clause([NotNull] PostgreSQLParser.Opt_collate_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alter_using"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alter_using"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -606,9 +606,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlter_using([NotNull] PostgresParser.Alter_usingContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlter_using([NotNull] PostgreSQLParser.Alter_usingContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.replica_identity"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.replica_identity"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -616,9 +616,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitReplica_identity([NotNull] PostgresParser.Replica_identityContext context) { return VisitChildren(context); }
+	public virtual Result VisitReplica_identity([NotNull] PostgreSQLParser.Replica_identityContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.reloptions"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.reloptions"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -626,9 +626,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitReloptions([NotNull] PostgresParser.ReloptionsContext context) { return VisitChildren(context); }
+	public virtual Result VisitReloptions([NotNull] PostgreSQLParser.ReloptionsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_reloptions"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_reloptions"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -636,9 +636,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_reloptions([NotNull] PostgresParser.Opt_reloptionsContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_reloptions([NotNull] PostgreSQLParser.Opt_reloptionsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.reloption_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.reloption_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -646,9 +646,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitReloption_list([NotNull] PostgresParser.Reloption_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitReloption_list([NotNull] PostgreSQLParser.Reloption_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.reloption_elem"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.reloption_elem"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -656,9 +656,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitReloption_elem([NotNull] PostgresParser.Reloption_elemContext context) { return VisitChildren(context); }
+	public virtual Result VisitReloption_elem([NotNull] PostgreSQLParser.Reloption_elemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alter_identity_column_option_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alter_identity_column_option_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -666,9 +666,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlter_identity_column_option_list([NotNull] PostgresParser.Alter_identity_column_option_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlter_identity_column_option_list([NotNull] PostgreSQLParser.Alter_identity_column_option_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alter_identity_column_option"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alter_identity_column_option"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -676,9 +676,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlter_identity_column_option([NotNull] PostgresParser.Alter_identity_column_optionContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlter_identity_column_option([NotNull] PostgreSQLParser.Alter_identity_column_optionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.partitionboundspec"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.partitionboundspec"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -686,9 +686,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPartitionboundspec([NotNull] PostgresParser.PartitionboundspecContext context) { return VisitChildren(context); }
+	public virtual Result VisitPartitionboundspec([NotNull] PostgreSQLParser.PartitionboundspecContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.hash_partbound_elem"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.hash_partbound_elem"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -696,9 +696,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitHash_partbound_elem([NotNull] PostgresParser.Hash_partbound_elemContext context) { return VisitChildren(context); }
+	public virtual Result VisitHash_partbound_elem([NotNull] PostgreSQLParser.Hash_partbound_elemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.hash_partbound"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.hash_partbound"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -706,9 +706,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitHash_partbound([NotNull] PostgresParser.Hash_partboundContext context) { return VisitChildren(context); }
+	public virtual Result VisitHash_partbound([NotNull] PostgreSQLParser.Hash_partboundContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.altercompositetypestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.altercompositetypestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -716,9 +716,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAltercompositetypestmt([NotNull] PostgresParser.AltercompositetypestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAltercompositetypestmt([NotNull] PostgreSQLParser.AltercompositetypestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alter_type_cmds"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alter_type_cmds"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -726,9 +726,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlter_type_cmds([NotNull] PostgresParser.Alter_type_cmdsContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlter_type_cmds([NotNull] PostgreSQLParser.Alter_type_cmdsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alter_type_cmd"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alter_type_cmd"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -736,9 +736,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlter_type_cmd([NotNull] PostgresParser.Alter_type_cmdContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlter_type_cmd([NotNull] PostgreSQLParser.Alter_type_cmdContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.closeportalstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.closeportalstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -746,9 +746,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCloseportalstmt([NotNull] PostgresParser.CloseportalstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCloseportalstmt([NotNull] PostgreSQLParser.CloseportalstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.copystmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.copystmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -756,9 +756,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCopystmt([NotNull] PostgresParser.CopystmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCopystmt([NotNull] PostgreSQLParser.CopystmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.copy_from"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.copy_from"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -766,9 +766,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCopy_from([NotNull] PostgresParser.Copy_fromContext context) { return VisitChildren(context); }
+	public virtual Result VisitCopy_from([NotNull] PostgreSQLParser.Copy_fromContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_program"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_program"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -776,9 +776,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_program([NotNull] PostgresParser.Opt_programContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_program([NotNull] PostgreSQLParser.Opt_programContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.copy_file_name"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.copy_file_name"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -786,9 +786,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCopy_file_name([NotNull] PostgresParser.Copy_file_nameContext context) { return VisitChildren(context); }
+	public virtual Result VisitCopy_file_name([NotNull] PostgreSQLParser.Copy_file_nameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.copy_options"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.copy_options"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -796,9 +796,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCopy_options([NotNull] PostgresParser.Copy_optionsContext context) { return VisitChildren(context); }
+	public virtual Result VisitCopy_options([NotNull] PostgreSQLParser.Copy_optionsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.copy_opt_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.copy_opt_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -806,9 +806,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCopy_opt_list([NotNull] PostgresParser.Copy_opt_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitCopy_opt_list([NotNull] PostgreSQLParser.Copy_opt_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.copy_opt_item"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.copy_opt_item"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -816,9 +816,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCopy_opt_item([NotNull] PostgresParser.Copy_opt_itemContext context) { return VisitChildren(context); }
+	public virtual Result VisitCopy_opt_item([NotNull] PostgreSQLParser.Copy_opt_itemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_binary"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_binary"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -826,9 +826,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_binary([NotNull] PostgresParser.Opt_binaryContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_binary([NotNull] PostgreSQLParser.Opt_binaryContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.copy_delimiter"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.copy_delimiter"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -836,9 +836,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCopy_delimiter([NotNull] PostgresParser.Copy_delimiterContext context) { return VisitChildren(context); }
+	public virtual Result VisitCopy_delimiter([NotNull] PostgreSQLParser.Copy_delimiterContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_using"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_using"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -846,9 +846,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_using([NotNull] PostgresParser.Opt_usingContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_using([NotNull] PostgreSQLParser.Opt_usingContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.copy_generic_opt_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.copy_generic_opt_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -856,9 +856,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCopy_generic_opt_list([NotNull] PostgresParser.Copy_generic_opt_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitCopy_generic_opt_list([NotNull] PostgreSQLParser.Copy_generic_opt_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.copy_generic_opt_elem"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.copy_generic_opt_elem"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -866,9 +866,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCopy_generic_opt_elem([NotNull] PostgresParser.Copy_generic_opt_elemContext context) { return VisitChildren(context); }
+	public virtual Result VisitCopy_generic_opt_elem([NotNull] PostgreSQLParser.Copy_generic_opt_elemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.copy_generic_opt_arg"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.copy_generic_opt_arg"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -876,9 +876,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCopy_generic_opt_arg([NotNull] PostgresParser.Copy_generic_opt_argContext context) { return VisitChildren(context); }
+	public virtual Result VisitCopy_generic_opt_arg([NotNull] PostgreSQLParser.Copy_generic_opt_argContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.copy_generic_opt_arg_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.copy_generic_opt_arg_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -886,9 +886,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCopy_generic_opt_arg_list([NotNull] PostgresParser.Copy_generic_opt_arg_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitCopy_generic_opt_arg_list([NotNull] PostgreSQLParser.Copy_generic_opt_arg_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.copy_generic_opt_arg_list_item"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.copy_generic_opt_arg_list_item"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -896,9 +896,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCopy_generic_opt_arg_list_item([NotNull] PostgresParser.Copy_generic_opt_arg_list_itemContext context) { return VisitChildren(context); }
+	public virtual Result VisitCopy_generic_opt_arg_list_item([NotNull] PostgreSQLParser.Copy_generic_opt_arg_list_itemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -906,9 +906,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreatestmt([NotNull] PostgresParser.CreatestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreatestmt([NotNull] PostgreSQLParser.CreatestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opttemp"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opttemp"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -916,9 +916,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpttemp([NotNull] PostgresParser.OpttempContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpttemp([NotNull] PostgreSQLParser.OpttempContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opttableelementlist"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opttableelementlist"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -926,9 +926,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpttableelementlist([NotNull] PostgresParser.OpttableelementlistContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpttableelementlist([NotNull] PostgreSQLParser.OpttableelementlistContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opttypedtableelementlist"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opttypedtableelementlist"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -936,9 +936,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpttypedtableelementlist([NotNull] PostgresParser.OpttypedtableelementlistContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpttypedtableelementlist([NotNull] PostgreSQLParser.OpttypedtableelementlistContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.tableelementlist"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.tableelementlist"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -946,9 +946,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTableelementlist([NotNull] PostgresParser.TableelementlistContext context) { return VisitChildren(context); }
+	public virtual Result VisitTableelementlist([NotNull] PostgreSQLParser.TableelementlistContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.typedtableelementlist"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.typedtableelementlist"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -956,9 +956,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTypedtableelementlist([NotNull] PostgresParser.TypedtableelementlistContext context) { return VisitChildren(context); }
+	public virtual Result VisitTypedtableelementlist([NotNull] PostgreSQLParser.TypedtableelementlistContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.tableelement"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.tableelement"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -966,9 +966,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTableelement([NotNull] PostgresParser.TableelementContext context) { return VisitChildren(context); }
+	public virtual Result VisitTableelement([NotNull] PostgreSQLParser.TableelementContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.typedtableelement"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.typedtableelement"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -976,9 +976,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTypedtableelement([NotNull] PostgresParser.TypedtableelementContext context) { return VisitChildren(context); }
+	public virtual Result VisitTypedtableelement([NotNull] PostgreSQLParser.TypedtableelementContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.columnDef"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.columnDef"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -986,9 +986,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitColumnDef([NotNull] PostgresParser.ColumnDefContext context) { return VisitChildren(context); }
+	public virtual Result VisitColumnDef([NotNull] PostgreSQLParser.ColumnDefContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.columnOptions"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.columnOptions"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -996,9 +996,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitColumnOptions([NotNull] PostgresParser.ColumnOptionsContext context) { return VisitChildren(context); }
+	public virtual Result VisitColumnOptions([NotNull] PostgreSQLParser.ColumnOptionsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.colquallist"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.colquallist"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1006,9 +1006,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitColquallist([NotNull] PostgresParser.ColquallistContext context) { return VisitChildren(context); }
+	public virtual Result VisitColquallist([NotNull] PostgreSQLParser.ColquallistContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.colconstraint"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.colconstraint"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1016,9 +1016,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitColconstraint([NotNull] PostgresParser.ColconstraintContext context) { return VisitChildren(context); }
+	public virtual Result VisitColconstraint([NotNull] PostgreSQLParser.ColconstraintContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.colconstraintelem"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.colconstraintelem"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1026,9 +1026,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitColconstraintelem([NotNull] PostgresParser.ColconstraintelemContext context) { return VisitChildren(context); }
+	public virtual Result VisitColconstraintelem([NotNull] PostgreSQLParser.ColconstraintelemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.generated_when"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.generated_when"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1036,9 +1036,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitGenerated_when([NotNull] PostgresParser.Generated_whenContext context) { return VisitChildren(context); }
+	public virtual Result VisitGenerated_when([NotNull] PostgreSQLParser.Generated_whenContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.constraintattr"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.constraintattr"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1046,9 +1046,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitConstraintattr([NotNull] PostgresParser.ConstraintattrContext context) { return VisitChildren(context); }
+	public virtual Result VisitConstraintattr([NotNull] PostgreSQLParser.ConstraintattrContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.tablelikeclause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.tablelikeclause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1056,9 +1056,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTablelikeclause([NotNull] PostgresParser.TablelikeclauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitTablelikeclause([NotNull] PostgreSQLParser.TablelikeclauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.tablelikeoptionlist"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.tablelikeoptionlist"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1066,9 +1066,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTablelikeoptionlist([NotNull] PostgresParser.TablelikeoptionlistContext context) { return VisitChildren(context); }
+	public virtual Result VisitTablelikeoptionlist([NotNull] PostgreSQLParser.TablelikeoptionlistContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.tablelikeoption"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.tablelikeoption"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1076,9 +1076,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTablelikeoption([NotNull] PostgresParser.TablelikeoptionContext context) { return VisitChildren(context); }
+	public virtual Result VisitTablelikeoption([NotNull] PostgreSQLParser.TablelikeoptionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.tableconstraint"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.tableconstraint"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1086,9 +1086,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTableconstraint([NotNull] PostgresParser.TableconstraintContext context) { return VisitChildren(context); }
+	public virtual Result VisitTableconstraint([NotNull] PostgreSQLParser.TableconstraintContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.constraintelem"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.constraintelem"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1096,9 +1096,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitConstraintelem([NotNull] PostgresParser.ConstraintelemContext context) { return VisitChildren(context); }
+	public virtual Result VisitConstraintelem([NotNull] PostgreSQLParser.ConstraintelemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_no_inherit"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_no_inherit"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1106,9 +1106,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_no_inherit([NotNull] PostgresParser.Opt_no_inheritContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_no_inherit([NotNull] PostgreSQLParser.Opt_no_inheritContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_column_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_column_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1116,9 +1116,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_column_list([NotNull] PostgresParser.Opt_column_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_column_list([NotNull] PostgreSQLParser.Opt_column_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.columnlist"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.columnlist"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1126,9 +1126,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitColumnlist([NotNull] PostgresParser.ColumnlistContext context) { return VisitChildren(context); }
+	public virtual Result VisitColumnlist([NotNull] PostgreSQLParser.ColumnlistContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.columnElem"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.columnElem"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1136,9 +1136,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitColumnElem([NotNull] PostgresParser.ColumnElemContext context) { return VisitChildren(context); }
+	public virtual Result VisitColumnElem([NotNull] PostgreSQLParser.ColumnElemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_c_include"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_c_include"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1146,9 +1146,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_c_include([NotNull] PostgresParser.Opt_c_includeContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_c_include([NotNull] PostgreSQLParser.Opt_c_includeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.key_match"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.key_match"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1156,9 +1156,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitKey_match([NotNull] PostgresParser.Key_matchContext context) { return VisitChildren(context); }
+	public virtual Result VisitKey_match([NotNull] PostgreSQLParser.Key_matchContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.exclusionconstraintlist"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.exclusionconstraintlist"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1166,9 +1166,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitExclusionconstraintlist([NotNull] PostgresParser.ExclusionconstraintlistContext context) { return VisitChildren(context); }
+	public virtual Result VisitExclusionconstraintlist([NotNull] PostgreSQLParser.ExclusionconstraintlistContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.exclusionconstraintelem"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.exclusionconstraintelem"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1176,9 +1176,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitExclusionconstraintelem([NotNull] PostgresParser.ExclusionconstraintelemContext context) { return VisitChildren(context); }
+	public virtual Result VisitExclusionconstraintelem([NotNull] PostgreSQLParser.ExclusionconstraintelemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.exclusionwhereclause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.exclusionwhereclause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1186,9 +1186,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitExclusionwhereclause([NotNull] PostgresParser.ExclusionwhereclauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitExclusionwhereclause([NotNull] PostgreSQLParser.ExclusionwhereclauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.key_actions"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.key_actions"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1196,9 +1196,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitKey_actions([NotNull] PostgresParser.Key_actionsContext context) { return VisitChildren(context); }
+	public virtual Result VisitKey_actions([NotNull] PostgreSQLParser.Key_actionsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.key_update"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.key_update"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1206,9 +1206,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitKey_update([NotNull] PostgresParser.Key_updateContext context) { return VisitChildren(context); }
+	public virtual Result VisitKey_update([NotNull] PostgreSQLParser.Key_updateContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.key_delete"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.key_delete"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1216,9 +1216,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitKey_delete([NotNull] PostgresParser.Key_deleteContext context) { return VisitChildren(context); }
+	public virtual Result VisitKey_delete([NotNull] PostgreSQLParser.Key_deleteContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.key_action"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.key_action"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1226,9 +1226,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitKey_action([NotNull] PostgresParser.Key_actionContext context) { return VisitChildren(context); }
+	public virtual Result VisitKey_action([NotNull] PostgreSQLParser.Key_actionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.optinherit"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.optinherit"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1236,9 +1236,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOptinherit([NotNull] PostgresParser.OptinheritContext context) { return VisitChildren(context); }
+	public virtual Result VisitOptinherit([NotNull] PostgreSQLParser.OptinheritContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.optpartitionspec"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.optpartitionspec"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1246,9 +1246,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOptpartitionspec([NotNull] PostgresParser.OptpartitionspecContext context) { return VisitChildren(context); }
+	public virtual Result VisitOptpartitionspec([NotNull] PostgreSQLParser.OptpartitionspecContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.partitionspec"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.partitionspec"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1256,9 +1256,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPartitionspec([NotNull] PostgresParser.PartitionspecContext context) { return VisitChildren(context); }
+	public virtual Result VisitPartitionspec([NotNull] PostgreSQLParser.PartitionspecContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.part_params"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.part_params"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1266,9 +1266,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPart_params([NotNull] PostgresParser.Part_paramsContext context) { return VisitChildren(context); }
+	public virtual Result VisitPart_params([NotNull] PostgreSQLParser.Part_paramsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.part_elem"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.part_elem"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1276,9 +1276,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPart_elem([NotNull] PostgresParser.Part_elemContext context) { return VisitChildren(context); }
+	public virtual Result VisitPart_elem([NotNull] PostgreSQLParser.Part_elemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.table_access_method_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.table_access_method_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1286,9 +1286,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTable_access_method_clause([NotNull] PostgresParser.Table_access_method_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitTable_access_method_clause([NotNull] PostgreSQLParser.Table_access_method_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.optwith"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.optwith"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1296,9 +1296,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOptwith([NotNull] PostgresParser.OptwithContext context) { return VisitChildren(context); }
+	public virtual Result VisitOptwith([NotNull] PostgreSQLParser.OptwithContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.oncommitoption"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.oncommitoption"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1306,9 +1306,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOncommitoption([NotNull] PostgresParser.OncommitoptionContext context) { return VisitChildren(context); }
+	public virtual Result VisitOncommitoption([NotNull] PostgreSQLParser.OncommitoptionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opttablespace"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opttablespace"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1316,9 +1316,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpttablespace([NotNull] PostgresParser.OpttablespaceContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpttablespace([NotNull] PostgreSQLParser.OpttablespaceContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.optconstablespace"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.optconstablespace"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1326,9 +1326,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOptconstablespace([NotNull] PostgresParser.OptconstablespaceContext context) { return VisitChildren(context); }
+	public virtual Result VisitOptconstablespace([NotNull] PostgreSQLParser.OptconstablespaceContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.existingindex"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.existingindex"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1336,9 +1336,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitExistingindex([NotNull] PostgresParser.ExistingindexContext context) { return VisitChildren(context); }
+	public virtual Result VisitExistingindex([NotNull] PostgreSQLParser.ExistingindexContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createstatsstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createstatsstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1346,9 +1346,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreatestatsstmt([NotNull] PostgresParser.CreatestatsstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreatestatsstmt([NotNull] PostgreSQLParser.CreatestatsstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alterstatsstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alterstatsstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1356,9 +1356,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlterstatsstmt([NotNull] PostgresParser.AlterstatsstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlterstatsstmt([NotNull] PostgreSQLParser.AlterstatsstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createasstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createasstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1366,9 +1366,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreateasstmt([NotNull] PostgresParser.CreateasstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreateasstmt([NotNull] PostgreSQLParser.CreateasstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.create_as_target"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.create_as_target"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1376,9 +1376,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreate_as_target([NotNull] PostgresParser.Create_as_targetContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreate_as_target([NotNull] PostgreSQLParser.Create_as_targetContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_with_data"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_with_data"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1386,9 +1386,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_with_data([NotNull] PostgresParser.Opt_with_dataContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_with_data([NotNull] PostgreSQLParser.Opt_with_dataContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.creatematviewstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.creatematviewstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1396,9 +1396,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreatematviewstmt([NotNull] PostgresParser.CreatematviewstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreatematviewstmt([NotNull] PostgreSQLParser.CreatematviewstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.create_mv_target"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.create_mv_target"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1406,9 +1406,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreate_mv_target([NotNull] PostgresParser.Create_mv_targetContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreate_mv_target([NotNull] PostgreSQLParser.Create_mv_targetContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.optnolog"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.optnolog"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1416,9 +1416,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOptnolog([NotNull] PostgresParser.OptnologContext context) { return VisitChildren(context); }
+	public virtual Result VisitOptnolog([NotNull] PostgreSQLParser.OptnologContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.refreshmatviewstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.refreshmatviewstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1426,9 +1426,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRefreshmatviewstmt([NotNull] PostgresParser.RefreshmatviewstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitRefreshmatviewstmt([NotNull] PostgreSQLParser.RefreshmatviewstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createseqstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createseqstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1436,9 +1436,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreateseqstmt([NotNull] PostgresParser.CreateseqstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreateseqstmt([NotNull] PostgreSQLParser.CreateseqstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alterseqstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alterseqstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1446,9 +1446,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlterseqstmt([NotNull] PostgresParser.AlterseqstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlterseqstmt([NotNull] PostgreSQLParser.AlterseqstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.optseqoptlist"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.optseqoptlist"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1456,9 +1456,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOptseqoptlist([NotNull] PostgresParser.OptseqoptlistContext context) { return VisitChildren(context); }
+	public virtual Result VisitOptseqoptlist([NotNull] PostgreSQLParser.OptseqoptlistContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.optparenthesizedseqoptlist"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.optparenthesizedseqoptlist"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1466,9 +1466,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOptparenthesizedseqoptlist([NotNull] PostgresParser.OptparenthesizedseqoptlistContext context) { return VisitChildren(context); }
+	public virtual Result VisitOptparenthesizedseqoptlist([NotNull] PostgreSQLParser.OptparenthesizedseqoptlistContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.seqoptlist"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.seqoptlist"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1476,9 +1476,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSeqoptlist([NotNull] PostgresParser.SeqoptlistContext context) { return VisitChildren(context); }
+	public virtual Result VisitSeqoptlist([NotNull] PostgreSQLParser.SeqoptlistContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.seqoptelem"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.seqoptelem"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1486,9 +1486,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSeqoptelem([NotNull] PostgresParser.SeqoptelemContext context) { return VisitChildren(context); }
+	public virtual Result VisitSeqoptelem([NotNull] PostgreSQLParser.SeqoptelemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_by"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_by"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1496,9 +1496,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_by([NotNull] PostgresParser.Opt_byContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_by([NotNull] PostgreSQLParser.Opt_byContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.numericonly"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.numericonly"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1506,9 +1506,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitNumericonly([NotNull] PostgresParser.NumericonlyContext context) { return VisitChildren(context); }
+	public virtual Result VisitNumericonly([NotNull] PostgreSQLParser.NumericonlyContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.numericonly_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.numericonly_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1516,9 +1516,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitNumericonly_list([NotNull] PostgresParser.Numericonly_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitNumericonly_list([NotNull] PostgreSQLParser.Numericonly_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createplangstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createplangstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1526,9 +1526,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreateplangstmt([NotNull] PostgresParser.CreateplangstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreateplangstmt([NotNull] PostgreSQLParser.CreateplangstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_trusted"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_trusted"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1536,9 +1536,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_trusted([NotNull] PostgresParser.Opt_trustedContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_trusted([NotNull] PostgreSQLParser.Opt_trustedContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.handler_name"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.handler_name"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1546,9 +1546,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitHandler_name([NotNull] PostgresParser.Handler_nameContext context) { return VisitChildren(context); }
+	public virtual Result VisitHandler_name([NotNull] PostgreSQLParser.Handler_nameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_inline_handler"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_inline_handler"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1556,9 +1556,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_inline_handler([NotNull] PostgresParser.Opt_inline_handlerContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_inline_handler([NotNull] PostgreSQLParser.Opt_inline_handlerContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.validator_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.validator_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1566,9 +1566,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitValidator_clause([NotNull] PostgresParser.Validator_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitValidator_clause([NotNull] PostgreSQLParser.Validator_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_validator"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_validator"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1576,9 +1576,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_validator([NotNull] PostgresParser.Opt_validatorContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_validator([NotNull] PostgreSQLParser.Opt_validatorContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_procedural"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_procedural"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1586,9 +1586,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_procedural([NotNull] PostgresParser.Opt_proceduralContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_procedural([NotNull] PostgreSQLParser.Opt_proceduralContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createtablespacestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createtablespacestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1596,9 +1596,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreatetablespacestmt([NotNull] PostgresParser.CreatetablespacestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreatetablespacestmt([NotNull] PostgreSQLParser.CreatetablespacestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opttablespaceowner"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opttablespaceowner"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1606,9 +1606,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpttablespaceowner([NotNull] PostgresParser.OpttablespaceownerContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpttablespaceowner([NotNull] PostgreSQLParser.OpttablespaceownerContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.droptablespacestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.droptablespacestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1616,9 +1616,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDroptablespacestmt([NotNull] PostgresParser.DroptablespacestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitDroptablespacestmt([NotNull] PostgreSQLParser.DroptablespacestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createextensionstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createextensionstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1626,9 +1626,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreateextensionstmt([NotNull] PostgresParser.CreateextensionstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreateextensionstmt([NotNull] PostgreSQLParser.CreateextensionstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.create_extension_opt_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.create_extension_opt_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1636,9 +1636,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreate_extension_opt_list([NotNull] PostgresParser.Create_extension_opt_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreate_extension_opt_list([NotNull] PostgreSQLParser.Create_extension_opt_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.create_extension_opt_item"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.create_extension_opt_item"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1646,9 +1646,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreate_extension_opt_item([NotNull] PostgresParser.Create_extension_opt_itemContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreate_extension_opt_item([NotNull] PostgreSQLParser.Create_extension_opt_itemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alterextensionstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alterextensionstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1656,9 +1656,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlterextensionstmt([NotNull] PostgresParser.AlterextensionstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlterextensionstmt([NotNull] PostgreSQLParser.AlterextensionstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alter_extension_opt_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alter_extension_opt_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1666,9 +1666,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlter_extension_opt_list([NotNull] PostgresParser.Alter_extension_opt_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlter_extension_opt_list([NotNull] PostgreSQLParser.Alter_extension_opt_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alter_extension_opt_item"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alter_extension_opt_item"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1676,9 +1676,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlter_extension_opt_item([NotNull] PostgresParser.Alter_extension_opt_itemContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlter_extension_opt_item([NotNull] PostgreSQLParser.Alter_extension_opt_itemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alterextensioncontentsstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alterextensioncontentsstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1686,9 +1686,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlterextensioncontentsstmt([NotNull] PostgresParser.AlterextensioncontentsstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlterextensioncontentsstmt([NotNull] PostgreSQLParser.AlterextensioncontentsstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createfdwstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createfdwstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1696,9 +1696,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreatefdwstmt([NotNull] PostgresParser.CreatefdwstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreatefdwstmt([NotNull] PostgreSQLParser.CreatefdwstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.fdw_option"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.fdw_option"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1706,9 +1706,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFdw_option([NotNull] PostgresParser.Fdw_optionContext context) { return VisitChildren(context); }
+	public virtual Result VisitFdw_option([NotNull] PostgreSQLParser.Fdw_optionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.fdw_options"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.fdw_options"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1716,9 +1716,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFdw_options([NotNull] PostgresParser.Fdw_optionsContext context) { return VisitChildren(context); }
+	public virtual Result VisitFdw_options([NotNull] PostgreSQLParser.Fdw_optionsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_fdw_options"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_fdw_options"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1726,9 +1726,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_fdw_options([NotNull] PostgresParser.Opt_fdw_optionsContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_fdw_options([NotNull] PostgreSQLParser.Opt_fdw_optionsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alterfdwstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alterfdwstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1736,9 +1736,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlterfdwstmt([NotNull] PostgresParser.AlterfdwstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlterfdwstmt([NotNull] PostgreSQLParser.AlterfdwstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.create_generic_options"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.create_generic_options"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1746,9 +1746,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreate_generic_options([NotNull] PostgresParser.Create_generic_optionsContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreate_generic_options([NotNull] PostgreSQLParser.Create_generic_optionsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.generic_option_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.generic_option_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1756,9 +1756,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitGeneric_option_list([NotNull] PostgresParser.Generic_option_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitGeneric_option_list([NotNull] PostgreSQLParser.Generic_option_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alter_generic_options"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alter_generic_options"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1766,9 +1766,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlter_generic_options([NotNull] PostgresParser.Alter_generic_optionsContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlter_generic_options([NotNull] PostgreSQLParser.Alter_generic_optionsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alter_generic_option_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alter_generic_option_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1776,9 +1776,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlter_generic_option_list([NotNull] PostgresParser.Alter_generic_option_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlter_generic_option_list([NotNull] PostgreSQLParser.Alter_generic_option_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alter_generic_option_elem"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alter_generic_option_elem"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1786,9 +1786,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlter_generic_option_elem([NotNull] PostgresParser.Alter_generic_option_elemContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlter_generic_option_elem([NotNull] PostgreSQLParser.Alter_generic_option_elemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.generic_option_elem"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.generic_option_elem"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1796,9 +1796,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitGeneric_option_elem([NotNull] PostgresParser.Generic_option_elemContext context) { return VisitChildren(context); }
+	public virtual Result VisitGeneric_option_elem([NotNull] PostgreSQLParser.Generic_option_elemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.generic_option_name"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.generic_option_name"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1806,9 +1806,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitGeneric_option_name([NotNull] PostgresParser.Generic_option_nameContext context) { return VisitChildren(context); }
+	public virtual Result VisitGeneric_option_name([NotNull] PostgreSQLParser.Generic_option_nameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.generic_option_arg"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.generic_option_arg"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1816,9 +1816,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitGeneric_option_arg([NotNull] PostgresParser.Generic_option_argContext context) { return VisitChildren(context); }
+	public virtual Result VisitGeneric_option_arg([NotNull] PostgreSQLParser.Generic_option_argContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createforeignserverstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createforeignserverstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1826,9 +1826,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreateforeignserverstmt([NotNull] PostgresParser.CreateforeignserverstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreateforeignserverstmt([NotNull] PostgreSQLParser.CreateforeignserverstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_type"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_type"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1836,9 +1836,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_type([NotNull] PostgresParser.Opt_typeContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_type([NotNull] PostgreSQLParser.Opt_typeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.foreign_server_version"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.foreign_server_version"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1846,9 +1846,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitForeign_server_version([NotNull] PostgresParser.Foreign_server_versionContext context) { return VisitChildren(context); }
+	public virtual Result VisitForeign_server_version([NotNull] PostgreSQLParser.Foreign_server_versionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_foreign_server_version"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_foreign_server_version"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1856,9 +1856,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_foreign_server_version([NotNull] PostgresParser.Opt_foreign_server_versionContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_foreign_server_version([NotNull] PostgreSQLParser.Opt_foreign_server_versionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alterforeignserverstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alterforeignserverstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1866,9 +1866,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlterforeignserverstmt([NotNull] PostgresParser.AlterforeignserverstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlterforeignserverstmt([NotNull] PostgreSQLParser.AlterforeignserverstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createforeigntablestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createforeigntablestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1876,9 +1876,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreateforeigntablestmt([NotNull] PostgresParser.CreateforeigntablestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreateforeigntablestmt([NotNull] PostgreSQLParser.CreateforeigntablestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.importforeignschemastmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.importforeignschemastmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1886,9 +1886,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitImportforeignschemastmt([NotNull] PostgresParser.ImportforeignschemastmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitImportforeignschemastmt([NotNull] PostgreSQLParser.ImportforeignschemastmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.import_qualification_type"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.import_qualification_type"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1896,9 +1896,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitImport_qualification_type([NotNull] PostgresParser.Import_qualification_typeContext context) { return VisitChildren(context); }
+	public virtual Result VisitImport_qualification_type([NotNull] PostgreSQLParser.Import_qualification_typeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.import_qualification"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.import_qualification"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1906,9 +1906,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitImport_qualification([NotNull] PostgresParser.Import_qualificationContext context) { return VisitChildren(context); }
+	public virtual Result VisitImport_qualification([NotNull] PostgreSQLParser.Import_qualificationContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createusermappingstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createusermappingstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1916,9 +1916,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreateusermappingstmt([NotNull] PostgresParser.CreateusermappingstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreateusermappingstmt([NotNull] PostgreSQLParser.CreateusermappingstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.auth_ident"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.auth_ident"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1926,9 +1926,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAuth_ident([NotNull] PostgresParser.Auth_identContext context) { return VisitChildren(context); }
+	public virtual Result VisitAuth_ident([NotNull] PostgreSQLParser.Auth_identContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.dropusermappingstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.dropusermappingstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1936,9 +1936,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDropusermappingstmt([NotNull] PostgresParser.DropusermappingstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitDropusermappingstmt([NotNull] PostgreSQLParser.DropusermappingstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alterusermappingstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alterusermappingstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1946,9 +1946,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlterusermappingstmt([NotNull] PostgresParser.AlterusermappingstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlterusermappingstmt([NotNull] PostgreSQLParser.AlterusermappingstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createpolicystmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createpolicystmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1956,9 +1956,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreatepolicystmt([NotNull] PostgresParser.CreatepolicystmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreatepolicystmt([NotNull] PostgreSQLParser.CreatepolicystmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alterpolicystmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alterpolicystmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1966,9 +1966,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlterpolicystmt([NotNull] PostgresParser.AlterpolicystmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlterpolicystmt([NotNull] PostgreSQLParser.AlterpolicystmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.rowsecurityoptionalexpr"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.rowsecurityoptionalexpr"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1976,9 +1976,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRowsecurityoptionalexpr([NotNull] PostgresParser.RowsecurityoptionalexprContext context) { return VisitChildren(context); }
+	public virtual Result VisitRowsecurityoptionalexpr([NotNull] PostgreSQLParser.RowsecurityoptionalexprContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.rowsecurityoptionalwithcheck"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.rowsecurityoptionalwithcheck"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1986,9 +1986,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRowsecurityoptionalwithcheck([NotNull] PostgresParser.RowsecurityoptionalwithcheckContext context) { return VisitChildren(context); }
+	public virtual Result VisitRowsecurityoptionalwithcheck([NotNull] PostgreSQLParser.RowsecurityoptionalwithcheckContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.rowsecuritydefaulttorole"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.rowsecuritydefaulttorole"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -1996,9 +1996,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRowsecuritydefaulttorole([NotNull] PostgresParser.RowsecuritydefaulttoroleContext context) { return VisitChildren(context); }
+	public virtual Result VisitRowsecuritydefaulttorole([NotNull] PostgreSQLParser.RowsecuritydefaulttoroleContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.rowsecurityoptionaltorole"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.rowsecurityoptionaltorole"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2006,9 +2006,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRowsecurityoptionaltorole([NotNull] PostgresParser.RowsecurityoptionaltoroleContext context) { return VisitChildren(context); }
+	public virtual Result VisitRowsecurityoptionaltorole([NotNull] PostgreSQLParser.RowsecurityoptionaltoroleContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.rowsecuritydefaultpermissive"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.rowsecuritydefaultpermissive"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2016,9 +2016,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRowsecuritydefaultpermissive([NotNull] PostgresParser.RowsecuritydefaultpermissiveContext context) { return VisitChildren(context); }
+	public virtual Result VisitRowsecuritydefaultpermissive([NotNull] PostgreSQLParser.RowsecuritydefaultpermissiveContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.rowsecuritydefaultforcmd"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.rowsecuritydefaultforcmd"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2026,9 +2026,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRowsecuritydefaultforcmd([NotNull] PostgresParser.RowsecuritydefaultforcmdContext context) { return VisitChildren(context); }
+	public virtual Result VisitRowsecuritydefaultforcmd([NotNull] PostgreSQLParser.RowsecuritydefaultforcmdContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.row_security_cmd"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.row_security_cmd"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2036,9 +2036,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRow_security_cmd([NotNull] PostgresParser.Row_security_cmdContext context) { return VisitChildren(context); }
+	public virtual Result VisitRow_security_cmd([NotNull] PostgreSQLParser.Row_security_cmdContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createamstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createamstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2046,9 +2046,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreateamstmt([NotNull] PostgresParser.CreateamstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreateamstmt([NotNull] PostgreSQLParser.CreateamstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.am_type"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.am_type"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2056,9 +2056,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAm_type([NotNull] PostgresParser.Am_typeContext context) { return VisitChildren(context); }
+	public virtual Result VisitAm_type([NotNull] PostgreSQLParser.Am_typeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createtrigstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createtrigstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2066,9 +2066,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreatetrigstmt([NotNull] PostgresParser.CreatetrigstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreatetrigstmt([NotNull] PostgreSQLParser.CreatetrigstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.triggeractiontime"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.triggeractiontime"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2076,9 +2076,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTriggeractiontime([NotNull] PostgresParser.TriggeractiontimeContext context) { return VisitChildren(context); }
+	public virtual Result VisitTriggeractiontime([NotNull] PostgreSQLParser.TriggeractiontimeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.triggerevents"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.triggerevents"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2086,9 +2086,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTriggerevents([NotNull] PostgresParser.TriggereventsContext context) { return VisitChildren(context); }
+	public virtual Result VisitTriggerevents([NotNull] PostgreSQLParser.TriggereventsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.triggeroneevent"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.triggeroneevent"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2096,9 +2096,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTriggeroneevent([NotNull] PostgresParser.TriggeroneeventContext context) { return VisitChildren(context); }
+	public virtual Result VisitTriggeroneevent([NotNull] PostgreSQLParser.TriggeroneeventContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.triggerreferencing"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.triggerreferencing"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2106,9 +2106,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTriggerreferencing([NotNull] PostgresParser.TriggerreferencingContext context) { return VisitChildren(context); }
+	public virtual Result VisitTriggerreferencing([NotNull] PostgreSQLParser.TriggerreferencingContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.triggertransitions"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.triggertransitions"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2116,9 +2116,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTriggertransitions([NotNull] PostgresParser.TriggertransitionsContext context) { return VisitChildren(context); }
+	public virtual Result VisitTriggertransitions([NotNull] PostgreSQLParser.TriggertransitionsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.triggertransition"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.triggertransition"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2126,9 +2126,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTriggertransition([NotNull] PostgresParser.TriggertransitionContext context) { return VisitChildren(context); }
+	public virtual Result VisitTriggertransition([NotNull] PostgreSQLParser.TriggertransitionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.transitionoldornew"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.transitionoldornew"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2136,9 +2136,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTransitionoldornew([NotNull] PostgresParser.TransitionoldornewContext context) { return VisitChildren(context); }
+	public virtual Result VisitTransitionoldornew([NotNull] PostgreSQLParser.TransitionoldornewContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.transitionrowortable"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.transitionrowortable"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2146,9 +2146,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTransitionrowortable([NotNull] PostgresParser.TransitionrowortableContext context) { return VisitChildren(context); }
+	public virtual Result VisitTransitionrowortable([NotNull] PostgreSQLParser.TransitionrowortableContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.transitionrelname"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.transitionrelname"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2156,9 +2156,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTransitionrelname([NotNull] PostgresParser.TransitionrelnameContext context) { return VisitChildren(context); }
+	public virtual Result VisitTransitionrelname([NotNull] PostgreSQLParser.TransitionrelnameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.triggerforspec"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.triggerforspec"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2166,9 +2166,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTriggerforspec([NotNull] PostgresParser.TriggerforspecContext context) { return VisitChildren(context); }
+	public virtual Result VisitTriggerforspec([NotNull] PostgreSQLParser.TriggerforspecContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.triggerforopteach"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.triggerforopteach"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2176,9 +2176,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTriggerforopteach([NotNull] PostgresParser.TriggerforopteachContext context) { return VisitChildren(context); }
+	public virtual Result VisitTriggerforopteach([NotNull] PostgreSQLParser.TriggerforopteachContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.triggerfortype"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.triggerfortype"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2186,9 +2186,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTriggerfortype([NotNull] PostgresParser.TriggerfortypeContext context) { return VisitChildren(context); }
+	public virtual Result VisitTriggerfortype([NotNull] PostgreSQLParser.TriggerfortypeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.triggerwhen"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.triggerwhen"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2196,9 +2196,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTriggerwhen([NotNull] PostgresParser.TriggerwhenContext context) { return VisitChildren(context); }
+	public virtual Result VisitTriggerwhen([NotNull] PostgreSQLParser.TriggerwhenContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.function_or_procedure"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.function_or_procedure"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2206,9 +2206,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFunction_or_procedure([NotNull] PostgresParser.Function_or_procedureContext context) { return VisitChildren(context); }
+	public virtual Result VisitFunction_or_procedure([NotNull] PostgreSQLParser.Function_or_procedureContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.triggerfuncargs"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.triggerfuncargs"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2216,9 +2216,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTriggerfuncargs([NotNull] PostgresParser.TriggerfuncargsContext context) { return VisitChildren(context); }
+	public virtual Result VisitTriggerfuncargs([NotNull] PostgreSQLParser.TriggerfuncargsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.triggerfuncarg"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.triggerfuncarg"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2226,9 +2226,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTriggerfuncarg([NotNull] PostgresParser.TriggerfuncargContext context) { return VisitChildren(context); }
+	public virtual Result VisitTriggerfuncarg([NotNull] PostgreSQLParser.TriggerfuncargContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.optconstrfromtable"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.optconstrfromtable"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2236,9 +2236,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOptconstrfromtable([NotNull] PostgresParser.OptconstrfromtableContext context) { return VisitChildren(context); }
+	public virtual Result VisitOptconstrfromtable([NotNull] PostgreSQLParser.OptconstrfromtableContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.constraintattributespec"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.constraintattributespec"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2246,9 +2246,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitConstraintattributespec([NotNull] PostgresParser.ConstraintattributespecContext context) { return VisitChildren(context); }
+	public virtual Result VisitConstraintattributespec([NotNull] PostgreSQLParser.ConstraintattributespecContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.constraintattributeElem"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.constraintattributeElem"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2256,9 +2256,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitConstraintattributeElem([NotNull] PostgresParser.ConstraintattributeElemContext context) { return VisitChildren(context); }
+	public virtual Result VisitConstraintattributeElem([NotNull] PostgreSQLParser.ConstraintattributeElemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createeventtrigstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createeventtrigstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2266,9 +2266,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreateeventtrigstmt([NotNull] PostgresParser.CreateeventtrigstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreateeventtrigstmt([NotNull] PostgreSQLParser.CreateeventtrigstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.event_trigger_when_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.event_trigger_when_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2276,9 +2276,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitEvent_trigger_when_list([NotNull] PostgresParser.Event_trigger_when_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitEvent_trigger_when_list([NotNull] PostgreSQLParser.Event_trigger_when_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.event_trigger_when_item"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.event_trigger_when_item"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2286,9 +2286,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitEvent_trigger_when_item([NotNull] PostgresParser.Event_trigger_when_itemContext context) { return VisitChildren(context); }
+	public virtual Result VisitEvent_trigger_when_item([NotNull] PostgreSQLParser.Event_trigger_when_itemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.event_trigger_value_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.event_trigger_value_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2296,9 +2296,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitEvent_trigger_value_list([NotNull] PostgresParser.Event_trigger_value_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitEvent_trigger_value_list([NotNull] PostgreSQLParser.Event_trigger_value_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.altereventtrigstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.altereventtrigstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2306,9 +2306,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAltereventtrigstmt([NotNull] PostgresParser.AltereventtrigstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAltereventtrigstmt([NotNull] PostgreSQLParser.AltereventtrigstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.enable_trigger"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.enable_trigger"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2316,9 +2316,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitEnable_trigger([NotNull] PostgresParser.Enable_triggerContext context) { return VisitChildren(context); }
+	public virtual Result VisitEnable_trigger([NotNull] PostgreSQLParser.Enable_triggerContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createassertionstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createassertionstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2326,9 +2326,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreateassertionstmt([NotNull] PostgresParser.CreateassertionstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreateassertionstmt([NotNull] PostgreSQLParser.CreateassertionstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.definestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.definestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2336,9 +2336,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDefinestmt([NotNull] PostgresParser.DefinestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitDefinestmt([NotNull] PostgreSQLParser.DefinestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.definition"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.definition"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2346,9 +2346,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDefinition([NotNull] PostgresParser.DefinitionContext context) { return VisitChildren(context); }
+	public virtual Result VisitDefinition([NotNull] PostgreSQLParser.DefinitionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.def_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.def_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2356,9 +2356,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDef_list([NotNull] PostgresParser.Def_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitDef_list([NotNull] PostgreSQLParser.Def_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.def_elem"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.def_elem"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2366,9 +2366,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDef_elem([NotNull] PostgresParser.Def_elemContext context) { return VisitChildren(context); }
+	public virtual Result VisitDef_elem([NotNull] PostgreSQLParser.Def_elemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.def_arg"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.def_arg"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2376,9 +2376,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDef_arg([NotNull] PostgresParser.Def_argContext context) { return VisitChildren(context); }
+	public virtual Result VisitDef_arg([NotNull] PostgreSQLParser.Def_argContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.old_aggr_definition"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.old_aggr_definition"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2386,9 +2386,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOld_aggr_definition([NotNull] PostgresParser.Old_aggr_definitionContext context) { return VisitChildren(context); }
+	public virtual Result VisitOld_aggr_definition([NotNull] PostgreSQLParser.Old_aggr_definitionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.old_aggr_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.old_aggr_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2396,9 +2396,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOld_aggr_list([NotNull] PostgresParser.Old_aggr_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitOld_aggr_list([NotNull] PostgreSQLParser.Old_aggr_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.old_aggr_elem"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.old_aggr_elem"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2406,9 +2406,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOld_aggr_elem([NotNull] PostgresParser.Old_aggr_elemContext context) { return VisitChildren(context); }
+	public virtual Result VisitOld_aggr_elem([NotNull] PostgreSQLParser.Old_aggr_elemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_enum_val_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_enum_val_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2416,9 +2416,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_enum_val_list([NotNull] PostgresParser.Opt_enum_val_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_enum_val_list([NotNull] PostgreSQLParser.Opt_enum_val_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.enum_val_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.enum_val_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2426,9 +2426,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitEnum_val_list([NotNull] PostgresParser.Enum_val_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitEnum_val_list([NotNull] PostgreSQLParser.Enum_val_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alterenumstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alterenumstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2436,9 +2436,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlterenumstmt([NotNull] PostgresParser.AlterenumstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlterenumstmt([NotNull] PostgreSQLParser.AlterenumstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_if_not_exists"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_if_not_exists"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2446,9 +2446,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_if_not_exists([NotNull] PostgresParser.Opt_if_not_existsContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_if_not_exists([NotNull] PostgreSQLParser.Opt_if_not_existsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createopclassstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createopclassstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2456,9 +2456,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreateopclassstmt([NotNull] PostgresParser.CreateopclassstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreateopclassstmt([NotNull] PostgreSQLParser.CreateopclassstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opclass_item_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opclass_item_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2466,9 +2466,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpclass_item_list([NotNull] PostgresParser.Opclass_item_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpclass_item_list([NotNull] PostgreSQLParser.Opclass_item_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opclass_item"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opclass_item"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2476,9 +2476,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpclass_item([NotNull] PostgresParser.Opclass_itemContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpclass_item([NotNull] PostgreSQLParser.Opclass_itemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_default"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_default"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2486,9 +2486,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_default([NotNull] PostgresParser.Opt_defaultContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_default([NotNull] PostgreSQLParser.Opt_defaultContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_opfamily"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_opfamily"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2496,9 +2496,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_opfamily([NotNull] PostgresParser.Opt_opfamilyContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_opfamily([NotNull] PostgreSQLParser.Opt_opfamilyContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opclass_purpose"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opclass_purpose"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2506,9 +2506,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpclass_purpose([NotNull] PostgresParser.Opclass_purposeContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpclass_purpose([NotNull] PostgreSQLParser.Opclass_purposeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_recheck"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_recheck"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2516,9 +2516,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_recheck([NotNull] PostgresParser.Opt_recheckContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_recheck([NotNull] PostgreSQLParser.Opt_recheckContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createopfamilystmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createopfamilystmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2526,9 +2526,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreateopfamilystmt([NotNull] PostgresParser.CreateopfamilystmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreateopfamilystmt([NotNull] PostgreSQLParser.CreateopfamilystmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alteropfamilystmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alteropfamilystmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2536,9 +2536,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlteropfamilystmt([NotNull] PostgresParser.AlteropfamilystmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlteropfamilystmt([NotNull] PostgreSQLParser.AlteropfamilystmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opclass_drop_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opclass_drop_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2546,9 +2546,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpclass_drop_list([NotNull] PostgresParser.Opclass_drop_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpclass_drop_list([NotNull] PostgreSQLParser.Opclass_drop_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opclass_drop"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opclass_drop"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2556,9 +2556,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpclass_drop([NotNull] PostgresParser.Opclass_dropContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpclass_drop([NotNull] PostgreSQLParser.Opclass_dropContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.dropopclassstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.dropopclassstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2566,9 +2566,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDropopclassstmt([NotNull] PostgresParser.DropopclassstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitDropopclassstmt([NotNull] PostgreSQLParser.DropopclassstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.dropopfamilystmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.dropopfamilystmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2576,9 +2576,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDropopfamilystmt([NotNull] PostgresParser.DropopfamilystmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitDropopfamilystmt([NotNull] PostgreSQLParser.DropopfamilystmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.dropownedstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.dropownedstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2586,9 +2586,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDropownedstmt([NotNull] PostgresParser.DropownedstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitDropownedstmt([NotNull] PostgreSQLParser.DropownedstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.reassignownedstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.reassignownedstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2596,9 +2596,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitReassignownedstmt([NotNull] PostgresParser.ReassignownedstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitReassignownedstmt([NotNull] PostgreSQLParser.ReassignownedstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.dropstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.dropstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2606,9 +2606,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDropstmt([NotNull] PostgresParser.DropstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitDropstmt([NotNull] PostgreSQLParser.DropstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.object_type_any_name"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.object_type_any_name"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2616,9 +2616,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitObject_type_any_name([NotNull] PostgresParser.Object_type_any_nameContext context) { return VisitChildren(context); }
+	public virtual Result VisitObject_type_any_name([NotNull] PostgreSQLParser.Object_type_any_nameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.object_type_name"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.object_type_name"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2626,9 +2626,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitObject_type_name([NotNull] PostgresParser.Object_type_nameContext context) { return VisitChildren(context); }
+	public virtual Result VisitObject_type_name([NotNull] PostgreSQLParser.Object_type_nameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.drop_type_name"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.drop_type_name"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2636,9 +2636,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDrop_type_name([NotNull] PostgresParser.Drop_type_nameContext context) { return VisitChildren(context); }
+	public virtual Result VisitDrop_type_name([NotNull] PostgreSQLParser.Drop_type_nameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.object_type_name_on_any_name"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.object_type_name_on_any_name"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2646,9 +2646,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitObject_type_name_on_any_name([NotNull] PostgresParser.Object_type_name_on_any_nameContext context) { return VisitChildren(context); }
+	public virtual Result VisitObject_type_name_on_any_name([NotNull] PostgreSQLParser.Object_type_name_on_any_nameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.any_name_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.any_name_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2656,9 +2656,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAny_name_list([NotNull] PostgresParser.Any_name_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitAny_name_list([NotNull] PostgreSQLParser.Any_name_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.any_name"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.any_name"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2666,9 +2666,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAny_name([NotNull] PostgresParser.Any_nameContext context) { return VisitChildren(context); }
+	public virtual Result VisitAny_name([NotNull] PostgreSQLParser.Any_nameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.attrs"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.attrs"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2676,9 +2676,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAttrs([NotNull] PostgresParser.AttrsContext context) { return VisitChildren(context); }
+	public virtual Result VisitAttrs([NotNull] PostgreSQLParser.AttrsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.type_name_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.type_name_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2686,9 +2686,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitType_name_list([NotNull] PostgresParser.Type_name_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitType_name_list([NotNull] PostgreSQLParser.Type_name_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.truncatestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.truncatestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2696,9 +2696,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTruncatestmt([NotNull] PostgresParser.TruncatestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitTruncatestmt([NotNull] PostgreSQLParser.TruncatestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_restart_seqs"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_restart_seqs"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2706,9 +2706,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_restart_seqs([NotNull] PostgresParser.Opt_restart_seqsContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_restart_seqs([NotNull] PostgreSQLParser.Opt_restart_seqsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.commentstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.commentstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2716,9 +2716,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCommentstmt([NotNull] PostgresParser.CommentstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCommentstmt([NotNull] PostgreSQLParser.CommentstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.comment_text"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.comment_text"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2726,9 +2726,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitComment_text([NotNull] PostgresParser.Comment_textContext context) { return VisitChildren(context); }
+	public virtual Result VisitComment_text([NotNull] PostgreSQLParser.Comment_textContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.seclabelstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.seclabelstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2736,9 +2736,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSeclabelstmt([NotNull] PostgresParser.SeclabelstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitSeclabelstmt([NotNull] PostgreSQLParser.SeclabelstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_provider"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_provider"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2746,9 +2746,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_provider([NotNull] PostgresParser.Opt_providerContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_provider([NotNull] PostgreSQLParser.Opt_providerContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.security_label"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.security_label"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2756,9 +2756,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSecurity_label([NotNull] PostgresParser.Security_labelContext context) { return VisitChildren(context); }
+	public virtual Result VisitSecurity_label([NotNull] PostgreSQLParser.Security_labelContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.fetchstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.fetchstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2766,9 +2766,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFetchstmt([NotNull] PostgresParser.FetchstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitFetchstmt([NotNull] PostgreSQLParser.FetchstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.fetch_args"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.fetch_args"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2776,9 +2776,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFetch_args([NotNull] PostgresParser.Fetch_argsContext context) { return VisitChildren(context); }
+	public virtual Result VisitFetch_args([NotNull] PostgreSQLParser.Fetch_argsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.from_in"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.from_in"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2786,9 +2786,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFrom_in([NotNull] PostgresParser.From_inContext context) { return VisitChildren(context); }
+	public virtual Result VisitFrom_in([NotNull] PostgreSQLParser.From_inContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_from_in"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_from_in"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2796,9 +2796,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_from_in([NotNull] PostgresParser.Opt_from_inContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_from_in([NotNull] PostgreSQLParser.Opt_from_inContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.grantstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.grantstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2806,9 +2806,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitGrantstmt([NotNull] PostgresParser.GrantstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitGrantstmt([NotNull] PostgreSQLParser.GrantstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.revokestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.revokestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2816,9 +2816,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRevokestmt([NotNull] PostgresParser.RevokestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitRevokestmt([NotNull] PostgreSQLParser.RevokestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.privileges"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.privileges"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2826,9 +2826,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPrivileges([NotNull] PostgresParser.PrivilegesContext context) { return VisitChildren(context); }
+	public virtual Result VisitPrivileges([NotNull] PostgreSQLParser.PrivilegesContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.privilege_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.privilege_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2836,9 +2836,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPrivilege_list([NotNull] PostgresParser.Privilege_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitPrivilege_list([NotNull] PostgreSQLParser.Privilege_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.privilege"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.privilege"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2846,9 +2846,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPrivilege([NotNull] PostgresParser.PrivilegeContext context) { return VisitChildren(context); }
+	public virtual Result VisitPrivilege([NotNull] PostgreSQLParser.PrivilegeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.privilege_target"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.privilege_target"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2856,9 +2856,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPrivilege_target([NotNull] PostgresParser.Privilege_targetContext context) { return VisitChildren(context); }
+	public virtual Result VisitPrivilege_target([NotNull] PostgreSQLParser.Privilege_targetContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.grantee_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.grantee_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2866,9 +2866,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitGrantee_list([NotNull] PostgresParser.Grantee_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitGrantee_list([NotNull] PostgreSQLParser.Grantee_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.grantee"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.grantee"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2876,9 +2876,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitGrantee([NotNull] PostgresParser.GranteeContext context) { return VisitChildren(context); }
+	public virtual Result VisitGrantee([NotNull] PostgreSQLParser.GranteeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_grant_grant_option"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_grant_grant_option"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2886,9 +2886,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_grant_grant_option([NotNull] PostgresParser.Opt_grant_grant_optionContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_grant_grant_option([NotNull] PostgreSQLParser.Opt_grant_grant_optionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.grantrolestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.grantrolestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2896,9 +2896,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitGrantrolestmt([NotNull] PostgresParser.GrantrolestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitGrantrolestmt([NotNull] PostgreSQLParser.GrantrolestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.revokerolestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.revokerolestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2906,9 +2906,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRevokerolestmt([NotNull] PostgresParser.RevokerolestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitRevokerolestmt([NotNull] PostgreSQLParser.RevokerolestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_grant_admin_option"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_grant_admin_option"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2916,9 +2916,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_grant_admin_option([NotNull] PostgresParser.Opt_grant_admin_optionContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_grant_admin_option([NotNull] PostgreSQLParser.Opt_grant_admin_optionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_granted_by"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_granted_by"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2926,9 +2926,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_granted_by([NotNull] PostgresParser.Opt_granted_byContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_granted_by([NotNull] PostgreSQLParser.Opt_granted_byContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alterdefaultprivilegesstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alterdefaultprivilegesstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2936,9 +2936,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlterdefaultprivilegesstmt([NotNull] PostgresParser.AlterdefaultprivilegesstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlterdefaultprivilegesstmt([NotNull] PostgreSQLParser.AlterdefaultprivilegesstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.defacloptionlist"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.defacloptionlist"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2946,9 +2946,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDefacloptionlist([NotNull] PostgresParser.DefacloptionlistContext context) { return VisitChildren(context); }
+	public virtual Result VisitDefacloptionlist([NotNull] PostgreSQLParser.DefacloptionlistContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.defacloption"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.defacloption"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2956,9 +2956,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDefacloption([NotNull] PostgresParser.DefacloptionContext context) { return VisitChildren(context); }
+	public virtual Result VisitDefacloption([NotNull] PostgreSQLParser.DefacloptionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.defaclaction"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.defaclaction"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2966,9 +2966,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDefaclaction([NotNull] PostgresParser.DefaclactionContext context) { return VisitChildren(context); }
+	public virtual Result VisitDefaclaction([NotNull] PostgreSQLParser.DefaclactionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.defacl_privilege_target"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.defacl_privilege_target"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2976,9 +2976,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDefacl_privilege_target([NotNull] PostgresParser.Defacl_privilege_targetContext context) { return VisitChildren(context); }
+	public virtual Result VisitDefacl_privilege_target([NotNull] PostgreSQLParser.Defacl_privilege_targetContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.indexstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.indexstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2986,9 +2986,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitIndexstmt([NotNull] PostgresParser.IndexstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitIndexstmt([NotNull] PostgreSQLParser.IndexstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_unique"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_unique"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -2996,9 +2996,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_unique([NotNull] PostgresParser.Opt_uniqueContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_unique([NotNull] PostgreSQLParser.Opt_uniqueContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_concurrently"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_concurrently"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3006,9 +3006,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_concurrently([NotNull] PostgresParser.Opt_concurrentlyContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_concurrently([NotNull] PostgreSQLParser.Opt_concurrentlyContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_index_name"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_index_name"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3016,9 +3016,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_index_name([NotNull] PostgresParser.Opt_index_nameContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_index_name([NotNull] PostgreSQLParser.Opt_index_nameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.access_method_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.access_method_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3026,9 +3026,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAccess_method_clause([NotNull] PostgresParser.Access_method_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitAccess_method_clause([NotNull] PostgreSQLParser.Access_method_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.index_params"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.index_params"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3036,9 +3036,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitIndex_params([NotNull] PostgresParser.Index_paramsContext context) { return VisitChildren(context); }
+	public virtual Result VisitIndex_params([NotNull] PostgreSQLParser.Index_paramsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.index_elem_options"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.index_elem_options"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3046,9 +3046,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitIndex_elem_options([NotNull] PostgresParser.Index_elem_optionsContext context) { return VisitChildren(context); }
+	public virtual Result VisitIndex_elem_options([NotNull] PostgreSQLParser.Index_elem_optionsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.index_elem"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.index_elem"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3056,9 +3056,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitIndex_elem([NotNull] PostgresParser.Index_elemContext context) { return VisitChildren(context); }
+	public virtual Result VisitIndex_elem([NotNull] PostgreSQLParser.Index_elemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_include"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_include"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3066,9 +3066,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_include([NotNull] PostgresParser.Opt_includeContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_include([NotNull] PostgreSQLParser.Opt_includeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.index_including_params"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.index_including_params"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3076,9 +3076,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitIndex_including_params([NotNull] PostgresParser.Index_including_paramsContext context) { return VisitChildren(context); }
+	public virtual Result VisitIndex_including_params([NotNull] PostgreSQLParser.Index_including_paramsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_collate"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_collate"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3086,9 +3086,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_collate([NotNull] PostgresParser.Opt_collateContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_collate([NotNull] PostgreSQLParser.Opt_collateContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_class"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_class"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3096,9 +3096,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_class([NotNull] PostgresParser.Opt_classContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_class([NotNull] PostgreSQLParser.Opt_classContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_asc_desc"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_asc_desc"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3106,9 +3106,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_asc_desc([NotNull] PostgresParser.Opt_asc_descContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_asc_desc([NotNull] PostgreSQLParser.Opt_asc_descContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_nulls_order"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_nulls_order"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3116,9 +3116,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_nulls_order([NotNull] PostgresParser.Opt_nulls_orderContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_nulls_order([NotNull] PostgreSQLParser.Opt_nulls_orderContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createfunctionstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createfunctionstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3126,9 +3126,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreatefunctionstmt([NotNull] PostgresParser.CreatefunctionstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreatefunctionstmt([NotNull] PostgreSQLParser.CreatefunctionstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_or_replace"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_or_replace"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3136,9 +3136,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_or_replace([NotNull] PostgresParser.Opt_or_replaceContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_or_replace([NotNull] PostgreSQLParser.Opt_or_replaceContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.func_args"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.func_args"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3146,9 +3146,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFunc_args([NotNull] PostgresParser.Func_argsContext context) { return VisitChildren(context); }
+	public virtual Result VisitFunc_args([NotNull] PostgreSQLParser.Func_argsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.func_args_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.func_args_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3156,9 +3156,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFunc_args_list([NotNull] PostgresParser.Func_args_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitFunc_args_list([NotNull] PostgreSQLParser.Func_args_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.function_with_argtypes_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.function_with_argtypes_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3166,9 +3166,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFunction_with_argtypes_list([NotNull] PostgresParser.Function_with_argtypes_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitFunction_with_argtypes_list([NotNull] PostgreSQLParser.Function_with_argtypes_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.function_with_argtypes"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.function_with_argtypes"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3176,9 +3176,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFunction_with_argtypes([NotNull] PostgresParser.Function_with_argtypesContext context) { return VisitChildren(context); }
+	public virtual Result VisitFunction_with_argtypes([NotNull] PostgreSQLParser.Function_with_argtypesContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.func_args_with_defaults"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.func_args_with_defaults"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3186,9 +3186,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFunc_args_with_defaults([NotNull] PostgresParser.Func_args_with_defaultsContext context) { return VisitChildren(context); }
+	public virtual Result VisitFunc_args_with_defaults([NotNull] PostgreSQLParser.Func_args_with_defaultsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.func_args_with_defaults_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.func_args_with_defaults_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3196,9 +3196,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFunc_args_with_defaults_list([NotNull] PostgresParser.Func_args_with_defaults_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitFunc_args_with_defaults_list([NotNull] PostgreSQLParser.Func_args_with_defaults_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.func_arg"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.func_arg"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3206,9 +3206,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFunc_arg([NotNull] PostgresParser.Func_argContext context) { return VisitChildren(context); }
+	public virtual Result VisitFunc_arg([NotNull] PostgreSQLParser.Func_argContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.arg_class"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.arg_class"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3216,9 +3216,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitArg_class([NotNull] PostgresParser.Arg_classContext context) { return VisitChildren(context); }
+	public virtual Result VisitArg_class([NotNull] PostgreSQLParser.Arg_classContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.param_name"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.param_name"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3226,9 +3226,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitParam_name([NotNull] PostgresParser.Param_nameContext context) { return VisitChildren(context); }
+	public virtual Result VisitParam_name([NotNull] PostgreSQLParser.Param_nameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.func_return"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.func_return"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3236,9 +3236,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFunc_return([NotNull] PostgresParser.Func_returnContext context) { return VisitChildren(context); }
+	public virtual Result VisitFunc_return([NotNull] PostgreSQLParser.Func_returnContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.func_type"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.func_type"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3246,9 +3246,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFunc_type([NotNull] PostgresParser.Func_typeContext context) { return VisitChildren(context); }
+	public virtual Result VisitFunc_type([NotNull] PostgreSQLParser.Func_typeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.func_arg_with_default"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.func_arg_with_default"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3256,9 +3256,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFunc_arg_with_default([NotNull] PostgresParser.Func_arg_with_defaultContext context) { return VisitChildren(context); }
+	public virtual Result VisitFunc_arg_with_default([NotNull] PostgreSQLParser.Func_arg_with_defaultContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.aggr_arg"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.aggr_arg"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3266,9 +3266,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAggr_arg([NotNull] PostgresParser.Aggr_argContext context) { return VisitChildren(context); }
+	public virtual Result VisitAggr_arg([NotNull] PostgreSQLParser.Aggr_argContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.aggr_args"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.aggr_args"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3276,9 +3276,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAggr_args([NotNull] PostgresParser.Aggr_argsContext context) { return VisitChildren(context); }
+	public virtual Result VisitAggr_args([NotNull] PostgreSQLParser.Aggr_argsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.aggr_args_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.aggr_args_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3286,9 +3286,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAggr_args_list([NotNull] PostgresParser.Aggr_args_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitAggr_args_list([NotNull] PostgreSQLParser.Aggr_args_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.aggregate_with_argtypes"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.aggregate_with_argtypes"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3296,9 +3296,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAggregate_with_argtypes([NotNull] PostgresParser.Aggregate_with_argtypesContext context) { return VisitChildren(context); }
+	public virtual Result VisitAggregate_with_argtypes([NotNull] PostgreSQLParser.Aggregate_with_argtypesContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.aggregate_with_argtypes_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.aggregate_with_argtypes_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3306,9 +3306,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAggregate_with_argtypes_list([NotNull] PostgresParser.Aggregate_with_argtypes_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitAggregate_with_argtypes_list([NotNull] PostgreSQLParser.Aggregate_with_argtypes_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createfunc_opt_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createfunc_opt_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3316,9 +3316,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreatefunc_opt_list([NotNull] PostgresParser.Createfunc_opt_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreatefunc_opt_list([NotNull] PostgreSQLParser.Createfunc_opt_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.common_func_opt_item"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.common_func_opt_item"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3326,9 +3326,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCommon_func_opt_item([NotNull] PostgresParser.Common_func_opt_itemContext context) { return VisitChildren(context); }
+	public virtual Result VisitCommon_func_opt_item([NotNull] PostgreSQLParser.Common_func_opt_itemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createfunc_opt_item"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createfunc_opt_item"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3336,9 +3336,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreatefunc_opt_item([NotNull] PostgresParser.Createfunc_opt_itemContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreatefunc_opt_item([NotNull] PostgreSQLParser.Createfunc_opt_itemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.func_as"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.func_as"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3346,9 +3346,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFunc_as([NotNull] PostgresParser.Func_asContext context) { return VisitChildren(context); }
+	public virtual Result VisitFunc_as([NotNull] PostgreSQLParser.Func_asContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.transform_type_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.transform_type_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3356,9 +3356,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTransform_type_list([NotNull] PostgresParser.Transform_type_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitTransform_type_list([NotNull] PostgreSQLParser.Transform_type_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_definition"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_definition"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3366,9 +3366,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_definition([NotNull] PostgresParser.Opt_definitionContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_definition([NotNull] PostgreSQLParser.Opt_definitionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.table_func_column"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.table_func_column"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3376,9 +3376,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTable_func_column([NotNull] PostgresParser.Table_func_columnContext context) { return VisitChildren(context); }
+	public virtual Result VisitTable_func_column([NotNull] PostgreSQLParser.Table_func_columnContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.table_func_column_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.table_func_column_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3386,9 +3386,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTable_func_column_list([NotNull] PostgresParser.Table_func_column_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitTable_func_column_list([NotNull] PostgreSQLParser.Table_func_column_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alterfunctionstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alterfunctionstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3396,9 +3396,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlterfunctionstmt([NotNull] PostgresParser.AlterfunctionstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlterfunctionstmt([NotNull] PostgreSQLParser.AlterfunctionstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alterfunc_opt_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alterfunc_opt_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3406,9 +3406,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlterfunc_opt_list([NotNull] PostgresParser.Alterfunc_opt_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlterfunc_opt_list([NotNull] PostgreSQLParser.Alterfunc_opt_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_restrict"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_restrict"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3416,9 +3416,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_restrict([NotNull] PostgresParser.Opt_restrictContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_restrict([NotNull] PostgreSQLParser.Opt_restrictContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.removefuncstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.removefuncstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3426,9 +3426,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRemovefuncstmt([NotNull] PostgresParser.RemovefuncstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitRemovefuncstmt([NotNull] PostgreSQLParser.RemovefuncstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.removeaggrstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.removeaggrstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3436,9 +3436,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRemoveaggrstmt([NotNull] PostgresParser.RemoveaggrstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitRemoveaggrstmt([NotNull] PostgreSQLParser.RemoveaggrstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.removeoperstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.removeoperstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3446,9 +3446,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRemoveoperstmt([NotNull] PostgresParser.RemoveoperstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitRemoveoperstmt([NotNull] PostgreSQLParser.RemoveoperstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.oper_argtypes"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.oper_argtypes"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3456,9 +3456,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOper_argtypes([NotNull] PostgresParser.Oper_argtypesContext context) { return VisitChildren(context); }
+	public virtual Result VisitOper_argtypes([NotNull] PostgreSQLParser.Oper_argtypesContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.any_operator"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.any_operator"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3466,9 +3466,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAny_operator([NotNull] PostgresParser.Any_operatorContext context) { return VisitChildren(context); }
+	public virtual Result VisitAny_operator([NotNull] PostgreSQLParser.Any_operatorContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.operator_with_argtypes_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.operator_with_argtypes_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3476,9 +3476,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOperator_with_argtypes_list([NotNull] PostgresParser.Operator_with_argtypes_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitOperator_with_argtypes_list([NotNull] PostgreSQLParser.Operator_with_argtypes_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.operator_with_argtypes"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.operator_with_argtypes"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3486,9 +3486,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOperator_with_argtypes([NotNull] PostgresParser.Operator_with_argtypesContext context) { return VisitChildren(context); }
+	public virtual Result VisitOperator_with_argtypes([NotNull] PostgreSQLParser.Operator_with_argtypesContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.dostmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.dostmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3496,9 +3496,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDostmt([NotNull] PostgresParser.DostmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitDostmt([NotNull] PostgreSQLParser.DostmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.dostmt_opt_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.dostmt_opt_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3506,9 +3506,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDostmt_opt_list([NotNull] PostgresParser.Dostmt_opt_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitDostmt_opt_list([NotNull] PostgreSQLParser.Dostmt_opt_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.dostmt_opt_item"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.dostmt_opt_item"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3516,9 +3516,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDostmt_opt_item([NotNull] PostgresParser.Dostmt_opt_itemContext context) { return VisitChildren(context); }
+	public virtual Result VisitDostmt_opt_item([NotNull] PostgreSQLParser.Dostmt_opt_itemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createcaststmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createcaststmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3526,9 +3526,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreatecaststmt([NotNull] PostgresParser.CreatecaststmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreatecaststmt([NotNull] PostgreSQLParser.CreatecaststmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.cast_context"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.cast_context"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3536,9 +3536,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCast_context([NotNull] PostgresParser.Cast_contextContext context) { return VisitChildren(context); }
+	public virtual Result VisitCast_context([NotNull] PostgreSQLParser.Cast_contextContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.dropcaststmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.dropcaststmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3546,9 +3546,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDropcaststmt([NotNull] PostgresParser.DropcaststmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitDropcaststmt([NotNull] PostgreSQLParser.DropcaststmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_if_exists"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_if_exists"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3556,9 +3556,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_if_exists([NotNull] PostgresParser.Opt_if_existsContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_if_exists([NotNull] PostgreSQLParser.Opt_if_existsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createtransformstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createtransformstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3566,9 +3566,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreatetransformstmt([NotNull] PostgresParser.CreatetransformstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreatetransformstmt([NotNull] PostgreSQLParser.CreatetransformstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.transform_element_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.transform_element_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3576,9 +3576,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTransform_element_list([NotNull] PostgresParser.Transform_element_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitTransform_element_list([NotNull] PostgreSQLParser.Transform_element_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.droptransformstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.droptransformstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3586,9 +3586,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDroptransformstmt([NotNull] PostgresParser.DroptransformstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitDroptransformstmt([NotNull] PostgreSQLParser.DroptransformstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.reindexstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.reindexstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3596,9 +3596,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitReindexstmt([NotNull] PostgresParser.ReindexstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitReindexstmt([NotNull] PostgreSQLParser.ReindexstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.reindex_target_type"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.reindex_target_type"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3606,9 +3606,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitReindex_target_type([NotNull] PostgresParser.Reindex_target_typeContext context) { return VisitChildren(context); }
+	public virtual Result VisitReindex_target_type([NotNull] PostgreSQLParser.Reindex_target_typeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.reindex_target_multitable"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.reindex_target_multitable"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3616,9 +3616,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitReindex_target_multitable([NotNull] PostgresParser.Reindex_target_multitableContext context) { return VisitChildren(context); }
+	public virtual Result VisitReindex_target_multitable([NotNull] PostgreSQLParser.Reindex_target_multitableContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.reindex_option_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.reindex_option_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3626,9 +3626,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitReindex_option_list([NotNull] PostgresParser.Reindex_option_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitReindex_option_list([NotNull] PostgreSQLParser.Reindex_option_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.reindex_option_elem"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.reindex_option_elem"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3636,9 +3636,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitReindex_option_elem([NotNull] PostgresParser.Reindex_option_elemContext context) { return VisitChildren(context); }
+	public virtual Result VisitReindex_option_elem([NotNull] PostgreSQLParser.Reindex_option_elemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.altertblspcstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.altertblspcstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3646,9 +3646,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAltertblspcstmt([NotNull] PostgresParser.AltertblspcstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAltertblspcstmt([NotNull] PostgreSQLParser.AltertblspcstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.renamestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.renamestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3656,9 +3656,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRenamestmt([NotNull] PostgresParser.RenamestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitRenamestmt([NotNull] PostgreSQLParser.RenamestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_column"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_column"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3666,9 +3666,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_column([NotNull] PostgresParser.Opt_columnContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_column([NotNull] PostgreSQLParser.Opt_columnContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_set_data"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_set_data"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3676,9 +3676,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_set_data([NotNull] PostgresParser.Opt_set_dataContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_set_data([NotNull] PostgreSQLParser.Opt_set_dataContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alterobjectdependsstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alterobjectdependsstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3686,9 +3686,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlterobjectdependsstmt([NotNull] PostgresParser.AlterobjectdependsstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlterobjectdependsstmt([NotNull] PostgreSQLParser.AlterobjectdependsstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_no"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_no"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3696,9 +3696,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_no([NotNull] PostgresParser.Opt_noContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_no([NotNull] PostgreSQLParser.Opt_noContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alterobjectschemastmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alterobjectschemastmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3706,9 +3706,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlterobjectschemastmt([NotNull] PostgresParser.AlterobjectschemastmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlterobjectschemastmt([NotNull] PostgreSQLParser.AlterobjectschemastmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alteroperatorstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alteroperatorstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3716,9 +3716,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlteroperatorstmt([NotNull] PostgresParser.AlteroperatorstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlteroperatorstmt([NotNull] PostgreSQLParser.AlteroperatorstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.operator_def_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.operator_def_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3726,9 +3726,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOperator_def_list([NotNull] PostgresParser.Operator_def_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitOperator_def_list([NotNull] PostgreSQLParser.Operator_def_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.operator_def_elem"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.operator_def_elem"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3736,9 +3736,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOperator_def_elem([NotNull] PostgresParser.Operator_def_elemContext context) { return VisitChildren(context); }
+	public virtual Result VisitOperator_def_elem([NotNull] PostgreSQLParser.Operator_def_elemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.operator_def_arg"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.operator_def_arg"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3746,9 +3746,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOperator_def_arg([NotNull] PostgresParser.Operator_def_argContext context) { return VisitChildren(context); }
+	public virtual Result VisitOperator_def_arg([NotNull] PostgreSQLParser.Operator_def_argContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.altertypestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.altertypestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3756,9 +3756,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAltertypestmt([NotNull] PostgresParser.AltertypestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAltertypestmt([NotNull] PostgreSQLParser.AltertypestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alterownerstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alterownerstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3766,9 +3766,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlterownerstmt([NotNull] PostgresParser.AlterownerstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlterownerstmt([NotNull] PostgreSQLParser.AlterownerstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createpublicationstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createpublicationstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3776,9 +3776,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreatepublicationstmt([NotNull] PostgresParser.CreatepublicationstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreatepublicationstmt([NotNull] PostgreSQLParser.CreatepublicationstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_publication_for_tables"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_publication_for_tables"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3786,9 +3786,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_publication_for_tables([NotNull] PostgresParser.Opt_publication_for_tablesContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_publication_for_tables([NotNull] PostgreSQLParser.Opt_publication_for_tablesContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.publication_for_tables"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.publication_for_tables"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3796,9 +3796,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPublication_for_tables([NotNull] PostgresParser.Publication_for_tablesContext context) { return VisitChildren(context); }
+	public virtual Result VisitPublication_for_tables([NotNull] PostgreSQLParser.Publication_for_tablesContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alterpublicationstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alterpublicationstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3806,9 +3806,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlterpublicationstmt([NotNull] PostgresParser.AlterpublicationstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlterpublicationstmt([NotNull] PostgreSQLParser.AlterpublicationstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createsubscriptionstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createsubscriptionstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3816,9 +3816,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreatesubscriptionstmt([NotNull] PostgresParser.CreatesubscriptionstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreatesubscriptionstmt([NotNull] PostgreSQLParser.CreatesubscriptionstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.publication_name_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.publication_name_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3826,9 +3826,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPublication_name_list([NotNull] PostgresParser.Publication_name_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitPublication_name_list([NotNull] PostgreSQLParser.Publication_name_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.publication_name_item"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.publication_name_item"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3836,9 +3836,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPublication_name_item([NotNull] PostgresParser.Publication_name_itemContext context) { return VisitChildren(context); }
+	public virtual Result VisitPublication_name_item([NotNull] PostgreSQLParser.Publication_name_itemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.altersubscriptionstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.altersubscriptionstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3846,9 +3846,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAltersubscriptionstmt([NotNull] PostgresParser.AltersubscriptionstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAltersubscriptionstmt([NotNull] PostgreSQLParser.AltersubscriptionstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.dropsubscriptionstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.dropsubscriptionstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3856,9 +3856,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDropsubscriptionstmt([NotNull] PostgresParser.DropsubscriptionstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitDropsubscriptionstmt([NotNull] PostgreSQLParser.DropsubscriptionstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.rulestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.rulestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3866,9 +3866,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRulestmt([NotNull] PostgresParser.RulestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitRulestmt([NotNull] PostgreSQLParser.RulestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.ruleactionlist"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.ruleactionlist"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3876,9 +3876,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRuleactionlist([NotNull] PostgresParser.RuleactionlistContext context) { return VisitChildren(context); }
+	public virtual Result VisitRuleactionlist([NotNull] PostgreSQLParser.RuleactionlistContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.ruleactionmulti"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.ruleactionmulti"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3886,9 +3886,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRuleactionmulti([NotNull] PostgresParser.RuleactionmultiContext context) { return VisitChildren(context); }
+	public virtual Result VisitRuleactionmulti([NotNull] PostgreSQLParser.RuleactionmultiContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.ruleactionstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.ruleactionstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3896,9 +3896,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRuleactionstmt([NotNull] PostgresParser.RuleactionstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitRuleactionstmt([NotNull] PostgreSQLParser.RuleactionstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.ruleactionstmtOrEmpty"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.ruleactionstmtOrEmpty"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3906,9 +3906,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRuleactionstmtOrEmpty([NotNull] PostgresParser.RuleactionstmtOrEmptyContext context) { return VisitChildren(context); }
+	public virtual Result VisitRuleactionstmtOrEmpty([NotNull] PostgreSQLParser.RuleactionstmtOrEmptyContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.event"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.event"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3916,9 +3916,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitEvent([NotNull] PostgresParser.EventContext context) { return VisitChildren(context); }
+	public virtual Result VisitEvent([NotNull] PostgreSQLParser.EventContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_instead"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_instead"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3926,9 +3926,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_instead([NotNull] PostgresParser.Opt_insteadContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_instead([NotNull] PostgreSQLParser.Opt_insteadContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.notifystmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.notifystmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3936,9 +3936,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitNotifystmt([NotNull] PostgresParser.NotifystmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitNotifystmt([NotNull] PostgreSQLParser.NotifystmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.notify_payload"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.notify_payload"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3946,9 +3946,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitNotify_payload([NotNull] PostgresParser.Notify_payloadContext context) { return VisitChildren(context); }
+	public virtual Result VisitNotify_payload([NotNull] PostgreSQLParser.Notify_payloadContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.listenstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.listenstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3956,9 +3956,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitListenstmt([NotNull] PostgresParser.ListenstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitListenstmt([NotNull] PostgreSQLParser.ListenstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.unlistenstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.unlistenstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3966,9 +3966,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitUnlistenstmt([NotNull] PostgresParser.UnlistenstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitUnlistenstmt([NotNull] PostgreSQLParser.UnlistenstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.transactionstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.transactionstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3976,9 +3976,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTransactionstmt([NotNull] PostgresParser.TransactionstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitTransactionstmt([NotNull] PostgreSQLParser.TransactionstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_transaction"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_transaction"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3986,9 +3986,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_transaction([NotNull] PostgresParser.Opt_transactionContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_transaction([NotNull] PostgreSQLParser.Opt_transactionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.transaction_mode_item"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.transaction_mode_item"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -3996,9 +3996,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTransaction_mode_item([NotNull] PostgresParser.Transaction_mode_itemContext context) { return VisitChildren(context); }
+	public virtual Result VisitTransaction_mode_item([NotNull] PostgreSQLParser.Transaction_mode_itemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.transaction_mode_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.transaction_mode_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4006,9 +4006,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTransaction_mode_list([NotNull] PostgresParser.Transaction_mode_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitTransaction_mode_list([NotNull] PostgreSQLParser.Transaction_mode_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.transaction_mode_list_or_empty"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.transaction_mode_list_or_empty"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4016,9 +4016,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTransaction_mode_list_or_empty([NotNull] PostgresParser.Transaction_mode_list_or_emptyContext context) { return VisitChildren(context); }
+	public virtual Result VisitTransaction_mode_list_or_empty([NotNull] PostgreSQLParser.Transaction_mode_list_or_emptyContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_transaction_chain"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_transaction_chain"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4026,9 +4026,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_transaction_chain([NotNull] PostgresParser.Opt_transaction_chainContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_transaction_chain([NotNull] PostgreSQLParser.Opt_transaction_chainContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.viewstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.viewstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4036,9 +4036,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitViewstmt([NotNull] PostgresParser.ViewstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitViewstmt([NotNull] PostgreSQLParser.ViewstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_check_option"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_check_option"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4046,9 +4046,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_check_option([NotNull] PostgresParser.Opt_check_optionContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_check_option([NotNull] PostgreSQLParser.Opt_check_optionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.loadstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.loadstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4056,9 +4056,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitLoadstmt([NotNull] PostgresParser.LoadstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitLoadstmt([NotNull] PostgreSQLParser.LoadstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createdbstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createdbstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4066,9 +4066,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreatedbstmt([NotNull] PostgresParser.CreatedbstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreatedbstmt([NotNull] PostgreSQLParser.CreatedbstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createdb_opt_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createdb_opt_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4076,9 +4076,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreatedb_opt_list([NotNull] PostgresParser.Createdb_opt_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreatedb_opt_list([NotNull] PostgreSQLParser.Createdb_opt_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createdb_opt_items"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createdb_opt_items"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4086,9 +4086,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreatedb_opt_items([NotNull] PostgresParser.Createdb_opt_itemsContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreatedb_opt_items([NotNull] PostgreSQLParser.Createdb_opt_itemsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createdb_opt_item"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createdb_opt_item"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4096,9 +4096,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreatedb_opt_item([NotNull] PostgresParser.Createdb_opt_itemContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreatedb_opt_item([NotNull] PostgreSQLParser.Createdb_opt_itemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createdb_opt_name"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createdb_opt_name"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4106,9 +4106,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreatedb_opt_name([NotNull] PostgresParser.Createdb_opt_nameContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreatedb_opt_name([NotNull] PostgreSQLParser.Createdb_opt_nameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_equal"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_equal"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4116,9 +4116,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_equal([NotNull] PostgresParser.Opt_equalContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_equal([NotNull] PostgreSQLParser.Opt_equalContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alterdatabasestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alterdatabasestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4126,9 +4126,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlterdatabasestmt([NotNull] PostgresParser.AlterdatabasestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlterdatabasestmt([NotNull] PostgreSQLParser.AlterdatabasestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alterdatabasesetstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alterdatabasesetstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4136,9 +4136,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlterdatabasesetstmt([NotNull] PostgresParser.AlterdatabasesetstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlterdatabasesetstmt([NotNull] PostgreSQLParser.AlterdatabasesetstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.dropdbstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.dropdbstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4146,9 +4146,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDropdbstmt([NotNull] PostgresParser.DropdbstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitDropdbstmt([NotNull] PostgreSQLParser.DropdbstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.drop_option_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.drop_option_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4156,9 +4156,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDrop_option_list([NotNull] PostgresParser.Drop_option_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitDrop_option_list([NotNull] PostgreSQLParser.Drop_option_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.drop_option"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.drop_option"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4166,9 +4166,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDrop_option([NotNull] PostgresParser.Drop_optionContext context) { return VisitChildren(context); }
+	public virtual Result VisitDrop_option([NotNull] PostgreSQLParser.Drop_optionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.altercollationstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.altercollationstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4176,9 +4176,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAltercollationstmt([NotNull] PostgresParser.AltercollationstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAltercollationstmt([NotNull] PostgreSQLParser.AltercollationstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.altersystemstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.altersystemstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4186,9 +4186,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAltersystemstmt([NotNull] PostgresParser.AltersystemstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAltersystemstmt([NotNull] PostgreSQLParser.AltersystemstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createdomainstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createdomainstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4196,9 +4196,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreatedomainstmt([NotNull] PostgresParser.CreatedomainstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreatedomainstmt([NotNull] PostgreSQLParser.CreatedomainstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alterdomainstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alterdomainstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4206,9 +4206,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlterdomainstmt([NotNull] PostgresParser.AlterdomainstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlterdomainstmt([NotNull] PostgreSQLParser.AlterdomainstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_as"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_as"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4216,9 +4216,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_as([NotNull] PostgresParser.Opt_asContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_as([NotNull] PostgreSQLParser.Opt_asContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.altertsdictionarystmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.altertsdictionarystmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4226,9 +4226,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAltertsdictionarystmt([NotNull] PostgresParser.AltertsdictionarystmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAltertsdictionarystmt([NotNull] PostgreSQLParser.AltertsdictionarystmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.altertsconfigurationstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.altertsconfigurationstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4236,9 +4236,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAltertsconfigurationstmt([NotNull] PostgresParser.AltertsconfigurationstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAltertsconfigurationstmt([NotNull] PostgreSQLParser.AltertsconfigurationstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.any_with"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.any_with"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4246,9 +4246,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAny_with([NotNull] PostgresParser.Any_withContext context) { return VisitChildren(context); }
+	public virtual Result VisitAny_with([NotNull] PostgreSQLParser.Any_withContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.createconversionstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.createconversionstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4256,9 +4256,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCreateconversionstmt([NotNull] PostgresParser.CreateconversionstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitCreateconversionstmt([NotNull] PostgreSQLParser.CreateconversionstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.clusterstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.clusterstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4266,9 +4266,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitClusterstmt([NotNull] PostgresParser.ClusterstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitClusterstmt([NotNull] PostgreSQLParser.ClusterstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.cluster_index_specification"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.cluster_index_specification"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4276,9 +4276,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCluster_index_specification([NotNull] PostgresParser.Cluster_index_specificationContext context) { return VisitChildren(context); }
+	public virtual Result VisitCluster_index_specification([NotNull] PostgreSQLParser.Cluster_index_specificationContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.vacuumstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.vacuumstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4286,9 +4286,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitVacuumstmt([NotNull] PostgresParser.VacuumstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitVacuumstmt([NotNull] PostgreSQLParser.VacuumstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.analyzestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.analyzestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4296,9 +4296,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAnalyzestmt([NotNull] PostgresParser.AnalyzestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitAnalyzestmt([NotNull] PostgreSQLParser.AnalyzestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.vac_analyze_option_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.vac_analyze_option_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4306,9 +4306,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitVac_analyze_option_list([NotNull] PostgresParser.Vac_analyze_option_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitVac_analyze_option_list([NotNull] PostgreSQLParser.Vac_analyze_option_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.analyze_keyword"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.analyze_keyword"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4316,9 +4316,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAnalyze_keyword([NotNull] PostgresParser.Analyze_keywordContext context) { return VisitChildren(context); }
+	public virtual Result VisitAnalyze_keyword([NotNull] PostgreSQLParser.Analyze_keywordContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.vac_analyze_option_elem"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.vac_analyze_option_elem"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4326,9 +4326,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitVac_analyze_option_elem([NotNull] PostgresParser.Vac_analyze_option_elemContext context) { return VisitChildren(context); }
+	public virtual Result VisitVac_analyze_option_elem([NotNull] PostgreSQLParser.Vac_analyze_option_elemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.vac_analyze_option_name"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.vac_analyze_option_name"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4336,9 +4336,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitVac_analyze_option_name([NotNull] PostgresParser.Vac_analyze_option_nameContext context) { return VisitChildren(context); }
+	public virtual Result VisitVac_analyze_option_name([NotNull] PostgreSQLParser.Vac_analyze_option_nameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.vac_analyze_option_arg"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.vac_analyze_option_arg"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4346,9 +4346,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitVac_analyze_option_arg([NotNull] PostgresParser.Vac_analyze_option_argContext context) { return VisitChildren(context); }
+	public virtual Result VisitVac_analyze_option_arg([NotNull] PostgreSQLParser.Vac_analyze_option_argContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_analyze"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_analyze"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4356,9 +4356,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_analyze([NotNull] PostgresParser.Opt_analyzeContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_analyze([NotNull] PostgreSQLParser.Opt_analyzeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_verbose"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_verbose"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4366,9 +4366,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_verbose([NotNull] PostgresParser.Opt_verboseContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_verbose([NotNull] PostgreSQLParser.Opt_verboseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_full"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_full"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4376,9 +4376,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_full([NotNull] PostgresParser.Opt_fullContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_full([NotNull] PostgreSQLParser.Opt_fullContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_freeze"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_freeze"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4386,9 +4386,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_freeze([NotNull] PostgresParser.Opt_freezeContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_freeze([NotNull] PostgreSQLParser.Opt_freezeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_name_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_name_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4396,9 +4396,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_name_list([NotNull] PostgresParser.Opt_name_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_name_list([NotNull] PostgreSQLParser.Opt_name_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.vacuum_relation"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.vacuum_relation"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4406,9 +4406,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitVacuum_relation([NotNull] PostgresParser.Vacuum_relationContext context) { return VisitChildren(context); }
+	public virtual Result VisitVacuum_relation([NotNull] PostgreSQLParser.Vacuum_relationContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.vacuum_relation_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.vacuum_relation_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4416,9 +4416,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitVacuum_relation_list([NotNull] PostgresParser.Vacuum_relation_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitVacuum_relation_list([NotNull] PostgreSQLParser.Vacuum_relation_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_vacuum_relation_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_vacuum_relation_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4426,9 +4426,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_vacuum_relation_list([NotNull] PostgresParser.Opt_vacuum_relation_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_vacuum_relation_list([NotNull] PostgreSQLParser.Opt_vacuum_relation_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.explainstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.explainstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4436,9 +4436,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitExplainstmt([NotNull] PostgresParser.ExplainstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitExplainstmt([NotNull] PostgreSQLParser.ExplainstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.explainablestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.explainablestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4446,9 +4446,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitExplainablestmt([NotNull] PostgresParser.ExplainablestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitExplainablestmt([NotNull] PostgreSQLParser.ExplainablestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.explain_option_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.explain_option_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4456,9 +4456,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitExplain_option_list([NotNull] PostgresParser.Explain_option_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitExplain_option_list([NotNull] PostgreSQLParser.Explain_option_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.explain_option_elem"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.explain_option_elem"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4466,9 +4466,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitExplain_option_elem([NotNull] PostgresParser.Explain_option_elemContext context) { return VisitChildren(context); }
+	public virtual Result VisitExplain_option_elem([NotNull] PostgreSQLParser.Explain_option_elemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.explain_option_name"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.explain_option_name"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4476,9 +4476,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitExplain_option_name([NotNull] PostgresParser.Explain_option_nameContext context) { return VisitChildren(context); }
+	public virtual Result VisitExplain_option_name([NotNull] PostgreSQLParser.Explain_option_nameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.explain_option_arg"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.explain_option_arg"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4486,9 +4486,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitExplain_option_arg([NotNull] PostgresParser.Explain_option_argContext context) { return VisitChildren(context); }
+	public virtual Result VisitExplain_option_arg([NotNull] PostgreSQLParser.Explain_option_argContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.preparestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.preparestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4496,9 +4496,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPreparestmt([NotNull] PostgresParser.PreparestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitPreparestmt([NotNull] PostgreSQLParser.PreparestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.prep_type_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.prep_type_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4506,9 +4506,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPrep_type_clause([NotNull] PostgresParser.Prep_type_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitPrep_type_clause([NotNull] PostgreSQLParser.Prep_type_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.preparablestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.preparablestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4516,9 +4516,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPreparablestmt([NotNull] PostgresParser.PreparablestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitPreparablestmt([NotNull] PostgreSQLParser.PreparablestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.executestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.executestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4526,9 +4526,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitExecutestmt([NotNull] PostgresParser.ExecutestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitExecutestmt([NotNull] PostgreSQLParser.ExecutestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.execute_param_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.execute_param_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4536,9 +4536,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitExecute_param_clause([NotNull] PostgresParser.Execute_param_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitExecute_param_clause([NotNull] PostgreSQLParser.Execute_param_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.deallocatestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.deallocatestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4546,9 +4546,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDeallocatestmt([NotNull] PostgresParser.DeallocatestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitDeallocatestmt([NotNull] PostgreSQLParser.DeallocatestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.insertstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.insertstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4556,9 +4556,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitInsertstmt([NotNull] PostgresParser.InsertstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitInsertstmt([NotNull] PostgreSQLParser.InsertstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.insert_target"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.insert_target"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4566,9 +4566,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitInsert_target([NotNull] PostgresParser.Insert_targetContext context) { return VisitChildren(context); }
+	public virtual Result VisitInsert_target([NotNull] PostgreSQLParser.Insert_targetContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.insert_rest"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.insert_rest"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4576,9 +4576,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitInsert_rest([NotNull] PostgresParser.Insert_restContext context) { return VisitChildren(context); }
+	public virtual Result VisitInsert_rest([NotNull] PostgreSQLParser.Insert_restContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.override_kind"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.override_kind"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4586,9 +4586,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOverride_kind([NotNull] PostgresParser.Override_kindContext context) { return VisitChildren(context); }
+	public virtual Result VisitOverride_kind([NotNull] PostgreSQLParser.Override_kindContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.insert_column_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.insert_column_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4596,9 +4596,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitInsert_column_list([NotNull] PostgresParser.Insert_column_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitInsert_column_list([NotNull] PostgreSQLParser.Insert_column_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.insert_column_item"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.insert_column_item"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4606,9 +4606,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitInsert_column_item([NotNull] PostgresParser.Insert_column_itemContext context) { return VisitChildren(context); }
+	public virtual Result VisitInsert_column_item([NotNull] PostgreSQLParser.Insert_column_itemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_on_conflict"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_on_conflict"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4616,9 +4616,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_on_conflict([NotNull] PostgresParser.Opt_on_conflictContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_on_conflict([NotNull] PostgreSQLParser.Opt_on_conflictContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_conf_expr"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_conf_expr"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4626,9 +4626,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_conf_expr([NotNull] PostgresParser.Opt_conf_exprContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_conf_expr([NotNull] PostgreSQLParser.Opt_conf_exprContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.returning_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.returning_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4636,9 +4636,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitReturning_clause([NotNull] PostgresParser.Returning_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitReturning_clause([NotNull] PostgreSQLParser.Returning_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.deletestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.mergestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4646,9 +4646,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDeletestmt([NotNull] PostgresParser.DeletestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitMergestmt([NotNull] PostgreSQLParser.MergestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.using_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.merge_insert_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4656,9 +4656,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitUsing_clause([NotNull] PostgresParser.Using_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitMerge_insert_clause([NotNull] PostgreSQLParser.Merge_insert_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.lockstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.merge_update_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4666,9 +4666,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitLockstmt([NotNull] PostgresParser.LockstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitMerge_update_clause([NotNull] PostgreSQLParser.Merge_update_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_lock"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.merge_delete_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4676,9 +4676,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_lock([NotNull] PostgresParser.Opt_lockContext context) { return VisitChildren(context); }
+	public virtual Result VisitMerge_delete_clause([NotNull] PostgreSQLParser.Merge_delete_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.lock_type"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.deletestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4686,9 +4686,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitLock_type([NotNull] PostgresParser.Lock_typeContext context) { return VisitChildren(context); }
+	public virtual Result VisitDeletestmt([NotNull] PostgreSQLParser.DeletestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_nowait"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.using_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4696,9 +4696,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_nowait([NotNull] PostgresParser.Opt_nowaitContext context) { return VisitChildren(context); }
+	public virtual Result VisitUsing_clause([NotNull] PostgreSQLParser.Using_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_nowait_or_skip"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.lockstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4706,9 +4706,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_nowait_or_skip([NotNull] PostgresParser.Opt_nowait_or_skipContext context) { return VisitChildren(context); }
+	public virtual Result VisitLockstmt([NotNull] PostgreSQLParser.LockstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.updatestmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_lock"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4716,9 +4716,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitUpdatestmt([NotNull] PostgresParser.UpdatestmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_lock([NotNull] PostgreSQLParser.Opt_lockContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.set_clause_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.lock_type"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4726,9 +4726,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSet_clause_list([NotNull] PostgresParser.Set_clause_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitLock_type([NotNull] PostgreSQLParser.Lock_typeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.set_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_nowait"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4736,9 +4736,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSet_clause([NotNull] PostgresParser.Set_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_nowait([NotNull] PostgreSQLParser.Opt_nowaitContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.set_target"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_nowait_or_skip"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4746,9 +4746,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSet_target([NotNull] PostgresParser.Set_targetContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_nowait_or_skip([NotNull] PostgreSQLParser.Opt_nowait_or_skipContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.set_target_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.updatestmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4756,9 +4756,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSet_target_list([NotNull] PostgresParser.Set_target_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitUpdatestmt([NotNull] PostgreSQLParser.UpdatestmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.declarecursorstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.set_clause_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4766,9 +4766,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDeclarecursorstmt([NotNull] PostgresParser.DeclarecursorstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitSet_clause_list([NotNull] PostgreSQLParser.Set_clause_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.cursor_name"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.set_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4776,9 +4776,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCursor_name([NotNull] PostgresParser.Cursor_nameContext context) { return VisitChildren(context); }
+	public virtual Result VisitSet_clause([NotNull] PostgreSQLParser.Set_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.cursor_options"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.set_target"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4786,9 +4786,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCursor_options([NotNull] PostgresParser.Cursor_optionsContext context) { return VisitChildren(context); }
+	public virtual Result VisitSet_target([NotNull] PostgreSQLParser.Set_targetContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_hold"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.set_target_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4796,9 +4796,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_hold([NotNull] PostgresParser.Opt_holdContext context) { return VisitChildren(context); }
+	public virtual Result VisitSet_target_list([NotNull] PostgreSQLParser.Set_target_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.selectstmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.declarecursorstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4806,9 +4806,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSelectstmt([NotNull] PostgresParser.SelectstmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitDeclarecursorstmt([NotNull] PostgreSQLParser.DeclarecursorstmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.select_with_parens"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.cursor_name"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4816,9 +4816,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSelect_with_parens([NotNull] PostgresParser.Select_with_parensContext context) { return VisitChildren(context); }
+	public virtual Result VisitCursor_name([NotNull] PostgreSQLParser.Cursor_nameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.select_no_parens"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.cursor_options"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4826,9 +4826,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSelect_no_parens([NotNull] PostgresParser.Select_no_parensContext context) { return VisitChildren(context); }
+	public virtual Result VisitCursor_options([NotNull] PostgreSQLParser.Cursor_optionsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.select_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_hold"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4836,9 +4836,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSelect_clause([NotNull] PostgresParser.Select_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_hold([NotNull] PostgreSQLParser.Opt_holdContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.simple_select"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.selectstmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4846,10 +4846,50 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSimple_select([NotNull] PostgresParser.Simple_selectContext context) { return VisitChildren(context); }
+	public virtual Result VisitSelectstmt([NotNull] PostgreSQLParser.SelectstmtContext context) { return VisitChildren(context); }
+	/// <summary>
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.select_with_parens"/>.
+	/// <para>
+	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
+	/// on <paramref name="context"/>.
+	/// </para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	public virtual Result VisitSelect_with_parens([NotNull] PostgreSQLParser.Select_with_parensContext context) { return VisitChildren(context); }
+	/// <summary>
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.select_no_parens"/>.
+	/// <para>
+	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
+	/// on <paramref name="context"/>.
+	/// </para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	public virtual Result VisitSelect_no_parens([NotNull] PostgreSQLParser.Select_no_parensContext context) { return VisitChildren(context); }
+	/// <summary>
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.select_clause"/>.
+	/// <para>
+	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
+	/// on <paramref name="context"/>.
+	/// </para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	public virtual Result VisitSelect_clause([NotNull] PostgreSQLParser.Select_clauseContext context) { return VisitChildren(context); }
+	/// <summary>
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.simple_select"/>.
+	/// <para>
+	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
+	/// on <paramref name="context"/>.
+	/// </para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	public virtual Result VisitSimple_select([NotNull] PostgreSQLParser.Simple_selectContext context) { return VisitChildren(context); }
 	/// <summary>
 	/// Visit a parse tree produced by the <c>union</c>
-	/// labeled alternative in <see cref="PostgresParser.set_operator"/>.
+	/// labeled alternative in <see cref="PostgreSQLParser.set_operator"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4857,10 +4897,10 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitUnion([NotNull] PostgresParser.UnionContext context) { return VisitChildren(context); }
+	public virtual Result VisitUnion([NotNull] PostgreSQLParser.UnionContext context) { return VisitChildren(context); }
 	/// <summary>
 	/// Visit a parse tree produced by the <c>intersect</c>
-	/// labeled alternative in <see cref="PostgresParser.set_operator"/>.
+	/// labeled alternative in <see cref="PostgreSQLParser.set_operator"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4868,10 +4908,10 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitIntersect([NotNull] PostgresParser.IntersectContext context) { return VisitChildren(context); }
+	public virtual Result VisitIntersect([NotNull] PostgreSQLParser.IntersectContext context) { return VisitChildren(context); }
 	/// <summary>
 	/// Visit a parse tree produced by the <c>except</c>
-	/// labeled alternative in <see cref="PostgresParser.set_operator"/>.
+	/// labeled alternative in <see cref="PostgreSQLParser.set_operator"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4879,9 +4919,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitExcept([NotNull] PostgresParser.ExceptContext context) { return VisitChildren(context); }
+	public virtual Result VisitExcept([NotNull] PostgreSQLParser.ExceptContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.set_operator_with_all_or_distinct"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.set_operator_with_all_or_distinct"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4889,9 +4929,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSet_operator_with_all_or_distinct([NotNull] PostgresParser.Set_operator_with_all_or_distinctContext context) { return VisitChildren(context); }
+	public virtual Result VisitSet_operator_with_all_or_distinct([NotNull] PostgreSQLParser.Set_operator_with_all_or_distinctContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.with_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.with_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4899,9 +4939,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitWith_clause([NotNull] PostgresParser.With_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitWith_clause([NotNull] PostgreSQLParser.With_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.cte_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.cte_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4909,9 +4949,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCte_list([NotNull] PostgresParser.Cte_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitCte_list([NotNull] PostgreSQLParser.Cte_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.common_table_expr"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.common_table_expr"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4919,9 +4959,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCommon_table_expr([NotNull] PostgresParser.Common_table_exprContext context) { return VisitChildren(context); }
+	public virtual Result VisitCommon_table_expr([NotNull] PostgreSQLParser.Common_table_exprContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_materialized"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_materialized"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4929,9 +4969,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_materialized([NotNull] PostgresParser.Opt_materializedContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_materialized([NotNull] PostgreSQLParser.Opt_materializedContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_with_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_with_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4939,9 +4979,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_with_clause([NotNull] PostgresParser.Opt_with_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_with_clause([NotNull] PostgreSQLParser.Opt_with_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.into_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.into_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4949,9 +4989,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitInto_clause([NotNull] PostgresParser.Into_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitInto_clause([NotNull] PostgreSQLParser.Into_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_strict"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_strict"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4959,9 +4999,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_strict([NotNull] PostgresParser.Opt_strictContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_strict([NotNull] PostgreSQLParser.Opt_strictContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opttempTableName"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opttempTableName"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4969,9 +5009,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpttempTableName([NotNull] PostgresParser.OpttempTableNameContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpttempTableName([NotNull] PostgreSQLParser.OpttempTableNameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_table"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_table"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4979,9 +5019,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_table([NotNull] PostgresParser.Opt_tableContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_table([NotNull] PostgreSQLParser.Opt_tableContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.all_or_distinct"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.all_or_distinct"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4989,9 +5029,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAll_or_distinct([NotNull] PostgresParser.All_or_distinctContext context) { return VisitChildren(context); }
+	public virtual Result VisitAll_or_distinct([NotNull] PostgreSQLParser.All_or_distinctContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.distinct_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.distinct_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -4999,9 +5039,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDistinct_clause([NotNull] PostgresParser.Distinct_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitDistinct_clause([NotNull] PostgreSQLParser.Distinct_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_all_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_all_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5009,9 +5049,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_all_clause([NotNull] PostgresParser.Opt_all_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_all_clause([NotNull] PostgreSQLParser.Opt_all_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_sort_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_sort_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5019,9 +5059,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_sort_clause([NotNull] PostgresParser.Opt_sort_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_sort_clause([NotNull] PostgreSQLParser.Opt_sort_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.sort_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.sort_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5029,9 +5069,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSort_clause([NotNull] PostgresParser.Sort_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitSort_clause([NotNull] PostgreSQLParser.Sort_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.sortby_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.sortby_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5039,9 +5079,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSortby_list([NotNull] PostgresParser.Sortby_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitSortby_list([NotNull] PostgreSQLParser.Sortby_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.sortby"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.sortby"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5049,9 +5089,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSortby([NotNull] PostgresParser.SortbyContext context) { return VisitChildren(context); }
+	public virtual Result VisitSortby([NotNull] PostgreSQLParser.SortbyContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.select_limit"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.select_limit"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5059,9 +5099,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSelect_limit([NotNull] PostgresParser.Select_limitContext context) { return VisitChildren(context); }
+	public virtual Result VisitSelect_limit([NotNull] PostgreSQLParser.Select_limitContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_select_limit"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_select_limit"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5069,9 +5109,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_select_limit([NotNull] PostgresParser.Opt_select_limitContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_select_limit([NotNull] PostgreSQLParser.Opt_select_limitContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.limit_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.limit_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5079,9 +5119,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitLimit_clause([NotNull] PostgresParser.Limit_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitLimit_clause([NotNull] PostgreSQLParser.Limit_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.offset_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.offset_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5089,9 +5129,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOffset_clause([NotNull] PostgresParser.Offset_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitOffset_clause([NotNull] PostgreSQLParser.Offset_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.select_limit_value"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.select_limit_value"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5099,9 +5139,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSelect_limit_value([NotNull] PostgresParser.Select_limit_valueContext context) { return VisitChildren(context); }
+	public virtual Result VisitSelect_limit_value([NotNull] PostgreSQLParser.Select_limit_valueContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.select_offset_value"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.select_offset_value"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5109,9 +5149,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSelect_offset_value([NotNull] PostgresParser.Select_offset_valueContext context) { return VisitChildren(context); }
+	public virtual Result VisitSelect_offset_value([NotNull] PostgreSQLParser.Select_offset_valueContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.select_fetch_first_value"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.select_fetch_first_value"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5119,9 +5159,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSelect_fetch_first_value([NotNull] PostgresParser.Select_fetch_first_valueContext context) { return VisitChildren(context); }
+	public virtual Result VisitSelect_fetch_first_value([NotNull] PostgreSQLParser.Select_fetch_first_valueContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.i_or_f_const"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.i_or_f_const"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5129,9 +5169,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitI_or_f_const([NotNull] PostgresParser.I_or_f_constContext context) { return VisitChildren(context); }
+	public virtual Result VisitI_or_f_const([NotNull] PostgreSQLParser.I_or_f_constContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.row_or_rows"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.row_or_rows"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5139,9 +5179,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRow_or_rows([NotNull] PostgresParser.Row_or_rowsContext context) { return VisitChildren(context); }
+	public virtual Result VisitRow_or_rows([NotNull] PostgreSQLParser.Row_or_rowsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.first_or_next"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.first_or_next"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5149,9 +5189,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFirst_or_next([NotNull] PostgresParser.First_or_nextContext context) { return VisitChildren(context); }
+	public virtual Result VisitFirst_or_next([NotNull] PostgreSQLParser.First_or_nextContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.group_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.group_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5159,9 +5199,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitGroup_clause([NotNull] PostgresParser.Group_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitGroup_clause([NotNull] PostgreSQLParser.Group_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.group_by_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.group_by_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5169,9 +5209,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitGroup_by_list([NotNull] PostgresParser.Group_by_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitGroup_by_list([NotNull] PostgreSQLParser.Group_by_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.group_by_item"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.group_by_item"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5179,9 +5219,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitGroup_by_item([NotNull] PostgresParser.Group_by_itemContext context) { return VisitChildren(context); }
+	public virtual Result VisitGroup_by_item([NotNull] PostgreSQLParser.Group_by_itemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.empty_grouping_set"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.empty_grouping_set"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5189,9 +5229,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitEmpty_grouping_set([NotNull] PostgresParser.Empty_grouping_setContext context) { return VisitChildren(context); }
+	public virtual Result VisitEmpty_grouping_set([NotNull] PostgreSQLParser.Empty_grouping_setContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.rollup_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.rollup_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5199,9 +5239,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRollup_clause([NotNull] PostgresParser.Rollup_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitRollup_clause([NotNull] PostgreSQLParser.Rollup_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.cube_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.cube_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5209,9 +5249,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCube_clause([NotNull] PostgresParser.Cube_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitCube_clause([NotNull] PostgreSQLParser.Cube_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.grouping_sets_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.grouping_sets_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5219,9 +5259,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitGrouping_sets_clause([NotNull] PostgresParser.Grouping_sets_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitGrouping_sets_clause([NotNull] PostgreSQLParser.Grouping_sets_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.having_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.having_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5229,9 +5269,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitHaving_clause([NotNull] PostgresParser.Having_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitHaving_clause([NotNull] PostgreSQLParser.Having_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.for_locking_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.for_locking_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5239,9 +5279,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFor_locking_clause([NotNull] PostgresParser.For_locking_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitFor_locking_clause([NotNull] PostgreSQLParser.For_locking_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_for_locking_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_for_locking_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5249,9 +5289,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_for_locking_clause([NotNull] PostgresParser.Opt_for_locking_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_for_locking_clause([NotNull] PostgreSQLParser.Opt_for_locking_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.for_locking_items"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.for_locking_items"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5259,9 +5299,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFor_locking_items([NotNull] PostgresParser.For_locking_itemsContext context) { return VisitChildren(context); }
+	public virtual Result VisitFor_locking_items([NotNull] PostgreSQLParser.For_locking_itemsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.for_locking_item"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.for_locking_item"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5269,9 +5309,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFor_locking_item([NotNull] PostgresParser.For_locking_itemContext context) { return VisitChildren(context); }
+	public virtual Result VisitFor_locking_item([NotNull] PostgreSQLParser.For_locking_itemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.for_locking_strength"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.for_locking_strength"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5279,9 +5319,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFor_locking_strength([NotNull] PostgresParser.For_locking_strengthContext context) { return VisitChildren(context); }
+	public virtual Result VisitFor_locking_strength([NotNull] PostgreSQLParser.For_locking_strengthContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.locked_rels_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.locked_rels_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5289,9 +5329,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitLocked_rels_list([NotNull] PostgresParser.Locked_rels_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitLocked_rels_list([NotNull] PostgreSQLParser.Locked_rels_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.values_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.values_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5299,9 +5339,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitValues_clause([NotNull] PostgresParser.Values_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitValues_clause([NotNull] PostgreSQLParser.Values_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.from_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.from_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5309,9 +5349,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFrom_clause([NotNull] PostgresParser.From_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitFrom_clause([NotNull] PostgreSQLParser.From_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.from_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.from_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5319,9 +5359,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFrom_list([NotNull] PostgresParser.From_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitFrom_list([NotNull] PostgreSQLParser.From_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.table_ref"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.non_ansi_join"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5329,9 +5369,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTable_ref([NotNull] PostgresParser.Table_refContext context) { return VisitChildren(context); }
+	public virtual Result VisitNon_ansi_join([NotNull] PostgreSQLParser.Non_ansi_joinContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.alias_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.table_ref"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5339,9 +5379,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAlias_clause([NotNull] PostgresParser.Alias_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitTable_ref([NotNull] PostgreSQLParser.Table_refContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_alias_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.alias_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5349,9 +5389,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_alias_clause([NotNull] PostgresParser.Opt_alias_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitAlias_clause([NotNull] PostgreSQLParser.Alias_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.func_alias_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_alias_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5359,9 +5399,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFunc_alias_clause([NotNull] PostgresParser.Func_alias_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_alias_clause([NotNull] PostgreSQLParser.Opt_alias_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.join_type"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.func_alias_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5369,9 +5409,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitJoin_type([NotNull] PostgresParser.Join_typeContext context) { return VisitChildren(context); }
+	public virtual Result VisitFunc_alias_clause([NotNull] PostgreSQLParser.Func_alias_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.join_qual"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.join_type"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5379,9 +5419,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitJoin_qual([NotNull] PostgresParser.Join_qualContext context) { return VisitChildren(context); }
+	public virtual Result VisitJoin_type([NotNull] PostgreSQLParser.Join_typeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.relation_expr"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.join_qual"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5389,9 +5429,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRelation_expr([NotNull] PostgresParser.Relation_exprContext context) { return VisitChildren(context); }
+	public virtual Result VisitJoin_qual([NotNull] PostgreSQLParser.Join_qualContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.relation_expr_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.relation_expr"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5399,9 +5439,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRelation_expr_list([NotNull] PostgresParser.Relation_expr_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitRelation_expr([NotNull] PostgreSQLParser.Relation_exprContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.relation_expr_opt_alias"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.relation_expr_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5409,9 +5449,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRelation_expr_opt_alias([NotNull] PostgresParser.Relation_expr_opt_aliasContext context) { return VisitChildren(context); }
+	public virtual Result VisitRelation_expr_list([NotNull] PostgreSQLParser.Relation_expr_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.tablesample_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.relation_expr_opt_alias"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5419,9 +5459,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTablesample_clause([NotNull] PostgresParser.Tablesample_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitRelation_expr_opt_alias([NotNull] PostgreSQLParser.Relation_expr_opt_aliasContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_repeatable_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.tablesample_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5429,9 +5469,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_repeatable_clause([NotNull] PostgresParser.Opt_repeatable_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitTablesample_clause([NotNull] PostgreSQLParser.Tablesample_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.func_table"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_repeatable_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5439,9 +5479,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFunc_table([NotNull] PostgresParser.Func_tableContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_repeatable_clause([NotNull] PostgreSQLParser.Opt_repeatable_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.rowsfrom_item"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.func_table"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5449,9 +5489,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRowsfrom_item([NotNull] PostgresParser.Rowsfrom_itemContext context) { return VisitChildren(context); }
+	public virtual Result VisitFunc_table([NotNull] PostgreSQLParser.Func_tableContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.rowsfrom_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.rowsfrom_item"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5459,9 +5499,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRowsfrom_list([NotNull] PostgresParser.Rowsfrom_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitRowsfrom_item([NotNull] PostgreSQLParser.Rowsfrom_itemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_col_def_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.rowsfrom_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5469,9 +5509,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_col_def_list([NotNull] PostgresParser.Opt_col_def_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitRowsfrom_list([NotNull] PostgreSQLParser.Rowsfrom_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_ordinality"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_col_def_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5479,9 +5519,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_ordinality([NotNull] PostgresParser.Opt_ordinalityContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_col_def_list([NotNull] PostgreSQLParser.Opt_col_def_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.where_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_ordinality"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5489,9 +5529,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitWhere_clause([NotNull] PostgresParser.Where_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_ordinality([NotNull] PostgreSQLParser.Opt_ordinalityContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.where_or_current_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.where_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5499,9 +5539,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitWhere_or_current_clause([NotNull] PostgresParser.Where_or_current_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitWhere_clause([NotNull] PostgreSQLParser.Where_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opttablefuncelementlist"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.where_or_current_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5509,9 +5549,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpttablefuncelementlist([NotNull] PostgresParser.OpttablefuncelementlistContext context) { return VisitChildren(context); }
+	public virtual Result VisitWhere_or_current_clause([NotNull] PostgreSQLParser.Where_or_current_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.tablefuncelementlist"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opttablefuncelementlist"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5519,9 +5559,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTablefuncelementlist([NotNull] PostgresParser.TablefuncelementlistContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpttablefuncelementlist([NotNull] PostgreSQLParser.OpttablefuncelementlistContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.tablefuncelement"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.tablefuncelementlist"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5529,9 +5569,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTablefuncelement([NotNull] PostgresParser.TablefuncelementContext context) { return VisitChildren(context); }
+	public virtual Result VisitTablefuncelementlist([NotNull] PostgreSQLParser.TablefuncelementlistContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.xmltable"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.tablefuncelement"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5539,9 +5579,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitXmltable([NotNull] PostgresParser.XmltableContext context) { return VisitChildren(context); }
+	public virtual Result VisitTablefuncelement([NotNull] PostgreSQLParser.TablefuncelementContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.xmltable_column_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.xmltable"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5549,9 +5589,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitXmltable_column_list([NotNull] PostgresParser.Xmltable_column_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitXmltable([NotNull] PostgreSQLParser.XmltableContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.xmltable_column_el"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.xmltable_column_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5559,9 +5599,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitXmltable_column_el([NotNull] PostgresParser.Xmltable_column_elContext context) { return VisitChildren(context); }
+	public virtual Result VisitXmltable_column_list([NotNull] PostgreSQLParser.Xmltable_column_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.xmltable_column_option_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.xmltable_column_el"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5569,9 +5609,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitXmltable_column_option_list([NotNull] PostgresParser.Xmltable_column_option_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitXmltable_column_el([NotNull] PostgreSQLParser.Xmltable_column_elContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.xmltable_column_option_el"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.xmltable_column_option_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5579,9 +5619,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitXmltable_column_option_el([NotNull] PostgresParser.Xmltable_column_option_elContext context) { return VisitChildren(context); }
+	public virtual Result VisitXmltable_column_option_list([NotNull] PostgreSQLParser.Xmltable_column_option_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.xml_namespace_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.xmltable_column_option_el"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5589,9 +5629,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitXml_namespace_list([NotNull] PostgresParser.Xml_namespace_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitXmltable_column_option_el([NotNull] PostgreSQLParser.Xmltable_column_option_elContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.xml_namespace_el"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.xml_namespace_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5599,9 +5639,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitXml_namespace_el([NotNull] PostgresParser.Xml_namespace_elContext context) { return VisitChildren(context); }
+	public virtual Result VisitXml_namespace_list([NotNull] PostgreSQLParser.Xml_namespace_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.typename"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.xml_namespace_el"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5609,9 +5649,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTypename([NotNull] PostgresParser.TypenameContext context) { return VisitChildren(context); }
+	public virtual Result VisitXml_namespace_el([NotNull] PostgreSQLParser.Xml_namespace_elContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_array_bounds"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.typename"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5619,9 +5659,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_array_bounds([NotNull] PostgresParser.Opt_array_boundsContext context) { return VisitChildren(context); }
+	public virtual Result VisitTypename([NotNull] PostgreSQLParser.TypenameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.simpletypename"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_array_bounds"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5629,9 +5669,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSimpletypename([NotNull] PostgresParser.SimpletypenameContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_array_bounds([NotNull] PostgreSQLParser.Opt_array_boundsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.consttypename"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.simpletypename"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5639,9 +5679,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitConsttypename([NotNull] PostgresParser.ConsttypenameContext context) { return VisitChildren(context); }
+	public virtual Result VisitSimpletypename([NotNull] PostgreSQLParser.SimpletypenameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.generictype"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.consttypename"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5649,9 +5689,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitGenerictype([NotNull] PostgresParser.GenerictypeContext context) { return VisitChildren(context); }
+	public virtual Result VisitConsttypename([NotNull] PostgreSQLParser.ConsttypenameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_type_modifiers"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.generictype"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5659,9 +5699,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_type_modifiers([NotNull] PostgresParser.Opt_type_modifiersContext context) { return VisitChildren(context); }
+	public virtual Result VisitGenerictype([NotNull] PostgreSQLParser.GenerictypeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.numeric"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_type_modifiers"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5669,9 +5709,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitNumeric([NotNull] PostgresParser.NumericContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_type_modifiers([NotNull] PostgreSQLParser.Opt_type_modifiersContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_float"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.numeric"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5679,9 +5719,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_float([NotNull] PostgresParser.Opt_floatContext context) { return VisitChildren(context); }
+	public virtual Result VisitNumeric([NotNull] PostgreSQLParser.NumericContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.bit"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_float"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5689,9 +5729,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitBit([NotNull] PostgresParser.BitContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_float([NotNull] PostgreSQLParser.Opt_floatContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.constbit"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.bit"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5699,9 +5739,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitConstbit([NotNull] PostgresParser.ConstbitContext context) { return VisitChildren(context); }
+	public virtual Result VisitBit([NotNull] PostgreSQLParser.BitContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.bitwithlength"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.constbit"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5709,9 +5749,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitBitwithlength([NotNull] PostgresParser.BitwithlengthContext context) { return VisitChildren(context); }
+	public virtual Result VisitConstbit([NotNull] PostgreSQLParser.ConstbitContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.bitwithoutlength"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.bitwithlength"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5719,9 +5759,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitBitwithoutlength([NotNull] PostgresParser.BitwithoutlengthContext context) { return VisitChildren(context); }
+	public virtual Result VisitBitwithlength([NotNull] PostgreSQLParser.BitwithlengthContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.character"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.bitwithoutlength"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5729,9 +5769,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCharacter([NotNull] PostgresParser.CharacterContext context) { return VisitChildren(context); }
+	public virtual Result VisitBitwithoutlength([NotNull] PostgreSQLParser.BitwithoutlengthContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.constcharacter"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.character"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5739,9 +5779,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitConstcharacter([NotNull] PostgresParser.ConstcharacterContext context) { return VisitChildren(context); }
+	public virtual Result VisitCharacter([NotNull] PostgreSQLParser.CharacterContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.character_c"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.constcharacter"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5749,9 +5789,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCharacter_c([NotNull] PostgresParser.Character_cContext context) { return VisitChildren(context); }
+	public virtual Result VisitConstcharacter([NotNull] PostgreSQLParser.ConstcharacterContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_varying"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.character_c"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5759,9 +5799,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_varying([NotNull] PostgresParser.Opt_varyingContext context) { return VisitChildren(context); }
+	public virtual Result VisitCharacter_c([NotNull] PostgreSQLParser.Character_cContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.constdatetime"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_varying"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5769,9 +5809,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitConstdatetime([NotNull] PostgresParser.ConstdatetimeContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_varying([NotNull] PostgreSQLParser.Opt_varyingContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.constinterval"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.constdatetime"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5779,9 +5819,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitConstinterval([NotNull] PostgresParser.ConstintervalContext context) { return VisitChildren(context); }
+	public virtual Result VisitConstdatetime([NotNull] PostgreSQLParser.ConstdatetimeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_timezone"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.constinterval"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5789,9 +5829,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_timezone([NotNull] PostgresParser.Opt_timezoneContext context) { return VisitChildren(context); }
+	public virtual Result VisitConstinterval([NotNull] PostgreSQLParser.ConstintervalContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_interval"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_timezone"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5799,9 +5839,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_interval([NotNull] PostgresParser.Opt_intervalContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_timezone([NotNull] PostgreSQLParser.Opt_timezoneContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.interval_second"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_interval"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5809,9 +5849,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitInterval_second([NotNull] PostgresParser.Interval_secondContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_interval([NotNull] PostgreSQLParser.Opt_intervalContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_escape"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.interval_second"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5819,9 +5859,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_escape([NotNull] PostgresParser.Opt_escapeContext context) { return VisitChildren(context); }
+	public virtual Result VisitInterval_second([NotNull] PostgreSQLParser.Interval_secondContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.a_expr"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_escape"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5829,9 +5869,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitA_expr([NotNull] PostgresParser.A_exprContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_escape([NotNull] PostgreSQLParser.Opt_escapeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.a_expr_qual"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.a_expr"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5839,9 +5879,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitA_expr_qual([NotNull] PostgresParser.A_expr_qualContext context) { return VisitChildren(context); }
+	public virtual Result VisitA_expr([NotNull] PostgreSQLParser.A_exprContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.a_expr_lessless"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.a_expr_qual"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5849,9 +5889,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitA_expr_lessless([NotNull] PostgresParser.A_expr_lesslessContext context) { return VisitChildren(context); }
+	public virtual Result VisitA_expr_qual([NotNull] PostgreSQLParser.A_expr_qualContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.a_expr_or"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.a_expr_lessless"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5859,9 +5899,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitA_expr_or([NotNull] PostgresParser.A_expr_orContext context) { return VisitChildren(context); }
+	public virtual Result VisitA_expr_lessless([NotNull] PostgreSQLParser.A_expr_lesslessContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.a_expr_and"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.a_expr_or"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5869,9 +5909,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitA_expr_and([NotNull] PostgresParser.A_expr_andContext context) { return VisitChildren(context); }
+	public virtual Result VisitA_expr_or([NotNull] PostgreSQLParser.A_expr_orContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.a_expr_in"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.a_expr_and"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5879,9 +5919,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitA_expr_in([NotNull] PostgresParser.A_expr_inContext context) { return VisitChildren(context); }
+	public virtual Result VisitA_expr_and([NotNull] PostgreSQLParser.A_expr_andContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.a_expr_unary_not"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.a_expr_in"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5889,9 +5929,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitA_expr_unary_not([NotNull] PostgresParser.A_expr_unary_notContext context) { return VisitChildren(context); }
+	public virtual Result VisitA_expr_in([NotNull] PostgreSQLParser.A_expr_inContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.a_expr_isnull"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.a_expr_unary_not"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5899,9 +5939,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitA_expr_isnull([NotNull] PostgresParser.A_expr_isnullContext context) { return VisitChildren(context); }
+	public virtual Result VisitA_expr_unary_not([NotNull] PostgreSQLParser.A_expr_unary_notContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.a_expr_is_not"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.a_expr_isnull"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5909,9 +5949,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitA_expr_is_not([NotNull] PostgresParser.A_expr_is_notContext context) { return VisitChildren(context); }
+	public virtual Result VisitA_expr_isnull([NotNull] PostgreSQLParser.A_expr_isnullContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.a_expr_compare"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.a_expr_is_not"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5919,9 +5959,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitA_expr_compare([NotNull] PostgresParser.A_expr_compareContext context) { return VisitChildren(context); }
+	public virtual Result VisitA_expr_is_not([NotNull] PostgreSQLParser.A_expr_is_notContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.a_expr_like"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.a_expr_compare"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5929,9 +5969,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitA_expr_like([NotNull] PostgresParser.A_expr_likeContext context) { return VisitChildren(context); }
+	public virtual Result VisitA_expr_compare([NotNull] PostgreSQLParser.A_expr_compareContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.a_expr_qual_op"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.a_expr_like"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5939,9 +5979,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitA_expr_qual_op([NotNull] PostgresParser.A_expr_qual_opContext context) { return VisitChildren(context); }
+	public virtual Result VisitA_expr_like([NotNull] PostgreSQLParser.A_expr_likeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.a_expr_unary_qualop"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.a_expr_qual_op"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5949,9 +5989,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitA_expr_unary_qualop([NotNull] PostgresParser.A_expr_unary_qualopContext context) { return VisitChildren(context); }
+	public virtual Result VisitA_expr_qual_op([NotNull] PostgreSQLParser.A_expr_qual_opContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.a_expr_add"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.a_expr_unary_qualop"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5959,9 +5999,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitA_expr_add([NotNull] PostgresParser.A_expr_addContext context) { return VisitChildren(context); }
+	public virtual Result VisitA_expr_unary_qualop([NotNull] PostgreSQLParser.A_expr_unary_qualopContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.a_expr_mul"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.a_expr_add"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5969,9 +6009,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitA_expr_mul([NotNull] PostgresParser.A_expr_mulContext context) { return VisitChildren(context); }
+	public virtual Result VisitA_expr_add([NotNull] PostgreSQLParser.A_expr_addContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.a_expr_caret"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.a_expr_mul"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5979,9 +6019,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitA_expr_caret([NotNull] PostgresParser.A_expr_caretContext context) { return VisitChildren(context); }
+	public virtual Result VisitA_expr_mul([NotNull] PostgreSQLParser.A_expr_mulContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.a_expr_unary_sign"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.a_expr_caret"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5989,9 +6029,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitA_expr_unary_sign([NotNull] PostgresParser.A_expr_unary_signContext context) { return VisitChildren(context); }
+	public virtual Result VisitA_expr_caret([NotNull] PostgreSQLParser.A_expr_caretContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.a_expr_at_time_zone"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.a_expr_unary_sign"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -5999,9 +6039,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitA_expr_at_time_zone([NotNull] PostgresParser.A_expr_at_time_zoneContext context) { return VisitChildren(context); }
+	public virtual Result VisitA_expr_unary_sign([NotNull] PostgreSQLParser.A_expr_unary_signContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.a_expr_collate"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.a_expr_at_time_zone"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6009,9 +6049,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitA_expr_collate([NotNull] PostgresParser.A_expr_collateContext context) { return VisitChildren(context); }
+	public virtual Result VisitA_expr_at_time_zone([NotNull] PostgreSQLParser.A_expr_at_time_zoneContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.a_expr_typecast"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.a_expr_collate"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6019,9 +6059,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitA_expr_typecast([NotNull] PostgresParser.A_expr_typecastContext context) { return VisitChildren(context); }
+	public virtual Result VisitA_expr_collate([NotNull] PostgreSQLParser.A_expr_collateContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.b_expr"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.a_expr_typecast"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6029,10 +6069,20 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitB_expr([NotNull] PostgresParser.B_exprContext context) { return VisitChildren(context); }
+	public virtual Result VisitA_expr_typecast([NotNull] PostgreSQLParser.A_expr_typecastContext context) { return VisitChildren(context); }
+	/// <summary>
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.b_expr"/>.
+	/// <para>
+	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
+	/// on <paramref name="context"/>.
+	/// </para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	public virtual Result VisitB_expr([NotNull] PostgreSQLParser.B_exprContext context) { return VisitChildren(context); }
 	/// <summary>
 	/// Visit a parse tree produced by the <c>c_expr_exists</c>
-	/// labeled alternative in <see cref="PostgresParser.c_expr"/>.
+	/// labeled alternative in <see cref="PostgreSQLParser.c_expr"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6040,10 +6090,10 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitC_expr_exists([NotNull] PostgresParser.C_expr_existsContext context) { return VisitChildren(context); }
+	public virtual Result VisitC_expr_exists([NotNull] PostgreSQLParser.C_expr_existsContext context) { return VisitChildren(context); }
 	/// <summary>
 	/// Visit a parse tree produced by the <c>c_expr_expr</c>
-	/// labeled alternative in <see cref="PostgresParser.c_expr"/>.
+	/// labeled alternative in <see cref="PostgreSQLParser.c_expr"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6051,10 +6101,10 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitC_expr_expr([NotNull] PostgresParser.C_expr_exprContext context) { return VisitChildren(context); }
+	public virtual Result VisitC_expr_expr([NotNull] PostgreSQLParser.C_expr_exprContext context) { return VisitChildren(context); }
 	/// <summary>
 	/// Visit a parse tree produced by the <c>c_expr_case</c>
-	/// labeled alternative in <see cref="PostgresParser.c_expr"/>.
+	/// labeled alternative in <see cref="PostgreSQLParser.c_expr"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6062,9 +6112,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitC_expr_case([NotNull] PostgresParser.C_expr_caseContext context) { return VisitChildren(context); }
+	public virtual Result VisitC_expr_case([NotNull] PostgreSQLParser.C_expr_caseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.plsqlvariablename"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.plsqlvariablename"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6072,9 +6122,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPlsqlvariablename([NotNull] PostgresParser.PlsqlvariablenameContext context) { return VisitChildren(context); }
+	public virtual Result VisitPlsqlvariablename([NotNull] PostgreSQLParser.PlsqlvariablenameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.func_application"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.func_application"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6082,9 +6132,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFunc_application([NotNull] PostgresParser.Func_applicationContext context) { return VisitChildren(context); }
+	public virtual Result VisitFunc_application([NotNull] PostgreSQLParser.Func_applicationContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.func_expr"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.func_expr"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6092,9 +6142,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFunc_expr([NotNull] PostgresParser.Func_exprContext context) { return VisitChildren(context); }
+	public virtual Result VisitFunc_expr([NotNull] PostgreSQLParser.Func_exprContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.func_expr_windowless"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.func_expr_windowless"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6102,9 +6152,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFunc_expr_windowless([NotNull] PostgresParser.Func_expr_windowlessContext context) { return VisitChildren(context); }
+	public virtual Result VisitFunc_expr_windowless([NotNull] PostgreSQLParser.Func_expr_windowlessContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.func_expr_common_subexpr"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.func_expr_common_subexpr"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6112,9 +6162,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFunc_expr_common_subexpr([NotNull] PostgresParser.Func_expr_common_subexprContext context) { return VisitChildren(context); }
+	public virtual Result VisitFunc_expr_common_subexpr([NotNull] PostgreSQLParser.Func_expr_common_subexprContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.xml_root_version"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.xml_root_version"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6122,9 +6172,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitXml_root_version([NotNull] PostgresParser.Xml_root_versionContext context) { return VisitChildren(context); }
+	public virtual Result VisitXml_root_version([NotNull] PostgreSQLParser.Xml_root_versionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_xml_root_standalone"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_xml_root_standalone"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6132,9 +6182,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_xml_root_standalone([NotNull] PostgresParser.Opt_xml_root_standaloneContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_xml_root_standalone([NotNull] PostgreSQLParser.Opt_xml_root_standaloneContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.xml_attributes"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.xml_attributes"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6142,9 +6192,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitXml_attributes([NotNull] PostgresParser.Xml_attributesContext context) { return VisitChildren(context); }
+	public virtual Result VisitXml_attributes([NotNull] PostgreSQLParser.Xml_attributesContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.xml_attribute_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.xml_attribute_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6152,9 +6202,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitXml_attribute_list([NotNull] PostgresParser.Xml_attribute_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitXml_attribute_list([NotNull] PostgreSQLParser.Xml_attribute_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.xml_attribute_el"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.xml_attribute_el"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6162,9 +6212,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitXml_attribute_el([NotNull] PostgresParser.Xml_attribute_elContext context) { return VisitChildren(context); }
+	public virtual Result VisitXml_attribute_el([NotNull] PostgreSQLParser.Xml_attribute_elContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.document_or_content"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.document_or_content"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6172,9 +6222,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDocument_or_content([NotNull] PostgresParser.Document_or_contentContext context) { return VisitChildren(context); }
+	public virtual Result VisitDocument_or_content([NotNull] PostgreSQLParser.Document_or_contentContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.xml_whitespace_option"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.xml_whitespace_option"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6182,9 +6232,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitXml_whitespace_option([NotNull] PostgresParser.Xml_whitespace_optionContext context) { return VisitChildren(context); }
+	public virtual Result VisitXml_whitespace_option([NotNull] PostgreSQLParser.Xml_whitespace_optionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.xmlexists_argument"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.xmlexists_argument"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6192,9 +6242,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitXmlexists_argument([NotNull] PostgresParser.Xmlexists_argumentContext context) { return VisitChildren(context); }
+	public virtual Result VisitXmlexists_argument([NotNull] PostgreSQLParser.Xmlexists_argumentContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.xml_passing_mech"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.xml_passing_mech"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6202,9 +6252,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitXml_passing_mech([NotNull] PostgresParser.Xml_passing_mechContext context) { return VisitChildren(context); }
+	public virtual Result VisitXml_passing_mech([NotNull] PostgreSQLParser.Xml_passing_mechContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.within_group_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.within_group_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6212,9 +6262,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitWithin_group_clause([NotNull] PostgresParser.Within_group_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitWithin_group_clause([NotNull] PostgreSQLParser.Within_group_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.filter_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.filter_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6222,9 +6272,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFilter_clause([NotNull] PostgresParser.Filter_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitFilter_clause([NotNull] PostgreSQLParser.Filter_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.window_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.window_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6232,9 +6282,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitWindow_clause([NotNull] PostgresParser.Window_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitWindow_clause([NotNull] PostgreSQLParser.Window_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.window_definition_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.window_definition_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6242,9 +6292,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitWindow_definition_list([NotNull] PostgresParser.Window_definition_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitWindow_definition_list([NotNull] PostgreSQLParser.Window_definition_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.window_definition"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.window_definition"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6252,9 +6302,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitWindow_definition([NotNull] PostgresParser.Window_definitionContext context) { return VisitChildren(context); }
+	public virtual Result VisitWindow_definition([NotNull] PostgreSQLParser.Window_definitionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.over_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.over_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6262,9 +6312,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOver_clause([NotNull] PostgresParser.Over_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitOver_clause([NotNull] PostgreSQLParser.Over_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.window_specification"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.window_specification"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6272,9 +6322,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitWindow_specification([NotNull] PostgresParser.Window_specificationContext context) { return VisitChildren(context); }
+	public virtual Result VisitWindow_specification([NotNull] PostgreSQLParser.Window_specificationContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_existing_window_name"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_existing_window_name"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6282,9 +6332,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_existing_window_name([NotNull] PostgresParser.Opt_existing_window_nameContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_existing_window_name([NotNull] PostgreSQLParser.Opt_existing_window_nameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_partition_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_partition_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6292,9 +6342,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_partition_clause([NotNull] PostgresParser.Opt_partition_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_partition_clause([NotNull] PostgreSQLParser.Opt_partition_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_frame_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_frame_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6302,9 +6352,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_frame_clause([NotNull] PostgresParser.Opt_frame_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_frame_clause([NotNull] PostgreSQLParser.Opt_frame_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.frame_extent"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.frame_extent"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6312,9 +6362,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFrame_extent([NotNull] PostgresParser.Frame_extentContext context) { return VisitChildren(context); }
+	public virtual Result VisitFrame_extent([NotNull] PostgreSQLParser.Frame_extentContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.frame_bound"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.frame_bound"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6322,9 +6372,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFrame_bound([NotNull] PostgresParser.Frame_boundContext context) { return VisitChildren(context); }
+	public virtual Result VisitFrame_bound([NotNull] PostgreSQLParser.Frame_boundContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_window_exclusion_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_window_exclusion_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6332,9 +6382,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_window_exclusion_clause([NotNull] PostgresParser.Opt_window_exclusion_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_window_exclusion_clause([NotNull] PostgreSQLParser.Opt_window_exclusion_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.row"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.row"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6342,9 +6392,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRow([NotNull] PostgresParser.RowContext context) { return VisitChildren(context); }
+	public virtual Result VisitRow([NotNull] PostgreSQLParser.RowContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.explicit_row"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.explicit_row"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6352,9 +6402,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitExplicit_row([NotNull] PostgresParser.Explicit_rowContext context) { return VisitChildren(context); }
+	public virtual Result VisitExplicit_row([NotNull] PostgreSQLParser.Explicit_rowContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.implicit_row"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.implicit_row"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6362,9 +6412,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitImplicit_row([NotNull] PostgresParser.Implicit_rowContext context) { return VisitChildren(context); }
+	public virtual Result VisitImplicit_row([NotNull] PostgreSQLParser.Implicit_rowContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.sub_type"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.sub_type"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6372,9 +6422,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSub_type([NotNull] PostgresParser.Sub_typeContext context) { return VisitChildren(context); }
+	public virtual Result VisitSub_type([NotNull] PostgreSQLParser.Sub_typeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.all_op"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.all_op"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6382,9 +6432,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAll_op([NotNull] PostgresParser.All_opContext context) { return VisitChildren(context); }
+	public virtual Result VisitAll_op([NotNull] PostgreSQLParser.All_opContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.mathop"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.mathop"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6392,9 +6442,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitMathop([NotNull] PostgresParser.MathopContext context) { return VisitChildren(context); }
+	public virtual Result VisitMathop([NotNull] PostgreSQLParser.MathopContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.qual_op"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.qual_op"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6402,9 +6452,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitQual_op([NotNull] PostgresParser.Qual_opContext context) { return VisitChildren(context); }
+	public virtual Result VisitQual_op([NotNull] PostgreSQLParser.Qual_opContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.qual_all_op"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.qual_all_op"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6412,9 +6462,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitQual_all_op([NotNull] PostgresParser.Qual_all_opContext context) { return VisitChildren(context); }
+	public virtual Result VisitQual_all_op([NotNull] PostgreSQLParser.Qual_all_opContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.subquery_Op"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.subquery_Op"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6422,9 +6472,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSubquery_Op([NotNull] PostgresParser.Subquery_OpContext context) { return VisitChildren(context); }
+	public virtual Result VisitSubquery_Op([NotNull] PostgreSQLParser.Subquery_OpContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.expr_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.expr_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6432,9 +6482,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitExpr_list([NotNull] PostgresParser.Expr_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitExpr_list([NotNull] PostgreSQLParser.Expr_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.func_arg_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.func_arg_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6442,9 +6492,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFunc_arg_list([NotNull] PostgresParser.Func_arg_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitFunc_arg_list([NotNull] PostgreSQLParser.Func_arg_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.func_arg_expr"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.func_arg_expr"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6452,9 +6502,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFunc_arg_expr([NotNull] PostgresParser.Func_arg_exprContext context) { return VisitChildren(context); }
+	public virtual Result VisitFunc_arg_expr([NotNull] PostgreSQLParser.Func_arg_exprContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.type_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.type_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6462,9 +6512,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitType_list([NotNull] PostgresParser.Type_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitType_list([NotNull] PostgreSQLParser.Type_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.array_expr"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.array_expr"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6472,9 +6522,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitArray_expr([NotNull] PostgresParser.Array_exprContext context) { return VisitChildren(context); }
+	public virtual Result VisitArray_expr([NotNull] PostgreSQLParser.Array_exprContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.array_expr_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.array_expr_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6482,9 +6532,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitArray_expr_list([NotNull] PostgresParser.Array_expr_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitArray_expr_list([NotNull] PostgreSQLParser.Array_expr_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.extract_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.extract_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6492,9 +6542,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitExtract_list([NotNull] PostgresParser.Extract_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitExtract_list([NotNull] PostgreSQLParser.Extract_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.extract_arg"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.extract_arg"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6502,9 +6552,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitExtract_arg([NotNull] PostgresParser.Extract_argContext context) { return VisitChildren(context); }
+	public virtual Result VisitExtract_arg([NotNull] PostgreSQLParser.Extract_argContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.unicode_normal_form"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.unicode_normal_form"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6512,9 +6562,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitUnicode_normal_form([NotNull] PostgresParser.Unicode_normal_formContext context) { return VisitChildren(context); }
+	public virtual Result VisitUnicode_normal_form([NotNull] PostgreSQLParser.Unicode_normal_formContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.overlay_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.overlay_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6522,9 +6572,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOverlay_list([NotNull] PostgresParser.Overlay_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitOverlay_list([NotNull] PostgreSQLParser.Overlay_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.position_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.position_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6532,9 +6582,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPosition_list([NotNull] PostgresParser.Position_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitPosition_list([NotNull] PostgreSQLParser.Position_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.substr_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.substr_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6542,9 +6592,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSubstr_list([NotNull] PostgresParser.Substr_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitSubstr_list([NotNull] PostgreSQLParser.Substr_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.trim_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.trim_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6552,10 +6602,10 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTrim_list([NotNull] PostgresParser.Trim_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitTrim_list([NotNull] PostgreSQLParser.Trim_listContext context) { return VisitChildren(context); }
 	/// <summary>
 	/// Visit a parse tree produced by the <c>in_expr_select</c>
-	/// labeled alternative in <see cref="PostgresParser.in_expr"/>.
+	/// labeled alternative in <see cref="PostgreSQLParser.in_expr"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6563,10 +6613,10 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitIn_expr_select([NotNull] PostgresParser.In_expr_selectContext context) { return VisitChildren(context); }
+	public virtual Result VisitIn_expr_select([NotNull] PostgreSQLParser.In_expr_selectContext context) { return VisitChildren(context); }
 	/// <summary>
 	/// Visit a parse tree produced by the <c>in_expr_list</c>
-	/// labeled alternative in <see cref="PostgresParser.in_expr"/>.
+	/// labeled alternative in <see cref="PostgreSQLParser.in_expr"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6574,9 +6624,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitIn_expr_list([NotNull] PostgresParser.In_expr_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitIn_expr_list([NotNull] PostgreSQLParser.In_expr_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.case_expr"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.case_expr"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6584,9 +6634,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCase_expr([NotNull] PostgresParser.Case_exprContext context) { return VisitChildren(context); }
+	public virtual Result VisitCase_expr([NotNull] PostgreSQLParser.Case_exprContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.when_clause_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.when_clause_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6594,9 +6644,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitWhen_clause_list([NotNull] PostgresParser.When_clause_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitWhen_clause_list([NotNull] PostgreSQLParser.When_clause_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.when_clause"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.when_clause"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6604,9 +6654,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitWhen_clause([NotNull] PostgresParser.When_clauseContext context) { return VisitChildren(context); }
+	public virtual Result VisitWhen_clause([NotNull] PostgreSQLParser.When_clauseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.case_default"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.case_default"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6614,9 +6664,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCase_default([NotNull] PostgresParser.Case_defaultContext context) { return VisitChildren(context); }
+	public virtual Result VisitCase_default([NotNull] PostgreSQLParser.Case_defaultContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.case_arg"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.case_arg"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6624,9 +6674,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCase_arg([NotNull] PostgresParser.Case_argContext context) { return VisitChildren(context); }
+	public virtual Result VisitCase_arg([NotNull] PostgreSQLParser.Case_argContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.columnref"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.columnref"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6634,9 +6684,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitColumnref([NotNull] PostgresParser.ColumnrefContext context) { return VisitChildren(context); }
+	public virtual Result VisitColumnref([NotNull] PostgreSQLParser.ColumnrefContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.indirection_el"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.indirection_el"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6644,9 +6694,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitIndirection_el([NotNull] PostgresParser.Indirection_elContext context) { return VisitChildren(context); }
+	public virtual Result VisitIndirection_el([NotNull] PostgreSQLParser.Indirection_elContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_slice_bound"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_slice_bound"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6654,9 +6704,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_slice_bound([NotNull] PostgresParser.Opt_slice_boundContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_slice_bound([NotNull] PostgreSQLParser.Opt_slice_boundContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.indirection"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.indirection"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6664,9 +6714,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitIndirection([NotNull] PostgresParser.IndirectionContext context) { return VisitChildren(context); }
+	public virtual Result VisitIndirection([NotNull] PostgreSQLParser.IndirectionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_indirection"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_indirection"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6674,9 +6724,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_indirection([NotNull] PostgresParser.Opt_indirectionContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_indirection([NotNull] PostgreSQLParser.Opt_indirectionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_target_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_target_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6684,9 +6734,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_target_list([NotNull] PostgresParser.Opt_target_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_target_list([NotNull] PostgreSQLParser.Opt_target_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.target_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.target_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6694,10 +6744,10 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTarget_list([NotNull] PostgresParser.Target_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitTarget_list([NotNull] PostgreSQLParser.Target_listContext context) { return VisitChildren(context); }
 	/// <summary>
 	/// Visit a parse tree produced by the <c>target_label</c>
-	/// labeled alternative in <see cref="PostgresParser.target_el"/>.
+	/// labeled alternative in <see cref="PostgreSQLParser.target_el"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6705,10 +6755,10 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTarget_label([NotNull] PostgresParser.Target_labelContext context) { return VisitChildren(context); }
+	public virtual Result VisitTarget_label([NotNull] PostgreSQLParser.Target_labelContext context) { return VisitChildren(context); }
 	/// <summary>
 	/// Visit a parse tree produced by the <c>target_star</c>
-	/// labeled alternative in <see cref="PostgresParser.target_el"/>.
+	/// labeled alternative in <see cref="PostgreSQLParser.target_el"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6716,9 +6766,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitTarget_star([NotNull] PostgresParser.Target_starContext context) { return VisitChildren(context); }
+	public virtual Result VisitTarget_star([NotNull] PostgreSQLParser.Target_starContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.qualified_name_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.qualified_name_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6726,9 +6776,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitQualified_name_list([NotNull] PostgresParser.Qualified_name_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitQualified_name_list([NotNull] PostgreSQLParser.Qualified_name_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.qualified_name"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.qualified_name"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6736,9 +6786,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitQualified_name([NotNull] PostgresParser.Qualified_nameContext context) { return VisitChildren(context); }
+	public virtual Result VisitQualified_name([NotNull] PostgreSQLParser.Qualified_nameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.name_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.name_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6746,9 +6796,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitName_list([NotNull] PostgresParser.Name_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitName_list([NotNull] PostgreSQLParser.Name_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.name"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.name"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6756,9 +6806,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitName([NotNull] PostgresParser.NameContext context) { return VisitChildren(context); }
+	public virtual Result VisitName([NotNull] PostgreSQLParser.NameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.attr_name"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.attr_name"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6766,9 +6816,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAttr_name([NotNull] PostgresParser.Attr_nameContext context) { return VisitChildren(context); }
+	public virtual Result VisitAttr_name([NotNull] PostgreSQLParser.Attr_nameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.file_name"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.file_name"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6776,9 +6826,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFile_name([NotNull] PostgresParser.File_nameContext context) { return VisitChildren(context); }
+	public virtual Result VisitFile_name([NotNull] PostgreSQLParser.File_nameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.func_name"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.func_name"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6786,9 +6836,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFunc_name([NotNull] PostgresParser.Func_nameContext context) { return VisitChildren(context); }
+	public virtual Result VisitFunc_name([NotNull] PostgreSQLParser.Func_nameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.aexprconst"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.aexprconst"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6796,9 +6846,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAexprconst([NotNull] PostgresParser.AexprconstContext context) { return VisitChildren(context); }
+	public virtual Result VisitAexprconst([NotNull] PostgreSQLParser.AexprconstContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.xconst"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.xconst"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6806,9 +6856,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitXconst([NotNull] PostgresParser.XconstContext context) { return VisitChildren(context); }
+	public virtual Result VisitXconst([NotNull] PostgreSQLParser.XconstContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.bconst"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.bconst"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6816,9 +6866,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitBconst([NotNull] PostgresParser.BconstContext context) { return VisitChildren(context); }
+	public virtual Result VisitBconst([NotNull] PostgreSQLParser.BconstContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.fconst"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.fconst"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6826,9 +6876,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFconst([NotNull] PostgresParser.FconstContext context) { return VisitChildren(context); }
+	public virtual Result VisitFconst([NotNull] PostgreSQLParser.FconstContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.iconst"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.iconst"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6836,9 +6886,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitIconst([NotNull] PostgresParser.IconstContext context) { return VisitChildren(context); }
+	public virtual Result VisitIconst([NotNull] PostgreSQLParser.IconstContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.sconst"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.sconst"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6846,9 +6896,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSconst([NotNull] PostgresParser.SconstContext context) { return VisitChildren(context); }
+	public virtual Result VisitSconst([NotNull] PostgreSQLParser.SconstContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.anysconst"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.anysconst"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6856,9 +6906,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAnysconst([NotNull] PostgresParser.AnysconstContext context) { return VisitChildren(context); }
+	public virtual Result VisitAnysconst([NotNull] PostgreSQLParser.AnysconstContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_uescape"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_uescape"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6866,9 +6916,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_uescape([NotNull] PostgresParser.Opt_uescapeContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_uescape([NotNull] PostgreSQLParser.Opt_uescapeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.signediconst"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.signediconst"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6876,9 +6926,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSignediconst([NotNull] PostgresParser.SignediconstContext context) { return VisitChildren(context); }
+	public virtual Result VisitSignediconst([NotNull] PostgreSQLParser.SignediconstContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.roleid"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.roleid"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6886,9 +6936,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRoleid([NotNull] PostgresParser.RoleidContext context) { return VisitChildren(context); }
+	public virtual Result VisitRoleid([NotNull] PostgreSQLParser.RoleidContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.rolespec"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.rolespec"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6896,9 +6946,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRolespec([NotNull] PostgresParser.RolespecContext context) { return VisitChildren(context); }
+	public virtual Result VisitRolespec([NotNull] PostgreSQLParser.RolespecContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.role_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.role_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6906,9 +6956,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitRole_list([NotNull] PostgresParser.Role_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitRole_list([NotNull] PostgreSQLParser.Role_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.colid"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.colid"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6916,9 +6966,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitColid([NotNull] PostgresParser.ColidContext context) { return VisitChildren(context); }
+	public virtual Result VisitColid([NotNull] PostgreSQLParser.ColidContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.type_function_name"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.type_function_name"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6926,9 +6976,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitType_function_name([NotNull] PostgresParser.Type_function_nameContext context) { return VisitChildren(context); }
+	public virtual Result VisitType_function_name([NotNull] PostgreSQLParser.Type_function_nameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.nonreservedword"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.nonreservedword"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6936,9 +6986,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitNonreservedword([NotNull] PostgresParser.NonreservedwordContext context) { return VisitChildren(context); }
+	public virtual Result VisitNonreservedword([NotNull] PostgreSQLParser.NonreservedwordContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.collabel"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.collabel"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6946,9 +6996,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCollabel([NotNull] PostgresParser.CollabelContext context) { return VisitChildren(context); }
+	public virtual Result VisitCollabel([NotNull] PostgreSQLParser.CollabelContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.identifier"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.identifier"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6956,9 +7006,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitIdentifier([NotNull] PostgresParser.IdentifierContext context) { return VisitChildren(context); }
+	public virtual Result VisitIdentifier([NotNull] PostgreSQLParser.IdentifierContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.plsqlidentifier"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.plsqlidentifier"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6966,9 +7016,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPlsqlidentifier([NotNull] PostgresParser.PlsqlidentifierContext context) { return VisitChildren(context); }
+	public virtual Result VisitPlsqlidentifier([NotNull] PostgreSQLParser.PlsqlidentifierContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.unreserved_keyword"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.unreserved_keyword"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6976,9 +7026,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitUnreserved_keyword([NotNull] PostgresParser.Unreserved_keywordContext context) { return VisitChildren(context); }
+	public virtual Result VisitUnreserved_keyword([NotNull] PostgreSQLParser.Unreserved_keywordContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.col_name_keyword"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.col_name_keyword"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6986,9 +7036,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCol_name_keyword([NotNull] PostgresParser.Col_name_keywordContext context) { return VisitChildren(context); }
+	public virtual Result VisitCol_name_keyword([NotNull] PostgreSQLParser.Col_name_keywordContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.type_func_name_keyword"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.type_func_name_keyword"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -6996,9 +7046,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitType_func_name_keyword([NotNull] PostgresParser.Type_func_name_keywordContext context) { return VisitChildren(context); }
+	public virtual Result VisitType_func_name_keyword([NotNull] PostgreSQLParser.Type_func_name_keywordContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.reserved_keyword"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.reserved_keyword"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7006,9 +7056,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitReserved_keyword([NotNull] PostgresParser.Reserved_keywordContext context) { return VisitChildren(context); }
+	public virtual Result VisitReserved_keyword([NotNull] PostgreSQLParser.Reserved_keywordContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.pl_function"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.builtin_function_name"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7016,9 +7066,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPl_function([NotNull] PostgresParser.Pl_functionContext context) { return VisitChildren(context); }
+	public virtual Result VisitBuiltin_function_name([NotNull] PostgreSQLParser.Builtin_function_nameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.comp_options"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.pl_function"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7026,9 +7076,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitComp_options([NotNull] PostgresParser.Comp_optionsContext context) { return VisitChildren(context); }
+	public virtual Result VisitPl_function([NotNull] PostgreSQLParser.Pl_functionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.comp_option"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.comp_options"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7036,9 +7086,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitComp_option([NotNull] PostgresParser.Comp_optionContext context) { return VisitChildren(context); }
+	public virtual Result VisitComp_options([NotNull] PostgreSQLParser.Comp_optionsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.sharp"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.comp_option"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7046,9 +7096,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSharp([NotNull] PostgresParser.SharpContext context) { return VisitChildren(context); }
+	public virtual Result VisitComp_option([NotNull] PostgreSQLParser.Comp_optionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.option_value"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.sharp"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7056,9 +7106,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOption_value([NotNull] PostgresParser.Option_valueContext context) { return VisitChildren(context); }
+	public virtual Result VisitSharp([NotNull] PostgreSQLParser.SharpContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_semi"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.option_value"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7066,9 +7116,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_semi([NotNull] PostgresParser.Opt_semiContext context) { return VisitChildren(context); }
+	public virtual Result VisitOption_value([NotNull] PostgreSQLParser.Option_valueContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.pl_block"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_semi"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7076,9 +7126,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPl_block([NotNull] PostgresParser.Pl_blockContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_semi([NotNull] PostgreSQLParser.Opt_semiContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.decl_sect"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.pl_block"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7086,9 +7136,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDecl_sect([NotNull] PostgresParser.Decl_sectContext context) { return VisitChildren(context); }
+	public virtual Result VisitPl_block([NotNull] PostgreSQLParser.Pl_blockContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.decl_start"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.decl_sect"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7096,9 +7146,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDecl_start([NotNull] PostgresParser.Decl_startContext context) { return VisitChildren(context); }
+	public virtual Result VisitDecl_sect([NotNull] PostgreSQLParser.Decl_sectContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.decl_stmts"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.decl_start"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7106,9 +7156,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDecl_stmts([NotNull] PostgresParser.Decl_stmtsContext context) { return VisitChildren(context); }
+	public virtual Result VisitDecl_start([NotNull] PostgreSQLParser.Decl_startContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.label_decl"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.decl_stmts"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7116,9 +7166,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitLabel_decl([NotNull] PostgresParser.Label_declContext context) { return VisitChildren(context); }
+	public virtual Result VisitDecl_stmts([NotNull] PostgreSQLParser.Decl_stmtsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.decl_stmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.label_decl"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7126,9 +7176,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDecl_stmt([NotNull] PostgresParser.Decl_stmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitLabel_decl([NotNull] PostgreSQLParser.Label_declContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.decl_statement"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.decl_stmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7136,9 +7186,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDecl_statement([NotNull] PostgresParser.Decl_statementContext context) { return VisitChildren(context); }
+	public virtual Result VisitDecl_stmt([NotNull] PostgreSQLParser.Decl_stmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_scrollable"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.decl_statement"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7146,9 +7196,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_scrollable([NotNull] PostgresParser.Opt_scrollableContext context) { return VisitChildren(context); }
+	public virtual Result VisitDecl_statement([NotNull] PostgreSQLParser.Decl_statementContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.decl_cursor_query"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_scrollable"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7156,9 +7206,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDecl_cursor_query([NotNull] PostgresParser.Decl_cursor_queryContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_scrollable([NotNull] PostgreSQLParser.Opt_scrollableContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.decl_cursor_args"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.decl_cursor_query"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7166,9 +7216,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDecl_cursor_args([NotNull] PostgresParser.Decl_cursor_argsContext context) { return VisitChildren(context); }
+	public virtual Result VisitDecl_cursor_query([NotNull] PostgreSQLParser.Decl_cursor_queryContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.decl_cursor_arglist"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.decl_cursor_args"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7176,9 +7226,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDecl_cursor_arglist([NotNull] PostgresParser.Decl_cursor_arglistContext context) { return VisitChildren(context); }
+	public virtual Result VisitDecl_cursor_args([NotNull] PostgreSQLParser.Decl_cursor_argsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.decl_cursor_arg"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.decl_cursor_arglist"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7186,9 +7236,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDecl_cursor_arg([NotNull] PostgresParser.Decl_cursor_argContext context) { return VisitChildren(context); }
+	public virtual Result VisitDecl_cursor_arglist([NotNull] PostgreSQLParser.Decl_cursor_arglistContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.decl_is_for"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.decl_cursor_arg"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7196,9 +7246,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDecl_is_for([NotNull] PostgresParser.Decl_is_forContext context) { return VisitChildren(context); }
+	public virtual Result VisitDecl_cursor_arg([NotNull] PostgreSQLParser.Decl_cursor_argContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.decl_aliasitem"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.decl_is_for"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7206,9 +7256,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDecl_aliasitem([NotNull] PostgresParser.Decl_aliasitemContext context) { return VisitChildren(context); }
+	public virtual Result VisitDecl_is_for([NotNull] PostgreSQLParser.Decl_is_forContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.decl_varname"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.decl_aliasitem"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7216,9 +7266,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDecl_varname([NotNull] PostgresParser.Decl_varnameContext context) { return VisitChildren(context); }
+	public virtual Result VisitDecl_aliasitem([NotNull] PostgreSQLParser.Decl_aliasitemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.decl_const"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.decl_varname"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7226,9 +7276,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDecl_const([NotNull] PostgresParser.Decl_constContext context) { return VisitChildren(context); }
+	public virtual Result VisitDecl_varname([NotNull] PostgreSQLParser.Decl_varnameContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.decl_datatype"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.decl_const"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7236,9 +7286,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDecl_datatype([NotNull] PostgresParser.Decl_datatypeContext context) { return VisitChildren(context); }
+	public virtual Result VisitDecl_const([NotNull] PostgreSQLParser.Decl_constContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.decl_collate"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.decl_datatype"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7246,9 +7296,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDecl_collate([NotNull] PostgresParser.Decl_collateContext context) { return VisitChildren(context); }
+	public virtual Result VisitDecl_datatype([NotNull] PostgreSQLParser.Decl_datatypeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.decl_notnull"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.decl_collate"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7256,9 +7306,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDecl_notnull([NotNull] PostgresParser.Decl_notnullContext context) { return VisitChildren(context); }
+	public virtual Result VisitDecl_collate([NotNull] PostgreSQLParser.Decl_collateContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.decl_defval"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.decl_notnull"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7266,9 +7316,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDecl_defval([NotNull] PostgresParser.Decl_defvalContext context) { return VisitChildren(context); }
+	public virtual Result VisitDecl_notnull([NotNull] PostgreSQLParser.Decl_notnullContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.decl_defkey"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.decl_defval"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7276,9 +7326,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitDecl_defkey([NotNull] PostgresParser.Decl_defkeyContext context) { return VisitChildren(context); }
+	public virtual Result VisitDecl_defval([NotNull] PostgreSQLParser.Decl_defvalContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.assign_operator"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.decl_defkey"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7286,9 +7336,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAssign_operator([NotNull] PostgresParser.Assign_operatorContext context) { return VisitChildren(context); }
+	public virtual Result VisitDecl_defkey([NotNull] PostgreSQLParser.Decl_defkeyContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.proc_sect"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.assign_operator"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7296,9 +7346,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitProc_sect([NotNull] PostgresParser.Proc_sectContext context) { return VisitChildren(context); }
+	public virtual Result VisitAssign_operator([NotNull] PostgreSQLParser.Assign_operatorContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.proc_stmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.proc_sect"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7306,9 +7356,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitProc_stmt([NotNull] PostgresParser.Proc_stmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitProc_sect([NotNull] PostgreSQLParser.Proc_sectContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_perform"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.proc_stmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7316,9 +7366,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_perform([NotNull] PostgresParser.Stmt_performContext context) { return VisitChildren(context); }
+	public virtual Result VisitProc_stmt([NotNull] PostgreSQLParser.Proc_stmtContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_call"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_perform"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7326,9 +7376,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_call([NotNull] PostgresParser.Stmt_callContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_perform([NotNull] PostgreSQLParser.Stmt_performContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_expr_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_call"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7336,9 +7386,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_expr_list([NotNull] PostgresParser.Opt_expr_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_call([NotNull] PostgreSQLParser.Stmt_callContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_assign"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_expr_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7346,9 +7396,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_assign([NotNull] PostgresParser.Stmt_assignContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_expr_list([NotNull] PostgreSQLParser.Opt_expr_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_getdiag"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_assign"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7356,9 +7406,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_getdiag([NotNull] PostgresParser.Stmt_getdiagContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_assign([NotNull] PostgreSQLParser.Stmt_assignContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.getdiag_area_opt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_getdiag"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7366,9 +7416,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitGetdiag_area_opt([NotNull] PostgresParser.Getdiag_area_optContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_getdiag([NotNull] PostgreSQLParser.Stmt_getdiagContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.getdiag_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.getdiag_area_opt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7376,9 +7426,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitGetdiag_list([NotNull] PostgresParser.Getdiag_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitGetdiag_area_opt([NotNull] PostgreSQLParser.Getdiag_area_optContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.getdiag_list_item"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.getdiag_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7386,9 +7436,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitGetdiag_list_item([NotNull] PostgresParser.Getdiag_list_itemContext context) { return VisitChildren(context); }
+	public virtual Result VisitGetdiag_list([NotNull] PostgreSQLParser.Getdiag_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.getdiag_item"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.getdiag_list_item"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7396,9 +7446,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitGetdiag_item([NotNull] PostgresParser.Getdiag_itemContext context) { return VisitChildren(context); }
+	public virtual Result VisitGetdiag_list_item([NotNull] PostgreSQLParser.Getdiag_list_itemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.getdiag_target"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.getdiag_item"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7406,9 +7456,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitGetdiag_target([NotNull] PostgresParser.Getdiag_targetContext context) { return VisitChildren(context); }
+	public virtual Result VisitGetdiag_item([NotNull] PostgreSQLParser.Getdiag_itemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.assign_var"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.getdiag_target"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7416,9 +7466,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAssign_var([NotNull] PostgresParser.Assign_varContext context) { return VisitChildren(context); }
+	public virtual Result VisitGetdiag_target([NotNull] PostgreSQLParser.Getdiag_targetContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_if"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.assign_var"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7426,9 +7476,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_if([NotNull] PostgresParser.Stmt_ifContext context) { return VisitChildren(context); }
+	public virtual Result VisitAssign_var([NotNull] PostgreSQLParser.Assign_varContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_elsifs"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_if"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7436,9 +7486,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_elsifs([NotNull] PostgresParser.Stmt_elsifsContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_if([NotNull] PostgreSQLParser.Stmt_ifContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_else"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_elsifs"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7446,9 +7496,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_else([NotNull] PostgresParser.Stmt_elseContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_elsifs([NotNull] PostgreSQLParser.Stmt_elsifsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_case"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_else"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7456,9 +7506,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_case([NotNull] PostgresParser.Stmt_caseContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_else([NotNull] PostgreSQLParser.Stmt_elseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_expr_until_when"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_case"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7466,9 +7516,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_expr_until_when([NotNull] PostgresParser.Opt_expr_until_whenContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_case([NotNull] PostgreSQLParser.Stmt_caseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.case_when_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_expr_until_when"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7476,9 +7526,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCase_when_list([NotNull] PostgresParser.Case_when_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_expr_until_when([NotNull] PostgreSQLParser.Opt_expr_until_whenContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.case_when"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.case_when_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7486,9 +7536,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCase_when([NotNull] PostgresParser.Case_whenContext context) { return VisitChildren(context); }
+	public virtual Result VisitCase_when_list([NotNull] PostgreSQLParser.Case_when_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_case_else"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.case_when"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7496,9 +7546,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_case_else([NotNull] PostgresParser.Opt_case_elseContext context) { return VisitChildren(context); }
+	public virtual Result VisitCase_when([NotNull] PostgreSQLParser.Case_whenContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_loop"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_case_else"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7506,9 +7556,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_loop([NotNull] PostgresParser.Stmt_loopContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_case_else([NotNull] PostgreSQLParser.Opt_case_elseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_while"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_loop"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7516,9 +7566,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_while([NotNull] PostgresParser.Stmt_whileContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_loop([NotNull] PostgreSQLParser.Stmt_loopContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_for"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_while"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7526,9 +7576,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_for([NotNull] PostgresParser.Stmt_forContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_while([NotNull] PostgreSQLParser.Stmt_whileContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.for_control"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_for"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7536,9 +7586,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFor_control([NotNull] PostgresParser.For_controlContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_for([NotNull] PostgreSQLParser.Stmt_forContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_for_using_expression"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.for_control"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7546,9 +7596,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_for_using_expression([NotNull] PostgresParser.Opt_for_using_expressionContext context) { return VisitChildren(context); }
+	public virtual Result VisitFor_control([NotNull] PostgreSQLParser.For_controlContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_cursor_parameters"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_for_using_expression"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7556,9 +7606,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_cursor_parameters([NotNull] PostgresParser.Opt_cursor_parametersContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_for_using_expression([NotNull] PostgreSQLParser.Opt_for_using_expressionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_reverse"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_cursor_parameters"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7566,9 +7616,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_reverse([NotNull] PostgresParser.Opt_reverseContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_cursor_parameters([NotNull] PostgreSQLParser.Opt_cursor_parametersContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_by_expression"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_reverse"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7576,9 +7626,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_by_expression([NotNull] PostgresParser.Opt_by_expressionContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_reverse([NotNull] PostgreSQLParser.Opt_reverseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.for_variable"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_by_expression"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7586,9 +7636,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitFor_variable([NotNull] PostgresParser.For_variableContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_by_expression([NotNull] PostgreSQLParser.Opt_by_expressionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_foreach_a"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.for_variable"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7596,9 +7646,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_foreach_a([NotNull] PostgresParser.Stmt_foreach_aContext context) { return VisitChildren(context); }
+	public virtual Result VisitFor_variable([NotNull] PostgreSQLParser.For_variableContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.foreach_slice"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_foreach_a"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7606,9 +7656,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitForeach_slice([NotNull] PostgresParser.Foreach_sliceContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_foreach_a([NotNull] PostgreSQLParser.Stmt_foreach_aContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_exit"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.foreach_slice"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7616,9 +7666,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_exit([NotNull] PostgresParser.Stmt_exitContext context) { return VisitChildren(context); }
+	public virtual Result VisitForeach_slice([NotNull] PostgreSQLParser.Foreach_sliceContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.exit_type"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_exit"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7626,9 +7676,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitExit_type([NotNull] PostgresParser.Exit_typeContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_exit([NotNull] PostgreSQLParser.Stmt_exitContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_return"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.exit_type"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7636,9 +7686,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_return([NotNull] PostgresParser.Stmt_returnContext context) { return VisitChildren(context); }
+	public virtual Result VisitExit_type([NotNull] PostgreSQLParser.Exit_typeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_return_result"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_return"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7646,9 +7696,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_return_result([NotNull] PostgresParser.Opt_return_resultContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_return([NotNull] PostgreSQLParser.Stmt_returnContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_raise"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_return_result"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7656,9 +7706,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_raise([NotNull] PostgresParser.Stmt_raiseContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_return_result([NotNull] PostgreSQLParser.Opt_return_resultContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_stmt_raise_level"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_raise"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7666,9 +7716,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_stmt_raise_level([NotNull] PostgresParser.Opt_stmt_raise_levelContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_raise([NotNull] PostgreSQLParser.Stmt_raiseContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_raise_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_stmt_raise_level"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7676,9 +7726,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_raise_list([NotNull] PostgresParser.Opt_raise_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_stmt_raise_level([NotNull] PostgreSQLParser.Opt_stmt_raise_levelContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_raise_using"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_raise_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7686,9 +7736,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_raise_using([NotNull] PostgresParser.Opt_raise_usingContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_raise_list([NotNull] PostgreSQLParser.Opt_raise_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_raise_using_elem"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_raise_using"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7696,9 +7746,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_raise_using_elem([NotNull] PostgresParser.Opt_raise_using_elemContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_raise_using([NotNull] PostgreSQLParser.Opt_raise_usingContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_raise_using_elem_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_raise_using_elem"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7706,9 +7756,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_raise_using_elem_list([NotNull] PostgresParser.Opt_raise_using_elem_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_raise_using_elem([NotNull] PostgreSQLParser.Opt_raise_using_elemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_assert"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_raise_using_elem_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7716,9 +7766,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_assert([NotNull] PostgresParser.Stmt_assertContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_raise_using_elem_list([NotNull] PostgreSQLParser.Opt_raise_using_elem_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_stmt_assert_message"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_assert"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7726,9 +7776,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_stmt_assert_message([NotNull] PostgresParser.Opt_stmt_assert_messageContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_assert([NotNull] PostgreSQLParser.Stmt_assertContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.loop_body"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_stmt_assert_message"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7736,9 +7786,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitLoop_body([NotNull] PostgresParser.Loop_bodyContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_stmt_assert_message([NotNull] PostgreSQLParser.Opt_stmt_assert_messageContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_execsql"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.loop_body"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7746,9 +7796,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_execsql([NotNull] PostgresParser.Stmt_execsqlContext context) { return VisitChildren(context); }
+	public virtual Result VisitLoop_body([NotNull] PostgreSQLParser.Loop_bodyContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_dynexecute"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_execsql"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7756,9 +7806,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_dynexecute([NotNull] PostgresParser.Stmt_dynexecuteContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_execsql([NotNull] PostgreSQLParser.Stmt_execsqlContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_execute_using"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_dynexecute"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7766,9 +7816,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_execute_using([NotNull] PostgresParser.Opt_execute_usingContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_dynexecute([NotNull] PostgreSQLParser.Stmt_dynexecuteContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_execute_using_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_execute_using"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7776,9 +7826,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_execute_using_list([NotNull] PostgresParser.Opt_execute_using_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_execute_using([NotNull] PostgreSQLParser.Opt_execute_usingContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_execute_into"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_execute_using_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7786,9 +7836,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_execute_into([NotNull] PostgresParser.Opt_execute_intoContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_execute_using_list([NotNull] PostgreSQLParser.Opt_execute_using_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_open"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_execute_into"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7796,9 +7846,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_open([NotNull] PostgresParser.Stmt_openContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_execute_into([NotNull] PostgreSQLParser.Opt_execute_intoContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_open_bound_list_item"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_open"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7806,9 +7856,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_open_bound_list_item([NotNull] PostgresParser.Opt_open_bound_list_itemContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_open([NotNull] PostgreSQLParser.Stmt_openContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_open_bound_list"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_open_bound_list_item"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7816,9 +7866,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_open_bound_list([NotNull] PostgresParser.Opt_open_bound_listContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_open_bound_list_item([NotNull] PostgreSQLParser.Opt_open_bound_list_itemContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_open_using"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_open_bound_list"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7826,9 +7876,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_open_using([NotNull] PostgresParser.Opt_open_usingContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_open_bound_list([NotNull] PostgreSQLParser.Opt_open_bound_listContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_scroll_option"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_open_using"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7836,9 +7886,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_scroll_option([NotNull] PostgresParser.Opt_scroll_optionContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_open_using([NotNull] PostgreSQLParser.Opt_open_usingContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_scroll_option_no"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_scroll_option"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7846,9 +7896,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_scroll_option_no([NotNull] PostgresParser.Opt_scroll_option_noContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_scroll_option([NotNull] PostgreSQLParser.Opt_scroll_optionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_fetch"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_scroll_option_no"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7856,9 +7906,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_fetch([NotNull] PostgresParser.Stmt_fetchContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_scroll_option_no([NotNull] PostgreSQLParser.Opt_scroll_option_noContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.into_target"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_fetch"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7866,9 +7916,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitInto_target([NotNull] PostgresParser.Into_targetContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_fetch([NotNull] PostgreSQLParser.Stmt_fetchContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_cursor_from"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.into_target"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7876,9 +7926,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_cursor_from([NotNull] PostgresParser.Opt_cursor_fromContext context) { return VisitChildren(context); }
+	public virtual Result VisitInto_target([NotNull] PostgreSQLParser.Into_targetContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_fetch_direction"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_cursor_from"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7886,9 +7936,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_fetch_direction([NotNull] PostgresParser.Opt_fetch_directionContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_cursor_from([NotNull] PostgreSQLParser.Opt_cursor_fromContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_move"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_fetch_direction"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7896,9 +7946,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_move([NotNull] PostgresParser.Stmt_moveContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_fetch_direction([NotNull] PostgreSQLParser.Opt_fetch_directionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_close"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_move"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7906,9 +7956,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_close([NotNull] PostgresParser.Stmt_closeContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_move([NotNull] PostgreSQLParser.Stmt_moveContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_null"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_close"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7916,9 +7966,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_null([NotNull] PostgresParser.Stmt_nullContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_close([NotNull] PostgreSQLParser.Stmt_closeContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_commit"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_null"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7926,9 +7976,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_commit([NotNull] PostgresParser.Stmt_commitContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_null([NotNull] PostgreSQLParser.Stmt_nullContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_rollback"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_commit"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7936,9 +7986,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_rollback([NotNull] PostgresParser.Stmt_rollbackContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_commit([NotNull] PostgreSQLParser.Stmt_commitContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.plsql_opt_transaction_chain"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_rollback"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7946,9 +7996,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPlsql_opt_transaction_chain([NotNull] PostgresParser.Plsql_opt_transaction_chainContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_rollback([NotNull] PostgreSQLParser.Stmt_rollbackContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.stmt_set"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.plsql_opt_transaction_chain"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7956,9 +8006,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitStmt_set([NotNull] PostgresParser.Stmt_setContext context) { return VisitChildren(context); }
+	public virtual Result VisitPlsql_opt_transaction_chain([NotNull] PostgreSQLParser.Plsql_opt_transaction_chainContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.cursor_variable"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.stmt_set"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7966,9 +8016,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitCursor_variable([NotNull] PostgresParser.Cursor_variableContext context) { return VisitChildren(context); }
+	public virtual Result VisitStmt_set([NotNull] PostgreSQLParser.Stmt_setContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.exception_sect"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.cursor_variable"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7976,9 +8026,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitException_sect([NotNull] PostgresParser.Exception_sectContext context) { return VisitChildren(context); }
+	public virtual Result VisitCursor_variable([NotNull] PostgreSQLParser.Cursor_variableContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.proc_exceptions"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.exception_sect"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7986,9 +8036,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitProc_exceptions([NotNull] PostgresParser.Proc_exceptionsContext context) { return VisitChildren(context); }
+	public virtual Result VisitException_sect([NotNull] PostgreSQLParser.Exception_sectContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.proc_exception"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.proc_exceptions"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -7996,9 +8046,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitProc_exception([NotNull] PostgresParser.Proc_exceptionContext context) { return VisitChildren(context); }
+	public virtual Result VisitProc_exceptions([NotNull] PostgreSQLParser.Proc_exceptionsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.proc_conditions"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.proc_exception"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -8006,9 +8056,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitProc_conditions([NotNull] PostgresParser.Proc_conditionsContext context) { return VisitChildren(context); }
+	public virtual Result VisitProc_exception([NotNull] PostgreSQLParser.Proc_exceptionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.proc_condition"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.proc_conditions"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -8016,9 +8066,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitProc_condition([NotNull] PostgresParser.Proc_conditionContext context) { return VisitChildren(context); }
+	public virtual Result VisitProc_conditions([NotNull] PostgreSQLParser.Proc_conditionsContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_block_label"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.proc_condition"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -8026,9 +8076,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_block_label([NotNull] PostgresParser.Opt_block_labelContext context) { return VisitChildren(context); }
+	public virtual Result VisitProc_condition([NotNull] PostgreSQLParser.Proc_conditionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_loop_label"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_block_label"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -8036,9 +8086,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_loop_label([NotNull] PostgresParser.Opt_loop_labelContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_block_label([NotNull] PostgreSQLParser.Opt_block_labelContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_label"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_loop_label"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -8046,9 +8096,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_label([NotNull] PostgresParser.Opt_labelContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_loop_label([NotNull] PostgreSQLParser.Opt_loop_labelContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_exitcond"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_label"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -8056,9 +8106,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_exitcond([NotNull] PostgresParser.Opt_exitcondContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_label([NotNull] PostgreSQLParser.Opt_labelContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.any_identifier"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_exitcond"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -8066,9 +8116,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitAny_identifier([NotNull] PostgresParser.Any_identifierContext context) { return VisitChildren(context); }
+	public virtual Result VisitOpt_exitcond([NotNull] PostgreSQLParser.Opt_exitcondContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.plsql_unreserved_keyword"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.any_identifier"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -8076,9 +8126,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitPlsql_unreserved_keyword([NotNull] PostgresParser.Plsql_unreserved_keywordContext context) { return VisitChildren(context); }
+	public virtual Result VisitAny_identifier([NotNull] PostgreSQLParser.Any_identifierContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.sql_expression"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.plsql_unreserved_keyword"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -8086,9 +8136,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitSql_expression([NotNull] PostgresParser.Sql_expressionContext context) { return VisitChildren(context); }
+	public virtual Result VisitPlsql_unreserved_keyword([NotNull] PostgreSQLParser.Plsql_unreserved_keywordContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.expr_until_then"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.sql_expression"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -8096,9 +8146,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitExpr_until_then([NotNull] PostgresParser.Expr_until_thenContext context) { return VisitChildren(context); }
+	public virtual Result VisitSql_expression([NotNull] PostgreSQLParser.Sql_expressionContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.expr_until_semi"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.expr_until_then"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -8106,9 +8156,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitExpr_until_semi([NotNull] PostgresParser.Expr_until_semiContext context) { return VisitChildren(context); }
+	public virtual Result VisitExpr_until_then([NotNull] PostgreSQLParser.Expr_until_thenContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.expr_until_rightbracket"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.expr_until_semi"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -8116,9 +8166,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitExpr_until_rightbracket([NotNull] PostgresParser.Expr_until_rightbracketContext context) { return VisitChildren(context); }
+	public virtual Result VisitExpr_until_semi([NotNull] PostgreSQLParser.Expr_until_semiContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.expr_until_loop"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.expr_until_rightbracket"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -8126,9 +8176,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitExpr_until_loop([NotNull] PostgresParser.Expr_until_loopContext context) { return VisitChildren(context); }
+	public virtual Result VisitExpr_until_rightbracket([NotNull] PostgreSQLParser.Expr_until_rightbracketContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.make_execsql_stmt"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.expr_until_loop"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -8136,9 +8186,9 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitMake_execsql_stmt([NotNull] PostgresParser.Make_execsql_stmtContext context) { return VisitChildren(context); }
+	public virtual Result VisitExpr_until_loop([NotNull] PostgreSQLParser.Expr_until_loopContext context) { return VisitChildren(context); }
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="PostgresParser.opt_returning_clause_into"/>.
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.make_execsql_stmt"/>.
 	/// <para>
 	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
 	/// on <paramref name="context"/>.
@@ -8146,6 +8196,16 @@ public partial class PostgresParserBaseVisitor<Result> : AbstractParseTreeVisito
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	/// <return>The visitor result.</return>
-	public virtual Result VisitOpt_returning_clause_into([NotNull] PostgresParser.Opt_returning_clause_intoContext context) { return VisitChildren(context); }
+	public virtual Result VisitMake_execsql_stmt([NotNull] PostgreSQLParser.Make_execsql_stmtContext context) { return VisitChildren(context); }
+	/// <summary>
+	/// Visit a parse tree produced by <see cref="PostgreSQLParser.opt_returning_clause_into"/>.
+	/// <para>
+	/// The default implementation returns the result of calling <see cref="AbstractParseTreeVisitor{Result}.VisitChildren(IRuleNode)"/>
+	/// on <paramref name="context"/>.
+	/// </para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	public virtual Result VisitOpt_returning_clause_into([NotNull] PostgreSQLParser.Opt_returning_clause_intoContext context) { return VisitChildren(context); }
 }
 } // namespace Squill.Provider.Postgres.AntlrParser

@@ -1,14 +1,14 @@
 using Squill.Provider.Postgres.Syntax;
+
 // ReSharper disable StringLiteralTypo
 // ReSharper disable CommentTypo
-
 // ReSharper disable IdentifierTypo
 
 namespace Squill.Provider.Postgres.AntlrParser;
 
-public class PostgresVisitor : PostgresParserBaseVisitor<SyntaxNode?>
+public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
 {
-    public override SyntaxNode VisitRoot(PostgresParser.RootContext context)
+    public override SyntaxNode VisitRoot(PostgreSQLParser.RootContext context)
     {
         var root = new Root();
         
@@ -27,7 +27,7 @@ public class PostgresVisitor : PostgresParserBaseVisitor<SyntaxNode?>
         return root;
     }
 
-    public override SyntaxNode? VisitCreatestmt(PostgresParser.CreatestmtContext context)
+    public override SyntaxNode? VisitCreatestmt(PostgreSQLParser.CreatestmtContext context)
     {
         // TODO: support opttemp
         // TODO: support if not exists
@@ -68,7 +68,7 @@ public class PostgresVisitor : PostgresParserBaseVisitor<SyntaxNode?>
         return createTable;
     }
 
-    public override SyntaxNode VisitQualified_name(PostgresParser.Qualified_nameContext context)
+    public override SyntaxNode VisitQualified_name(PostgreSQLParser.Qualified_nameContext context)
     {
         if (context.colid().identifier()?.Identifier() is not { } first)
         {
@@ -88,7 +88,7 @@ public class PostgresVisitor : PostgresParserBaseVisitor<SyntaxNode?>
         return new QualifiedName(segments);
     }
 
-    public override SyntaxNode VisitTableelement(PostgresParser.TableelementContext context)
+    public override SyntaxNode VisitTableelement(PostgreSQLParser.TableelementContext context)
     {
         if (context.columnDef() is not { } columnDefContext)
         {
@@ -170,7 +170,7 @@ public class PostgresVisitor : PostgresParserBaseVisitor<SyntaxNode?>
         return columnDef;
     }
 
-    public override SyntaxNode VisitTypename(PostgresParser.TypenameContext context)
+    public override SyntaxNode VisitTypename(PostgreSQLParser.TypenameContext context)
     {
         if (context.simpletypename() is not { } simpletypenameContext)
         {
@@ -247,7 +247,7 @@ public class PostgresVisitor : PostgresParserBaseVisitor<SyntaxNode?>
         throw new NotImplementedException($"Support for {simpletypenameContext.GetText()} type name not yet implemented");
     }
 
-    public override SyntaxNode VisitColconstraintelem(PostgresParser.ColconstraintelemContext context)
+    public override SyntaxNode VisitColconstraintelem(PostgreSQLParser.ColconstraintelemContext context)
     {
         if (context.NULL_P() is not null)
         {

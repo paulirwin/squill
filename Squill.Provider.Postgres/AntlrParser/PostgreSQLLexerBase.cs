@@ -3,11 +3,11 @@ using Antlr4.Runtime;
 
 namespace Squill.Provider.Postgres.AntlrParser;
 
-public abstract class PostgresLexerBase : Lexer
+public abstract class PostgreSQLLexerBase : Lexer
 {
     protected static readonly Queue<string> tags = new();
 
-    protected PostgresLexerBase(ICharStream input, TextWriter output, TextWriter errorOutput) 
+    protected PostgreSQLLexerBase(ICharStream input, TextWriter output, TextWriter errorOutput) 
         : base(input, output, errorOutput)
     {
     }
@@ -47,13 +47,13 @@ public abstract class PostgresLexerBase : Lexer
     public void HandleNumericFail()
     {
         InputStream.Seek(getInputStream().Index - 2);
-        Type = PostgresLexer.Integral;
+        Type = PostgreSQLLexer.Integral;
     }
 
     public void HandleLessLessGreaterGreater()
     {
-        if (Text == "<<") Type = PostgresLexer.LESS_LESS;
-        if (Text == ">>") Type = PostgresLexer.GREATER_GREATER;
+        if (Text == "<<") Type = PostgreSQLLexer.LESS_LESS;
+        if (Text == ">>") Type = PostgreSQLLexer.GREATER_GREATER;
     }
 
     public bool CheckIfUtf32Letter()

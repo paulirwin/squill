@@ -17,8 +17,8 @@
     </ItemGroup>
     
     <ItemGroup>
-      <None Include="AntlrParser\PostgresLexer.g4" />
-      <None Include="AntlrParser\PostgresParser.g4" />
+      <None Include="AntlrParser\PostgreSQLLexer.g4" />
+      <None Include="AntlrParser\PostgreSQLParser.g4" />
     </ItemGroup>
     
 </Project>

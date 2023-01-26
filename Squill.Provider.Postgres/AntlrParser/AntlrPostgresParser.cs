@@ -8,9 +8,9 @@ public class AntlrPostgresParser : IPostgresParser
     public Root Parse(string text)
     {
         var input = new CaseChangingCharStream(new AntlrInputStream(text), upper: true);
-        var lexer = new PostgresLexer(input);
+        var lexer = new PostgreSQLLexer(input);
         var tokenStream = new CommonTokenStream(lexer);
-        var parser = new PostgresParser(tokenStream);
+        var parser = new PostgreSQLParser(tokenStream);
         var visitor = new PostgresVisitor();
 
         parser.ErrorHandler = new BailErrorStrategy();

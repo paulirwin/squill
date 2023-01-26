@@ -4,9 +4,9 @@ using Antlr4.Runtime.Tree;
 
 namespace Squill.Provider.Postgres.AntlrParser;
 
-public abstract class PostgresParserBase : Parser
+public abstract class PostgreSQLParserBase : Parser
 {
-    protected PostgresParserBase(ITokenStream input, TextWriter output, TextWriter errorOutput) 
+    protected PostgreSQLParserBase(ITokenStream input, TextWriter output, TextWriter errorOutput) 
         : base(input, output, errorOutput)
     {
     }
@@ -18,7 +18,7 @@ public abstract class PostgresParserBase : Parser
         return result;
     }
 
-    internal void ParseRoutineBody(PostgresParser.Createfunc_opt_listContext _localctx)
+    internal void ParseRoutineBody(PostgreSQLParser.Createfunc_opt_listContext _localctx)
     {
         var lang =
             _localctx
@@ -65,7 +65,7 @@ public abstract class PostgresParserBase : Parser
         return r.ToString();
     }
 
-    public string GetRoutineBodyString(PostgresParser.SconstContext rule)
+    public string GetRoutineBodyString(PostgreSQLParser.SconstContext rule)
     {
         var anysconst = rule.anysconst();
         var StringConstant = anysconst.StringConstant();
@@ -83,12 +83,12 @@ public abstract class PostgresParserBase : Parser
         return result;
     }
 
-    public PostgresParser getPostgreSQLParser(string script)
+    public PostgreSQLParser getPostgreSQLParser(string script)
     {
         var charStream = CharStreams.fromString(script);
-        var lexer = new PostgresLexer(charStream);
+        var lexer = new PostgreSQLLexer(charStream);
         var tokens = new CommonTokenStream(lexer);
-        var parser = new PostgresParser(tokens);
+        var parser = new PostgreSQLParser(tokens);
         lexer.RemoveErrorListeners();
         parser.RemoveErrorListeners();
         var listener_lexer = new LexerDispatchingErrorListener((this.InputStream as CommonTokenStream)?.TokenSource as Lexer);
