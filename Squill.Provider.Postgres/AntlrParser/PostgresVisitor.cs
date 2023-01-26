@@ -1,4 +1,6 @@
 using Squill.Provider.Postgres.Syntax;
+// ReSharper disable StringLiteralTypo
+// ReSharper disable CommentTypo
 
 // ReSharper disable IdentifierTypo
 
@@ -127,8 +129,43 @@ public class PostgresVisitor : PostgresParserBaseVisitor<SyntaxNode?>
         {
             throw new PostgresParseException("Unable to parse table element data type");
         }
-
+        
+        // TODO: support OPTIONS
+        
         var columnDef = new ColumnDefinition(name, dataType);
+
+        if (columnDefContext.colquallist() is { } colquallist
+            && colquallist.colconstraint() is { Length: > 0 } colconstraints)
+        {
+            foreach (var colconstraint in colconstraints)
+            {
+                if (colconstraint.CONSTRAINT() is not null
+                    && colconstraint.name() is { } nameContext)
+                {
+                    if (VisitColconstraintelem(colconstraint.colconstraintelem()) is not ColumnConstraint innerConstraint)
+                    {
+                        throw new PostgresParseException("Expected VisitColconstraintelem to return a ColumnConstraint");
+                    }
+                    
+                    // TODO: support quoted identifiers properly etc. instead of just calling nameContext.GetText()
+                    columnDef.Constraints.Add(new NamedColumnConstraint(colconstraint.GetText(), nameContext.GetText(), innerConstraint));
+                }
+                else if (colconstraint.colconstraintelem() is { } colconstraintelem)
+                {
+                    if (VisitColconstraintelem(colconstraintelem) is not ColumnConstraint columnConstraint)
+                    {
+                        throw new PostgresParseException("Expected VisitColconstraintelem to return a ColumnConstraint");
+                    }
+                    
+                    columnDef.Constraints.Add(columnConstraint);
+                }
+                else
+                {
+                    // TODO: support these constraint types
+                    throw new NotImplementedException("DEFERRABLE, DEFERRED, IMMEDIATE, and COLLATE not yet supported");
+                }
+            }   
+        }
 
         return columnDef;
     }
@@ -208,5 +245,22 @@ public class PostgresVisitor : PostgresParserBaseVisitor<SyntaxNode?>
         }
     
         throw new NotImplementedException($"Support for {simpletypenameContext.GetText()} type name not yet implemented");
+    }
+
+    public override SyntaxNode VisitColconstraintelem(PostgresParser.ColconstraintelemContext context)
+    {
+        if (context.NULL_P() is not null)
+        {
+            return new NullableColumnConstraint(context.GetText(), context.NOT() is null);
+        }
+
+        if (context.PRIMARY() is not null && context.KEY() is not null)
+        {
+            // TODO: support opt_definition and optconsttablespace
+            return new PrimaryKeyColumnConstraint(context.GetText());
+        }
+
+        // TODO: support UNIQUE, CHECK, DEFAULT, GENERATED, and REFERENCES
+        throw new NotImplementedException("Column constraint type not yet implemented");
     }
 }

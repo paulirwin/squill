@@ -34,10 +34,15 @@ CREATE TABLE Foo
         
         Assert.Equal("id", idColumn.Name);
         Assert.Equal("integer", idColumn.DataType.TypeName);
+        Assert.Equal(1, idColumn.Constraints.Count);
+        Assert.IsType<PrimaryKeyColumnConstraint>(idColumn.Constraints[0]);
         
         Assert.Equal("name", nameColumn.Name);
         Assert.Equal("varchar", nameColumn.DataType.TypeName);
         Assert.Equal(1, nameColumn.DataType.Modifiers.Count);
         Assert.Equivalent(100, nameColumn.DataType.Modifiers[0]);
+        Assert.Equal(1, nameColumn.Constraints.Count);
+        var nullableConstraint = Assert.IsType<NullableColumnConstraint>(nameColumn.Constraints[0]);
+        Assert.False(nullableConstraint.Nullable);
     }
 }
