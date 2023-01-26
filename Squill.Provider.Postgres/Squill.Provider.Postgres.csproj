@@ -14,11 +14,7 @@
     
     <ItemGroup>
       <ProjectReference Include="..\Squill.Core\Squill.Core.csproj" />
-    </ItemGroup>
-    
-    <ItemGroup>
-      <None Include="AntlrParser\PostgreSQLLexer.g4" />
-      <None Include="AntlrParser\PostgreSQLParser.g4" />
+      <ProjectReference Include="..\Squill.PostgresParser\Squill.PostgresParser.csproj" />
     </ItemGroup>
     
 </Project>
