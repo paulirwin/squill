@@ -45,4 +45,39 @@ CREATE TABLE Foo
         var nullableConstraint = Assert.IsType<NullableColumnConstraint>(nameColumn.Constraints[0]);
         Assert.False(nullableConstraint.Nullable);
     }
+
+    [Fact]
+    public void CreateTable_NamedColumnConstraintTest()
+    {
+        var parser = new AntlrPostgresParser();
+        
+        // TODO: move to embedded resource
+        const string text = """
+CREATE TABLE Foo 
+(
+    id integer CONSTRAINT PK_Foo PRIMARY KEY
+);
+""";
+
+        var root = parser.Parse(text);
+        
+        Assert.NotNull(root);
+        Assert.Equal(1, root.Statements.Count);
+
+        var createTable = Assert.IsType<CreateTableStatement>(root.Statements[0]);
+        
+        Assert.Equal("Foo", createTable.Name.ToString());
+        Assert.Equal(1, createTable.Elements.Count);
+
+        var idColumn = Assert.IsType<ColumnDefinition>(createTable.Elements[0]);
+        
+        Assert.Equal("id", idColumn.Name);
+        Assert.Equal("integer", idColumn.DataType.TypeName);
+        Assert.Equal(1, idColumn.Constraints.Count);
+        
+        var namedConstraint = Assert.IsType<NamedColumnConstraint>(idColumn.Constraints[0]);
+        
+        Assert.Equal("PK_Foo", namedConstraint.Name);
+        Assert.IsType<PrimaryKeyColumnConstraint>(namedConstraint.Constraint);
+    }
 }
