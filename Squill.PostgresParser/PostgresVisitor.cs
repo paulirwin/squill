@@ -243,6 +243,43 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
             
             // TODO: support decimal/numeric, serial types, boolean
         }
+
+        if (simpletypenameContext.constdatetime() is { } constdatetime)
+        {
+            bool withTimeZone = constdatetime.opt_timezone()?.WITH() != null;
+
+            if (constdatetime.iconst() is not null)
+            {
+                throw new NotImplementedException("Support for modifiers on TIME and TIMESTAMP types not yet implemented");
+            }
+
+            if (constdatetime.TIME() is not null)
+            {
+                return new BuiltInDataType(
+                    withTimeZone ? PostgresBuiltInDataType.TimeWithTimeZone : PostgresBuiltInDataType.Time,
+                    constdatetime.GetText());
+            }
+
+            if (constdatetime.TIMESTAMP() is not null)
+            {
+                return new BuiltInDataType(
+                    withTimeZone ? PostgresBuiltInDataType.TimestampWithTimeZone : PostgresBuiltInDataType.Timestamp,
+                    constdatetime.GetText());
+            }
+        }
+
+        if (simpletypenameContext.generictype() is { } generictype)
+        {
+            if (generictype.type_function_name() is { } typeFunctionName)
+            {
+                var text = typeFunctionName.GetText();
+
+                if (Enum.TryParse<PostgresObjectIdentifierTypes>(text, ignoreCase: true, out var oidType))
+                {
+                    return new ObjectIdentifierTypeName(text, oidType);
+                }
+            }
+        }
     
         throw new NotImplementedException($"Support for {simpletypenameContext.GetText()} type name not yet implemented");
     }
@@ -260,7 +297,164 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
             return new PrimaryKeyColumnConstraint(context.GetText());
         }
 
+        if (context.DEFAULT() is not null)
+        {
+            if (VisitB_expr(context.b_expr()) is not Expression expression)
+            {
+                throw new PostgresParseException("Expected an Expression for DEFAULT constraint");
+            }
+
+            return new DefaultColumnConstraint(context.GetText(), expression);
+        }
+
         // TODO: support UNIQUE, CHECK, DEFAULT, GENERATED, and REFERENCES
         throw new NotImplementedException("Column constraint type not yet implemented");
+    }
+
+    public override SyntaxNode? VisitB_expr(PostgreSQLParser.B_exprContext context)
+    {
+        if (context.c_expr() is { } cExpr)
+        {
+            return Visit(cExpr);
+        }
+
+        throw new NotImplementedException("b_expr expression alternate not yet supported");
+    }
+
+    public override SyntaxNode VisitC_expr_expr(PostgreSQLParser.C_expr_exprContext context)
+    {
+        if (context.func_expr() is { } funcExpr)
+        {
+            return VisitFunc_expr(funcExpr);
+        }
+
+        if (context.aexprconst() is { } aexprconst)
+        {
+            return VisitAexprconst(aexprconst);
+        }
+
+        throw new NotImplementedException("c_expr_expr expression alternate not yet supported");
+    }
+
+    public override SyntaxNode VisitAexprconst(PostgreSQLParser.AexprconstContext context)
+    {
+        if (context.sconst() is { } sconst)
+        {
+            return VisitSconst(sconst);
+        }
+
+        throw new NotImplementedException("Aexprconst alternate not yet supported");
+    }
+
+    public override SyntaxNode VisitFunc_expr(PostgreSQLParser.Func_exprContext context)
+    {
+        if (context.func_application() is { } funcApplication)
+        {
+            return VisitFunc_application(funcApplication);
+        }
+
+        throw new NotImplementedException("Support for func_expr_common_subexpr not yet implemented");
+    }
+
+    public override SyntaxNode VisitFunc_application(PostgreSQLParser.Func_applicationContext context)
+    {
+        // TODO: handle names better, i.e. quoted identifiers
+        var name = context.func_name().GetText();
+
+        var func = new FunctionApplicationExpression(name);
+
+        if (context.func_arg_expr() is not null
+            || context.VARIADIC() is not null
+            || context.ALL() is not null
+            || context.DISTINCT() is not null
+            || context.STAR() is not null)
+        {
+            throw new NotImplementedException("Support for variadic arguments, VARIADIC, ALL, DISTINCT, and * not yet implemented");
+        }
+        
+        if (context.func_arg_list() is { } funcArgList)
+        {
+            foreach (var argExpr in funcArgList.func_arg_expr())
+            {
+                if (argExpr.param_name() is not null)
+                {
+                    throw new NotImplementedException("Support for named parameters is not yet implemented");
+                }
+
+                if (VisitA_expr(argExpr.a_expr()) is not Expression expression)
+                {
+                    throw new PostgresParseException("Expected argument a_expr to return an Expression");
+                }
+
+                func.Arguments.Add(new FunctionArgument(expression));
+            }
+        }
+        
+        return func;
+    }
+
+    public override SyntaxNode VisitA_expr_typecast(PostgreSQLParser.A_expr_typecastContext context)
+    {
+        TypecastExpression? expression = null;
+
+        foreach (var typename in context.typename())
+        {
+            if (VisitTypename(typename) is not DataType dataType)
+            {
+                throw new PostgresParseException("Unable to parse data type for typecast");
+            }
+
+            if (expression != null)
+            {
+                expression = new TypecastExpression(expression, dataType);
+            }
+            else
+            {
+                var startExprNode = Visit(context.c_expr());
+                
+                if (startExprNode is not Expression startExpression)
+                {
+                    throw new PostgresParseException("Unable to parse expression for typecast");
+                }
+
+                expression = new TypecastExpression(startExpression, dataType);
+            }
+        }
+
+        if (expression == null)
+        {
+            throw new PostgresParseException("Unexpected missing typename in typecast expression");
+        }        
+        
+        return expression;
+    }
+
+    public override SyntaxNode VisitSconst(PostgreSQLParser.SconstContext context)
+    {
+        if (context.opt_uescape() is not null && context.opt_uescape().UESCAPE() is not null)
+        {
+            throw new NotImplementedException("UESCAPE not yet supported");
+        }
+
+        return VisitAnysconst(context.anysconst());
+    }
+
+    public override SyntaxNode VisitAnysconst(PostgreSQLParser.AnysconstContext context)
+    {
+        if (context.StringConstant() is not null)
+        {
+            var text = context.GetText();
+
+            if (text[0] != '\'' || text[^1] != '\'')
+            {
+                throw new PostgresParseException("Expected string literal to start and end with \"'\"");
+            }
+
+            var stringValue = text[1..^1].Replace("''", "'");
+
+            return new LiteralExpression(text, stringValue);
+        }
+
+        throw new NotImplementedException("Support for other string constant types not yet implemented");
     }
 }

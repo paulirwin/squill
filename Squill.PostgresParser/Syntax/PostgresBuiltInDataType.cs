@@ -12,5 +12,11 @@ public enum PostgresBuiltInDataType
     Double,
     SmallSerial,
     Serial,
-    BigSerial
+    BigSerial,
+    Timestamp,
+    TimestampWithTimeZone,
+    Date,
+    Time,
+    TimeWithTimeZone,
+    Interval
 }
