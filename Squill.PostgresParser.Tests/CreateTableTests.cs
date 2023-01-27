@@ -235,6 +235,37 @@ CREATE TABLE customer (
         AssertSakilaLastUpdateColumn(createTable, 8);
         AssertBuiltInDataTypeColumn(createTable, 9, "active", PostgresBuiltInDataType.Integer, false);
     }
+    
+    /// <summary>
+    /// A test for the Sakila sample database `language` table. See license in README.md
+    /// </summary>
+    [Fact]
+    public void Sakila_LanguageTableTest()
+    {
+        var parser = new AntlrPostgresParser();
+
+        // TODO: move to embedded resource
+        const string text = """
+CREATE TABLE language (
+    language_id integer DEFAULT nextval('language_language_id_seq'::regclass) NOT NULL,
+    name character(20) NOT NULL,
+    last_update timestamp without time zone DEFAULT now() NOT NULL
+);
+""";
+
+        var root = parser.Parse(text);
+        Assert.NotNull(root);
+        Assert.Equal(1, root.Statements.Count);
+
+        var createTable = Assert.IsType<CreateTableStatement>(root.Statements[0]);
+
+        Assert.Equal("language", createTable.Name.ToString());
+        Assert.Equal(3, createTable.Elements.Count);
+        
+        AssertSakilaIdColumn(createTable, "language_id", "language_language_id_seq");
+        AssertVarcharColumn(createTable, 1, "name", 20, true, false, type: PostgresBuiltInDataType.Char);
+        AssertSakilaLastUpdateColumn(createTable, 2);
+    }
 
     private static void AssertSakilaIdColumn(CreateTableStatement createTable, string name, string seqName)
     {
@@ -258,14 +289,15 @@ CREATE TABLE customer (
         Assert.False(nullableConstraint.Nullable);
     }
 
-    private static void AssertVarcharColumn(CreateTableStatement createTable, int columnIndex, string name, int length, bool assertNullability, bool? nullable = null)
+    private static void AssertVarcharColumn(CreateTableStatement createTable, int columnIndex, string name, int length,
+        bool assertNullability, bool? nullable = null, PostgresBuiltInDataType type = PostgresBuiltInDataType.Varchar)
     {
         var columnDef = Assert.IsType<ColumnDefinition>(createTable.Elements[columnIndex]);
 
         Assert.Equal(name, columnDef.Name);
         
         var dataType = Assert.IsType<BuiltInDataType>(columnDef.DataType);
-        Assert.Equal(PostgresBuiltInDataType.Varchar, dataType.Type);
+        Assert.Equal(type, dataType.Type);
         Assert.Equal(1, dataType.Modifiers.Count);
         var lengthExpr = Assert.IsType<LiteralExpression>(dataType.Modifiers[0]);
         Assert.Equal((long)length, lengthExpr.Value);

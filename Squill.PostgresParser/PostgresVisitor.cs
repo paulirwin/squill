@@ -71,14 +71,24 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
 
     public override SyntaxNode VisitQualified_name(PostgreSQLParser.Qualified_nameContext context)
     {
-        if (context.colid().identifier()?.Identifier() is not { } first)
+        string first;
+        
+        if (context.colid().identifier()?.Identifier() is { } identifier)
         {
-            throw new NotImplementedException("Only basic unquoted identifiers are not yet supported");
+            first = identifier.GetText();
+        }
+        else if (context.colid().unreserved_keyword() is { } unreservedKeyword)
+        {
+            first = unreservedKeyword.GetText();
+        }
+        else
+        {
+            throw new PostgresParseException("Unsupported quoted identifier");
         }
 
         var segments = new List<string>
         {
-            first.GetText()
+            first
         };
 
         if (context.indirection() is not null)
