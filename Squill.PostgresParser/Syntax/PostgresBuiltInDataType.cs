@@ -18,5 +18,9 @@ public enum PostgresBuiltInDataType
     Date,
     Time,
     TimeWithTimeZone,
-    Interval
+    Interval,
+    Text,
+    TSVector,
+    TSQuery,
+    Boolean
 }

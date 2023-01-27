@@ -1,3 +1,4 @@
+using Antlr4.Runtime.Tree;
 using Squill.PostgresParser.Syntax;
 
 // ReSharper disable StringLiteralTypo
@@ -27,7 +28,7 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
         return root;
     }
 
-    public override SyntaxNode? VisitCreatestmt(PostgreSQLParser.CreatestmtContext context)
+    public override SyntaxNode VisitCreatestmt(PostgreSQLParser.CreatestmtContext context)
     {
         // TODO: support opttemp
         // TODO: support if not exists
@@ -177,10 +178,42 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
             throw new NotImplementedException("PERCENT not yet supported");
         }
 
+        var arraySizes = new Stack<int?>();
+        DataType? dataType = null;
+
+        if (context.opt_array_bounds()?.OPEN_BRACKET() is { Length: > 0 })
+        {
+            int? size = null;
+            
+            // HACK.PI: is there a better way to do this?
+            // opt_array_bounds().iconst() is not the same size array as OPEN_BRACKET() so we can't tell from arrays
+            // alone which size goes with which dimension
+            foreach (var arrayBoundChild in context.opt_array_bounds().children)
+            {
+                if (arrayBoundChild is PostgreSQLParser.IconstContext arrayBound)
+                {
+                    if (VisitIconst(arrayBound) is not LiteralExpression { Value: long arraySize })
+                    {
+                        throw new PostgresParseException("Unable to parse array bound literal");
+                    }
+                    
+                    size = Convert.ToInt32(arraySize);
+                }
+                else if (arrayBoundChild is TerminalNodeImpl terminalNode &&
+                    terminalNode.Symbol.Type == PostgreSQLLexer.CLOSE_BRACKET)
+                {
+                    arraySizes.Push(size);
+                    size = null;
+                }
+            }
+        }
+
         if (simpletypenameContext.character() is { } characterContext
             && characterContext.character_c() is { } character_c)
         {
-            var length = characterContext.iconst() is { } iconst ? int.Parse(iconst.Integral().GetText()) : (int?)null;
+            var length = characterContext.iconst() is { } iconst 
+                ? VisitIconst(iconst) as Expression ?? throw new PostgresParseException("Unable to parse character length expression") 
+                : null;
 
             if (character_c.VARCHAR() is not null
                 || (character_c.CHARACTER() is not null
@@ -190,13 +223,12 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
 
                 if (length != null)
                 {
-                    type.Modifiers.Add(length.Value);
+                    type.Modifiers.Add(length);
                 }
 
-                return type;
+                dataType = type;
             }
-
-            if (character_c.CHARACTER() is not null
+            else if (character_c.CHARACTER() is not null
                 || character_c.CHAR_P() is not null
                 || character_c.NCHAR() is not null)
             {
@@ -205,43 +237,67 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
 
                 if (length != null)
                 {
-                    type.Modifiers.Add(length.Value);
+                    type.Modifiers.Add(length);
                 }
 
-                return type;
+                dataType = type;
             }
-
-            throw new PostgresParseException($"Unknown or unsupported character type: {character_c.GetText()}");
+            else
+            {
+                throw new PostgresParseException($"Unknown or unsupported character type: {character_c.GetText()}");
+            }
         }
 
         if (simpletypenameContext.numeric() is { } numeric)
         {
             if (numeric.INT_P() is not null || numeric.INTEGER() is not null)
             {
-                return new BuiltInDataType(PostgresBuiltInDataType.Integer, numeric.GetText());
+                dataType = new BuiltInDataType(PostgresBuiltInDataType.Integer, numeric.GetText());
             }
-
-            if (numeric.SMALLINT() is not null)
+            else if (numeric.SMALLINT() is not null)
             {
-                return new BuiltInDataType(PostgresBuiltInDataType.SmallInt, numeric.GetText());
+                dataType = new BuiltInDataType(PostgresBuiltInDataType.SmallInt, numeric.GetText());
             }
-
-            if (numeric.BIGINT() is not null)
+            else if (numeric.BIGINT() is not null)
             {
-                return new BuiltInDataType(PostgresBuiltInDataType.BigInt, numeric.GetText());
+                dataType = new BuiltInDataType(PostgresBuiltInDataType.BigInt, numeric.GetText());
             }
-
-            if (numeric.REAL() is not null)
+            else if (numeric.REAL() is not null)
             {
-                return new BuiltInDataType(PostgresBuiltInDataType.Real, numeric.GetText());
+                dataType = new BuiltInDataType(PostgresBuiltInDataType.Real, numeric.GetText());
             }
-
-            if (numeric.DOUBLE_P() is not null)
+            else if (numeric.DOUBLE_P() is not null)
             {
-                return new BuiltInDataType(PostgresBuiltInDataType.Double, numeric.GetText());
+                dataType = new BuiltInDataType(PostgresBuiltInDataType.Double, numeric.GetText());
             }
-            
-            // TODO: support decimal/numeric, serial types, boolean
+            else if (numeric.BOOLEAN_P() is not null)
+            {
+                dataType = new BuiltInDataType(PostgresBuiltInDataType.Boolean, numeric.GetText());
+            }
+            else if (numeric.NUMERIC() is not null || numeric.DECIMAL_P() is not null || numeric.DEC() is not null)
+            {
+                var numericType = new BuiltInDataType(PostgresBuiltInDataType.Decimal, numeric.GetText());
+
+                if (numeric.opt_type_modifiers()?.expr_list() is { } numericModifiers)
+                {
+                    foreach (var numericModifierExpr in numericModifiers.a_expr())
+                    {
+                        if (VisitA_expr(numericModifierExpr) is not Expression expression)
+                        {
+                            throw new PostgresParseException("Unable to parse numeric type modifier expression");
+                        }
+                        
+                        numericType.Modifiers.Add(expression);
+                    }
+                }
+
+                dataType = numericType;
+            }
+            else
+            {
+                // TODO: support serial types
+                throw new NotImplementedException("Specified numeric type not yet supported");
+            }
         }
 
         if (simpletypenameContext.constdatetime() is { } constdatetime)
@@ -255,14 +311,13 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
 
             if (constdatetime.TIME() is not null)
             {
-                return new BuiltInDataType(
+                dataType = new BuiltInDataType(
                     withTimeZone ? PostgresBuiltInDataType.TimeWithTimeZone : PostgresBuiltInDataType.Time,
                     constdatetime.GetText());
             }
-
-            if (constdatetime.TIMESTAMP() is not null)
+            else if (constdatetime.TIMESTAMP() is not null)
             {
-                return new BuiltInDataType(
+                dataType = new BuiltInDataType(
                     withTimeZone ? PostgresBuiltInDataType.TimestampWithTimeZone : PostgresBuiltInDataType.Timestamp,
                     constdatetime.GetText());
             }
@@ -270,18 +325,68 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
 
         if (simpletypenameContext.generictype() is { } generictype)
         {
+            if (generictype.attrs() is not null)
+            {
+                throw new NotImplementedException("Attributes on generic types are not yet supported");
+            }
+
+            if (generictype.opt_type_modifiers()?.expr_list() is not null)
+            {
+                throw new NotImplementedException("Type modifiers are not yet supported");
+            }
+            
             if (generictype.type_function_name() is { } typeFunctionName)
             {
                 var text = typeFunctionName.GetText();
 
-                if (Enum.TryParse<PostgresObjectIdentifierTypes>(text, ignoreCase: true, out var oidType))
+                if (typeFunctionName.unreserved_keyword() is { } unreservedKeyword)
                 {
-                    return new ObjectIdentifierTypeName(text, oidType);
+                    if (unreservedKeyword.TEXT_P() is not null)
+                    {
+                        dataType = new BuiltInDataType(PostgresBuiltInDataType.Text, text);
+                    }
+                    else
+                    {
+                        dataType = new UnresolvedDataType(text);
+                    }
+                }
+                else if (Enum.TryParse<PostgresObjectIdentifierTypes>(text, ignoreCase: true, out var oidType))
+                {
+                    dataType = new ObjectIdentifierTypeName(text, oidType);
+                }
+                else if (Enum.TryParse<PostgresBuiltInDataType>(text, ignoreCase: true, out var builtInUnparsedType)
+                         && builtInUnparsedType is PostgresBuiltInDataType.TSVector 
+                             or PostgresBuiltInDataType.TSQuery
+                             or PostgresBuiltInDataType.Date)
+                {
+                    // TODO: modify parser/lexer to support these types and PR upstream
+                    dataType = new BuiltInDataType(builtInUnparsedType, text);
+                }
+                else
+                {
+                    dataType = new UnresolvedDataType(text);
                 }
             }
         }
-    
-        throw new NotImplementedException($"Support for {simpletypenameContext.GetText()} type name not yet implemented");
+
+        if (dataType == null)
+        {
+            throw new NotImplementedException(
+                $"Support for {simpletypenameContext.GetText()} type name not yet implemented");
+        }
+
+        if (arraySizes.Count == 0)
+        {
+            return dataType;
+        }
+
+        while (arraySizes.TryPop(out var size))
+        {
+            // TODO: multi-dimensional arrays will have incorrect text, probably
+            dataType = new ArrayDataType(context.GetText(), dataType, size);
+        }
+
+        return dataType;
     }
 
     public override SyntaxNode VisitColconstraintelem(PostgreSQLParser.ColconstraintelemContext context)
@@ -318,6 +423,21 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
             return Visit(cExpr);
         }
 
+        if (context.TYPECAST() is not null)
+        {
+            if (VisitB_expr(context.b_expr()[0]) is not Expression expression)
+            {
+                throw new PostgresParseException("Unable to parse typecast expression");
+            }
+
+            if (VisitTypename(context.typename()) is not DataType dataType)
+            {
+                throw new PostgresParseException("Unable to parse typecast typename");
+            }
+
+            return new TypecastExpression(expression, dataType);
+        }
+
         throw new NotImplementedException("b_expr expression alternate not yet supported");
     }
 
@@ -333,6 +453,21 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
             return VisitAexprconst(aexprconst);
         }
 
+        if (context.a_expr() is { } aExpr)
+        {
+            if (context.opt_indirection()?.ChildCount is > 0)
+            {
+                throw new NotImplementedException("Indirection after parenthesized expressions not yet supported");
+            }
+
+            if (VisitA_expr(aExpr) is not Expression expression)
+            {
+                throw new PostgresParseException("Unable to parse parenthesized expression");
+            }
+
+            return new ParenthesizedExpression(expression);
+        }
+
         throw new NotImplementedException("c_expr_expr expression alternate not yet supported");
     }
 
@@ -341,6 +476,26 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
         if (context.sconst() is { } sconst)
         {
             return VisitSconst(sconst);
+        }
+
+        if (context.iconst() is { } iconst)
+        {
+            return VisitIconst(iconst);
+        }
+
+        if (context.fconst() is { } fconst)
+        {
+            return VisitFconst(fconst);
+        }
+
+        if (context.TRUE_P() is not null)
+        {
+            return new LiteralExpression(context.GetText(), true);
+        }
+
+        if (context.FALSE_P() is not null)
+        {
+            return new LiteralExpression(context.GetText(), false);
         }
 
         throw new NotImplementedException("Aexprconst alternate not yet supported");
@@ -393,7 +548,7 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
         return func;
     }
 
-    public override SyntaxNode VisitA_expr_typecast(PostgreSQLParser.A_expr_typecastContext context)
+    public override SyntaxNode? VisitA_expr_typecast(PostgreSQLParser.A_expr_typecastContext context)
     {
         TypecastExpression? expression = null;
 
@@ -421,12 +576,8 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
             }
         }
 
-        if (expression == null)
-        {
-            throw new PostgresParseException("Unexpected missing typename in typecast expression");
-        }        
-        
-        return expression;
+        // the way these grammar rules are set up, this passes through to c_expr if there is no typename
+        return expression ?? Visit(context.c_expr());
     }
 
     public override SyntaxNode VisitSconst(PostgreSQLParser.SconstContext context)
@@ -437,6 +588,16 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
         }
 
         return VisitAnysconst(context.anysconst());
+    }
+
+    public override SyntaxNode VisitIconst(PostgreSQLParser.IconstContext context)
+    {
+        return new LiteralExpression(context.GetText(), long.Parse(context.GetText()));
+    }
+    
+    public override SyntaxNode VisitFconst(PostgreSQLParser.FconstContext context)
+    {
+        return new LiteralExpression(context.GetText(), decimal.Parse(context.GetText()));
     }
 
     public override SyntaxNode VisitAnysconst(PostgreSQLParser.AnysconstContext context)
