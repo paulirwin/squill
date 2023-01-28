@@ -460,6 +460,11 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
                 {
                     dataType = new ObjectIdentifierTypeName(text, oidType);
                 }
+                else if (text.Equals("bytea", StringComparison.OrdinalIgnoreCase))
+                {
+                    // TODO: modify parser/lexer to support bytea and PR upstream
+                    dataType = new BuiltInDataType(PostgresBuiltInDataType.ByteArray, text);
+                }
                 else if (Enum.TryParse<PostgresBuiltInDataType>(text, ignoreCase: true, out var builtInUnparsedType)
                          && builtInUnparsedType is PostgresBuiltInDataType.TSVector 
                              or PostgresBuiltInDataType.TSQuery

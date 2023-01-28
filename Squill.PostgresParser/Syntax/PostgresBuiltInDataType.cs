@@ -22,5 +22,6 @@ public enum PostgresBuiltInDataType
     Text,
     TSVector,
     TSQuery,
-    Boolean
+    Boolean,
+    ByteArray
 }

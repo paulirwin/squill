@@ -336,6 +336,45 @@ INHERITS (payment);
         targetType = Assert.IsType<BuiltInDataType>(typecast.DataType);
         Assert.Equal(PostgresBuiltInDataType.Timestamp, targetType.Type);
     }
+    
+    /// <summary>
+    /// A test for the Sakila sample database `staff` table. See license in README.md
+    /// </summary>
+    [Fact]
+    public void Sakila_StaffTableTest()
+    {
+        var parser = new AntlrPostgresParser();
+
+        // TODO: move to embedded resource
+        const string text = """
+CREATE TABLE staff (
+    staff_id integer DEFAULT nextval('staff_staff_id_seq'::regclass) NOT NULL,
+    first_name character varying(45) NOT NULL,
+    last_name character varying(45) NOT NULL,
+    address_id smallint NOT NULL,
+    email character varying(50),
+    store_id smallint NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    username character varying(16) NOT NULL,
+    password character varying(40),
+    last_update timestamp without time zone DEFAULT now() NOT NULL,
+    picture bytea
+);
+""";
+
+        var root = parser.Parse(text);
+        Assert.NotNull(root);
+        Assert.Equal(1, root.Statements.Count);
+
+        var createTable = Assert.IsType<CreateTableStatement>(root.Statements[0]);
+
+        Assert.Equal("staff", createTable.Name.ToString());
+        Assert.Equal(11, createTable.Elements.Count);
+        
+        // more assertions could be added here but generally are covered by other unit tests here.
+        // this mainly tests the `bytea` type
+        AssertBuiltInDataTypeColumn(createTable, 10, "picture", PostgresBuiltInDataType.ByteArray, false);
+    }
 
     private static void AssertSakilaIdColumn(CreateTableStatement createTable, string name, string seqName)
     {
