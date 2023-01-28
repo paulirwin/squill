@@ -1,5 +1,6 @@
 using Antlr4.Runtime.Tree;
 using Squill.PostgresParser.Syntax;
+using Expression = Squill.PostgresParser.Syntax.Expression;
 
 // ReSharper disable StringLiteralTypo
 // ReSharper disable CommentTypo
@@ -66,27 +67,30 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
             }
         }
 
+        if (context.optinherit()?.INHERITS() is not null)
+        {
+            foreach (var inheritQualName in context.optinherit().qualified_name_list().qualified_name())
+            {
+                if (VisitQualified_name(inheritQualName) is not QualifiedName inherits)
+                {
+                    throw new PostgresParseException("Unable to parse table INHERITS clause");
+                }
+                
+                createTable.Inherits.Add(inherits);
+            }
+        }
+
         return createTable;
     }
 
     public override SyntaxNode VisitQualified_name(PostgreSQLParser.Qualified_nameContext context)
     {
-        string first;
-        
-        if (context.colid().identifier()?.Identifier() is { } identifier)
+        if (VisitColid(context.colid()) is not Identifier first)
         {
-            first = identifier.GetText();
-        }
-        else if (context.colid().unreserved_keyword() is { } unreservedKeyword)
-        {
-            first = unreservedKeyword.GetText();
-        }
-        else
-        {
-            throw new PostgresParseException("Unsupported quoted identifier");
+            throw new PostgresParseException("Unable to parse qualified name identifier");
         }
 
-        var segments = new List<string>
+        var segments = new List<Identifier>
         {
             first
         };
@@ -101,42 +105,63 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
 
     public override SyntaxNode VisitTableelement(PostgreSQLParser.TableelementContext context)
     {
-        if (context.columnDef() is not { } columnDefContext)
+        if (context.columnDef() is { } columnDefContext)
         {
-            throw new NotImplementedException("Table constraints and LIKE clauses are not yet supported");
+            return VisitColumnDef(columnDefContext);
         }
 
-        string name;
+        if (context.tableconstraint() is { } tableconstraint)
+        {
+            return VisitTableconstraint(tableconstraint);
+        }
+
+        throw new NotImplementedException("Table LIKE elements not yet supported");
+    }
+
+    public override SyntaxNode VisitTableconstraint(PostgreSQLParser.TableconstraintContext context)
+    {
+        if (VisitConstraintelem(context.constraintelem()) is not TableConstraint constraint)
+        {
+            throw new PostgresParseException("Unable to parse table constraint element");
+        }
         
-        if (columnDefContext.colid().identifier() is { } identifier)
+        if (context.CONSTRAINT() is not null
+            && context.name() is { } nameContext)
         {
-            if (identifier.Identifier() is { } identifierName)
+            if (VisitColid(nameContext.colid()) is not Identifier nameIdentifier)
             {
-                name = identifierName.GetText();
+                throw new PostgresParseException("Unable to parse named constraint identifier");
             }
-            else
-            {
-                throw new NotImplementedException("Support for quoted identifiers and other identifier types not yet implemented");
-            }
-        }
-        else if (columnDefContext.colid().unreserved_keyword() is { } unreservedKeyword)
-        {
-            name = unreservedKeyword.GetText();
-        }
-        else if (columnDefContext.colid().plsql_unreserved_keyword() is { } plsqlUnreservedKeyword)
-        {
-            name = plsqlUnreservedKeyword.GetText();
-        }
-        else if (columnDefContext.colid().col_name_keyword() is { } colNameKeyword)
-        {
-            name = colNameKeyword.GetText();
-        }
-        else
-        {
-            throw new NotImplementedException("Column identifier type not implemented");
+
+            return new NamedTableConstraint(nameIdentifier, constraint);
         }
 
-        if (VisitTypename(columnDefContext.typename()) is not DataType dataType)
+        return constraint;
+    }
+
+    public override SyntaxNode VisitConstraintelem(PostgreSQLParser.ConstraintelemContext context)
+    {
+        if (context.CHECK() is not null)
+        {
+            if (VisitA_expr(context.a_expr()) is not Expression checkExpression)
+            {
+                throw new PostgresParseException("Unable to parse CHECK constraint expression");
+            }
+
+            return new CheckTableConstraint(checkExpression);
+        }
+
+        throw new NotImplementedException("Table constraint type not yet implemented");
+    }
+
+    public override SyntaxNode VisitColumnDef(PostgreSQLParser.ColumnDefContext context)
+    {
+        if (VisitColid(context.colid()) is not Identifier name)
+        {
+            throw new PostgresParseException("Unable to parse column name");
+        }
+
+        if (VisitTypename(context.typename()) is not DataType dataType)
         {
             throw new PostgresParseException("Unable to parse table element data type");
         }
@@ -145,7 +170,7 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
         
         var columnDef = new ColumnDefinition(name, dataType);
 
-        if (columnDefContext.colquallist() is { } colquallist
+        if (context.colquallist() is { } colquallist
             && colquallist.colconstraint() is { Length: > 0 } colconstraints)
         {
             foreach (var colconstraint in colconstraints)
@@ -179,6 +204,77 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
         }
 
         return columnDef;
+    }
+
+    public override SyntaxNode VisitUnreserved_keyword(PostgreSQLParser.Unreserved_keywordContext context)
+    {
+        // TODO: do unreserved keywords deserve their own type?
+        return new SimpleIdentifier(context.GetText());
+    }
+
+    public override SyntaxNode VisitPlsql_unreserved_keyword(PostgreSQLParser.Plsql_unreserved_keywordContext context)
+    {
+        // TODO: do PLSQL unreserved keywords deserve their own type?
+        return new SimpleIdentifier(context.GetText());
+    }
+
+    public override SyntaxNode VisitCol_name_keyword(PostgreSQLParser.Col_name_keywordContext context)
+    {
+        // TODO: do col name keywords deserve their own type?
+        return new SimpleIdentifier(context.GetText());
+    }
+
+    public override SyntaxNode VisitIdentifier(PostgreSQLParser.IdentifierContext context)
+    {
+        if (context.Identifier() is { } identifierName)
+        {
+            if (context.opt_uescape()?.UESCAPE() is not null)
+            {
+                throw new NotImplementedException("Support for UESCAPE not yet implemented");
+            }
+            
+            return new SimpleIdentifier(identifierName.GetText());
+        }
+
+        var unicodeQuoted = context.UnicodeQuotedIdentifier();
+
+        if (context.QuotedIdentifier() is not null
+            || unicodeQuoted is not null)
+        {
+            string text = context.GetText();
+
+            if (text.StartsWith("U&"))
+            {
+                text = text[2..];
+            }
+
+            if (text[0] != '"' || text[^1] != '"')
+            {
+                throw new NotImplementedException("Unable to parse quoted identifier");
+            }
+
+            string name = text[1..^1];
+
+            return new SimpleIdentifier(name, isQuoted: true, isUnicodeQuoted: unicodeQuoted is not null);
+        }
+
+        if (context.plsqlvariablename() is { } plsqlvariablename)
+        {
+            return VisitPlsqlvariablename(plsqlvariablename);
+        }
+
+        if (context.plsql_unreserved_keyword() is { } plsqlUnreservedKeyword)
+        {
+            return VisitPlsql_unreserved_keyword(plsqlUnreservedKeyword);
+        }
+
+        throw new NotImplementedException("Support for quoted identifiers and other identifier types not yet implemented");
+    }
+
+    public override SyntaxNode VisitPlsqlvariablename(PostgreSQLParser.PlsqlvariablenameContext context)
+    {
+        var name = context.PLSQLVARIABLENAME().GetText().TrimStart(':');
+        return new PLSQLVariableName(name);
     }
 
     public override SyntaxNode VisitTypename(PostgreSQLParser.TypenameContext context)
@@ -448,6 +544,76 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
             return new TypecastExpression(expression, dataType);
         }
 
+        if (context.b_expr() is { Length: 2 } binaryExpression)
+        {
+            if (VisitB_expr(binaryExpression[0]) is not Expression left)
+            {
+                throw new PostgresParseException("Unable to parse left side of binary expression");
+            }
+            
+            if (VisitB_expr(binaryExpression[1]) is not Expression right)
+            {
+                throw new PostgresParseException("Unable to parse right side of binary expression");
+            }
+
+            PostgresBuiltInBinaryOperator builtInOperator;
+            
+            if (context.CARET() is not null)
+            {
+                builtInOperator = PostgresBuiltInBinaryOperator.Exponentiation;
+            }
+            else if (context.STAR() is not null)
+            {
+                builtInOperator = PostgresBuiltInBinaryOperator.Multiplication;
+            }
+            else if (context.SLASH() is not null)
+            {
+                builtInOperator = PostgresBuiltInBinaryOperator.Division;
+            }
+            else if (context.PERCENT() is not null)
+            {
+                builtInOperator = PostgresBuiltInBinaryOperator.Modulo;
+            }
+            else if (context.PLUS() is not null)
+            {
+                builtInOperator = PostgresBuiltInBinaryOperator.Addition;
+            }
+            else if (context.MINUS() is not null)
+            {
+                builtInOperator = PostgresBuiltInBinaryOperator.Subtraction;
+            }
+            else if (context.LT() is not null)
+            {
+                builtInOperator = PostgresBuiltInBinaryOperator.LessThan;
+            }
+            else if (context.LESS_EQUALS() is not null)
+            {
+                builtInOperator = PostgresBuiltInBinaryOperator.LessThanEqual;
+            }
+            else if (context.GT() is not null)
+            {
+                builtInOperator = PostgresBuiltInBinaryOperator.GreaterThan;
+            }
+            else if (context.GREATER_EQUALS() is not null)
+            {
+                builtInOperator = PostgresBuiltInBinaryOperator.GreaterThanEqual;
+            }
+            else if (context.EQUAL() is not null)
+            {
+                builtInOperator = PostgresBuiltInBinaryOperator.Equal;
+            }
+            else if (context.NOT_EQUALS() is not null)
+            {
+                builtInOperator = PostgresBuiltInBinaryOperator.NotEqual;
+            }
+            else
+            {
+                throw new NotImplementedException("Other operator types not yet supported");
+            }
+
+            return new BinaryExpression(left, new BuiltInOperator(builtInOperator), right);
+        }
+
         throw new NotImplementedException("b_expr expression alternate not yet supported");
     }
 
@@ -461,6 +627,11 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
         if (context.aexprconst() is { } aexprconst)
         {
             return VisitAexprconst(aexprconst);
+        }
+
+        if (context.columnref() is { } columnref)
+        {
+            return VisitColumnref(columnref);
         }
 
         if (context.a_expr() is { } aExpr)
@@ -479,6 +650,16 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
         }
 
         throw new NotImplementedException("c_expr_expr expression alternate not yet supported");
+    }
+
+    public override SyntaxNode VisitColumnref(PostgreSQLParser.ColumnrefContext context)
+    {
+        if (VisitColid(context.colid()) is not Identifier identifier)
+        {
+            throw new PostgresParseException("Unable to parse column reference identifier");
+        }
+
+        return new ColumnReferenceExpression(identifier);
     }
 
     public override SyntaxNode VisitAexprconst(PostgreSQLParser.AexprconstContext context)
@@ -558,8 +739,13 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
         return func;
     }
 
-    public override SyntaxNode? VisitA_expr_typecast(PostgreSQLParser.A_expr_typecastContext context)
+    public override SyntaxNode VisitA_expr_typecast(PostgreSQLParser.A_expr_typecastContext context)
     {
+        if (context.TYPECAST() is null or { Length: 0 })
+        {
+            return Visit(context.c_expr()) ?? throw new PostgresParseException("Unable to parse expression");
+        }
+        
         TypecastExpression? expression = null;
 
         foreach (var typename in context.typename())
@@ -586,8 +772,12 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
             }
         }
 
-        // the way these grammar rules are set up, this passes through to c_expr if there is no typename
-        return expression ?? Visit(context.c_expr());
+        if (expression == null)
+        {
+            throw new PostgresParseException("Unable to parse typecast expression");
+        }
+
+        return expression;
     }
 
     public override SyntaxNode VisitSconst(PostgreSQLParser.SconstContext context)
@@ -627,5 +817,391 @@ public class PostgresVisitor : PostgreSQLParserBaseVisitor<SyntaxNode?>
         }
 
         throw new NotImplementedException("Support for other string constant types not yet implemented");
+    }
+
+    public override SyntaxNode VisitA_expr_or(PostgreSQLParser.A_expr_orContext context)
+    {
+        if (context.OR() is null or { Length: 0 })
+        {
+            return VisitA_expr_and(context.a_expr_and()[0]);
+        }
+
+        return VisitBinaryExpression<PostgreSQLParser.A_expr_andContext>(
+            context.children,
+            VisitA_expr_and,
+            op => op switch
+            {
+                PostgreSQLLexer.OR => PostgresBuiltInBinaryOperator.Or,
+                _ => throw new PostgresParseException("Unexpected operator"),
+            }
+        );
+    }
+
+    public override SyntaxNode VisitA_expr_and(PostgreSQLParser.A_expr_andContext context)
+    {
+        if (context.AND() is null or { Length: 0 })
+        {
+            return VisitA_expr_in(context.a_expr_in()[0]);
+        }
+
+        return VisitBinaryExpression<PostgreSQLParser.A_expr_inContext>(
+            context.children,
+            VisitA_expr_in,
+            op => op switch
+            {
+                PostgreSQLLexer.AND => PostgresBuiltInBinaryOperator.And,
+                _ => throw new PostgresParseException("Unexpected operator"),
+            }
+        );
+    }
+
+    public override SyntaxNode VisitA_expr_in(PostgreSQLParser.A_expr_inContext context)
+    {
+        if (context.IN_P() is null)
+        {
+            return VisitA_expr_unary_not(context.a_expr_unary_not());
+        }
+
+        bool not = context.NOT() is not null;
+
+        if (VisitA_expr_unary_not(context.a_expr_unary_not()) is not Expression left)
+        {
+            throw new PostgresParseException("Unable to parse IN expression left operand");
+        }
+
+        // NOTE: using base Visit method because of named in_expr branches
+        // TODO: should we assert this is a more specific type i.e. InExpression?
+        if (Visit(context.in_expr()) is not Expression right)
+        {
+            throw new PostgresParseException("Unable to parse IN expression right operand");
+        }
+
+        return new BinaryExpression(
+            left,
+            new BuiltInOperator(not ? PostgresBuiltInBinaryOperator.NotIn : PostgresBuiltInBinaryOperator.In),
+            right
+        );
+    }
+
+    public override SyntaxNode VisitA_expr_lessless(PostgreSQLParser.A_expr_lesslessContext context)
+    {
+        if (context.LESS_LESS() is null or { Length: 0 }
+            && context.GREATER_GREATER() is null or { Length: 0 })
+        {
+            return VisitA_expr_or(context.a_expr_or()[0]);
+        }
+
+        return VisitBinaryExpression<PostgreSQLParser.A_expr_orContext>(
+            context.children,
+            VisitA_expr_or,
+            op => op switch
+            {
+                PostgreSQLLexer.LESS_LESS => PostgresBuiltInBinaryOperator.LeftShift,
+                PostgreSQLLexer.GREATER_GREATER => PostgresBuiltInBinaryOperator.RightShift,
+                _ => throw new PostgresParseException("Unexpected operator"),
+            }
+        );
+    }
+
+    public override SyntaxNode VisitA_expr_unary_not(PostgreSQLParser.A_expr_unary_notContext context)
+    {
+        if (VisitA_expr_isnull(context.a_expr_isnull()) is not Expression expr)
+        {
+            throw new PostgresParseException("Unable to parse unary NOT expression");
+        }
+        
+        if (context.NOT() is null)
+        {
+            return expr;
+        }
+
+        return new UnaryExpression(PostgresBuiltInUnaryOperator.Not, expr);
+    }
+
+    public override SyntaxNode VisitA_expr_isnull(PostgreSQLParser.A_expr_isnullContext context)
+    {
+        if (VisitA_expr_is_not(context.a_expr_is_not()) is not Expression expr)
+        {
+            throw new PostgresParseException("Unable to parse ISNULL/NOTNULL expression");
+        }
+        
+        PostgresBuiltInUnaryOperator op;
+
+        if (context.ISNULL() is not null)
+        {
+            op = PostgresBuiltInUnaryOperator.IsNull;
+        }
+        else if (context.NOTNULL() is not null)
+        {
+            op = PostgresBuiltInUnaryOperator.NotNull;
+        }
+        else
+        {
+            return expr;
+        }
+
+        return new UnaryExpression(op, expr);
+    }
+
+    public override SyntaxNode VisitA_expr_is_not(PostgreSQLParser.A_expr_is_notContext context)
+    {
+        if (context.IS() is not null)
+        {
+            throw new NotImplementedException("Support for IS (NOT) not yet implemented");
+        }
+
+        return VisitA_expr_compare(context.a_expr_compare());
+    }
+
+    public override SyntaxNode VisitA_expr_compare(PostgreSQLParser.A_expr_compareContext context)
+    {
+        if (context.subquery_Op() is not null)
+        {
+            throw new NotImplementedException("Subquery_op not yet supported for compare expression");
+        }
+        
+        if (context.a_expr_like() is { Length: 1 })
+        {
+            return VisitA_expr_like(context.a_expr_like()[0]);
+        }
+
+        PostgresBuiltInBinaryOperator op;
+
+        if (context.LT() is not null)
+        {
+            op = PostgresBuiltInBinaryOperator.LessThan;
+        }
+        else if (context.GT() is not null)
+        {
+            op = PostgresBuiltInBinaryOperator.GreaterThan;
+        }
+        else if (context.EQUAL() is not null)
+        {
+            op = PostgresBuiltInBinaryOperator.Equal;
+        }
+        else if (context.LESS_EQUALS() is not null)
+        {
+            op = PostgresBuiltInBinaryOperator.LessThanEqual;
+        }
+        else if (context.GREATER_EQUALS() is not null)
+        {
+            op = PostgresBuiltInBinaryOperator.GreaterThanEqual;
+        }
+        else if (context.NOT_EQUALS() is not null)
+        {
+            op = PostgresBuiltInBinaryOperator.NotEqual;
+        }
+        else
+        {
+            throw new PostgresParseException("Unexpected binary operator in compare expression");
+        }
+
+        if (VisitA_expr_like(context.a_expr_like()[0]) is not Expression left
+            || VisitA_expr_like(context.a_expr_like()[1]) is not Expression right)
+        {
+            throw new PostgresParseException("Unable to parse left or right side of compare expression");
+        }
+
+        return new BinaryExpression(
+            left,
+            new BuiltInOperator(op),
+            right
+        );
+    }
+
+    public override SyntaxNode VisitA_expr_like(PostgreSQLParser.A_expr_likeContext context)
+    {
+        if (context.LIKE() is not null
+            || context.ILIKE() is not null
+            || context.SIMILAR() is not null
+            || context.BETWEEN() is not null)
+        {
+            throw new NotImplementedException("LIKE/ILIKE/SIMILAR/BETWEEN not yet supported");
+        }
+
+        return VisitA_expr_qual_op(context.a_expr_qual_op()[0]);
+    }
+
+    public override SyntaxNode VisitA_expr_qual_op(PostgreSQLParser.A_expr_qual_opContext context)
+    {
+        if (context.qual_op() is { Length: > 0 })
+        {
+            throw new NotImplementedException("qual_op not yet supported");
+        }
+
+        return VisitA_expr_unary_qualop(context.a_expr_unary_qualop()[0]);
+    }
+
+    public override SyntaxNode VisitA_expr_unary_qualop(PostgreSQLParser.A_expr_unary_qualopContext context)
+    {
+        if (context.qual_op() is not null)
+        {
+            throw new NotImplementedException("qual_op not yet supported");
+        }
+
+        return VisitA_expr_add(context.a_expr_add());
+    }
+
+    public override SyntaxNode VisitA_expr_add(PostgreSQLParser.A_expr_addContext context)
+    {
+        if (context.a_expr_mul() is { Length: 1 })
+        {
+            return VisitA_expr_mul(context.a_expr_mul()[0]);
+        }
+
+        return VisitBinaryExpression<PostgreSQLParser.A_expr_mulContext>(
+            context.children,
+            VisitA_expr_mul,
+            op => op switch
+            {
+                PostgreSQLLexer.MINUS => PostgresBuiltInBinaryOperator.Subtraction,
+                PostgreSQLLexer.PLUS => PostgresBuiltInBinaryOperator.Addition,
+                _ => throw new PostgresParseException("Unexpected operator"),
+            }
+        );
+    }
+
+    public override SyntaxNode VisitA_expr_mul(PostgreSQLParser.A_expr_mulContext context)
+    {
+        if (context.a_expr_caret() is { Length: 1 })
+        {
+            return VisitA_expr_caret(context.a_expr_caret()[0]);
+        }
+
+        return VisitBinaryExpression<PostgreSQLParser.A_expr_caretContext>(
+            context.children,
+            VisitA_expr_caret,
+            op => op switch
+            {
+                PostgreSQLLexer.STAR => PostgresBuiltInBinaryOperator.Multiplication,
+                PostgreSQLLexer.SLASH => PostgresBuiltInBinaryOperator.Division,
+                PostgreSQLLexer.PERCENT => PostgresBuiltInBinaryOperator.Modulo,
+                _ => throw new PostgresParseException("Unexpected operator"),
+            }
+        );
+    }
+
+    public override SyntaxNode VisitA_expr_caret(PostgreSQLParser.A_expr_caretContext context)
+    {
+        if (context.CARET() is not null)
+        {
+            throw new NotImplementedException("Caret operator is not yet implemented");
+        }
+
+        return VisitA_expr_unary_sign(context.a_expr_unary_sign());
+    }
+
+    public override SyntaxNode VisitA_expr_unary_sign(PostgreSQLParser.A_expr_unary_signContext context)
+    {
+        if (context.MINUS() is null && context.PLUS() is null)
+        {
+            return VisitA_expr_at_time_zone(context.a_expr_at_time_zone());
+        }
+
+        PostgresBuiltInUnaryOperator op;
+
+        if (context.MINUS() is not null)
+        {
+            op = PostgresBuiltInUnaryOperator.Negate;
+        }
+        else if (context.PLUS() is not null)
+        {
+            op = PostgresBuiltInUnaryOperator.Plus;
+        }
+        else
+        {
+            throw new PostgresParseException("Unexpected unary operator");
+        }
+
+        if (VisitA_expr_at_time_zone(context.a_expr_at_time_zone()) is not Expression expr)
+        {
+            throw new PostgresParseException("Unable to parse unary expression");
+        }
+
+        return new UnaryExpression(op, expr);
+    }
+
+    public override SyntaxNode VisitA_expr_at_time_zone(PostgreSQLParser.A_expr_at_time_zoneContext context)
+    {
+        if (context.AT() is not null)
+        {
+            throw new NotImplementedException("AT TIME ZONE not yet supported");
+        }
+
+        return VisitA_expr_collate(context.a_expr_collate());
+    }
+
+    public override SyntaxNode VisitA_expr_collate(PostgreSQLParser.A_expr_collateContext context)
+    {
+        if (context.COLLATE() is not null)
+        {
+            throw new NotImplementedException("COLLATE not yet supported");
+        }
+
+        return VisitA_expr_typecast(context.a_expr_typecast());
+    }
+
+    private static BinaryExpression VisitBinaryExpression<TNextContext>(
+        IEnumerable<IParseTree> children, 
+        Func<TNextContext, SyntaxNode?> visitFunc,
+        Func<int, PostgresBuiltInBinaryOperator> opLookup)
+    {
+        var parts = new Queue<object>();
+
+        foreach (var child in children)
+        {
+            if (child is TNextContext nextExpr)
+            {
+                if (visitFunc(nextExpr) is not Expression expr)
+                {
+                    throw new PostgresParseException("Unable to parse binary expression operand");
+                }
+
+                parts.Enqueue(expr);
+            }
+            else if (child is ITerminalNode lexerNode)
+            {
+                var op = opLookup(lexerNode.Symbol.Type);
+                parts.Enqueue(op);   
+            }
+            else
+            {
+                throw new PostgresParseException($"Unexpected child of binary operator: {child.GetType()}");
+            }
+        }
+
+        if (parts.Count < 3)
+        {
+            throw new PostgresParseException("Somehow ended up with less than two expressions and one operator for a binary operator");
+        }
+
+        if (parts.Dequeue() is not Expression startLeft
+            || parts.Dequeue() is not PostgresBuiltInBinaryOperator startOp
+            || parts.Dequeue() is not Expression startRight)
+        {
+            throw new PostgresParseException("Unexpected parse order from binary expression");
+        }
+
+        var binary = new BinaryExpression(
+            startLeft,
+            new BuiltInOperator(startOp),
+            startRight);
+
+        while (parts.TryDequeue(out var nextPart))
+        {
+            if (nextPart is not PostgresBuiltInBinaryOperator nextOp
+                || !parts.TryDequeue(out var nextNextPart)
+                || nextNextPart is not Expression nextExpr)
+            {
+                throw new PostgresParseException("Unexpected parse order from binary expression");
+            }
+            
+            binary = new BinaryExpression(
+                binary, 
+                new BuiltInOperator(nextOp),
+                nextExpr);
+        }
+        
+        return binary;
     }
 }

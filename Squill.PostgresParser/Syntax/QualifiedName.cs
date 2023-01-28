@@ -2,19 +2,14 @@ namespace Squill.PostgresParser.Syntax;
 
 public class QualifiedName : SyntaxNode
 {
-    private readonly List<string> _segments = new();
+    private readonly List<Identifier> _segments = new();
     
-    public QualifiedName(IEnumerable<string> segments)
+    public QualifiedName(IEnumerable<Identifier> segments)
     {
         _segments.AddRange(segments);
     }
 
-    public QualifiedName(string input)
-    {
-        _segments.AddRange(input.Split('.'));
-    }
-
-    public IReadOnlyList<string> Segments => _segments;
+    public IReadOnlyList<Identifier> Segments => _segments;
 
     public override string ToString() => string.Join('.', _segments);
 }

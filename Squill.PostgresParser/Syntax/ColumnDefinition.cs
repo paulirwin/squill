@@ -2,13 +2,13 @@ namespace Squill.PostgresParser.Syntax;
 
 public class ColumnDefinition : SyntaxNode, ITableElement
 {
-    public ColumnDefinition(string name, DataType dataType)
+    public ColumnDefinition(Identifier name, DataType dataType)
     {
         Name = name;
         DataType = dataType;
     }
 
-    public string Name { get; }
+    public Identifier Name { get; }
     
     public DataType DataType { get; }
 

@@ -15307,14 +15307,14 @@ public partial class PostgreSQLParser : PostgreSQLParserBase {
 	}
 
 	public partial class TableelementContext : ParserRuleContext {
-		[System.Diagnostics.DebuggerNonUserCode] public ColumnDefContext columnDef() {
-			return GetRuleContext<ColumnDefContext>(0);
+		[System.Diagnostics.DebuggerNonUserCode] public TableconstraintContext tableconstraint() {
+			return GetRuleContext<TableconstraintContext>(0);
 		}
 		[System.Diagnostics.DebuggerNonUserCode] public TablelikeclauseContext tablelikeclause() {
 			return GetRuleContext<TablelikeclauseContext>(0);
 		}
-		[System.Diagnostics.DebuggerNonUserCode] public TableconstraintContext tableconstraint() {
-			return GetRuleContext<TableconstraintContext>(0);
+		[System.Diagnostics.DebuggerNonUserCode] public ColumnDefContext columnDef() {
+			return GetRuleContext<ColumnDefContext>(0);
 		}
 		public TableelementContext(ParserRuleContext parent, int invokingState)
 			: base(parent, invokingState)
@@ -15341,7 +15341,7 @@ public partial class PostgreSQLParser : PostgreSQLParserBase {
 				EnterOuterAlt(_localctx, 1);
 				{
 				State = 2824;
-				columnDef();
+				tableconstraint();
 				}
 				break;
 			case 2:
@@ -15355,7 +15355,7 @@ public partial class PostgreSQLParser : PostgreSQLParserBase {
 				EnterOuterAlt(_localctx, 3);
 				{
 				State = 2826;
-				tableconstraint();
+				columnDef();
 				}
 				break;
 			}
@@ -100153,8 +100153,8 @@ public partial class PostgreSQLParser : PostgreSQLParserBase {
 		2809,1,0,0,0,2812,2815,1,0,0,0,2813,2811,1,0,0,0,2813,2814,1,0,0,0,2814,
 		181,1,0,0,0,2815,2813,1,0,0,0,2816,2821,3,186,93,0,2817,2818,5,6,0,0,2818,
 		2820,3,186,93,0,2819,2817,1,0,0,0,2820,2823,1,0,0,0,2821,2819,1,0,0,0,
-		2821,2822,1,0,0,0,2822,183,1,0,0,0,2823,2821,1,0,0,0,2824,2828,3,188,94,
-		0,2825,2828,3,202,101,0,2826,2828,3,208,104,0,2827,2824,1,0,0,0,2827,2825,
+		2821,2822,1,0,0,0,2822,183,1,0,0,0,2823,2821,1,0,0,0,2824,2828,3,208,104,
+		0,2825,2828,3,202,101,0,2826,2828,3,188,94,0,2827,2824,1,0,0,0,2827,2825,
 		1,0,0,0,2827,2826,1,0,0,0,2828,185,1,0,0,0,2829,2832,3,190,95,0,2830,2832,
 		3,208,104,0,2831,2829,1,0,0,0,2831,2830,1,0,0,0,2832,187,1,0,0,0,2833,
 		2834,3,1370,685,0,2834,2835,3,1118,559,0,2835,2836,3,340,170,0,2836,2837,

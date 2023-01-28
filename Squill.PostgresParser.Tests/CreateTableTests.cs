@@ -30,7 +30,7 @@ CREATE TABLE Foo
 
         var idColumn = Assert.IsType<ColumnDefinition>(createTable.Elements[0]);
         
-        Assert.Equal("id", idColumn.Name);
+        Assert.Equal("id", idColumn.Name.Name);
         Assert.Equal("integer", idColumn.DataType.TypeName);
         Assert.Equal(1, idColumn.Constraints.Count);
         Assert.IsType<PrimaryKeyColumnConstraint>(idColumn.Constraints[0]);
@@ -63,7 +63,7 @@ CREATE TABLE Foo
 
         var idColumn = Assert.IsType<ColumnDefinition>(createTable.Elements[0]);
         
-        Assert.Equal("id", idColumn.Name);
+        Assert.Equal("id", idColumn.Name.Name);
         Assert.Equal("integer", idColumn.DataType.TypeName);
         Assert.Equal(1, idColumn.Constraints.Count);
         
@@ -266,12 +266,82 @@ CREATE TABLE language (
         AssertVarcharColumn(createTable, 1, "name", 20, true, false, type: PostgresBuiltInDataType.Char);
         AssertSakilaLastUpdateColumn(createTable, 2);
     }
+    
+    /// <summary>
+    /// A test for the Sakila sample database `actor` table. See license in README.md
+    /// </summary>
+    [Fact]
+    public void Sakila_PaymentInheritedTableTest()
+    {
+        var parser = new AntlrPostgresParser();
+        
+        // TODO: move to embedded resource
+        const string text = """
+CREATE TABLE payment_p2007_01 (CONSTRAINT payment_p2007_01_payment_date_check CHECK (((payment_date >= '2007-01-01 00:00:00'::timestamp without time zone) AND (payment_date < '2007-02-01 00:00:00'::timestamp without time zone)))
+)
+INHERITS (payment);
+""";
+
+        var root = parser.Parse(text);
+        Assert.NotNull(root);
+        Assert.Equal(1, root.Statements.Count);
+
+        var createTable = Assert.IsType<CreateTableStatement>(root.Statements[0]);
+        
+        Assert.Equal("payment_p2007_01", createTable.Name.ToString());
+        Assert.Equal(1, createTable.Elements.Count);
+        Assert.Equal(1, createTable.Inherits.Count);
+        Assert.Equal("payment", createTable.Inherits[0].Segments[0].Name);
+
+        var constraint = Assert.IsType<NamedTableConstraint>(createTable.Elements[0]);
+        
+        Assert.Equal("payment_p2007_01_payment_date_check", constraint.Name.Name);
+
+        var checkConstraint = Assert.IsType<CheckTableConstraint>(constraint.Constraint);
+        var paren = Assert.IsType<ParenthesizedExpression>(checkConstraint.Expression);
+        
+        var andExpr = Assert.IsType<BinaryExpression>(paren.Expression);
+        var andOp = Assert.IsType<BuiltInOperator>(andExpr.Operator);
+        Assert.Equal(PostgresBuiltInBinaryOperator.And, andOp.Operator);
+
+        var gteParen = Assert.IsType<ParenthesizedExpression>(andExpr.Left);
+        var gteExpr = Assert.IsType<BinaryExpression>(gteParen.Expression);
+        var gteOp = Assert.IsType<BuiltInOperator>(gteExpr.Operator);
+        Assert.Equal(PostgresBuiltInBinaryOperator.GreaterThanEqual, gteOp.Operator);
+
+        var colRef = Assert.IsType<ColumnReferenceExpression>(gteExpr.Left);
+        var colId = Assert.IsType<SimpleIdentifier>(colRef.Identifier);
+        Assert.Equal("payment_date", colId.Name);
+
+        var typecast = Assert.IsType<TypecastExpression>(gteExpr.Right);
+        var dateLiteral = Assert.IsType<LiteralExpression>(typecast.Expression);
+        Assert.Equal("2007-01-01 00:00:00", dateLiteral.Value);
+
+        var targetType = Assert.IsType<BuiltInDataType>(typecast.DataType);
+        Assert.Equal(PostgresBuiltInDataType.Timestamp, targetType.Type);
+
+        var ltParen = Assert.IsType<ParenthesizedExpression>(andExpr.Right);
+        var ltExpr = Assert.IsType<BinaryExpression>(ltParen.Expression);
+        var ltOp = Assert.IsType<BuiltInOperator>(ltExpr.Operator);
+        Assert.Equal(PostgresBuiltInBinaryOperator.LessThan, ltOp.Operator);
+        
+        colRef = Assert.IsType<ColumnReferenceExpression>(ltExpr.Left);
+        colId = Assert.IsType<SimpleIdentifier>(colRef.Identifier);
+        Assert.Equal("payment_date", colId.Name);
+
+        typecast = Assert.IsType<TypecastExpression>(ltExpr.Right);
+        dateLiteral = Assert.IsType<LiteralExpression>(typecast.Expression);
+        Assert.Equal("2007-02-01 00:00:00", dateLiteral.Value);
+
+        targetType = Assert.IsType<BuiltInDataType>(typecast.DataType);
+        Assert.Equal(PostgresBuiltInDataType.Timestamp, targetType.Type);
+    }
 
     private static void AssertSakilaIdColumn(CreateTableStatement createTable, string name, string seqName)
     {
         var idColumn = Assert.IsType<ColumnDefinition>(createTable.Elements[0]);
 
-        Assert.Equal(name, idColumn.Name);
+        Assert.Equal(name, idColumn.Name.Name);
         Assert.Equal("integer", idColumn.DataType.TypeName);
         Assert.Equal(2, idColumn.Constraints.Count);
 
@@ -294,7 +364,7 @@ CREATE TABLE language (
     {
         var columnDef = Assert.IsType<ColumnDefinition>(createTable.Elements[columnIndex]);
 
-        Assert.Equal(name, columnDef.Name);
+        Assert.Equal(name, columnDef.Name.Name);
         
         var dataType = Assert.IsType<BuiltInDataType>(columnDef.DataType);
         Assert.Equal(type, dataType.Type);
@@ -309,7 +379,7 @@ CREATE TABLE language (
     {
         var columnDef = Assert.IsType<ColumnDefinition>(createTable.Elements[columnIndex]);
 
-        Assert.Equal(name, columnDef.Name);
+        Assert.Equal(name, columnDef.Name.Name);
         
         var dataType = Assert.IsType<BuiltInDataType>(columnDef.DataType);
         Assert.Equal(PostgresBuiltInDataType.Decimal, dataType.Type);
@@ -340,7 +410,7 @@ CREATE TABLE language (
     {
         var columnDef = Assert.IsType<ColumnDefinition>(createTable.Elements[columnIndex]);
 
-        Assert.Equal(name, columnDef.Name);
+        Assert.Equal(name, columnDef.Name.Name);
         
         var dataType = Assert.IsType<BuiltInDataType>(columnDef.DataType);
         Assert.Equal(builtInType, dataType.Type);
@@ -354,7 +424,7 @@ CREATE TABLE language (
     {
         var columnDef = Assert.IsType<ColumnDefinition>(createTable.Elements[columnIndex]);
 
-        Assert.Equal(name, columnDef.Name);
+        Assert.Equal(name, columnDef.Name.Name);
         
         var dataType = Assert.IsType<ArrayDataType>(columnDef.DataType);
         var builtInDataType = Assert.IsType<BuiltInDataType>(dataType.ElementType);
@@ -387,7 +457,7 @@ CREATE TABLE language (
     {
         var columnDef = Assert.IsType<ColumnDefinition>(createTable.Elements[columnIndex]);
 
-        Assert.Equal(name, columnDef.Name);
+        Assert.Equal(name, columnDef.Name.Name);
         
         var dataType = Assert.IsType<UnresolvedDataType>(columnDef.DataType);
         Assert.Equal(typeName, dataType.TypeName);
@@ -398,7 +468,7 @@ CREATE TABLE language (
     {
         var lastUpdateColumn = Assert.IsType<ColumnDefinition>(createTable.Elements[columnIndex]);
 
-        Assert.Equal("last_update", lastUpdateColumn.Name);
+        Assert.Equal("last_update", lastUpdateColumn.Name.Name);
         
         var lastUpdateType = Assert.IsType<BuiltInDataType>(lastUpdateColumn.DataType);
         Assert.Equal(PostgresBuiltInDataType.Timestamp, lastUpdateType.Type);

@@ -10,4 +10,6 @@ public class CreateTableStatement : Statement
     public QualifiedName Name { get; }
 
     public IList<ITableElement> Elements { get; } = new List<ITableElement>();
+    
+    public IList<QualifiedName> Inherits { get; } = new List<QualifiedName>();
 }
