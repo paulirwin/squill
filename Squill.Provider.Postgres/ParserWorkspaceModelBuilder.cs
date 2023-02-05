@@ -16,13 +16,17 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
 
     public async Task<Model> ExtractModelAsync(CancellationToken cancellationToken = default)
     {
+        var model = new Model();
+        
         foreach (var file in _workspace.Files)
         {
             var text = await file.ReadAllTextAsync(cancellationToken);
 
             var root = _postgresParser.Parse(text);
+            
+            throw new NotImplementedException("Need to transform syntax into a model");
         }
 
-        throw new NotImplementedException("Need to transform syntax into a model");
+        return model;
     }
 }
