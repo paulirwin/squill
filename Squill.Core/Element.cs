@@ -15,6 +15,8 @@ public class Element : IRelationshipEntry
 
     public IList<Property> Properties { get; } = new List<Property>();
 
+    public IList<Annotation> Annotations { get; } = new List<Annotation>();
+    
     public override string ToString() => $"{Type} {Name ?? "(anonymous)"}";
 
     public T GetRequiredProperty<T>(string name)
@@ -33,7 +35,6 @@ public class Element : IRelationshipEntry
         HashUtility.Compute(Relationships),
         HashUtility.Compute(Properties)
     );
-
 
     public Relationship? GetRelationship(string name) => Relationships.SingleOrDefault(i => i.Name.Equals(name));
 }

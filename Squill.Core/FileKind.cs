@@ -2,5 +2,6 @@ namespace Squill.Core;
 
 public enum FileKind
 {
-    Compile
+    None = 0,
+    Compile,
 }
