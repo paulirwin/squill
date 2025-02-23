@@ -9,7 +9,7 @@
 
     <ItemGroup>
         <PackageReference Include="Antlr4.Runtime.Standard" Version="4.11.1" />
-        <PackageReference Include="Npgsql" Version="7.0.0" />
+        <PackageReference Include="Npgsql" Version="9.0.2" />
     </ItemGroup>
     
     <ItemGroup>
