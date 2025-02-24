@@ -8,7 +8,7 @@ public class PostgresSimpleTableTest : PostgresIntegrationTestBase
     [Fact]
     public async Task SimpleCreateTableTest()
     {
-        IDatabaseProvider provider = new PostgresDatabaseProvider("Host=localhost;");
+        IDatabaseProvider provider = new PostgresDatabaseProvider(ConnectionString);
 
         var modelBuilder = new TemporaryDatabaseModelBuilder(provider);
 
