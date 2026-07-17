@@ -30,6 +30,8 @@
     <ItemGroup>
       <None Remove="Postgres\SimpleTableTest\SimpleTable.sql" />
       <EmbeddedResource Include="Postgres\SimpleTableTest\SimpleTable.sql" />
+      <None Remove="Postgres\CreateIndexTest\TableWithIndexes.sql" />
+      <EmbeddedResource Include="Postgres\CreateIndexTest\TableWithIndexes.sql" />
     </ItemGroup>
 
 </Project>
