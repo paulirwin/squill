@@ -13,12 +13,12 @@ public class WorkspaceModelBuilderTests
 
         var builder = new ParserWorkspaceModelBuilder(workspace, parser);
 
-        var model = await builder.ExtractModelAsync();
-        
+        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
         Assert.NotNull(model);
-        Assert.Equal(0, model.Elements.Count);
+        Assert.Empty(model.Elements);
     }
-    
+
     [Fact]
     public async Task ExtractModel_GivenNonCompiledFile_ShouldReturnEmptyModel()
     {
@@ -28,10 +28,10 @@ public class WorkspaceModelBuilderTests
 
         var builder = new ParserWorkspaceModelBuilder(workspace, parser);
 
-        var model = await builder.ExtractModelAsync();
-        
+        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
         Assert.NotNull(model);
-        Assert.Equal(0, model.Elements.Count);
+        Assert.Empty(model.Elements);
     }
 
     [Fact]
@@ -44,42 +44,42 @@ CREATE TABLE Foo
     name varchar(100) NOT NULL
 );
 """;
-        
+
         var parser = new AntlrPostgresParser();
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Foo.sql", FileKind.Compile, sql));
 
         var builder = new ParserWorkspaceModelBuilder(workspace, parser);
 
-        var model = await builder.ExtractModelAsync();
-        
+        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
         Assert.NotNull(model);
-        Assert.Equal(1, model.Elements.Count);
+        Assert.Single(model.Elements);
 
         var table = model.Elements[0];
-        
+
         Assert.Equal("\"Foo\"", table.Name);
         Assert.Equal(PostgresElementTypes.SqlTable, table.Type);
-        
-        Assert.Equal(1, table.Relationships.Count);
+
+        Assert.Single(table.Relationships);
         var columns = table.Relationships[0];
         Assert.Equal(PostgresRelationshipNames.Columns, columns.Name);
         Assert.Equal(2, columns.Entries.Count);
-        
+
         var idCol = Assert.IsType<Element>(columns.Entries[0]);
         Assert.Equal(PostgresElementTypes.SqlSimpleColumn, idCol.Type);
         Assert.Equal("\"Foo\".\"id\"", idCol.Name);
-        Assert.Equal(1, idCol.Properties.Count);
+        Assert.Single(idCol.Properties);
         Assert.Equal(PostgresPropertyNames.IsNullable, idCol.Properties[0].Name);
         Assert.Equal(false, idCol.Properties[0].Value);
-        Assert.Equal(1, idCol.Relationships.Count);
+        Assert.Single(idCol.Relationships);
         Assert.Equal(PostgresRelationshipNames.TypeSpecifier, idCol.Relationships[0].Name);
-        Assert.Equal(1, idCol.Relationships[0].Entries.Count);
+        Assert.Single(idCol.Relationships[0].Entries);
         var idTypeElem = Assert.IsType<Element>(idCol.Relationships[0].Entries[0]);
         Assert.Equal(PostgresElementTypes.SqlTypeSpecifier, idTypeElem.Type);
-        Assert.Equal(1, idTypeElem.Relationships.Count);
+        Assert.Single(idTypeElem.Relationships);
         Assert.Equal(PostgresRelationshipNames.Type, idTypeElem.Relationships[0].Name);
-        Assert.Equal(1, idTypeElem.Relationships[0].Entries.Count);
+        Assert.Single(idTypeElem.Relationships[0].Entries);
         var idTypeRef = Assert.IsType<Reference>(idTypeElem.Relationships[0].Entries[0]);
         Assert.Equal("BuiltIns", idTypeRef.ExternalSource);
         Assert.Equal("integer", idTypeRef.Name);
@@ -104,7 +104,7 @@ CREATE INDEX idx_title ON film (title);
 
         var builder = new ParserWorkspaceModelBuilder(workspace, parser);
 
-        var model = await builder.ExtractModelAsync();
+        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(2, model.Elements.Count);
 
@@ -142,7 +142,7 @@ CREATE UNIQUE INDEX idx_email ON users USING btree (email DESC NULLS LAST);
 
         var builder = new ParserWorkspaceModelBuilder(workspace, parser);
 
-        var model = await builder.ExtractModelAsync();
+        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
 
         var index = Assert.Single(model.Elements);
         Assert.Equal(PostgresElementTypes.SqlIndex, index.Type);

@@ -23,7 +23,7 @@ CREATE INDEX idx_title ON film (title);
         workspace.Files.Add(new InMemoryStringFile("Film.sql", FileKind.Compile, sql));
 
         var builder = new ParserWorkspaceModelBuilder(workspace, parser);
-        var model = await builder.ExtractModelAsync();
+        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
 
         var analyzer = new PostgresDatabaseDependencyAnalyzer();
 
