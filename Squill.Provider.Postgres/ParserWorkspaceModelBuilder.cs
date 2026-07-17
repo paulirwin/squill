@@ -41,6 +41,12 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
 
                 model.Elements.Add(element);
             }
+            else if (statement is CreateIndexStatement createIndexStatement)
+            {
+                var element = MakeCreateIndexElement(createIndexStatement);
+
+                model.Elements.Add(element);
+            }
             else
             {
                 throw new NotImplementedException(
@@ -206,6 +212,85 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
             
             columns.Add(element);
         }
+    }
+
+    private static Element MakeCreateIndexElement(CreateIndexStatement createIndexStatement)
+    {
+        if (createIndexStatement.Name is null)
+        {
+            // TODO.PI: determine anonymous index naming convention for Postgres
+            throw new NotImplementedException("Unnamed CREATE INDEX statements are not yet supported");
+        }
+
+        if (createIndexStatement.OnRelation.Only || createIndexStatement.OnRelation.Star)
+        {
+            throw new NotImplementedException("ONLY and descendant table syntax on CREATE INDEX are not yet supported");
+        }
+
+        var tableName = createIndexStatement.OnRelation.Name;
+
+        // Indexes always live in the same schema as their table
+        var indexQualifiedName = new QualifiedName(tableName.Segments
+            .Take(tableName.Segments.Count - 1)
+            .Append(createIndexStatement.Name));
+
+        var element = new Element(PostgresElementTypes.SqlIndex)
+        {
+            Name = FormatQualifiedName(indexQualifiedName),
+        };
+
+        element.Properties.Add(new Property(PostgresPropertyNames.IsUnique, createIndexStatement.Unique));
+
+        if (createIndexStatement.UsingMethod is not null)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.IndexMethod, createIndexStatement.UsingMethod.Name));
+        }
+
+        // NOTE: CONCURRENTLY and IF NOT EXISTS affect how the index gets created, not the desired schema state
+
+        var columnSpecifications = new Relationship(PostgresRelationshipNames.ColumnSpecifications);
+        element.Relationships.Add(columnSpecifications);
+
+        foreach (var indexElement in createIndexStatement.Elements)
+        {
+            if (indexElement.Expression is not ColumnReferenceExpression columnReference)
+            {
+                throw new NotImplementedException(
+                    $"Index element expression type {indexElement.Expression.GetType()} to element mapping not implemented");
+            }
+
+            var columnSpecification = new Element(PostgresElementTypes.SqlIndexedColumnSpecification)
+            {
+                Relationships =
+                {
+                    new Relationship(PostgresRelationshipNames.Column)
+                    {
+                        new Reference(FormatQualifiedName(tableName, columnReference.Identifier.Name))
+                    }
+                }
+            };
+
+            if (indexElement.Direction is IndexElementDirection direction)
+            {
+                columnSpecification.Properties.Add(
+                    new Property(PostgresPropertyNames.IsAscending, direction == IndexElementDirection.Asc));
+            }
+
+            if (indexElement.NullOrder is IndexElementNullOrder nullOrder)
+            {
+                columnSpecification.Properties.Add(
+                    new Property(PostgresPropertyNames.NullsFirst, nullOrder == IndexElementNullOrder.NullsFirst));
+            }
+
+            columnSpecifications.Add(columnSpecification);
+        }
+
+        element.Relationships.Add(new Relationship(PostgresRelationshipNames.IndexedObject)
+        {
+            new Reference(FormatQualifiedName(tableName))
+        });
+
+        return element;
     }
 
     private static string FormatQualifiedName(QualifiedName qualifiedName, string? childElementName = null)

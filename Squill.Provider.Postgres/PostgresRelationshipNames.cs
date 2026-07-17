@@ -10,4 +10,5 @@ public static class PostgresRelationshipNames
     public const string ColumnSpecifications = nameof(ColumnSpecifications);
     public const string DefiningTable = nameof(DefiningTable);
     public const string Column = nameof(Column);
+    public const string IndexedObject = nameof(IndexedObject);
 }
