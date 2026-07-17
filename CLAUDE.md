@@ -18,6 +18,15 @@ Requires the .NET 10 SDK (all projects target `net10.0`).
 
 `WarningsAsErrors=nullable` is set in most projects; nullable warnings fail the build.
 
+## Testing philosophy
+
+The goal is thorough **unit and integration test coverage for every feature**. For any feature that touches SQL, two things must both be verified:
+
+1. **Unit tests** that the parser and model builders handle the SQL correctly (e.g. `Squill.PostgresParser.Tests`, `Squill.Provider.Postgres.Tests`) — parsing produces the right syntax tree, and mapping produces the right `Model`/`Element` structure.
+2. **Integration tests** (`Squill.IntegrationTests`) that the same SQL actually works against a **real PostgreSQL database** via Testcontainers — that the DDL we parse and generate is valid, executable Postgres, not just something that round-trips through our own code.
+
+Parsing something correctly in isolation is not enough; a feature isn't considered covered until there's an integration test proving it behaves correctly end-to-end against real Postgres. New SQL-facing features should add both kinds of test, ideally test-first (TDD).
+
 ## Architecture
 
 Two phases: **build** (read declarative SQL → validate → in-memory model → serialize to DACPAC) and **deploy** (deserialize DACPAC → extract model from target database → diff models → script and run changes). The build is independent of any target database.
