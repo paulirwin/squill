@@ -1,0 +1,16 @@
+/Users/paul/git/squill/Squill.Dacpac/bin/Debug/net10.0/Squill.Dacpac.deps.json
+/Users/paul/git/squill/Squill.Dacpac/bin/Debug/net10.0/Squill.Dacpac.dll
+/Users/paul/git/squill/Squill.Dacpac/bin/Debug/net10.0/Squill.Dacpac.pdb
+/Users/paul/git/squill/Squill.Dacpac/bin/Debug/net10.0/Squill.Core.dll
+/Users/paul/git/squill/Squill.Dacpac/bin/Debug/net10.0/Squill.Core.pdb
+/Users/paul/git/squill/Squill.Dacpac/obj/Debug/net10.0/Squill.Dacpac.csproj.AssemblyReference.cache
+/Users/paul/git/squill/Squill.Dacpac/obj/Debug/net10.0/Squill.Dacpac.GeneratedMSBuildEditorConfig.editorconfig
+/Users/paul/git/squill/Squill.Dacpac/obj/Debug/net10.0/Squill.Dacpac.AssemblyInfoInputs.cache
+/Users/paul/git/squill/Squill.Dacpac/obj/Debug/net10.0/Squill.Dacpac.AssemblyInfo.cs
+/Users/paul/git/squill/Squill.Dacpac/obj/Debug/net10.0/Squill.Dacpac.csproj.CoreCompileInputs.cache
+/Users/paul/git/squill/Squill.Dacpac/obj/Debug/net10.0/Squill.Dacpac.sourcelink.json
+/Users/paul/git/squill/Squill.Dacpac/obj/Debug/net10.0/Squill.D.43339AB9.Up2Date
+/Users/paul/git/squill/Squill.Dacpac/obj/Debug/net10.0/Squill.Dacpac.dll
+/Users/paul/git/squill/Squill.Dacpac/obj/Debug/net10.0/refint/Squill.Dacpac.dll
+/Users/paul/git/squill/Squill.Dacpac/obj/Debug/net10.0/Squill.Dacpac.pdb
+/Users/paul/git/squill/Squill.Dacpac/obj/Debug/net10.0/ref/Squill.Dacpac.dll

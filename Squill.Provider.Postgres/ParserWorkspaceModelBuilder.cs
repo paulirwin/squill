@@ -165,8 +165,10 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                         {
                             throw new InvalidOperationException("Unexpected length modifier for varchar or character type");
                         }
-                        
-                        typeSpec.Properties.Add(new Property(PostgresPropertyNames.Length, length));
+
+                        // Store as int to match the DB-extraction builder and the script
+                        // generator, which both use int for the Length property.
+                        typeSpec.Properties.Add(new Property(PostgresPropertyNames.Length, (int)length));
                     }
                     else
                     {

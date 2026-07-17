@@ -1,0 +1,13 @@
+/Users/paul/git/squill/Squill.PostgresParser/bin/Debug/net9.0/Squill.PostgresParser.deps.json
+/Users/paul/git/squill/Squill.PostgresParser/bin/Debug/net9.0/Squill.PostgresParser.dll
+/Users/paul/git/squill/Squill.PostgresParser/bin/Debug/net9.0/Squill.PostgresParser.pdb
+/Users/paul/git/squill/Squill.PostgresParser/obj/Debug/net9.0/Squill.PostgresParser.csproj.AssemblyReference.cache
+/Users/paul/git/squill/Squill.PostgresParser/obj/Debug/net9.0/Squill.PostgresParser.GeneratedMSBuildEditorConfig.editorconfig
+/Users/paul/git/squill/Squill.PostgresParser/obj/Debug/net9.0/Squill.PostgresParser.AssemblyInfoInputs.cache
+/Users/paul/git/squill/Squill.PostgresParser/obj/Debug/net9.0/Squill.PostgresParser.AssemblyInfo.cs
+/Users/paul/git/squill/Squill.PostgresParser/obj/Debug/net9.0/Squill.PostgresParser.csproj.CoreCompileInputs.cache
+/Users/paul/git/squill/Squill.PostgresParser/obj/Debug/net9.0/Squill.PostgresParser.sourcelink.json
+/Users/paul/git/squill/Squill.PostgresParser/obj/Debug/net9.0/Squill.PostgresParser.dll
+/Users/paul/git/squill/Squill.PostgresParser/obj/Debug/net9.0/refint/Squill.PostgresParser.dll
+/Users/paul/git/squill/Squill.PostgresParser/obj/Debug/net9.0/Squill.PostgresParser.pdb
+/Users/paul/git/squill/Squill.PostgresParser/obj/Debug/net9.0/ref/Squill.PostgresParser.dll
