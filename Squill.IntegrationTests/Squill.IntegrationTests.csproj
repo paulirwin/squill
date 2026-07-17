@@ -28,10 +28,9 @@
     </ItemGroup>
 
     <ItemGroup>
-      <None Remove="Postgres\SimpleTableTest\SimpleTable.sql" />
-      <EmbeddedResource Include="Postgres\SimpleTableTest\SimpleTable.sql" />
-      <None Remove="Postgres\CreateIndexTest\TableWithIndexes.sql" />
-      <EmbeddedResource Include="Postgres\CreateIndexTest\TableWithIndexes.sql" />
+      <!-- All .sql test fixtures are embedded so tests can load them by resource name. -->
+      <None Remove="**\*.sql" />
+      <EmbeddedResource Include="**\*.sql" />
     </ItemGroup>
 
 </Project>
