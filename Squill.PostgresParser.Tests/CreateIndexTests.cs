@@ -8,20 +8,20 @@ public class CreateIndexTests
     public void Sakila_FilmFulltextIndex()
     {
         var parser = new AntlrPostgresParser();
-        
+
         const string text = """
 CREATE INDEX film_fulltext_idx ON film USING gist (fulltext);
 """;
-        
+
         var root = parser.Parse(text);
         Assert.NotNull(root);
-        Assert.Equal(1, root.Statements.Count);
+        Assert.Single(root.Statements);
 
         var createIndex = Assert.IsType<CreateIndexStatement>(root.Statements[0]);
 
         var name = Assert.IsType<SimpleIdentifier>(createIndex.Name);
         Assert.Equal("film_fulltext_idx", name.Name);
-        
+
         Assert.Equal("film", createIndex.OnRelation.Name.Segments[0].Name);
         Assert.Equal("gist", createIndex.UsingMethod?.Name);
         Assert.False(createIndex.Unique);
@@ -29,7 +29,7 @@ CREATE INDEX film_fulltext_idx ON film USING gist (fulltext);
         Assert.False(createIndex.IfNotExists);
         Assert.False(createIndex.OnRelation.Only);
         Assert.False(createIndex.OnRelation.Star);
-        Assert.Equal(1, createIndex.Elements.Count);
+        Assert.Single(createIndex.Elements);
 
         var col = Assert.IsType<ColumnReferenceExpression>(createIndex.Elements[0].Expression);
         Assert.Equal("fulltext", col.Identifier.Name);

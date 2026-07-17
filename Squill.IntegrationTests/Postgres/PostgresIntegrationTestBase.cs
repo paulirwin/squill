@@ -1,15 +1,20 @@
+using DotNet.Testcontainers.Images;
 using Testcontainers.PostgreSql;
 
 namespace Squill.IntegrationTests.Postgres;
 
 public abstract class PostgresIntegrationTestBase : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgresqlContainer = new PostgreSqlBuilder()
+    private readonly PostgreSqlContainer _postgresqlContainer = new PostgreSqlBuilder(new DockerImage("postgres:latest"))
         .Build();
 
-    public string ConnectionString => _postgresqlContainer.GetConnectionString();
+    protected string ConnectionString => _postgresqlContainer.GetConnectionString();
 
-    public Task InitializeAsync() => _postgresqlContainer.StartAsync();
+    public async ValueTask InitializeAsync() => await _postgresqlContainer.StartAsync();
 
-    public Task DisposeAsync() => _postgresqlContainer.DisposeAsync().AsTask();
+    public async ValueTask DisposeAsync()
+    {
+        GC.SuppressFinalize(this);
+        await _postgresqlContainer.DisposeAsync();
+    }
 }

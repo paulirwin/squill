@@ -8,7 +8,7 @@ public class CreateTableTests
     public void CreateTable_SimpleHappyPath()
     {
         var parser = new AntlrPostgresParser();
-        
+
         // TODO: move to embedded resource
         const string text = """
 CREATE TABLE Foo 
@@ -19,22 +19,22 @@ CREATE TABLE Foo
 """;
 
         var root = parser.Parse(text);
-        
+
         Assert.NotNull(root);
-        Assert.Equal(1, root.Statements.Count);
+        Assert.Single(root.Statements);
 
         var createTable = Assert.IsType<CreateTableStatement>(root.Statements[0]);
-        
+
         Assert.Equal("Foo", createTable.Name.ToString());
         Assert.Equal(2, createTable.Elements.Count);
 
         var idColumn = Assert.IsType<ColumnDefinition>(createTable.Elements[0]);
-        
+
         Assert.Equal("id", idColumn.Name.Name);
         Assert.Equal("integer", idColumn.DataType.TypeName);
-        Assert.Equal(1, idColumn.Constraints.Count);
+        Assert.Single(idColumn.Constraints);
         Assert.IsType<PrimaryKeyColumnConstraint>(idColumn.Constraints[0]);
-        
+
         AssertVarcharColumn(createTable, 1, "name", 100, true, false);
     }
 
@@ -42,7 +42,7 @@ CREATE TABLE Foo
     public void CreateTable_NamedColumnConstraintTest()
     {
         var parser = new AntlrPostgresParser();
-        
+
         // TODO: move to embedded resource
         const string text = """
 CREATE TABLE Foo 
@@ -52,23 +52,23 @@ CREATE TABLE Foo
 """;
 
         var root = parser.Parse(text);
-        
+
         Assert.NotNull(root);
-        Assert.Equal(1, root.Statements.Count);
+        Assert.Single(root.Statements);
 
         var createTable = Assert.IsType<CreateTableStatement>(root.Statements[0]);
-        
+
         Assert.Equal("Foo", createTable.Name.ToString());
-        Assert.Equal(1, createTable.Elements.Count);
+        Assert.Single(createTable.Elements);
 
         var idColumn = Assert.IsType<ColumnDefinition>(createTable.Elements[0]);
-        
+
         Assert.Equal("id", idColumn.Name.Name);
         Assert.Equal("integer", idColumn.DataType.TypeName);
-        Assert.Equal(1, idColumn.Constraints.Count);
-        
+        Assert.Single(idColumn.Constraints);
+
         var namedConstraint = Assert.IsType<NamedColumnConstraint>(idColumn.Constraints[0]);
-        
+
         Assert.Equal("PK_Foo", namedConstraint.Name);
         Assert.IsType<PrimaryKeyColumnConstraint>(namedConstraint.Constraint);
     }
@@ -80,7 +80,7 @@ CREATE TABLE Foo
     public void Sakila_ActorTableTest()
     {
         var parser = new AntlrPostgresParser();
-        
+
         // TODO: move to embedded resource
         const string text = """
 CREATE TABLE actor (
@@ -93,10 +93,10 @@ CREATE TABLE actor (
 
         var root = parser.Parse(text);
         Assert.NotNull(root);
-        Assert.Equal(1, root.Statements.Count);
+        Assert.Single(root.Statements);
 
         var createTable = Assert.IsType<CreateTableStatement>(root.Statements[0]);
-        
+
         Assert.Equal("actor", createTable.Name.ToString());
         Assert.Equal(4, createTable.Elements.Count);
 
@@ -126,18 +126,18 @@ CREATE TABLE category (
 
         var root = parser.Parse(text);
         Assert.NotNull(root);
-        Assert.Equal(1, root.Statements.Count);
+        Assert.Single(root.Statements);
 
         var createTable = Assert.IsType<CreateTableStatement>(root.Statements[0]);
 
         Assert.Equal("category", createTable.Name.ToString());
         Assert.Equal(3, createTable.Elements.Count);
-        
+
         AssertSakilaIdColumn(createTable, "category_id", "category_category_id_seq");
         AssertVarcharColumn(createTable, 1, "name", 25, true, false);
         AssertSakilaLastUpdateColumn(createTable, 2);
     }
-    
+
     /// <summary>
     /// A test for the Sakila sample database `film` table. See license in README.md
     /// </summary>
@@ -168,13 +168,13 @@ CREATE TABLE film (
 
         var root = parser.Parse(text);
         Assert.NotNull(root);
-        Assert.Equal(1, root.Statements.Count);
+        Assert.Single(root.Statements);
 
         var createTable = Assert.IsType<CreateTableStatement>(root.Statements[0]);
 
         Assert.Equal("film", createTable.Name.ToString());
         Assert.Equal(14, createTable.Elements.Count);
-        
+
         AssertSakilaIdColumn(createTable, "film_id", "film_film_id_seq");
         AssertVarcharColumn(createTable, 1, "title", 255, true, false);
         AssertBuiltInDataTypeColumn(createTable, 2, "description", PostgresBuiltInDataType.Text, false);
@@ -190,7 +190,7 @@ CREATE TABLE film (
         AssertArrayTypeColumn(createTable, 12, "special_features", PostgresBuiltInDataType.Text, false);
         AssertBuiltInDataTypeColumn(createTable, 13, "fulltext", PostgresBuiltInDataType.TSVector, false);
     }
-    
+
     /// <summary>
     /// A test for the Sakila sample database `customer` table. See license in README.md
     /// </summary>
@@ -217,13 +217,13 @@ CREATE TABLE customer (
 
         var root = parser.Parse(text);
         Assert.NotNull(root);
-        Assert.Equal(1, root.Statements.Count);
+        Assert.Single(root.Statements);
 
         var createTable = Assert.IsType<CreateTableStatement>(root.Statements[0]);
 
         Assert.Equal("customer", createTable.Name.ToString());
         Assert.Equal(10, createTable.Elements.Count);
-        
+
         AssertSakilaIdColumn(createTable, "customer_id", "customer_customer_id_seq");
         AssertBuiltInDataTypeColumn(createTable, 1, "store_id", PostgresBuiltInDataType.SmallInt, true, false);
         AssertVarcharColumn(createTable, 2, "first_name", 45, true, false);
@@ -235,7 +235,7 @@ CREATE TABLE customer (
         AssertSakilaLastUpdateColumn(createTable, 8);
         AssertBuiltInDataTypeColumn(createTable, 9, "active", PostgresBuiltInDataType.Integer, false);
     }
-    
+
     /// <summary>
     /// A test for the Sakila sample database `language` table. See license in README.md
     /// </summary>
@@ -255,18 +255,18 @@ CREATE TABLE language (
 
         var root = parser.Parse(text);
         Assert.NotNull(root);
-        Assert.Equal(1, root.Statements.Count);
+        Assert.Single(root.Statements);
 
         var createTable = Assert.IsType<CreateTableStatement>(root.Statements[0]);
 
         Assert.Equal("language", createTable.Name.ToString());
         Assert.Equal(3, createTable.Elements.Count);
-        
+
         AssertSakilaIdColumn(createTable, "language_id", "language_language_id_seq");
         AssertVarcharColumn(createTable, 1, "name", 20, true, false, type: PostgresBuiltInDataType.Char);
         AssertSakilaLastUpdateColumn(createTable, 2);
     }
-    
+
     /// <summary>
     /// A test for the Sakila sample database `actor` table. See license in README.md
     /// </summary>
@@ -274,7 +274,7 @@ CREATE TABLE language (
     public void Sakila_PaymentInheritedTableTest()
     {
         var parser = new AntlrPostgresParser();
-        
+
         // TODO: move to embedded resource
         const string text = """
 CREATE TABLE payment_p2007_01 (CONSTRAINT payment_p2007_01_payment_date_check CHECK (((payment_date >= '2007-01-01 00:00:00'::timestamp without time zone) AND (payment_date < '2007-02-01 00:00:00'::timestamp without time zone)))
@@ -284,22 +284,22 @@ INHERITS (payment);
 
         var root = parser.Parse(text);
         Assert.NotNull(root);
-        Assert.Equal(1, root.Statements.Count);
+        Assert.Single(root.Statements);
 
         var createTable = Assert.IsType<CreateTableStatement>(root.Statements[0]);
-        
+
         Assert.Equal("payment_p2007_01", createTable.Name.ToString());
-        Assert.Equal(1, createTable.Elements.Count);
-        Assert.Equal(1, createTable.Inherits.Count);
+        Assert.Single(createTable.Elements);
+        Assert.Single(createTable.Inherits);
         Assert.Equal("payment", createTable.Inherits[0].Segments[0].Name);
 
         var constraint = Assert.IsType<NamedTableConstraint>(createTable.Elements[0]);
-        
+
         Assert.Equal("payment_p2007_01_payment_date_check", constraint.Name.Name);
 
         var checkConstraint = Assert.IsType<CheckTableConstraint>(constraint.Constraint);
         var paren = Assert.IsType<ParenthesizedExpression>(checkConstraint.Expression);
-        
+
         var andExpr = Assert.IsType<BinaryExpression>(paren.Expression);
         var andOp = Assert.IsType<BuiltInOperator>(andExpr.Operator);
         Assert.Equal(PostgresBuiltInBinaryOperator.And, andOp.Operator);
@@ -324,7 +324,7 @@ INHERITS (payment);
         var ltExpr = Assert.IsType<BinaryExpression>(ltParen.Expression);
         var ltOp = Assert.IsType<BuiltInOperator>(ltExpr.Operator);
         Assert.Equal(PostgresBuiltInBinaryOperator.LessThan, ltOp.Operator);
-        
+
         colRef = Assert.IsType<ColumnReferenceExpression>(ltExpr.Left);
         colId = Assert.IsType<SimpleIdentifier>(colRef.Identifier);
         Assert.Equal("payment_date", colId.Name);
@@ -336,7 +336,7 @@ INHERITS (payment);
         targetType = Assert.IsType<BuiltInDataType>(typecast.DataType);
         Assert.Equal(PostgresBuiltInDataType.Timestamp, targetType.Type);
     }
-    
+
     /// <summary>
     /// A test for the Sakila sample database `staff` table. See license in README.md
     /// </summary>
@@ -364,13 +364,13 @@ CREATE TABLE staff (
 
         var root = parser.Parse(text);
         Assert.NotNull(root);
-        Assert.Equal(1, root.Statements.Count);
+        Assert.Single(root.Statements);
 
         var createTable = Assert.IsType<CreateTableStatement>(root.Statements[0]);
 
         Assert.Equal("staff", createTable.Name.ToString());
         Assert.Equal(11, createTable.Elements.Count);
-        
+
         // more assertions could be added here but generally are covered by other unit tests here.
         // this mainly tests the `bytea` type
         AssertBuiltInDataTypeColumn(createTable, 10, "picture", PostgresBuiltInDataType.ByteArray, false);
@@ -387,7 +387,7 @@ CREATE TABLE staff (
         var idDefault = Assert.IsType<DefaultColumnConstraint>(idColumn.Constraints[0]);
         var nextvalFunc = Assert.IsType<FunctionApplicationExpression>(idDefault.Expression);
         Assert.Equal("nextval", nextvalFunc.Name);
-        Assert.Equal(1, nextvalFunc.Arguments.Count);
+        Assert.Single(nextvalFunc.Arguments);
         var typecastExpr = Assert.IsType<TypecastExpression>(nextvalFunc.Arguments[0].Expression);
         var stringLiteral = Assert.IsType<LiteralExpression>(typecastExpr.Expression);
         Assert.Equal(seqName, stringLiteral.Value);
@@ -404,31 +404,31 @@ CREATE TABLE staff (
         var columnDef = Assert.IsType<ColumnDefinition>(createTable.Elements[columnIndex]);
 
         Assert.Equal(name, columnDef.Name.Name);
-        
+
         var dataType = Assert.IsType<BuiltInDataType>(columnDef.DataType);
         Assert.Equal(type, dataType.Type);
-        Assert.Equal(1, dataType.Modifiers.Count);
+        Assert.Single(dataType.Modifiers);
         var lengthExpr = Assert.IsType<LiteralExpression>(dataType.Modifiers[0]);
         Assert.Equal((long)length, lengthExpr.Value);
-        
+
         AssertNullability(assertNullability, nullable, columnDef);
     }
-    
+
     private static void AssertNumericColumn(CreateTableStatement createTable, int columnIndex, string name, int precision, int scale, bool assertNullability, bool? nullable = null, object? defaultLiteral = null)
     {
         var columnDef = Assert.IsType<ColumnDefinition>(createTable.Elements[columnIndex]);
 
         Assert.Equal(name, columnDef.Name.Name);
-        
+
         var dataType = Assert.IsType<BuiltInDataType>(columnDef.DataType);
         Assert.Equal(PostgresBuiltInDataType.Decimal, dataType.Type);
         Assert.Equal(2, dataType.Modifiers.Count);
-        
+
         var precisionExpr = Assert.IsType<LiteralExpression>(dataType.Modifiers[0]);
         Assert.Equal((long)precision, precisionExpr.Value);
         var scaleExpr = Assert.IsType<LiteralExpression>(dataType.Modifiers[1]);
         Assert.Equal((long)scale, scaleExpr.Value);
-        
+
         AssertNullability(assertNullability, nullable, columnDef);
         AssertDefaultLiteral(defaultLiteral, columnDef);
     }
@@ -450,25 +450,25 @@ CREATE TABLE staff (
         var columnDef = Assert.IsType<ColumnDefinition>(createTable.Elements[columnIndex]);
 
         Assert.Equal(name, columnDef.Name.Name);
-        
+
         var dataType = Assert.IsType<BuiltInDataType>(columnDef.DataType);
         Assert.Equal(builtInType, dataType.Type);
-        Assert.Equal(0, dataType.Modifiers.Count);
+        Assert.Empty(dataType.Modifiers);
 
         AssertNullability(assertNullability, nullable, columnDef);
         AssertDefaultLiteral(defaultLiteral, columnDef);
     }
-    
+
     private static void AssertArrayTypeColumn(CreateTableStatement createTable, int columnIndex, string name, PostgresBuiltInDataType builtInType, bool assertNullability, bool? nullable = null, object? defaultLiteral = null)
     {
         var columnDef = Assert.IsType<ColumnDefinition>(createTable.Elements[columnIndex]);
 
         Assert.Equal(name, columnDef.Name.Name);
-        
+
         var dataType = Assert.IsType<ArrayDataType>(columnDef.DataType);
         var builtInDataType = Assert.IsType<BuiltInDataType>(dataType.ElementType);
         Assert.Equal(builtInType, builtInDataType.Type);
-        Assert.Equal(0, dataType.Modifiers.Count);
+        Assert.Empty(dataType.Modifiers);
 
         AssertNullability(assertNullability, nullable, columnDef);
         AssertDefaultLiteral(defaultLiteral, columnDef);
@@ -497,27 +497,27 @@ CREATE TABLE staff (
         var columnDef = Assert.IsType<ColumnDefinition>(createTable.Elements[columnIndex]);
 
         Assert.Equal(name, columnDef.Name.Name);
-        
+
         var dataType = Assert.IsType<UnresolvedDataType>(columnDef.DataType);
         Assert.Equal(typeName, dataType.TypeName);
-        Assert.Equal(0, dataType.Modifiers.Count);
+        Assert.Empty(dataType.Modifiers);
     }
-    
+
     private static void AssertSakilaLastUpdateColumn(CreateTableStatement createTable, int columnIndex)
     {
         var lastUpdateColumn = Assert.IsType<ColumnDefinition>(createTable.Elements[columnIndex]);
 
         Assert.Equal("last_update", lastUpdateColumn.Name.Name);
-        
+
         var lastUpdateType = Assert.IsType<BuiltInDataType>(lastUpdateColumn.DataType);
         Assert.Equal(PostgresBuiltInDataType.Timestamp, lastUpdateType.Type);
         Assert.Equal(2, lastUpdateColumn.Constraints.Count);
-        
+
         var lastUpdateDefault = Assert.IsType<DefaultColumnConstraint>(lastUpdateColumn.Constraints[0]);
         var nowFunc = Assert.IsType<FunctionApplicationExpression>(lastUpdateDefault.Expression);
         Assert.Equal("now", nowFunc.Name);
-        Assert.Equal(0, nowFunc.Arguments.Count);
-        
+        Assert.Empty(nowFunc.Arguments);
+
         var nullableConstraint = Assert.IsType<NullableColumnConstraint>(lastUpdateColumn.Constraints[1]);
         Assert.False(nullableConstraint.Nullable);
     }
