@@ -4,8 +4,8 @@ namespace Squill.Provider.Postgres;
 
 public class PostgresDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
 {
-    public bool IsDependentElementType(string type) 
-        => type == PostgresElementTypes.SqlPrimaryKeyConstraint;
+    public bool IsDependentElementType(string type)
+        => type is PostgresElementTypes.SqlPrimaryKeyConstraint or PostgresElementTypes.SqlIndex;
 
     public IList<Element>? GetDependentElements(Element sourceElement, Model model)
     {
@@ -17,17 +17,21 @@ public class PostgresDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
 
         var deps = new List<Element>();
 
-        foreach (var pkConstraint in model.Elements.Where(i => i.Type.Equals(PostgresElementTypes.SqlPrimaryKeyConstraint)))
+        foreach (var element in model.Elements.Where(i => IsDependentElementType(i.Type)))
         {
-            var definingTable = pkConstraint.GetRelationship(PostgresRelationshipNames.DefiningTable);
-            var reference = definingTable?.GetReference(tableName);
+            var tableRelationshipName = element.Type == PostgresElementTypes.SqlIndex
+                ? PostgresRelationshipNames.IndexedObject
+                : PostgresRelationshipNames.DefiningTable;
+
+            var tableRelationship = element.GetRelationship(tableRelationshipName);
+            var reference = tableRelationship?.GetReference(tableName);
 
             if (reference != null)
             {
-                deps.Add(pkConstraint);
+                deps.Add(element);
             }
         }
-        
+
         return deps;
     }
 }

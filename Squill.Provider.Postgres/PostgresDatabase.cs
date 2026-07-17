@@ -160,10 +160,95 @@ public class PostgresDatabase : IDatabase
         }
 
         sb.Append("    ").AppendLine(string.Join($",{Environment.NewLine}    ", columnText));
-        
+
         sb.AppendLine(");");
-        
+
+        foreach (var index in dependentElements.Where(i => i.Type == PostgresElementTypes.SqlIndex))
+        {
+            sb.AppendLine();
+            sb.Append(GenerateCreateIndexScript(index, tableName));
+        }
+
         return sb.ToString();
+    }
+
+    private static string GenerateCreateIndexScript(Element index, string tableName)
+    {
+        if (index.Name is not string indexName)
+        {
+            throw new ArgumentException("Indexes must have names");
+        }
+
+        var isUnique = index.GetProperty<bool?>(PostgresPropertyNames.IsUnique) == true;
+        var indexMethod = index.GetProperty<string>(PostgresPropertyNames.IndexMethod);
+
+        var columnSpecs = index.GetRelationship(PostgresRelationshipNames.ColumnSpecifications);
+
+        if (columnSpecs == null)
+        {
+            throw new InvalidOperationException($"Index {indexName} has no column specifications");
+        }
+
+        var columnText = new List<string>();
+
+        foreach (var columnSpec in columnSpecs.Entries.OfType<Element>()
+                     .Where(i => i.Type == PostgresElementTypes.SqlIndexedColumnSpecification))
+        {
+            var columnReference = columnSpec.GetRelationship(PostgresRelationshipNames.Column)
+                ?.Entries.OfType<Reference>().SingleOrDefault();
+
+            if (columnReference == null)
+            {
+                throw new InvalidOperationException($"Index {indexName} column specification has no column reference");
+            }
+
+            // Column references are stored table-qualified (e.g. "film.title"); the
+            // CREATE INDEX column list needs the bare column name.
+            var columnName = StripTableQualifier(columnReference.Name, tableName);
+
+            var text = columnName;
+
+            if (columnSpec.GetProperty<bool?>(PostgresPropertyNames.IsAscending) == false)
+            {
+                text += " DESC";
+            }
+
+            if (columnSpec.GetProperty<bool?>(PostgresPropertyNames.NullsFirst) is bool nullsFirst)
+            {
+                text += nullsFirst ? " NULLS FIRST" : " NULLS LAST";
+            }
+
+            columnText.Add(text);
+        }
+
+        var sb = new StringBuilder();
+
+        sb.Append("CREATE ");
+
+        if (isUnique)
+        {
+            sb.Append("UNIQUE ");
+        }
+
+        sb.Append("INDEX ").Append(indexName).Append(" ON ").Append(tableName);
+
+        if (indexMethod != null)
+        {
+            sb.Append(" USING ").Append(indexMethod);
+        }
+
+        sb.Append(" (").Append(string.Join(", ", columnText)).AppendLine(");");
+
+        return sb.ToString();
+    }
+
+    private static string StripTableQualifier(string columnReference, string tableName)
+    {
+        var prefix = $"{tableName}.";
+
+        return columnReference.StartsWith(prefix, StringComparison.Ordinal)
+            ? columnReference[prefix.Length..]
+            : columnReference;
     }
 
     private static IList<string> GetPrimaryKeyColumns(Element pkConstraint)

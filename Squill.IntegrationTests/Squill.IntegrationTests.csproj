@@ -4,7 +4,7 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <WarningsAsErrors>nullable</WarningsAsErrors>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <IsPackable>false</IsPackable>
     </PropertyGroup>
 
@@ -28,8 +28,9 @@
     </ItemGroup>
 
     <ItemGroup>
-      <None Remove="Postgres\SimpleTableTest\SimpleTable.sql" />
-      <EmbeddedResource Include="Postgres\SimpleTableTest\SimpleTable.sql" />
+      <!-- All .sql test fixtures are embedded so tests can load them by resource name. -->
+      <None Remove="**\*.sql" />
+      <EmbeddedResource Include="**\*.sql" />
     </ItemGroup>
 
 </Project>

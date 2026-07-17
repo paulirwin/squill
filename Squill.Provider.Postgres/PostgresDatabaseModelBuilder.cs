@@ -59,9 +59,110 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         {
             await ExtractColumnsAsync(table, cancellationToken);
             await ExtractPrimaryKeyAsync(model, table, cancellationToken);
+            await ExtractIndexesAsync(model, table, cancellationToken);
         }
 
         return model;
+    }
+
+    private async Task ExtractIndexesAsync(Model model, Element table, CancellationToken cancellationToken = default)
+    {
+        var schemaRelationship = table.Relationships.Single(i => i.Name == PostgresRelationshipNames.Schema);
+        // HACK.PI: assume built-in public schema for now
+        var schema = schemaRelationship.Entries.OfType<Reference>().First().Name;
+
+        // pg_index.indisprimary / indisunique tell us the index kind; we skip indexes
+        // that back a constraint (primary keys, unique constraints) since those are
+        // modeled via their constraint, not as standalone SqlIndex elements.
+        const string sql = """
+            SELECT
+                i.relname AS index_name,
+                ix.indisunique AS is_unique,
+                am.amname AS index_method,
+                a.attname AS column_name,
+                k.ordinality AS column_ordinal,
+                ix.indoption[k.ordinality - 1] AS column_option
+            FROM pg_index ix
+            JOIN pg_class i ON i.oid = ix.indexrelid
+            JOIN pg_class t ON t.oid = ix.indrelid
+            JOIN pg_namespace n ON n.oid = t.relnamespace
+            JOIN pg_am am ON am.oid = i.relam
+            JOIN LATERAL unnest(ix.indkey) WITH ORDINALITY AS k(attnum, ordinality) ON TRUE
+            JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
+            WHERE n.nspname = @schema
+              AND t.relname = @name
+              AND NOT ix.indisprimary
+              AND NOT EXISTS (
+                  SELECT 1 FROM pg_constraint c WHERE c.conindid = ix.indexrelid
+              )
+            ORDER BY i.relname, k.ordinality;
+            """;
+
+        var parameters = new[]
+        {
+            new DatabaseParameter<string>("@schema", schema),
+            new DatabaseParameter<string>("@name", table.Name!),
+        };
+
+        // Group rows by index so multi-column indexes build a single element.
+        var indexes = new Dictionary<string, Element>();
+
+        await using var reader = await _database.RunScriptReaderAsync(sql, parameters, cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var indexName = reader.GetString("index_name");
+
+            if (!indexes.TryGetValue(indexName, out var index))
+            {
+                var isUnique = reader.GetBoolean("is_unique");
+                var indexMethod = reader.GetString("index_method");
+
+                index = new Element(PostgresElementTypes.SqlIndex)
+                {
+                    Name = indexName,
+                    Relationships =
+                    {
+                        new Relationship(PostgresRelationshipNames.ColumnSpecifications),
+                        new Relationship(PostgresRelationshipNames.IndexedObject)
+                        {
+                            new Reference(table.Name!)
+                        }
+                    }
+                };
+
+                index.Properties.Add(new Property(PostgresPropertyNames.IsUnique, isUnique));
+                index.Properties.Add(new Property(PostgresPropertyNames.IndexMethod, indexMethod));
+
+                indexes.Add(indexName, index);
+                model.Elements.Add(index);
+            }
+
+            var columnName = reader.GetString("column_name");
+
+            var columnSpecification = new Element(PostgresElementTypes.SqlIndexedColumnSpecification)
+            {
+                Relationships =
+                {
+                    new Relationship(PostgresRelationshipNames.Column)
+                    {
+                        new Reference($"{table.Name!}.{columnName}")
+                    }
+                }
+            };
+
+            // indoption bit 0x01 = DESC; bit 0x02 = NULLS FIRST (see pg source: indexing.h)
+            var columnOption = reader.GetFieldValue<short>("column_option");
+            var isDescending = (columnOption & 0x01) != 0;
+            var nullsFirst = (columnOption & 0x02) != 0;
+
+            columnSpecification.Properties.Add(new Property(PostgresPropertyNames.IsAscending, !isDescending));
+            columnSpecification.Properties.Add(new Property(PostgresPropertyNames.NullsFirst, nullsFirst));
+
+            index.Relationships
+                .Single(r => r.Name == PostgresRelationshipNames.ColumnSpecifications)
+                .Add(columnSpecification);
+        }
     }
 
     private async Task ExtractPrimaryKeyAsync(Model model, Element table, CancellationToken cancellationToken = default)
