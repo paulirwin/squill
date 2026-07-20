@@ -80,4 +80,12 @@ public class SqlNameTests
         Assert.Equal("film", SqlName.UnqualifiedOf("\"film\""));
         Assert.Equal("title", SqlName.UnqualifiedOf("\"public\".\"film\".\"title\""));
     }
+
+    [Fact]
+    public void Sibling_ReplacesLastSegmentKeepingSchema()
+    {
+        // An index lives in its table's schema: sibling of public.film is public.idx.
+        Assert.Equal("\"public\".\"idx\"", SqlName.Object("public", "film").Sibling("idx").ToString());
+        Assert.Equal("\"idx\"", SqlName.Object("film").Sibling("idx").ToString());
+    }
 }

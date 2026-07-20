@@ -62,6 +62,40 @@ CREATE INDEX idx_film_title ON film (title);
         Assert.Equal("\"film\".\"title\"", IndexColumnReference(dbModel));
     }
 
+    // The end goal of unifying the builders is that a parsed model and an extracted
+    // model of the same schema hash-match, so schema compare works across sources.
+    // Names, PK shape, and index shape are now unified, but type specifiers still
+    // diverge (e.g. the parser tags bare varchar with IsMax; the DB builder reports
+    // the canonical type name differently), so this does not yet hold. Kept as a
+    // skipped executable spec of the target state.
+    [Fact(Skip = "Type-specifier representations still diverge between builders; see model-factory follow-up")]
+    public async Task ParserAndDatabaseBuilders_ProduceMatchingModelHashes()
+    {
+        var workspace = new Workspace();
+        workspace.Files.Add(new InMemoryStringFile("Film.sql", FileKind.Compile, Sql));
+        var parserModel = await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
+            .ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        IDatabaseProvider provider = new PostgresDatabaseProvider(ConnectionString);
+        var db = await provider.CreateDatabaseAsync(
+            $"squill_test_{Guid.NewGuid():n}", TestContext.Current.CancellationToken);
+        Model dbModel;
+        try
+        {
+            await db.ConnectAsync(TestContext.Current.CancellationToken);
+            await db.RunScriptAsync(Sql, cancellationToken: TestContext.Current.CancellationToken);
+            dbModel = await provider.CreateDatabaseModelBuilder(db)
+                .ExtractModelAsync(TestContext.Current.CancellationToken);
+        }
+        finally
+        {
+            await db.DropAsync(TestContext.Current.CancellationToken);
+        }
+
+        Assert.True(HashUtility.HashesEqual(parserModel.Hash, dbModel.Hash),
+            "Parser-built and database-built model hashes should match after canonicalization");
+    }
+
     private static string? NameOf(Model model, string elementType)
         => model.Elements.Single(i => i.Type == elementType).Name;
 

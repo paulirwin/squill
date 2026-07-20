@@ -26,6 +26,12 @@ public sealed class SqlName : IEquatable<SqlName>
     /// <summary>Returns a new name with an additional trailing segment (e.g. a column of this table).</summary>
     public SqlName Child(string segment) => new([.._segments, segment]);
 
+    /// <summary>
+    /// Returns a new name sharing this name's qualifier but with a different final
+    /// segment (e.g. an index in the same schema as its table).
+    /// </summary>
+    public SqlName Sibling(string segment) => new([.._segments[..^1], segment]);
+
     /// <summary>The last segment, unquoted — for contexts that need the bare identifier.</summary>
     public string UnqualifiedName => _segments[^1];
 

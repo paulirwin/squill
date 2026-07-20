@@ -54,9 +54,11 @@ CREATE TABLE Foo
         var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
 
         Assert.NotNull(model);
-        Assert.Single(model.Elements);
+        // A table with an inline PRIMARY KEY now yields two elements: the table and
+        // a standalone primary-key constraint element (matching the DB builder).
+        Assert.Equal(2, model.Elements.Count);
 
-        var table = model.Elements[0];
+        var table = model.Elements.Single(i => i.Type == PostgresElementTypes.SqlTable);
 
         Assert.Equal("\"Foo\"", table.Name);
         Assert.Equal(PostgresElementTypes.SqlTable, table.Type);
@@ -106,10 +108,10 @@ CREATE INDEX idx_title ON film (title);
 
         var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(2, model.Elements.Count);
+        // table + primary-key constraint + index
+        Assert.Equal(3, model.Elements.Count);
 
-        var index = model.Elements[1];
-        Assert.Equal(PostgresElementTypes.SqlIndex, index.Type);
+        var index = model.Elements.Single(i => i.Type == PostgresElementTypes.SqlIndex);
         Assert.Equal("\"idx_title\"", index.Name);
         Assert.Equal(false, index.GetProperty<bool?>(PostgresPropertyNames.IsUnique));
         Assert.Null(index.GetProperty<string>(PostgresPropertyNames.IndexMethod));

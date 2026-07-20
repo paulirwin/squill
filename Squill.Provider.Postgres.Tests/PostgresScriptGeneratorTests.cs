@@ -40,9 +40,8 @@ CREATE TABLE film
         Assert.Contains("CREATE TABLE \"film\"", sql);
         Assert.Contains("NOT NULL", sql);
         Assert.Contains("varchar(255)", sql);
-        // NOTE: PRIMARY KEY is intentionally not asserted here — for parser-built
-        // models the PK is stored as a table annotation and is currently dropped
-        // during scripting (see follow-up). The DB-builder round-trip test covers PK.
+        // The parser now emits the PK as a first-class element, so it scripts.
+        Assert.Contains("PRIMARY KEY", sql);
     }
 
     [Fact]
