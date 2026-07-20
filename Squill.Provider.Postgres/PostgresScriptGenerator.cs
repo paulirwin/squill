@@ -840,6 +840,8 @@ public class PostgresScriptGenerator
             .Single();
 
         var maxLength = typeElement.GetProperty<int?>(PostgresPropertyNames.Length);
+        var precision = typeElement.GetProperty<long?>(PostgresPropertyNames.Precision);
+        var scale = typeElement.GetProperty<long?>(PostgresPropertyNames.Scale);
 
         return typeReference.Name.ToLower() switch
         {
@@ -849,6 +851,9 @@ public class PostgresScriptGenerator
             // A custom type carrying a length modifier (e.g. pgvector's vector(3), where
             // Length holds the dimension) scripts with that modifier in parentheses.
             "vector" when maxLength != null => $"vector({maxLength})",
+            // A `numeric(p, s)` column scripts with its precision and scale; a bare
+            // `numeric` (no Precision property) stays unconstrained (issue #33).
+            "numeric" when precision != null => $"numeric({precision}, {scale ?? 0})",
             _ => typeReference.Name,
         };
     }
