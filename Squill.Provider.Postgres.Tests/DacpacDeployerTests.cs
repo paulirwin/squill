@@ -31,7 +31,7 @@ CREATE TABLE Foo
                 connectionStringWithoutDatabase,
                 targetDatabaseName: null,
                 dryRun: false,
-                TestContext.Current.CancellationToken));
+                cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.Contains("--target-database", ex.Message);
     }

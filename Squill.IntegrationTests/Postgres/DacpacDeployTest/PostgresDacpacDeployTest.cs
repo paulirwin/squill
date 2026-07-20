@@ -38,13 +38,23 @@ public class PostgresDacpacDeployTest : PostgresIntegrationTestBase
 
             try
             {
-                // Act: deploy the DACPAC to the existing database via the CLI's code path.
+                // Act: deploy the DACPAC to the existing database via the CLI's code path,
+                // capturing the progress messages the CLI would print.
+                var progressMessages = new List<string>();
+                var progress = new CollectingProgress(progressMessages);
+
                 var result = await DacpacDeployer.DeployFromFileAsync(
-                    dacpacPath, ConnectionString, targetDbName, dryRun: false, ct);
+                    dacpacPath, ConnectionString, targetDbName, dryRun: false,
+                    progress: progress, cancellationToken: ct);
 
                 Assert.True(result.WasExecuted, "A non-dry-run deploy should execute the script.");
                 Assert.False(string.IsNullOrWhiteSpace(result.Script),
                     "Deploying to an empty database should generate a non-empty script.");
+
+                // The deploy should have reported per-object progress naming each created
+                // table, so the user sees what is being done rather than a single message.
+                Assert.Contains(progressMessages, m => m.Contains("Creating table") && m.Contains("customer"));
+                Assert.Contains(progressMessages, m => m.Contains("Creating table") && m.Contains("orders"));
 
                 // Assert: the deployed database's model matches the DACPAC's model.
                 var dbModelBuilder = provider.CreateDatabaseModelBuilder(createdDb);
@@ -83,7 +93,8 @@ public class PostgresDacpacDeployTest : PostgresIntegrationTestBase
             try
             {
                 var result = await DacpacDeployer.DeployFromFileAsync(
-                    dacpacPath, ConnectionString, targetDbName, dryRun: true, ct);
+                    dacpacPath, ConnectionString, targetDbName, dryRun: true,
+                    cancellationToken: ct);
 
                 Assert.False(result.WasExecuted, "A dry run must not execute the script.");
                 Assert.False(string.IsNullOrWhiteSpace(result.Script),
@@ -135,7 +146,8 @@ public class PostgresDacpacDeployTest : PostgresIntegrationTestBase
                 }.ConnectionString;
 
                 var result = await DacpacDeployer.DeployFromFileAsync(
-                    dacpacPath, connectionString, targetDatabaseName: null, dryRun: false, ct);
+                    dacpacPath, connectionString, targetDatabaseName: null, dryRun: false,
+                    cancellationToken: ct);
 
                 Assert.True(result.WasExecuted);
 
@@ -183,4 +195,11 @@ public class PostgresDacpacDeployTest : PostgresIntegrationTestBase
             .Select(e => Convert.ToHexString(e.Hash))
             .OrderBy(h => h, StringComparer.Ordinal)
             .ToList();
+
+    // An IProgress<string> that records every reported message, so tests can assert on
+    // the progress the deployer surfaces.
+    private sealed class CollectingProgress(List<string> messages) : IProgress<string>
+    {
+        public void Report(string value) => messages.Add(value);
+    }
 }

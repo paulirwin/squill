@@ -64,10 +64,20 @@ static Command BuildDeployCommand()
             return 1;
         }
 
+        // Report each deploy step to the console as it happens, so the user sees what's
+        // being done (like sqlpackage) rather than a single terminal message. Suppressed
+        // on a dry run, where the full script is printed instead. A synchronous sink is
+        // used rather than System.Progress<T> so lines print in order on the console
+        // (Progress<T> has no SynchronizationContext to marshal to in a console app and
+        // would report on thread-pool threads, racing the final message).
+        IProgress<string>? progress = dryRun
+            ? null
+            : new SynchronousProgress(Console.WriteLine);
+
         try
         {
             var result = await DacpacDeployer.DeployFromFileAsync(
-                dacpac.FullName, connectionString, targetDatabase, dryRun, cancellationToken);
+                dacpac.FullName, connectionString, targetDatabase, dryRun, progress, cancellationToken);
 
             if (string.IsNullOrEmpty(result.Script))
             {
@@ -95,4 +105,11 @@ static Command BuildDeployCommand()
     });
 
     return deployCommand;
+}
+
+// An IProgress<string> that invokes its callback synchronously on the reporting thread,
+// so progress lines print to the console in the order they are reported.
+file sealed class SynchronousProgress(Action<string> report) : IProgress<string>
+{
+    public void Report(string value) => report(value);
 }
