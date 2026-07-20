@@ -117,7 +117,11 @@ public class PostgresScriptGenerator
         if (pkColumns.Count > 1)
         {
             var pkColumnList = string.Join(", ", pkColumns.Select(c => $"\"{SqlName.UnqualifiedOf(c)}\""));
-            columnText.Add($"PRIMARY KEY ({pkColumnList})");
+
+            // A composite PK is a table-level clause. Emit the constraint name so an
+            // explicitly named PK (CONSTRAINT pk_x PRIMARY KEY (...)) keeps its name in
+            // the database rather than getting the Postgres-generated <table>_pkey.
+            columnText.Add($"CONSTRAINT {SqlName.Parse(pk!.Name!).QuotedUnqualified} PRIMARY KEY ({pkColumnList})");
         }
 
         foreach (var foreignKey in dependentElements.Where(i => i.Type == PostgresElementTypes.SqlForeignKeyConstraint))
