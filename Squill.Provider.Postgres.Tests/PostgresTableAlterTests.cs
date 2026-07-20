@@ -484,4 +484,166 @@ CREATE TABLE actor
         var create = Assert.IsType<CreateDelta>(Assert.Single(comparison.Deltas));
         Assert.Equal("actor", create.Element.Name);
     }
+
+    // --- Changed standalone indexes (issue #36) ---
+    // An index is a separate top-level element, so a change to its definition on an
+    // otherwise-unchanged table isn't a table diff. Postgres has no ALTER INDEX for a
+    // definition change, so the fix is drop-and-recreate (a RecreateDelta). Indexes hold
+    // no data, so this is never a data-loss operation.
+
+    [Fact]
+    public async Task ChangedIndexColumns_OnUnchangedTable_EmitsRecreate()
+    {
+        const string target = """
+CREATE TABLE film
+(
+    film_id integer PRIMARY KEY,
+    title   varchar(255) NOT NULL,
+    rating  varchar(10)
+);
+
+CREATE INDEX idx_film_title ON film (title);
+""";
+        const string source = """
+CREATE TABLE film
+(
+    film_id integer PRIMARY KEY,
+    title   varchar(255) NOT NULL,
+    rating  varchar(10)
+);
+
+CREATE INDEX idx_film_title ON film (title, rating);
+""";
+
+        var comparison = await CompareAsync(source, target);
+
+        // The table's own columns are identical, so the only change is the index — a
+        // single RecreateDelta, not a table ALTER or rebuild.
+        var recreate = Assert.IsType<RecreateDelta>(Assert.Single(comparison.Deltas));
+        Assert.Equal("idx_film_title", recreate.SourceElement.Name);
+        Assert.Equal("idx_film_title", recreate.TargetElement.Name);
+    }
+
+    [Fact]
+    public async Task ChangedIndexColumns_GeneratesDropThenCreate()
+    {
+        const string target = """
+CREATE TABLE film
+(
+    film_id integer PRIMARY KEY,
+    title   varchar(255) NOT NULL,
+    rating  varchar(10)
+);
+
+CREATE INDEX idx_film_title ON film (title);
+""";
+        const string source = """
+CREATE TABLE film
+(
+    film_id integer PRIMARY KEY,
+    title   varchar(255) NOT NULL,
+    rating  varchar(10)
+);
+
+CREATE INDEX idx_film_title ON film (title, rating);
+""";
+
+        var comparison = await CompareAsync(source, target);
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        // Drop the old index (idempotently) before creating the new shape, and the DROP
+        // must precede the CREATE.
+        Assert.Contains("DROP INDEX IF EXISTS \"idx_film_title\";", sql);
+        Assert.Contains("CREATE INDEX \"idx_film_title\" ON \"film\" (\"title\", \"rating\");", sql);
+        Assert.True(
+            sql.IndexOf("DROP INDEX", StringComparison.Ordinal)
+                < sql.IndexOf("CREATE INDEX", StringComparison.Ordinal),
+            "DROP INDEX must come before CREATE INDEX");
+    }
+
+    [Fact]
+    public async Task ChangedIndexUniqueness_EmitsRecreate()
+    {
+        const string target = """
+CREATE TABLE account
+(
+    account_id integer PRIMARY KEY,
+    email      varchar(255) NOT NULL
+);
+
+CREATE INDEX idx_account_email ON account (email);
+""";
+        const string source = """
+CREATE TABLE account
+(
+    account_id integer PRIMARY KEY,
+    email      varchar(255) NOT NULL
+);
+
+CREATE UNIQUE INDEX idx_account_email ON account (email);
+""";
+
+        var comparison = await CompareAsync(source, target);
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        Assert.IsType<RecreateDelta>(Assert.Single(comparison.Deltas));
+        Assert.Contains("DROP INDEX IF EXISTS \"idx_account_email\";", sql);
+        Assert.Contains("CREATE UNIQUE INDEX \"idx_account_email\" ON \"account\" (\"email\");", sql);
+    }
+
+    [Fact]
+    public async Task UnchangedIndex_ProducesNoDelta()
+    {
+        const string sql = """
+CREATE TABLE film
+(
+    film_id integer PRIMARY KEY,
+    title   varchar(255) NOT NULL
+);
+
+CREATE INDEX idx_film_title ON film (title);
+""";
+
+        var comparison = await CompareAsync(sql, sql);
+
+        Assert.Empty(comparison.Deltas);
+    }
+
+    [Fact]
+    public async Task ChangedIndex_IsNotTreatedAsDataLoss()
+    {
+        const string target = """
+CREATE TABLE film
+(
+    film_id integer PRIMARY KEY,
+    title   varchar(255) NOT NULL,
+    rating  varchar(10)
+);
+
+CREATE INDEX idx_film_title ON film (title);
+""";
+        const string source = """
+CREATE TABLE film
+(
+    film_id integer PRIMARY KEY,
+    title   varchar(255) NOT NULL,
+    rating  varchar(10)
+);
+
+CREATE INDEX idx_film_title ON film (title, rating);
+""";
+
+        // Even with BlockOnPossibleDataLoss on, recreating an index must not be blocked —
+        // an index carries no data.
+        var provider = new PostgresDatabaseProvider("Host=unused");
+        var sourceModel = await BuildModelAsync(source);
+        var targetModel = await BuildModelAsync(target);
+
+        var comparison = SchemaCompare.Compare(
+            provider, sourceModel, targetModel,
+            new DeployOptions { BlockOnPossibleDataLoss = true });
+
+        Assert.IsType<RecreateDelta>(Assert.Single(comparison.Deltas));
+        Assert.Empty(comparison.DataLossReasons);
+    }
 }
