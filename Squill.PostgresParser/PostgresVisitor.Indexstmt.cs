@@ -11,11 +11,6 @@ public partial class PostgresVisitor
             throw new NotImplementedException("Support for INCLUDE on CREATE INDEX not yet implemented");
         }
 
-        if (context.opt_reloptions().WITH() is not null)
-        {
-            throw new NotImplementedException("Support for WITH on CREATE INDEX not yet implemented");
-        }
-
         if (context.opttablespace().TABLESPACE() is not null)
         {
             throw new NotImplementedException("Support for TABLESPACE on CREATE INDEX not yet implemented");
@@ -82,6 +77,27 @@ public partial class PostgresVisitor
             }
 
             createIndex.WhereClause = predicate;
+        }
+
+        // WITH (...) storage parameters, e.g. HNSW's m / ef_construction. Each element is
+        // a name with an optional value; the value text is captured verbatim.
+        if (context.opt_reloptions()?.reloptions()?.reloption_list() is { } reloptionList)
+        {
+            foreach (var reloptionElem in reloptionList.reloption_elem())
+            {
+                // reloption_elem: collabel (EQUAL def_arg | DOT collabel (EQUAL def_arg)?)?
+                // Only the simple "name = value" form is supported (no namespace.qualifier).
+                if (reloptionElem.DOT() is not null)
+                {
+                    throw new NotImplementedException(
+                        "Namespaced index storage parameters (namespace.option) are not yet supported");
+                }
+
+                var optionName = reloptionElem.collabel(0).GetText();
+                var optionValue = reloptionElem.def_arg()?.GetText();
+
+                createIndex.WithOptions.Add(new IndexWithOption(optionName, optionValue));
+            }
         }
 
         return createIndex;

@@ -26,6 +26,11 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
         const string sql = "SELECT * FROM information_schema.tables;";
 
+        // Extensions are extracted first so they lead the model's element order. A table
+        // may use a type provided by an extension (e.g. pgvector's vector), so on publish
+        // the CREATE EXTENSION must run before the CREATE TABLE that depends on it.
+        await ExtractExtensionsAsync(model, cancellationToken);
+
         var tables = new List<TableRef>();
 
         await using (var reader = await _database.RunScriptReaderAsync(sql, cancellationToken: cancellationToken))
@@ -55,8 +60,6 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             await ExtractIndexesAsync(model, table, cancellationToken);
             await ExtractForeignKeysAsync(model, table, cancellationToken);
         }
-
-        await ExtractExtensionsAsync(model, cancellationToken);
 
         return model;
     }
@@ -185,6 +188,26 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         public List<SqlName> ReferencedColumns { get; } = new();
     }
 
+    // Extracts a single integer type modifier from format_type() output, e.g. the 3 in
+    // "vector(3)". Returns false when the type carries no modifier (e.g. a bare "vector")
+    // or a non-integer/multi-part modifier we don't model here.
+    private static bool TryParseTypeModifier(string formattedType, out int modifier)
+    {
+        modifier = 0;
+
+        var open = formattedType.IndexOf('(');
+        var close = formattedType.IndexOf(')');
+
+        if (open < 0 || close < open)
+        {
+            return false;
+        }
+
+        var inner = formattedType[(open + 1)..close];
+
+        return int.TryParse(inner, out modifier);
+    }
+
     // pg_constraint stores the ON DELETE/UPDATE action as a single char.
     private static ReferentialAction MapReferentialAction(char code)
         => code switch
@@ -208,6 +231,11 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         // pg_index.indisprimary / indisunique tell us the index kind; we skip indexes
         // that back a constraint (primary keys, unique constraints) since those are
         // modeled via their constraint, not as standalone SqlIndex elements.
+        // Per-column operator class: indclass holds the opclass OID for each key column.
+        // We only surface a non-default opclass (opcdefault = false), matching the parser
+        // builder, which stores an opclass only when one is written explicitly.
+        // Storage parameters (the WITH clause) come from the index relation's reloptions,
+        // a text[] of "name=value" entries rendered to a canonical comma-separated string.
         const string sql = """
             SELECT
                 i.relname AS index_name,
@@ -216,7 +244,9 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 pg_get_expr(ix.indpred, ix.indrelid) AS filter_predicate,
                 a.attname AS column_name,
                 k.ordinality AS column_ordinal,
-                ix.indoption[k.ordinality - 1] AS column_option
+                ix.indoption[k.ordinality - 1] AS column_option,
+                CASE WHEN oc.opcdefault THEN NULL ELSE oc.opcname END AS operator_class,
+                array_to_string(i.reloptions, ', ') AS storage_parameters
             FROM pg_index ix
             JOIN pg_class i ON i.oid = ix.indexrelid
             JOIN pg_class t ON t.oid = ix.indrelid
@@ -224,6 +254,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             JOIN pg_am am ON am.oid = i.relam
             JOIN LATERAL unnest(ix.indkey) WITH ORDINALITY AS k(attnum, ordinality) ON TRUE
             JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
+            JOIN pg_opclass oc ON oc.oid = ix.indclass[k.ordinality - 1]
             WHERE n.nspname = @schema
               AND t.relname = @name
               AND NOT ix.indisprimary
@@ -241,7 +272,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
         // Accumulate rows per index (ordered by column ordinal in the query) so a
         // multi-column index is built as a single element via the factory.
-        var indexRows = new Dictionary<string, (bool IsUnique, string Method, string? FilterPredicate, List<PostgresModelFactory.IndexedColumn> Columns)>();
+        var indexRows = new Dictionary<string, (bool IsUnique, string Method, string? FilterPredicate, string? StorageParameters, List<PostgresModelFactory.IndexedColumn> Columns)>();
         var order = new List<string>();
 
         await using (var reader = await _database.RunScriptReaderAsync(sql, parameters, cancellationToken))
@@ -258,29 +289,52 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                         ? null
                         : reader.GetString("filter_predicate");
 
-                    entry = (reader.GetBoolean("is_unique"), reader.GetString("index_method"), filterPredicate, new());
+                    // reloptions is NULL for an index with no WITH clause; array_to_string
+                    // of an empty array is an empty string, so treat both as "none".
+                    var storageParameters = reader.IsDBNull("storage_parameters")
+                        ? null
+                        : reader.GetString("storage_parameters") is { Length: > 0 } s ? s : null;
+
+                    entry = (reader.GetBoolean("is_unique"), reader.GetString("index_method"), filterPredicate, storageParameters, new());
                     indexRows.Add(indexName, entry);
                     order.Add(indexName);
                 }
 
                 var columnName = reader.GetString("column_name");
 
-                // indoption bit 0x01 = DESC; bit 0x02 = NULLS FIRST (see pg source: indexing.h)
-                var columnOption = reader.GetFieldValue<short>("column_option");
-                var isDescending = (columnOption & 0x01) != 0;
-                var nullsFirst = (columnOption & 0x02) != 0;
+                // Only btree supports per-column ASC/DESC and NULLS ordering; other access
+                // methods (e.g. hnsw) reject those options, and their indoption bits are
+                // always 0. Surfacing direction/null-order only for btree keeps the model
+                // free of ordering the emitted DDL can't legally carry.
+                bool? isAscending = null;
+                bool? nullsFirst = null;
+
+                if (entry.Method == "btree")
+                {
+                    // indoption bit 0x01 = DESC; bit 0x02 = NULLS FIRST (see pg source: indexing.h)
+                    var columnOption = reader.GetFieldValue<short>("column_option");
+                    isAscending = (columnOption & 0x01) == 0;
+                    nullsFirst = (columnOption & 0x02) != 0;
+                }
+
+                var operatorClass = reader.IsDBNull("operator_class")
+                    ? null
+                    : reader.GetString("operator_class");
 
                 entry.Columns.Add(new PostgresModelFactory.IndexedColumn(
-                    tableSqlName.Child(columnName), IsAscending: !isDescending, NullsFirst: nullsFirst));
+                    tableSqlName.Child(columnName),
+                    IsAscending: isAscending,
+                    NullsFirst: nullsFirst,
+                    OperatorClass: operatorClass));
             }
         }
 
         foreach (var indexName in order)
         {
-            var (isUnique, method, filterPredicate, columns) = indexRows[indexName];
+            var (isUnique, method, filterPredicate, storageParameters, columns) = indexRows[indexName];
 
             model.Elements.Add(PostgresModelFactory.CreateIndex(
-                SqlName.Object(indexName), tableSqlName, isUnique, method, columns, filterPredicate));
+                SqlName.Object(indexName), tableSqlName, isUnique, method, columns, filterPredicate, storageParameters));
         }
     }
 
@@ -362,10 +416,31 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         var schema = table.Schema;
         var tableSqlName = SqlName.Object(table.BareName);
 
-        const string sql = "SELECT * FROM information_schema.columns " +
-            "WHERE table_catalog = @catalog " +
-            "AND table_schema = @schema " +
-            "AND table_name = @name;";
+        // information_schema.columns reports data_type = 'USER-DEFINED' for extension
+        // types like pgvector's vector, with the real type name in udt_name. The
+        // dimension of a vector(n) lives in pg_attribute.atttypmod, which
+        // information_schema does not expose, so we join pg_catalog and use
+        // format_type() — PostgreSQL's canonical type renderer — to recover it as text
+        // (e.g. "vector(3)"), then parse out the modifier.
+        const string sql = """
+            SELECT
+                c.column_name,
+                c.is_nullable,
+                c.data_type,
+                c.character_maximum_length,
+                c.is_identity,
+                c.identity_generation,
+                c.udt_name,
+                format_type(a.atttypid, a.atttypmod) AS formatted_type
+            FROM information_schema.columns c
+            JOIN pg_namespace n ON n.nspname = c.table_schema
+            JOIN pg_class t ON t.relname = c.table_name AND t.relnamespace = n.oid
+            JOIN pg_attribute a ON a.attrelid = t.oid AND a.attname = c.column_name
+            WHERE c.table_catalog = @catalog
+              AND c.table_schema = @schema
+              AND c.table_name = @name
+            ORDER BY c.ordinal_position;
+            """;
 
         var parameters = new[]
         {
@@ -387,6 +462,22 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             var maxLength = reader.GetFieldValue<int?>("character_maximum_length");
             var isIdentity = reader.GetString("is_identity") == "YES";
 
+            // For a user-defined type the canonical name is udt_name (e.g. "vector"), not
+            // the generic "USER-DEFINED" that data_type reports. The type modifier (a
+            // vector's dimension) is recovered from the format_type() text and mapped to
+            // the same Length property the parser builder uses, so both sides hash-match.
+            if (dataType == "USER-DEFINED")
+            {
+                dataType = reader.GetString("udt_name");
+
+                var formattedType = reader.GetString("formatted_type");
+
+                if (TryParseTypeModifier(formattedType, out var modifier))
+                {
+                    maxLength = modifier;
+                }
+            }
+
             var typeElement = new Element(PostgresElementTypes.SqlTypeSpecifier)
             {
                 Relationships =
@@ -395,7 +486,6 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                     {
                         Entries =
                         {
-                            // TODO: support custom types
                             new Reference(dataType)
                             {
                                 ExternalSource = "BuiltIns"

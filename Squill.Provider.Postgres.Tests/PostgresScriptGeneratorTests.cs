@@ -297,4 +297,41 @@ CREATE TABLE order_lines
 
         Assert.Contains("CREATE EXTENSION IF NOT EXISTS \"citext\" VERSION '1.6';", sql);
     }
+
+    [Fact]
+    public async Task GenerateScript_VectorColumn_ScriptsWithDimension()
+    {
+        var comparison = await CompareToEmptyAsync("""
+CREATE TABLE items
+(
+    id        integer PRIMARY KEY,
+    embedding vector(3)
+);
+""");
+
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        // The dimension modifier must be preserved in the emitted column definition.
+        Assert.Contains("\"embedding\" vector(3)", sql);
+    }
+
+    [Fact]
+    public async Task GenerateScript_HnswIndex_EmitsOperatorClassAndStorageParameters()
+    {
+        var comparison = await CompareToEmptyAsync("""
+CREATE TABLE items
+(
+    id        integer PRIMARY KEY,
+    embedding vector(3)
+);
+
+CREATE INDEX items_embedding_idx ON items USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+""");
+
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        Assert.Contains("USING hnsw", sql);
+        Assert.Contains("(\"embedding\" vector_cosine_ops)", sql);
+        Assert.Contains("WITH (m=16, ef_construction=64)", sql);
+    }
 }

@@ -166,9 +166,22 @@ public partial class PostgresVisitor
                 throw new NotImplementedException("Attributes on generic types are not yet supported");
             }
 
-            if (generictype.opt_type_modifiers()?.expr_list() is not null)
+            // Type modifiers (e.g. the dimension in vector(3)) are only meaningful for
+            // custom/unresolved types here; built-in generic types below don't take
+            // modifiers via this path. Parse them once and attach to the resulting type.
+            var typeModifiers = new List<Expression>();
+
+            if (generictype.opt_type_modifiers()?.expr_list() is { } modifierList)
             {
-                throw new NotImplementedException("Type modifiers are not yet supported");
+                foreach (var modifierExpr in modifierList.a_expr())
+                {
+                    if (VisitA_expr(modifierExpr) is not Expression modifierExpression)
+                    {
+                        throw new PostgresParseException("Unable to parse type modifier expression");
+                    }
+
+                    typeModifiers.Add(modifierExpression);
+                }
             }
 
             if (generictype.type_function_name() is { } typeFunctionName)
@@ -206,6 +219,20 @@ public partial class PostgresVisitor
                 else
                 {
                     dataType = new UnresolvedDataType(text);
+                }
+            }
+
+            if (typeModifiers.Count > 0)
+            {
+                if (dataType is not UnresolvedDataType)
+                {
+                    throw new NotImplementedException(
+                        $"Type modifiers are not yet supported for type {generictype.GetText()}");
+                }
+
+                foreach (var modifier in typeModifiers)
+                {
+                    dataType.Modifiers.Add(modifier);
                 }
             }
         }

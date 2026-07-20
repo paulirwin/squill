@@ -16,4 +16,9 @@ public static class PostgresPropertyNames
     public const string IdentityGeneration = nameof(IdentityGeneration);
     public const string FilterPredicate = nameof(FilterPredicate);
     public const string Version = nameof(Version);
+    // PostgreSQL terminology: an index element may specify an operator class (opclass),
+    // and CREATE INDEX ... WITH (...) carries storage parameters. See
+    // https://www.postgresql.org/docs/current/sql-createindex.html
+    public const string OperatorClass = nameof(OperatorClass);
+    public const string StorageParameters = nameof(StorageParameters);
 }

@@ -161,6 +161,7 @@ public class PostgresScriptGenerator
         var isUnique = index.GetProperty<bool?>(PostgresPropertyNames.IsUnique) == true;
         var indexMethod = index.GetProperty<string>(PostgresPropertyNames.IndexMethod);
         var filterPredicate = index.GetProperty<string>(PostgresPropertyNames.FilterPredicate);
+        var storageParameters = index.GetProperty<string>(PostgresPropertyNames.StorageParameters);
 
         var columnSpecs = index.GetRelationship(PostgresRelationshipNames.ColumnSpecifications);
 
@@ -185,6 +186,13 @@ public class PostgresScriptGenerator
             // Column references are stored table-qualified (e.g. film.title); the
             // CREATE INDEX column list needs just the bare, quoted column name.
             var text = $"\"{SqlName.UnqualifiedOf(columnReference.Name)}\"";
+
+            // Operator class (opclass) follows the column, before ASC/DESC — matching the
+            // PostgreSQL CREATE INDEX synopsis. e.g. "embedding" vector_cosine_ops.
+            if (columnSpec.GetProperty<string>(PostgresPropertyNames.OperatorClass) is { } operatorClass)
+            {
+                text += $" {operatorClass}";
+            }
 
             if (columnSpec.GetProperty<bool?>(PostgresPropertyNames.IsAscending) == false)
             {
@@ -216,6 +224,13 @@ public class PostgresScriptGenerator
         }
 
         sb.Append(" (").Append(string.Join(", ", columnText)).Append(')');
+
+        // WITH (...) storage parameters (e.g. HNSW's m / ef_construction). The stored
+        // value is already the canonical "name=value, ..." list.
+        if (storageParameters != null)
+        {
+            sb.Append(" WITH (").Append(storageParameters).Append(')');
+        }
 
         // Partial (filtered) index: append the WHERE predicate carried in the model.
         if (filterPredicate != null)
@@ -390,6 +405,9 @@ public class PostgresScriptGenerator
             // A length-less character varying scripts as a bare `varchar`; Postgres has
             // no `varchar(MAX)` (that is SQL-Server syntax).
             "character varying" => maxLength != null ? $"varchar({maxLength})" : "varchar",
+            // A custom type carrying a length modifier (e.g. pgvector's vector(3), where
+            // Length holds the dimension) scripts with that modifier in parentheses.
+            "vector" when maxLength != null => $"vector({maxLength})",
             _ => typeReference.Name,
         };
     }
