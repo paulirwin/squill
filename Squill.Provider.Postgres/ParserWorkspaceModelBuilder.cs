@@ -37,9 +37,10 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
         {
             if (statement is CreateTableStatement createTableStatement)
             {
-                var element = MakeCreateTableElement(createTableStatement);
-
-                model.Elements.Add(element);
+                foreach (var element in MakeCreateTableElements(createTableStatement))
+                {
+                    model.Elements.Add(element);
+                }
             }
             else if (statement is CreateIndexStatement createIndexStatement)
             {
@@ -55,28 +56,47 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
         }
     }
 
-    private static Element MakeCreateTableElement(CreateTableStatement createTableStatement)
+    private static IEnumerable<Element> MakeCreateTableElements(CreateTableStatement createTableStatement)
     {
-        var element = new Element(PostgresElementTypes.SqlTable)
+        var tableName = ToSqlName(createTableStatement.Name);
+
+        var tableElement = new Element(PostgresElementTypes.SqlTable)
         {
-            Name = FormatQualifiedName(createTableStatement.Name),
+            Name = tableName,
         };
 
-        AddTableColumnsRelationship(element, createTableStatement);
-        
-        return element;
+        var primaryKeyColumns = new List<PostgresModelFactory.IndexedColumn>();
+
+        AddTableColumnsRelationship(tableElement, tableName, createTableStatement, primaryKeyColumns);
+
+        yield return tableElement;
+
+        // Postgres names an inline primary key PK_<table>. The PK is emitted as its own
+        // model element (not a table annotation) so both builders agree and so it is
+        // visible to schema comparison and scripting.
+        if (primaryKeyColumns.Count > 0)
+        {
+            var pkName = tableName.Sibling($"PK_{tableName.UnqualifiedName}");
+
+            yield return PostgresModelFactory.CreatePrimaryKey(pkName, tableName, primaryKeyColumns);
+        }
     }
 
-    private static void AddTableColumnsRelationship(Element sqlTableElement, CreateTableStatement createTableStatement)
+    private static void AddTableColumnsRelationship(Element sqlTableElement,
+        SqlName tableName,
+        CreateTableStatement createTableStatement,
+        List<PostgresModelFactory.IndexedColumn> primaryKeyColumns)
     {
         var columns = new Relationship(PostgresRelationshipNames.Columns);
         sqlTableElement.Relationships.Add(columns);
 
         foreach (var columnDefinition in createTableStatement.Elements.OfType<ColumnDefinition>())
         {
+            var columnName = tableName.Child(columnDefinition.Name.Name);
+
             var element = new Element(PostgresElementTypes.SqlSimpleColumn)
             {
-                Name = FormatQualifiedName(createTableStatement.Name, columnDefinition.Name.Name),
+                Name = columnName,
             };
 
             foreach (var columnConstraint in columnDefinition.Constraints)
@@ -85,47 +105,9 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                 {
                     element.Properties.Add(new Property(PostgresPropertyNames.IsNullable, nullableColumnConstraint.Nullable));
                 }
-                else if (columnConstraint is PrimaryKeyColumnConstraint primaryKeyColumnConstraint)
+                else if (columnConstraint is PrimaryKeyColumnConstraint)
                 {
-                    // HACK.PI: this seems a little fragile except for the happy path
-                    // TODO.PI: determine anonymous PK naming convention for Postgres
-                    var tableName = createTableStatement.Name.Segments[^1];
-                    var pkName = $"PK_{tableName}";
-                    var pkQualifiedName = new QualifiedName(createTableStatement.Name.Segments
-                        .Take(createTableStatement.Name.Segments.Count - 1)
-                        .Append(new SimpleIdentifier(pkName)));
-
-                    // NOTE: since this is on a single column, we fortunately don't have to support multiple columns this way
-                    var pkElement = new Element(PostgresElementTypes.SqlPrimaryKeyConstraint)
-                    {
-                        Name = FormatQualifiedName(pkQualifiedName),
-                        Relationships =
-                        {
-                            new Relationship(PostgresRelationshipNames.ColumnSpecifications)
-                            {
-                                new Element(PostgresElementTypes.SqlIndexedColumnSpecification)
-                                {
-                                    Relationships =
-                                    {
-                                        new Relationship(PostgresRelationshipNames.Column)
-                                        {
-                                            new Reference(element.Name)
-                                        }
-                                    }
-                                }
-                            },
-                            new Relationship(PostgresRelationshipNames.DefiningTable)
-                            {
-                                new Reference(FormatQualifiedName(createTableStatement.Name))
-                            }
-                        }
-                    };
-
-                    sqlTableElement.Annotations.Add(
-                        new Annotation(PostgresAnnotationTypes.SqlInlineConstraintAnnotation)
-                        {
-                            AttachedElement = pkElement,
-                        });
+                    primaryKeyColumns.Add(new PostgresModelFactory.IndexedColumn(columnName));
 
                     // PKs are not nullable
                     element.Properties.Add(new Property(PostgresPropertyNames.IsNullable, false));
@@ -165,8 +147,10 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                         {
                             throw new InvalidOperationException("Unexpected length modifier for varchar or character type");
                         }
-                        
-                        typeSpec.Properties.Add(new Property(PostgresPropertyNames.Length, length));
+
+                        // Store as int to match the DB-extraction builder and the script
+                        // generator, which both use int for the Length property.
+                        typeSpec.Properties.Add(new Property(PostgresPropertyNames.Length, (int)length));
                     }
                     else
                     {
@@ -227,29 +211,13 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
             throw new NotImplementedException("ONLY and descendant table syntax on CREATE INDEX are not yet supported");
         }
 
-        var tableName = createIndexStatement.OnRelation.Name;
+        var tableName = ToSqlName(createIndexStatement.OnRelation.Name);
 
-        // Indexes always live in the same schema as their table
-        var indexQualifiedName = new QualifiedName(tableName.Segments
-            .Take(tableName.Segments.Count - 1)
-            .Append(createIndexStatement.Name));
+        // Indexes always live in the same schema as their table, so the index name is
+        // the table's qualifier with the index identifier as the final segment.
+        var indexName = tableName.Sibling(createIndexStatement.Name.Name);
 
-        var element = new Element(PostgresElementTypes.SqlIndex)
-        {
-            Name = FormatQualifiedName(indexQualifiedName),
-        };
-
-        element.Properties.Add(new Property(PostgresPropertyNames.IsUnique, createIndexStatement.Unique));
-
-        if (createIndexStatement.UsingMethod is not null)
-        {
-            element.Properties.Add(new Property(PostgresPropertyNames.IndexMethod, createIndexStatement.UsingMethod.Name));
-        }
-
-        // NOTE: CONCURRENTLY and IF NOT EXISTS affect how the index gets created, not the desired schema state
-
-        var columnSpecifications = new Relationship(PostgresRelationshipNames.ColumnSpecifications);
-        element.Relationships.Add(columnSpecifications);
+        var columns = new List<PostgresModelFactory.IndexedColumn>();
 
         foreach (var indexElement in createIndexStatement.Elements)
         {
@@ -259,49 +227,27 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                     $"Index element expression type {indexElement.Expression.GetType()} to element mapping not implemented");
             }
 
-            var columnSpecification = new Element(PostgresElementTypes.SqlIndexedColumnSpecification)
-            {
-                Relationships =
-                {
-                    new Relationship(PostgresRelationshipNames.Column)
-                    {
-                        new Reference(FormatQualifiedName(tableName, columnReference.Identifier.Name))
-                    }
-                }
-            };
+            bool? isAscending = indexElement.Direction is IndexElementDirection direction
+                ? direction == IndexElementDirection.Asc
+                : null;
 
-            if (indexElement.Direction is IndexElementDirection direction)
-            {
-                columnSpecification.Properties.Add(
-                    new Property(PostgresPropertyNames.IsAscending, direction == IndexElementDirection.Asc));
-            }
+            bool? nullsFirst = indexElement.NullOrder is IndexElementNullOrder nullOrder
+                ? nullOrder == IndexElementNullOrder.NullsFirst
+                : null;
 
-            if (indexElement.NullOrder is IndexElementNullOrder nullOrder)
-            {
-                columnSpecification.Properties.Add(
-                    new Property(PostgresPropertyNames.NullsFirst, nullOrder == IndexElementNullOrder.NullsFirst));
-            }
-
-            columnSpecifications.Add(columnSpecification);
+            columns.Add(new PostgresModelFactory.IndexedColumn(
+                tableName.Child(columnReference.Identifier.Name), isAscending, nullsFirst));
         }
 
-        element.Relationships.Add(new Relationship(PostgresRelationshipNames.IndexedObject)
-        {
-            new Reference(FormatQualifiedName(tableName))
-        });
-
-        return element;
+        // NOTE: CONCURRENTLY and IF NOT EXISTS affect how the index gets created, not the desired schema state
+        return PostgresModelFactory.CreateIndex(
+            indexName,
+            tableName,
+            createIndexStatement.Unique,
+            createIndexStatement.UsingMethod?.Name,
+            columns);
     }
 
-    private static string FormatQualifiedName(QualifiedName qualifiedName, string? childElementName = null)
-    {
-        string qNameString = string.Join('.', qualifiedName.Segments.Select(i => $"\"{i.Name}\""));
-
-        if (childElementName is not null)
-        {
-            qNameString += $".\"{childElementName}\"";
-        }
-
-        return qNameString;
-    }
+    private static SqlName ToSqlName(QualifiedName qualifiedName)
+        => SqlName.Object(qualifiedName.Segments.Select(i => i.Name).ToArray());
 }

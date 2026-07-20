@@ -48,11 +48,11 @@ public class PostgresCreateIndexTest : PostgresIntegrationTestBase
 
         Assert.Equal(2, indexes.Count);
 
-        var plain = Assert.Single(indexes, i => i.Name == "\"idx_film_title\"");
+        var plain = Assert.Single(indexes, i => i.Name == "idx_film_title");
         Assert.Equal(false, plain.GetProperty<bool?>(PostgresPropertyNames.IsUnique));
         Assert.Null(plain.GetProperty<string>(PostgresPropertyNames.IndexMethod));
 
-        var unique = Assert.Single(indexes, i => i.Name == "\"idx_film_title_unique\"");
+        var unique = Assert.Single(indexes, i => i.Name == "idx_film_title_unique");
         Assert.Equal(true, unique.GetProperty<bool?>(PostgresPropertyNames.IsUnique));
         Assert.Equal("btree", unique.GetProperty<string>(PostgresPropertyNames.IndexMethod));
 

@@ -54,11 +54,13 @@ CREATE TABLE Foo
         var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
 
         Assert.NotNull(model);
-        Assert.Single(model.Elements);
+        // A table with an inline PRIMARY KEY now yields two elements: the table and
+        // a standalone primary-key constraint element (matching the DB builder).
+        Assert.Equal(2, model.Elements.Count);
 
-        var table = model.Elements[0];
+        var table = model.Elements.Single(i => i.Type == PostgresElementTypes.SqlTable);
 
-        Assert.Equal("\"Foo\"", table.Name);
+        Assert.Equal("Foo", table.Name);
         Assert.Equal(PostgresElementTypes.SqlTable, table.Type);
 
         Assert.Single(table.Relationships);
@@ -68,7 +70,7 @@ CREATE TABLE Foo
 
         var idCol = Assert.IsType<Element>(columns.Entries[0]);
         Assert.Equal(PostgresElementTypes.SqlSimpleColumn, idCol.Type);
-        Assert.Equal("\"Foo\".\"id\"", idCol.Name);
+        Assert.Equal("Foo.id", idCol.Name);
         Assert.Single(idCol.Properties);
         Assert.Equal(PostgresPropertyNames.IsNullable, idCol.Properties[0].Name);
         Assert.Equal(false, idCol.Properties[0].Value);
@@ -106,18 +108,18 @@ CREATE INDEX idx_title ON film (title);
 
         var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(2, model.Elements.Count);
+        // table + primary-key constraint + index
+        Assert.Equal(3, model.Elements.Count);
 
-        var index = model.Elements[1];
-        Assert.Equal(PostgresElementTypes.SqlIndex, index.Type);
-        Assert.Equal("\"idx_title\"", index.Name);
+        var index = model.Elements.Single(i => i.Type == PostgresElementTypes.SqlIndex);
+        Assert.Equal("idx_title", index.Name);
         Assert.Equal(false, index.GetProperty<bool?>(PostgresPropertyNames.IsUnique));
         Assert.Null(index.GetProperty<string>(PostgresPropertyNames.IndexMethod));
 
         var indexedObject = index.GetRelationship(PostgresRelationshipNames.IndexedObject);
         Assert.NotNull(indexedObject);
         var tableRef = Assert.IsType<Reference>(Assert.Single(indexedObject.Entries));
-        Assert.Equal("\"film\"", tableRef.Name);
+        Assert.Equal("film", tableRef.Name);
 
         var columnSpecs = index.GetRelationship(PostgresRelationshipNames.ColumnSpecifications);
         Assert.NotNull(columnSpecs);
@@ -126,7 +128,7 @@ CREATE INDEX idx_title ON film (title);
         var columnRel = columnSpec.GetRelationship(PostgresRelationshipNames.Column);
         Assert.NotNull(columnRel);
         var columnRef = Assert.IsType<Reference>(Assert.Single(columnRel.Entries));
-        Assert.Equal("\"film\".\"title\"", columnRef.Name);
+        Assert.Equal("film.title", columnRef.Name);
     }
 
     [Fact]
@@ -146,7 +148,7 @@ CREATE UNIQUE INDEX idx_email ON users USING btree (email DESC NULLS LAST);
 
         var index = Assert.Single(model.Elements);
         Assert.Equal(PostgresElementTypes.SqlIndex, index.Type);
-        Assert.Equal("\"idx_email\"", index.Name);
+        Assert.Equal("idx_email", index.Name);
         Assert.Equal(true, index.GetProperty<bool?>(PostgresPropertyNames.IsUnique));
         Assert.Equal("btree", index.GetProperty<string>(PostgresPropertyNames.IndexMethod));
 
