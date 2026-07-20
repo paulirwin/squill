@@ -15,52 +15,59 @@ rootCommand.SetAction(_ =>
     return 0;
 });
 
+// Options and the argument common to `deploy` and `script` are declared once here and
+// shared by reference — the same instance can be added to more than one command. This
+// keeps their names, descriptions, and defaults in a single place so the two verbs can't
+// drift apart. Verb-specific options (--dry-run, --allow-data-loss, --output) are declared
+// inline in the command that owns them.
+var dacpacArgument = new Argument<FileInfo>("dacpac")
+{
+    Description = "Path to the .dacpac file."
+};
+
+var connectionStringOption = new Option<string>("--connection-string", "-c")
+{
+    Description =
+        "Npgsql connection string for the target PostgreSQL server. The target's schema "
+        + "is only read to diff against the DACPAC, so view-schema permission is sufficient.",
+    Required = true
+};
+
+var targetDatabaseOption = new Option<string?>("--target-database", "-d")
+{
+    Description =
+        "Name of the database to diff against. Defaults to the connection string's Database."
+};
+
+// Table rebuilds are allowed by default (like SSDT). Passing this flag disallows them,
+// so a change that can only be deployed by rebuilding a table fails instead — useful
+// for guarding large, transactional tables against a costly, unintended rebuild.
+var disallowTableRebuildOption = new Option<bool>("--disallow-table-rebuild")
+{
+    Description =
+        "Fail rather than rebuild a table when a change can't be applied with an "
+        + "in-place ALTER. Table rebuilds are allowed by default."
+};
+
+// Dropping standalone objects (tables, indexes, extensions) not in the DACPAC is off
+// by default, matching SSDT's DropObjectsNotInSource — dropping objects is destructive.
+var dropObjectsNotInSourceOption = new Option<bool>("--drop-objects-not-in-source")
+{
+    Description =
+        "Drop standalone objects (tables, indexes, extensions) present in the target "
+        + "database but not in the DACPAC. Off by default."
+};
+
 rootCommand.Subcommands.Add(BuildDeployCommand());
 rootCommand.Subcommands.Add(BuildScriptCommand());
 
 return rootCommand.Parse(args).Invoke();
 
-static Command BuildDeployCommand()
+Command BuildDeployCommand()
 {
-    var dacpacArgument = new Argument<FileInfo>("dacpac")
-    {
-        Description = "Path to the .dacpac file to deploy."
-    };
-
-    var connectionStringOption = new Option<string>("--connection-string", "-c")
-    {
-        Description = "Npgsql connection string for the target PostgreSQL server.",
-        Required = true
-    };
-
-    var targetDatabaseOption = new Option<string?>("--target-database", "-d")
-    {
-        Description =
-            "Name of the database to deploy into. Defaults to the connection string's Database."
-    };
-
     var dryRunOption = new Option<bool>("--dry-run")
     {
         Description = "Print the SQL that would be run without executing it against the database."
-    };
-
-    // Table rebuilds are allowed by default (like SSDT). Passing this flag disallows them,
-    // so a change that can only be deployed by rebuilding a table fails instead — useful
-    // for guarding large, transactional tables against a costly, unintended rebuild.
-    var disallowTableRebuildOption = new Option<bool>("--disallow-table-rebuild")
-    {
-        Description =
-            "Fail rather than rebuild a table when a change can't be applied with an "
-            + "in-place ALTER. Table rebuilds are allowed by default."
-    };
-
-    // Dropping standalone objects (tables, indexes, extensions) not in the DACPAC is off
-    // by default, matching SSDT's DropObjectsNotInSource — dropping objects is destructive.
-    var dropObjectsNotInSourceOption = new Option<bool>("--drop-objects-not-in-source")
-    {
-        Description =
-            "Drop standalone objects (tables, indexes, extensions) present in the target "
-            + "database but not in the DACPAC. Off by default."
     };
 
     // Deployment is blocked on possible data loss by default, matching SSDT's
@@ -153,27 +160,8 @@ static Command BuildDeployCommand()
     return deployCommand;
 }
 
-static Command BuildScriptCommand()
+Command BuildScriptCommand()
 {
-    var dacpacArgument = new Argument<FileInfo>("dacpac")
-    {
-        Description = "Path to the .dacpac file to script a deployment for."
-    };
-
-    var connectionStringOption = new Option<string>("--connection-string", "-c")
-    {
-        Description =
-            "Npgsql connection string for the target PostgreSQL server. The target is only "
-            + "read to extract its current schema, so view-schema permission is sufficient.",
-        Required = true
-    };
-
-    var targetDatabaseOption = new Option<string?>("--target-database", "-d")
-    {
-        Description =
-            "Name of the database to diff against. Defaults to the connection string's Database."
-    };
-
     // Where to write the generated script. When omitted, the script is written to stdout,
     // so it can be piped or redirected; progress messages go to stderr to keep stdout clean.
     var outputOption = new Option<FileInfo?>("--output", "-o")
@@ -181,22 +169,6 @@ static Command BuildScriptCommand()
         Description =
             "File to write the generated deployment script to. When omitted, the script is "
             + "written to standard output."
-    };
-
-    // The same options that shape a deploy's generated SQL also shape the scripted output,
-    // so the script previews exactly what a deploy with the same flags would run.
-    var disallowTableRebuildOption = new Option<bool>("--disallow-table-rebuild")
-    {
-        Description =
-            "Fail rather than rebuild a table when a change can't be applied with an "
-            + "in-place ALTER. Table rebuilds are allowed by default."
-    };
-
-    var dropObjectsNotInSourceOption = new Option<bool>("--drop-objects-not-in-source")
-    {
-        Description =
-            "Include statements dropping standalone objects (tables, indexes, extensions) "
-            + "present in the target database but not in the DACPAC. Off by default."
     };
 
     var scriptCommand = new Command(
