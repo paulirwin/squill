@@ -36,6 +36,28 @@ CREATE TABLE Foo
         Assert.Contains("--target-database", ex.Message);
     }
 
+    // The script path shares the same fail-fast validation as deploy: with no Database in
+    // the connection string and no explicit target, scripting cannot know which catalog to
+    // read, so it throws with a clear message before connecting. ScriptFromFileAsync reads
+    // from a file, so exercise DeployAsync (its underlying dry-run path) with the stream.
+    [Fact]
+    public async Task ScriptPath_Throws_WhenNoDatabaseInConnectionStringAndNoTarget()
+    {
+        await using var dacpac = await BuildDacpacStreamAsync(TestContext.Current.CancellationToken);
+
+        const string connectionStringWithoutDatabase = "Host=localhost;Username=postgres";
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            DacpacDeployer.DeployAsync(
+                dacpac,
+                connectionStringWithoutDatabase,
+                targetDatabaseName: null,
+                dryRun: true,
+                cancellationToken: TestContext.Current.CancellationToken));
+
+        Assert.Contains("--target-database", ex.Message);
+    }
+
     private static async Task<MemoryStream> BuildDacpacStreamAsync(CancellationToken ct)
     {
         var workspace = new Workspace();

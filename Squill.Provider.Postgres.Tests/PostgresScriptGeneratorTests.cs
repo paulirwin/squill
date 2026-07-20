@@ -23,6 +23,28 @@ public class PostgresScriptGeneratorTests
     }
 
     [Fact]
+    public async Task GenerateScript_SeparatesStepsWithABlankLine()
+    {
+        var comparison = await CompareToEmptyAsync("""
+CREATE TABLE film
+(
+    film_id integer PRIMARY KEY,
+    title   varchar(255) NOT NULL
+);
+
+CREATE EXTENSION citext;
+""");
+
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        // Steps are separated by a blank line so the generated (or previewed) script is
+        // easier to read — the first statement and the CREATE that follows it must be
+        // separated by a blank line rather than running together on adjacent lines.
+        var newline = Environment.NewLine;
+        Assert.Contains($"{newline}{newline}CREATE ", sql);
+    }
+
+    [Fact]
     public async Task GenerateScript_CreateTable()
     {
         var comparison = await CompareToEmptyAsync("""

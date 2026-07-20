@@ -11,7 +11,8 @@ namespace Squill.Provider.Postgres;
 public class PostgresScriptGenerator
 {
     /// <summary>
-    /// Generates a single script covering every delta in the comparison, in order.
+    /// Generates a single script covering every delta in the comparison, in order, with a
+    /// blank line between steps so the generated (or previewed) script is easier to read.
     /// </summary>
     public string GenerateScript(SchemaComparison comparison)
     {
@@ -20,6 +21,7 @@ public class PostgresScriptGenerator
         foreach (var delta in comparison.Deltas)
         {
             sb.Append(GenerateScriptForDelta(delta));
+            sb.AppendLine();
         }
 
         return sb.ToString();
