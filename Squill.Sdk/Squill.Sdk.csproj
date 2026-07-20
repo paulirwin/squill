@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <!-- Packaging-only project: it produces the Squill.Sdk NuGet package that
+             carries Sdk\Sdk.props, Sdk\Sdk.targets and the BuildDacpacTask assembly
+             (with its runtime dependencies). It emits no assembly of its own. -->
+        <TargetFramework>net10.0</TargetFramework>
+        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <NoBuild>false</NoBuild>
+        <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+
+        <PackageId>Squill.Sdk</PackageId>
+        <Version>0.0.1</Version>
+        <Authors>Paul Irwin</Authors>
+        <Description>MSBuild project SDK for Squill (.squillproj) projects. Building a project that references this SDK produces a DACPAC from declarative .sql files, like SSDT.</Description>
+        <PackageTags>sdk;msbuild;squill;dacpac;postgresql;sql</PackageTags>
+
+        <!-- An SDK package places its entry points at the package root under Sdk\. -->
+        <DevelopmentDependency>true</DevelopmentDependency>
+        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <!-- NU5128: no lib/ref assemblies (this SDK ships targets + a task, not a library).
+             NU5100: task assemblies intentionally live under tasks\, not lib\. -->
+        <NoWarn>$(NoWarn);NU5128;NU5100</NoWarn>
+    </PropertyGroup>
+
+    <!-- Build the task project first so its output (DLL + runtime deps) exists to pack.
+         ReferenceOutputAssembly=false: we do not compile against it, we only need its
+         build to have run and its output on disk. -->
+    <ItemGroup>
+        <ProjectReference Include="..\Squill.Build\Squill.Build.csproj"
+                          ReferenceOutputAssembly="false"
+                          PrivateAssets="all" />
+    </ItemGroup>
+
+    <!-- Pack Sdk\Sdk.props and Sdk\Sdk.targets into the package's Sdk\ folder. -->
+    <ItemGroup>
+        <None Include="Sdk\Sdk.props" Pack="true" PackagePath="Sdk\" />
+        <None Include="Sdk\Sdk.targets" Pack="true" PackagePath="Sdk\" />
+    </ItemGroup>
+
+    <!-- Collect the task assembly and all of its runtime dependencies into tasks\.
+         Runs after the referenced Squill.Build project has built, so its output
+         directory is populated. -->
+    <Target Name="_IncludeTaskAssemblies" BeforeTargets="_GetPackageFiles" DependsOnTargets="ResolveProjectReferences">
+        <PropertyGroup>
+            <_SquillBuildOutput>$(MSBuildThisFileDirectory)..\Squill.Build\bin\$(Configuration)\net10.0\</_SquillBuildOutput>
+        </PropertyGroup>
+        <ItemGroup>
+            <None Include="$(_SquillBuildOutput)*.dll" Pack="true" PackagePath="tasks" />
+        </ItemGroup>
+    </Target>
+
+</Project>

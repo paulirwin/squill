@@ -1,0 +1,66 @@
+<Project>
+
+  <!--
+    Squill.Sdk targets — imported implicitly at the BOTTOM of a .squillproj.
+
+    Defines the build pipeline that turns the SquillCompile (.sql) items into a
+    DACPAC in the output folder, plus Clean/Rebuild, mirroring the standard MSBuild
+    target surface so `dotnet build`, `dotnet clean`, and VS "Build" all work.
+  -->
+
+  <!-- The BuildDacpacTask assembly ships in this package's tasks\ folder. During a
+       normal package restore the SDK unpacks under the NuGet global packages folder;
+       $(MSBuildThisFileDirectory) is <package>\Sdk, so the DLL is one level up. -->
+  <PropertyGroup>
+    <!-- In a restored SDK package the task DLL sits in the package's tasks\ folder. -->
+    <SquillTasksAssembly Condition="'$(SquillTasksAssembly)' == '' and Exists('$(MSBuildThisFileDirectory)..\tasks\Squill.Build.dll')">$(MSBuildThisFileDirectory)..\tasks\Squill.Build.dll</SquillTasksAssembly>
+
+    <!-- Fallback for consuming the SDK by relative Import from within the Squill source
+         tree (samples/tests): use Squill.Build's build output. Honours $(Configuration),
+         defaulting to Debug when the consuming project didn't set one. -->
+    <_SquillSourceConfiguration Condition="'$(Configuration)' != ''">$(Configuration)</_SquillSourceConfiguration>
+    <_SquillSourceConfiguration Condition="'$(_SquillSourceConfiguration)' == ''">Debug</_SquillSourceConfiguration>
+    <SquillTasksAssembly Condition="'$(SquillTasksAssembly)' == ''">$(MSBuildThisFileDirectory)..\..\Squill.Build\bin\$(_SquillSourceConfiguration)\net10.0\Squill.Build.dll</SquillTasksAssembly>
+  </PropertyGroup>
+
+  <UsingTask TaskName="Squill.Build.BuildDacpacTask" AssemblyFile="$(SquillTasksAssembly)" />
+
+  <!-- Let the DACPAC land under an all-configurations path when none is chosen,
+       so `dotnet build` with no -c still produces a discoverable artifact. -->
+  <Target Name="CoreCompile"
+          Inputs="@(SquillCompile)"
+          Outputs="$(SquillDacpacPath)">
+
+    <MakeDir Directories="$(IntermediateOutputPath)" Condition="!Exists('$(IntermediateOutputPath)')" />
+
+    <BuildDacpacTask SourceFiles="@(SquillCompile)"
+                     OutputPath="$(SquillDacpacPath)"
+                     ProviderName="$(SquillProviderName)"
+                     DacName="$(SquillDacName)"
+                     DacVersion="$(SquillDacVersion)" />
+
+    <ItemGroup>
+      <FileWrites Include="$(SquillDacpacPath)" />
+    </ItemGroup>
+  </Target>
+
+  <!-- Standard target names so the IDE and CLI drive the build the usual way. -->
+  <Target Name="Build" DependsOnTargets="CoreCompile" />
+
+  <Target Name="Clean">
+    <Delete Files="$(SquillDacpacPath)" />
+  </Target>
+
+  <Target Name="Rebuild" DependsOnTargets="Clean;Build" />
+
+  <!-- No-op hooks for the standard targets that solution-wide operations invoke on
+       every project. Without these, `dotnet test`/`pack`/`publish` over a solution
+       that contains a .squillproj fails with MSB4057 ("target does not exist") when
+       it reaches this project. A database project has nothing to test/pack/publish,
+       so these are deliberately empty (Publish just builds the DACPAC). -->
+  <Target Name="Restore" />
+  <Target Name="Publish" DependsOnTargets="Build" />
+  <Target Name="VSTest" />
+  <Target Name="Pack" />
+
+</Project>

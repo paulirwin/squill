@@ -1,0 +1,47 @@
+<Project>
+
+  <!--
+    Squill.Sdk — MSBuild project SDK for .squillproj projects.
+
+    Imported implicitly at the TOP of a .squillproj. Establishes default properties
+    and the default item globs (declarative .sql files become SquillCompile items),
+    mirroring how Microsoft.NET.Sdk manages Compile/None items so the project file
+    stays minimal.
+  -->
+
+  <PropertyGroup>
+    <!-- Identify this as a Squill project so targets/tasks can branch on it. -->
+    <UsingSquillSdk>true</UsingSquillSdk>
+
+    <!-- Squill builds are database-independent; the provider only labels the output. -->
+    <SquillProviderName Condition="'$(SquillProviderName)' == ''">Postgresql</SquillProviderName>
+
+    <!-- Standard bin/obj layout so `dotnet build` drops the .dacpac in bin\ like SSDT. -->
+    <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
+    <!-- Trailing slashes are OS-agnostic here: MSBuild normalizes '/' on Windows, and
+         paths handed to tasks are normalized again below. -->
+    <BaseOutputPath Condition="'$(BaseOutputPath)' == ''">bin/</BaseOutputPath>
+    <OutputPath Condition="'$(OutputPath)' == ''">$(BaseOutputPath)$(Configuration)/</OutputPath>
+    <BaseIntermediateOutputPath Condition="'$(BaseIntermediateOutputPath)' == ''">obj/</BaseIntermediateOutputPath>
+    <IntermediateOutputPath Condition="'$(IntermediateOutputPath)' == ''">$(BaseIntermediateOutputPath)$(Configuration)/</IntermediateOutputPath>
+
+    <!-- The data-tier application name/version recorded in the DACPAC metadata. -->
+    <SquillDacName Condition="'$(SquillDacName)' == ''">$(MSBuildProjectName)</SquillDacName>
+    <SquillDacVersion Condition="'$(SquillDacVersion)' == ''">1.0.0.0</SquillDacVersion>
+
+    <!-- The DACPAC file Squill produces, e.g. bin\Debug\MyDatabase.dacpac. -->
+    <SquillDacpacFileName Condition="'$(SquillDacpacFileName)' == ''">$(MSBuildProjectName).dacpac</SquillDacpacFileName>
+    <SquillDacpacPath Condition="'$(SquillDacpacPath)' == ''">$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(OutputPath)', '$(SquillDacpacFileName)'))</SquillDacpacPath>
+
+    <EnableDefaultSquillItems Condition="'$(EnableDefaultSquillItems)' == ''">true</EnableDefaultSquillItems>
+  </PropertyGroup>
+
+  <!-- Default include glob: every .sql file under the project is a compile input,
+       excluding build output. Projects can opt out with EnableDefaultSquillItems=false
+       and declare SquillCompile items by hand. -->
+  <ItemGroup Condition="'$(EnableDefaultSquillItems)' == 'true'">
+    <SquillCompile Include="**\*.sql"
+                   Exclude="$(BaseOutputPath)**;$(BaseIntermediateOutputPath)**;$(DefaultItemExcludes)" />
+  </ItemGroup>
+
+</Project>
