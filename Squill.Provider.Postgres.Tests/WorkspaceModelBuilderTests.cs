@@ -305,6 +305,71 @@ CREATE TABLE order_lines
         Assert.Null(fk.GetProperty<string>(PostgresPropertyNames.UpdateAction));
     }
 
+    [Fact]
+    public async Task ExtractModel_TableLevelCompositePrimaryKey()
+    {
+        const string sql = """
+CREATE TABLE order_lines
+(
+    order_id integer NOT NULL,
+    line_no  integer NOT NULL,
+    PRIMARY KEY (order_id, line_no)
+);
+""";
+
+        var model = await BuildModel(sql);
+
+        // table + standalone composite primary-key constraint element.
+        Assert.Equal(2, model.Elements.Count);
+
+        var pk = Assert.Single(model.Elements, i => i.Type == PostgresElementTypes.SqlPrimaryKeyConstraint);
+
+        // Postgres names an unnamed table-level PK <table>_pkey.
+        Assert.Equal("order_lines_pkey", pk.Name);
+
+        var definingTable = pk.GetRelationship(PostgresRelationshipNames.DefiningTable);
+        Assert.Equal("order_lines", Assert.IsType<Reference>(Assert.Single(definingTable!.Entries)).Name);
+
+        // Both key columns are present, in declaration order.
+        Assert.Equal(
+            new[] { "order_lines.order_id", "order_lines.line_no" },
+            PrimaryKeyColumnReferences(pk));
+    }
+
+    [Fact]
+    public async Task ExtractModel_NamedTableLevelCompositePrimaryKey()
+    {
+        const string sql = """
+CREATE TABLE order_lines
+(
+    order_id integer NOT NULL,
+    line_no  integer NOT NULL,
+    CONSTRAINT pk_order_lines PRIMARY KEY (order_id, line_no)
+);
+""";
+
+        var model = await BuildModel(sql);
+
+        var pk = Assert.Single(model.Elements, i => i.Type == PostgresElementTypes.SqlPrimaryKeyConstraint);
+
+        // Explicitly named constraint keeps its name.
+        Assert.Equal("pk_order_lines", pk.Name);
+
+        Assert.Equal(
+            new[] { "order_lines.order_id", "order_lines.line_no" },
+            PrimaryKeyColumnReferences(pk));
+    }
+
+    private static IEnumerable<string> PrimaryKeyColumnReferences(Element primaryKey)
+    {
+        var columnSpecs = primaryKey.GetRelationship(PostgresRelationshipNames.ColumnSpecifications)!;
+
+        return columnSpecs.Entries
+            .OfType<Element>()
+            .Select(spec => Assert.IsType<Reference>(
+                Assert.Single(spec.GetRelationship(PostgresRelationshipNames.Column)!.Entries)).Name);
+    }
+
     private static async Task<Model> BuildModel(string sql)
     {
         var parser = new AntlrPostgresParser();
