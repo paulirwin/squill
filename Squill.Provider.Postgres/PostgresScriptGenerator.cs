@@ -32,7 +32,320 @@ public class PostgresScriptGenerator
             return GenerateCreateScript(createDelta);
         }
 
+        if (delta is AlterDelta alterDelta)
+        {
+            return GenerateAlterScript(alterDelta);
+        }
+
+        if (delta is RebuildTableDelta rebuildDelta)
+        {
+            return GenerateRebuildScript(rebuildDelta);
+        }
+
         throw new NotImplementedException();
+    }
+
+    // Emits ALTER TABLE ... ADD / DROP / ALTER COLUMN statements for an in-place table
+    // alteration.
+    private string GenerateAlterScript(AlterDelta alterDelta)
+    {
+        if (alterDelta.SourceElement.Name is not string tableName)
+        {
+            throw new ArgumentException("Tables must have names");
+        }
+
+        var quotedTableName = SqlName.Parse(tableName).Sql;
+
+        var sb = new StringBuilder();
+
+        foreach (var change in alterDelta.ColumnChanges)
+        {
+            var quotedColumn = $"\"{SqlName.UnqualifiedOf(change.ColumnName)}\"";
+
+            switch (change.Kind)
+            {
+                case ColumnChangeKind.Add:
+                    sb.Append("ALTER TABLE ").Append(quotedTableName)
+                        .Append(" ADD COLUMN ")
+                        .Append(RenderColumnDefinition(change.SourceColumn!))
+                        .AppendLine(";");
+                    break;
+
+                case ColumnChangeKind.Drop:
+                    sb.Append("ALTER TABLE ").Append(quotedTableName)
+                        .Append(" DROP COLUMN ").Append(quotedColumn)
+                        .AppendLine(";");
+                    break;
+
+                case ColumnChangeKind.Alter:
+                    AppendAlterColumn(sb, quotedTableName, quotedColumn,
+                        change.SourceColumn!, change.TargetColumn!);
+                    break;
+
+                default:
+                    throw new NotImplementedException($"Unknown column change: {change.Kind}");
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    // Emits ALTER COLUMN clauses for only the facets — type and nullability — that
+    // actually changed between the current and desired column. Postgres requires a
+    // separate ALTER COLUMN clause for each facet, and rewriting the whole table with a
+    // redundant TYPE clause is wasteful, so unchanged facets are skipped. Identity changes
+    // are handled by a rebuild (see PostgresTableDiffAnalyzer), never reaching here.
+    private void AppendAlterColumn(
+        StringBuilder sb, string quotedTableName, string quotedColumn, Element source, Element target)
+    {
+        var sourceType = GetTypeStringForColumn(source);
+        var targetType = GetTypeStringForColumn(target);
+
+        if (!string.Equals(sourceType, targetType, StringComparison.OrdinalIgnoreCase))
+        {
+            sb.Append("ALTER TABLE ").Append(quotedTableName)
+                .Append(" ALTER COLUMN ").Append(quotedColumn)
+                .Append(" TYPE ").Append(sourceType)
+                .AppendLine(";");
+        }
+
+        // IsNullable is only stored when the column is NOT NULL (nullable == false); an
+        // absent property means nullable. Only emit SET/DROP NOT NULL when nullability
+        // actually changed.
+        var sourceNotNull = source.GetProperty<bool?>(PostgresPropertyNames.IsNullable) == false;
+        var targetNotNull = target.GetProperty<bool?>(PostgresPropertyNames.IsNullable) == false;
+
+        if (sourceNotNull != targetNotNull)
+        {
+            sb.Append("ALTER TABLE ").Append(quotedTableName)
+                .Append(" ALTER COLUMN ").Append(quotedColumn)
+                .Append(sourceNotNull ? " SET NOT NULL" : " DROP NOT NULL")
+                .AppendLine(";");
+        }
+    }
+
+    // Rebuilds a table that can't be altered in place: rename the existing table aside,
+    // create the table with its desired shape, copy the data for the columns common to
+    // both, then drop the renamed original. Wrapped in a transaction so a failure leaves
+    // the original table untouched. This mirrors SSDT's table-rebuild data motion.
+    private string GenerateRebuildScript(RebuildTableDelta rebuildDelta)
+    {
+        if (rebuildDelta.SourceElement.Name is not string tableName)
+        {
+            throw new ArgumentException("Tables must have names");
+        }
+
+        var sourceName = SqlName.Parse(tableName);
+        var quotedTableName = sourceName.Sql;
+
+        // A collision-resistant temporary name in the same schema for the old table.
+        var oldName = sourceName.Sibling($"{sourceName.UnqualifiedName}__squill_rebuild_old");
+        var quotedOldName = oldName.Sql;
+
+        // Columns common to the desired table and the current one, in desired order — the
+        // data that carries across the rebuild. Pair each with its old (target) definition
+        // so a type change can be cast during the copy.
+        var targetColumns = GetOrderedColumns(rebuildDelta.TargetElement)
+            .ToDictionary(c => c.Name, c => c.Column);
+        var carriedColumns = GetOrderedColumns(rebuildDelta.SourceElement)
+            .Where(c => targetColumns.ContainsKey(c.Name))
+            .ToList();
+
+        // A GENERATED ALWAYS AS IDENTITY column rejects an explicit inserted value unless
+        // the INSERT says OVERRIDING SYSTEM VALUE. Since a rebuild copies existing identity
+        // values verbatim to preserve keys (and foreign-key references to them), emit that
+        // clause when any carried column is an identity column.
+        var identityColumns = carriedColumns
+            .Where(c => c.Column.GetProperty<bool?>(PostgresPropertyNames.IsIdentity) == true)
+            .ToList();
+
+        var sb = new StringBuilder();
+
+        sb.AppendLine("BEGIN;");
+        sb.AppendLine();
+
+        // Move the existing table aside so the new one can take its name.
+        sb.Append("ALTER TABLE ").Append(quotedTableName)
+            .Append(" RENAME TO ").Append(oldName.QuotedUnqualified).AppendLine(";");
+        sb.AppendLine();
+
+        // Renaming a table does not rename its constraints or indexes, so the old table
+        // still owns names like "customer_pkey". Rename those aside too, otherwise the
+        // recreated table can't reuse them and Postgres would auto-pick "customer_pkey1".
+        // The current database's own dependent names are used (which may differ from the
+        // desired model's), since those are what the renamed-aside table actually owns.
+        AppendDependentRenames(sb, quotedOldName, rebuildDelta.TargetDependentElements);
+
+        // Recreate the table with the desired shape and all its dependents.
+        sb.Append(GenerateCreateTableScript(rebuildDelta.SourceElement, rebuildDelta.DependentElements));
+        sb.AppendLine();
+
+        // Copy the retained data across, casting any column whose type changed so the copy
+        // into the new (differently typed) column succeeds.
+        if (carriedColumns.Count > 0)
+        {
+            var insertList = string.Join(", ",
+                carriedColumns.Select(c => $"\"{SqlName.UnqualifiedOf(c.Name)}\""));
+
+            var selectList = string.Join(", ", carriedColumns.Select(c =>
+            {
+                var quoted = $"\"{SqlName.UnqualifiedOf(c.Name)}\"";
+                var sourceType = GetTypeStringForColumn(c.Column);
+                var targetType = GetTypeStringForColumn(targetColumns[c.Name]);
+
+                // Only cast when the type actually changed, to keep the common case clean.
+                return string.Equals(sourceType, targetType, StringComparison.OrdinalIgnoreCase)
+                    ? quoted
+                    : $"CAST({quoted} AS {sourceType})";
+            }));
+
+            sb.Append("INSERT INTO ").Append(quotedTableName)
+                .Append(" (").Append(insertList).Append(')');
+
+            if (identityColumns.Count > 0)
+            {
+                sb.Append(" OVERRIDING SYSTEM VALUE");
+            }
+
+            sb.AppendLine()
+                .Append("SELECT ").Append(selectList)
+                .Append(" FROM ").Append(quotedOldName).AppendLine(";");
+            sb.AppendLine();
+        }
+
+        // Drop the renamed original.
+        sb.Append("DROP TABLE ").Append(quotedOldName).AppendLine(";");
+        sb.AppendLine();
+
+        // Copying identity values verbatim (OVERRIDING SYSTEM VALUE) does not advance the
+        // new column's identity sequence, which still starts at 1 — so the next generated
+        // value would collide with a copied row. Advance each identity sequence past the
+        // maximum copied value so future inserts get fresh keys.
+        foreach (var (name, _) in identityColumns)
+        {
+            var quotedColumn = $"\"{SqlName.UnqualifiedOf(name)}\"";
+
+            // setval(pg_get_serial_sequence(...), MAX(col)) leaves the sequence "already
+            // used" so the next nextval() is MAX+1. COALESCE handles an empty table (no
+            // rows copied): reset to 1 and mark it not-yet-called so the first value is 1.
+            sb.Append("SELECT setval(pg_get_serial_sequence('")
+                .Append(sourceName.ToString().Replace("'", "''")).Append("', '")
+                .Append(SqlName.UnqualifiedOf(name).Replace("'", "''")).Append("'), ")
+                .Append("COALESCE((SELECT MAX(").Append(quotedColumn).Append(") FROM ")
+                .Append(quotedTableName).Append("), 1), ")
+                .Append("(SELECT count(*) > 0 FROM ").Append(quotedTableName).AppendLine("));");
+        }
+
+        if (identityColumns.Count > 0)
+        {
+            sb.AppendLine();
+        }
+
+        sb.AppendLine("COMMIT;");
+
+        return sb.ToString();
+    }
+
+    // Renames the renamed-aside old table's constraints and indexes out of the way so the
+    // recreated table can reuse their canonical names. PK and FK constraints are renamed
+    // with ALTER TABLE ... RENAME CONSTRAINT (which also renames a PK's backing index);
+    // standalone indexes with ALTER INDEX ... RENAME TO.
+    private static void AppendDependentRenames(
+        StringBuilder sb, string quotedOldTableName, IList<Element> dependents)
+    {
+        var emitted = false;
+
+        foreach (var dependent in dependents)
+        {
+            if (dependent.Name is not string name)
+            {
+                continue;
+            }
+
+            var parsed = SqlName.Parse(name);
+            var asideName = $"{parsed.UnqualifiedName}__squill_rebuild_old";
+
+            switch (dependent.Type)
+            {
+                case PostgresElementTypes.SqlPrimaryKeyConstraint:
+                case PostgresElementTypes.SqlForeignKeyConstraint:
+                    sb.Append("ALTER TABLE ").Append(quotedOldTableName)
+                        .Append(" RENAME CONSTRAINT ").Append(parsed.QuotedUnqualified)
+                        .Append(" TO \"").Append(asideName).AppendLine("\";");
+                    emitted = true;
+                    break;
+
+                case PostgresElementTypes.SqlIndex:
+                    // An index lives in the table's schema; qualify the rename with it.
+                    var qualifiedIndex = parsed.Sql;
+                    sb.Append("ALTER INDEX ").Append(qualifiedIndex)
+                        .Append(" RENAME TO \"").Append(asideName).AppendLine("\";");
+                    emitted = true;
+                    break;
+            }
+        }
+
+        if (emitted)
+        {
+            sb.AppendLine();
+        }
+    }
+
+    // Renders a full column definition (name + type + identity/nullability), reusing the
+    // exact rules the CREATE TABLE body uses, minus inline PRIMARY KEY (constraints are
+    // handled separately when altering).
+    private string RenderColumnDefinition(Element column)
+    {
+        if (column.Name is not string columnName)
+        {
+            throw new InvalidOperationException("Missing column name");
+        }
+
+        var columnType = GetTypeStringForColumn(column);
+        var text = $"\"{SqlName.UnqualifiedOf(columnName)}\" {columnType}";
+
+        var isIdentity = column.GetProperty<bool?>(PostgresPropertyNames.IsIdentity) == true;
+
+        if (isIdentity)
+        {
+            var generation = column.GetProperty<string>(PostgresPropertyNames.IdentityGeneration);
+
+            text += generation == "Always"
+                ? " GENERATED ALWAYS AS IDENTITY"
+                : " GENERATED BY DEFAULT AS IDENTITY";
+        }
+        else
+        {
+            var nullable = column.GetProperty<bool?>(PostgresPropertyNames.IsNullable);
+
+            text += nullable == false ? " NOT NULL" : " NULL";
+        }
+
+        return text;
+    }
+
+    private static IEnumerable<string> GetOrderedColumnNames(Element table)
+        => GetOrderedColumns(table).Select(c => c.Name);
+
+    // The table's columns in declaration order, as (canonical name, element) pairs.
+    private static IList<(string Name, Element Column)> GetOrderedColumns(Element table)
+    {
+        var columns = new List<(string, Element)>();
+
+        foreach (var columnRelationship in table.Relationships
+                     .Where(i => i.Name == PostgresRelationshipNames.Columns))
+        {
+            foreach (var column in columnRelationship.Entries.OfType<Element>()
+                         .Where(i => i.Type == PostgresElementTypes.SqlSimpleColumn))
+            {
+                if (column.Name is string name)
+                {
+                    columns.Add((name, column));
+                }
+            }
+        }
+
+        return columns;
     }
 
     private string GenerateCreateScript(CreateDelta createDelta)

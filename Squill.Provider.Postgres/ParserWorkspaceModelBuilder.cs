@@ -242,9 +242,14 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                 }
             }
 
-            if (isNullable is { } nullableValue)
+            // Only a NOT NULL column stores IsNullable (=false). Nullable is the default,
+            // so an explicit `NULL` records no property — matching the DB-extraction
+            // builder, which likewise omits the property for nullable columns. Storing
+            // IsNullable=true would make a parsed model diverge from the extracted one and
+            // break the hash-based comparison.
+            if (isNullable is false)
             {
-                element.Properties.Add(new Property(PostgresPropertyNames.IsNullable, nullableValue));
+                element.Properties.Add(new Property(PostgresPropertyNames.IsNullable, false));
             }
 
             if (isIdentity)

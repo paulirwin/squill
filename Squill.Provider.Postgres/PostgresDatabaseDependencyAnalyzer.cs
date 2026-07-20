@@ -9,6 +9,9 @@ public class PostgresDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
             or PostgresElementTypes.SqlIndex
             or PostgresElementTypes.SqlForeignKeyConstraint;
 
+    public bool IsTableElementType(string type)
+        => type == PostgresElementTypes.SqlTable;
+
     public IList<Element>? GetDependentElements(Element sourceElement, Model model)
     {
         if (sourceElement.Type != PostgresElementTypes.SqlTable

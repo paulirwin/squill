@@ -46,18 +46,25 @@ public static class DacpacDeployer
     /// deploy (e.g. "Creating table public.customer") as it happens. Pass <c>null</c>
     /// for a silent deploy.
     /// </param>
+    /// <param name="allowTableRebuild">
+    /// When <c>true</c> (the default), a table change that can't be deployed with an
+    /// in-place ALTER is deployed by rebuilding the table. When <c>false</c>, such a
+    /// change fails with <see cref="TableRebuildNotAllowedException"/> instead.
+    /// </param>
     public static async Task<DeployResult> DeployFromFileAsync(
         string dacpacPath,
         string connectionString,
         string? targetDatabaseName = null,
         bool dryRun = false,
         IProgress<string>? progress = null,
+        bool allowTableRebuild = true,
         CancellationToken cancellationToken = default)
     {
         await using var stream = File.OpenRead(dacpacPath);
 
         return await DeployAsync(
-            stream, connectionString, targetDatabaseName, dryRun, progress, cancellationToken);
+            stream, connectionString, targetDatabaseName, dryRun, progress, allowTableRebuild,
+            cancellationToken);
     }
 
     /// <summary>
@@ -70,6 +77,7 @@ public static class DacpacDeployer
         string? targetDatabaseName = null,
         bool dryRun = false,
         IProgress<string>? progress = null,
+        bool allowTableRebuild = true,
         CancellationToken cancellationToken = default)
     {
         progress?.Report("Reading DACPAC...");
@@ -89,7 +97,7 @@ public static class DacpacDeployer
         var targetModel = await modelBuilder.ExtractModelAsync(cancellationToken);
 
         progress?.Report("Comparing schemas...");
-        var comparison = SchemaCompare.Compare(provider, sourceModel, targetModel);
+        var comparison = SchemaCompare.Compare(provider, sourceModel, targetModel, allowTableRebuild);
 
         var generator = new PostgresScriptGenerator();
         var script = generator.GenerateScript(comparison);
@@ -131,6 +139,21 @@ public static class DacpacDeployer
             var name = create.Element.Name ?? "(anonymous)";
 
             return $"Creating {label} {name}";
+        }
+
+        if (delta is AlterDelta alter)
+        {
+            var label = ElementTypeLabel(alter.SourceElement.Type);
+            var name = alter.SourceElement.Name ?? "(anonymous)";
+
+            return $"Altering {label} {name}";
+        }
+
+        if (delta is RebuildTableDelta rebuild)
+        {
+            var name = rebuild.SourceElement.Name ?? "(anonymous)";
+
+            return $"Rebuilding table {name} ({rebuild.Reason})";
         }
 
         return $"Applying {delta.GetType().Name}";
