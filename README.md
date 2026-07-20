@@ -3,6 +3,9 @@ A declarative, cross-platform, database-independent SQL deployment tool, inspire
 
 ## Motivation
 
+> [!NOTE]
+> This was written back in 2022 when I started this project. Since then, SSDT is now (mostly) available cross-platform. However, its lack of PostgreSQL support remains my primary motivation.
+
 I believe that, with a few exceptions, declarative database deployments are superior to migrations. 
 Declarative meaning: you express your SQL schema in terms of what the desired state should be (as `CREATE` statements, with no `ALTER` or `DROP` statements), and the deployment tool determines what changes need to be made to the target database to make it match your desired schema.
 Instead of being strings in source code, each database object (i.e. tables, stored procedures, and so on) gets its own `.sql` file on disk, which can and should be committed to the git repo.
