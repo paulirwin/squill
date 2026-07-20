@@ -122,18 +122,23 @@ static Command BuildDeployCommand()
 
             if (string.IsNullOrEmpty(result.Script))
             {
-                Console.WriteLine("Target database already matches the DACPAC; nothing to deploy.");
+                // Status line, not script content — to stderr so a dry run's stdout stays
+                // clean (empty here) and pipeable.
+                Console.Error.WriteLine(
+                    "Target database already matches the DACPAC; nothing to deploy.");
                 return 0;
             }
 
             if (dryRun)
             {
-                Console.WriteLine("-- Dry run: the following script would be executed:");
+                // On a dry run, stdout carries only the script so it can be piped or
+                // redirected; the explanatory header goes to stderr.
+                Console.Error.WriteLine("-- Dry run: the following script would be executed:");
                 Console.WriteLine(result.Script);
             }
             else
             {
-                Console.WriteLine("Deployment complete.");
+                Console.Error.WriteLine("Deployment complete.");
             }
 
             return 0;
