@@ -16,5 +16,10 @@
   <Project Path="Squill.Provider.Postgres/Squill.Provider.Postgres.csproj" />
   <Project Path="Squill.Sdk/Squill.Sdk.csproj" />
   <Project Path="Squill/Squill.csproj" />
-  <Project Path="samples/SampleDatabase/SampleDatabase.squillproj" Type="9A19103F-16F7-4668-BE54-9A1E7A4F7556" />
+  <Project Path="samples/SampleDatabase/SampleDatabase.squillproj" Type="9A19103F-16F7-4668-BE54-9A1E7A4F7556">
+    <!-- The sample consumes the SDK by relative Import, which the solution graph
+         can't see, so declare the ordering explicitly: Squill.Build (the MSBuild
+         task assembly the SDK loads) must build before this project. -->
+    <BuildDependency Project="Squill.Build/Squill.Build.csproj" />
+  </Project>
 </Solution>
