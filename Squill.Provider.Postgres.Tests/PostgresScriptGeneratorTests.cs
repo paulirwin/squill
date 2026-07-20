@@ -87,6 +87,64 @@ CREATE INDEX idx_film_title ON film (title);
     }
 
     [Fact]
+    public async Task GenerateScript_PartialIndex_EmitsWhereClause()
+    {
+        var comparison = await CompareToEmptyAsync("""
+CREATE TABLE users
+(
+    id    integer PRIMARY KEY,
+    email varchar(255)
+);
+
+CREATE INDEX idx_users_email ON users (email) WHERE email IS NOT NULL;
+""");
+
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        Assert.Contains("CREATE INDEX \"idx_users_email\" ON \"users\"", sql);
+        Assert.Contains("(\"email\")", sql);
+        Assert.Contains("WHERE \"email\" IS NOT NULL", sql);
+    }
+
+    [Fact]
+    public async Task GenerateScript_PartialIndex_WithComparisonPredicate()
+    {
+        var comparison = await CompareToEmptyAsync("""
+CREATE TABLE orders
+(
+    id          integer PRIMARY KEY,
+    customer_id integer NOT NULL,
+    status      varchar(20) NOT NULL
+);
+
+CREATE INDEX idx_active_orders ON orders (customer_id) WHERE status = 'active';
+""");
+
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        Assert.Contains("CREATE INDEX \"idx_active_orders\" ON \"orders\"", sql);
+        Assert.Contains("WHERE \"status\" = 'active'", sql);
+    }
+
+    [Fact]
+    public async Task GenerateScript_FullIndex_HasNoWhereClause()
+    {
+        var comparison = await CompareToEmptyAsync("""
+CREATE TABLE film
+(
+    film_id integer PRIMARY KEY,
+    title   varchar(255) NOT NULL
+);
+
+CREATE INDEX idx_film_title ON film (title);
+""");
+
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        Assert.DoesNotContain("WHERE", sql);
+    }
+
+    [Fact]
     public async Task GenerateScript_IdentityColumns()
     {
         var comparison = await CompareToEmptyAsync("""

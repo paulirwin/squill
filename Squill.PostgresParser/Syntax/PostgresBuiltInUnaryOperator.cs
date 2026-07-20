@@ -6,5 +6,13 @@ public enum PostgresBuiltInUnaryOperator
     IsNull,
     NotNull,
     Negate,
-    Plus
+    Plus,
+    IsNullKeyword,
+    IsNotNull,
+    IsTrue,
+    IsNotTrue,
+    IsFalse,
+    IsNotFalse,
+    IsUnknown,
+    IsNotUnknown
 }

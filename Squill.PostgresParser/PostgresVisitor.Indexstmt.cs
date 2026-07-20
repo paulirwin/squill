@@ -21,11 +21,6 @@ public partial class PostgresVisitor
             throw new NotImplementedException("Support for TABLESPACE on CREATE INDEX not yet implemented");
         }
 
-        if (context.where_clause().WHERE() is not null)
-        {
-            throw new NotImplementedException("Support for WHERE on CREATE INDEX not yet implemented");
-        }
-
         bool unique = context.opt_unique()?.UNIQUE() is not null;
         bool concurrently = context.opt_concurrently()?.CONCURRENTLY() is not null;
         bool ifNotExists = context.EXISTS() is not null;
@@ -77,6 +72,17 @@ public partial class PostgresVisitor
         }
 
         createIndex.Elements.AddRange(elements.Items);
+
+        // A WHERE clause makes this a partial (filtered) index; parse its predicate.
+        if (context.where_clause() is { } whereClause && whereClause.WHERE() is not null)
+        {
+            if (Visit(whereClause.a_expr()) is not Expression predicate)
+            {
+                throw new PostgresParseException("Unable to parse WHERE predicate for index");
+            }
+
+            createIndex.WhereClause = predicate;
+        }
 
         return createIndex;
     }

@@ -83,7 +83,8 @@ public static class PostgresModelFactory
         SqlName indexedObject,
         bool isUnique,
         string? indexMethod,
-        IEnumerable<IndexedColumn> columns)
+        IEnumerable<IndexedColumn> columns,
+        string? filterPredicate = null)
     {
         var columnSpecs = new Relationship(PostgresRelationshipNames.ColumnSpecifications);
 
@@ -110,6 +111,13 @@ public static class PostgresModelFactory
         if (indexMethod is not null)
         {
             element.Properties.Add(new Property(PostgresPropertyNames.IndexMethod, indexMethod));
+        }
+
+        // A filter predicate (WHERE clause) marks this a partial index. Absent for a
+        // full index so parsed and extracted models hash-match when there's no filter.
+        if (filterPredicate is not null)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.FilterPredicate, filterPredicate));
         }
 
         return element;
