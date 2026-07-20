@@ -36,4 +36,10 @@ public class CreateIndexStatement : Statement
     public Expression? WhereClause { get; set; }
 
     public IList<IndexElement> Elements { get; } = new List<IndexElement>();
+
+    /// <summary>
+    /// The storage parameters from an optional WITH (...) clause, e.g. the
+    /// <c>m</c> and <c>ef_construction</c> of an HNSW index. Empty when absent.
+    /// </summary>
+    public IList<IndexWithOption> WithOptions { get; } = new List<IndexWithOption>();
 }

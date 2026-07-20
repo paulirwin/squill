@@ -322,6 +322,48 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                     typeSpec
                 });
             }
+            else if (columnDefinition.DataType is UnresolvedDataType unresolvedDataType)
+            {
+                // A custom type (e.g. pgvector's `vector`) is not a built-in. Its type
+                // name is carried verbatim so it hash-matches the DB builder, which reads
+                // the same name from pg_type (udt_name). A single integer modifier — the
+                // dimension in vector(3) — is stored as Length, mirroring how the DB
+                // builder reports it from atttypmod.
+                var typeSpec = new Element(PostgresElementTypes.SqlTypeSpecifier)
+                {
+                    Relationships =
+                    {
+                        new Relationship(PostgresRelationshipNames.Type)
+                        {
+                            new Reference(unresolvedDataType.TypeName)
+                            {
+                                ExternalSource = "BuiltIns",
+                            }
+                        }
+                    }
+                };
+
+                if (unresolvedDataType.Modifiers.Count == 1)
+                {
+                    if (unresolvedDataType.Modifiers[0] is not LiteralExpression { Value: long dimension })
+                    {
+                        throw new NotImplementedException(
+                            $"Non-integer modifier for custom type {unresolvedDataType.TypeName} not yet implemented");
+                    }
+
+                    typeSpec.Properties.Add(new Property(PostgresPropertyNames.Length, (int)dimension));
+                }
+                else if (unresolvedDataType.Modifiers.Count > 1)
+                {
+                    throw new NotImplementedException(
+                        $"More than one modifier not yet implemented for custom type {unresolvedDataType.TypeName}");
+                }
+
+                element.Relationships.Add(new Relationship(PostgresRelationshipNames.TypeSpecifier)
+                {
+                    typeSpec
+                });
+            }
             else
             {
                 throw new NotImplementedException(
@@ -370,13 +412,22 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                 : null;
 
             columns.Add(new PostgresModelFactory.IndexedColumn(
-                tableName.Child(columnReference.Identifier.Name), isAscending, nullsFirst));
+                tableName.Child(columnReference.Identifier.Name),
+                isAscending,
+                nullsFirst,
+                indexElement.OperatorClass?.Name));
         }
 
         // A WHERE clause makes this a partial (filtered) index; render its predicate
         // back to SQL text so it can be carried in the model and re-emitted on publish.
         var filterPredicate = createIndexStatement.WhereClause is { } whereClause
             ? ExpressionSqlRenderer.Render(whereClause)
+            : null;
+
+        // WITH (...) storage parameters (e.g. HNSW's m / ef_construction). Rendered to a
+        // canonical string so parsed and DB-extracted models hash-match.
+        var storageParameters = createIndexStatement.WithOptions.Count > 0
+            ? RenderStorageParameters(createIndexStatement.WithOptions)
             : null;
 
         // NOTE: CONCURRENTLY and IF NOT EXISTS affect how the index gets created, not the desired schema state
@@ -386,7 +437,8 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
             createIndexStatement.Unique,
             createIndexStatement.UsingMethod?.Name,
             columns,
-            filterPredicate);
+            filterPredicate,
+            storageParameters);
     }
 
     private static Element MakeCreateExtensionElement(CreateExtensionStatement createExtensionStatement)
@@ -397,6 +449,13 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
 
         return PostgresModelFactory.CreateExtension(extensionName, createExtensionStatement.Version);
     }
+
+    // Renders index storage parameters (the WITH clause) to a canonical
+    // "name=value, name=value" string, preserving declaration order. This is the same
+    // shape the DB builder produces from pg_class.reloptions, so a parsed index and one
+    // extracted from the database hash-match.
+    private static string RenderStorageParameters(IEnumerable<IndexWithOption> options)
+        => string.Join(", ", options.Select(o => o.Value is null ? o.Name : $"{o.Name}={o.Value}"));
 
     private static SqlName ToSqlName(QualifiedName qualifiedName)
         => SqlName.Object(qualifiedName.Segments.Select(i => i.Name).ToArray());

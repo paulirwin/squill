@@ -25,10 +25,16 @@ public static class PostgresModelFactory
         };
 
     /// <summary>
-    /// Describes an indexed column: its canonical reference plus optional ordering.
-    /// Null direction/nullsFirst mean "unspecified" and are omitted from the model.
+    /// Describes an indexed column: its canonical reference plus optional ordering and
+    /// operator class (opclass, per PostgreSQL's CREATE INDEX). Null direction/nullsFirst
+    /// mean "unspecified" and are omitted from the model; a null operator class means the
+    /// type's default opclass, likewise omitted.
     /// </summary>
-    public readonly record struct IndexedColumn(SqlName Column, bool? IsAscending = null, bool? NullsFirst = null);
+    public readonly record struct IndexedColumn(
+        SqlName Column,
+        bool? IsAscending = null,
+        bool? NullsFirst = null,
+        string? OperatorClass = null);
 
     public static Element CreateIndexedColumnSpecification(IndexedColumn column)
     {
@@ -51,6 +57,13 @@ public static class PostgresModelFactory
         if (column.NullsFirst is bool nullsFirst)
         {
             element.Properties.Add(new Property(PostgresPropertyNames.NullsFirst, nullsFirst));
+        }
+
+        // A non-default operator class (e.g. vector_cosine_ops on an HNSW index) is
+        // stored so parsed and extracted models agree; the default opclass is omitted.
+        if (column.OperatorClass is { } operatorClass)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.OperatorClass, operatorClass));
         }
 
         return element;
@@ -84,7 +97,8 @@ public static class PostgresModelFactory
         bool isUnique,
         string? indexMethod,
         IEnumerable<IndexedColumn> columns,
-        string? filterPredicate = null)
+        string? filterPredicate = null,
+        string? storageParameters = null)
     {
         var columnSpecs = new Relationship(PostgresRelationshipNames.ColumnSpecifications);
 
@@ -118,6 +132,14 @@ public static class PostgresModelFactory
         if (filterPredicate is not null)
         {
             element.Properties.Add(new Property(PostgresPropertyNames.FilterPredicate, filterPredicate));
+        }
+
+        // WITH (...) storage parameters (e.g. HNSW's m / ef_construction), stored as a
+        // canonical "name=value, name=value" string. Absent when the index declares no
+        // storage parameters, so parsed and extracted models hash-match in that case.
+        if (storageParameters is not null)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.StorageParameters, storageParameters));
         }
 
         return element;

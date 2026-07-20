@@ -28,6 +28,26 @@ public partial class PostgresVisitor
             nullOrder = IndexElementNullOrder.NullsLast;
         }
 
+        // An operator class (e.g. vector_cosine_ops) may follow the column. The grammar
+        // exposes it as opt_class within index_elem_options; only the plain opt_class
+        // form (not the reloptions form) is supported here.
+        Identifier? operatorClass = null;
+
+        if (context.index_elem_options().opt_class()?.any_name() is { } opClassName)
+        {
+            if (opClassName.attrs() is not null)
+            {
+                throw new NotImplementedException("Schema-qualified index operator classes are not yet supported");
+            }
+
+            if (VisitColid(opClassName.colid()) is not Identifier opClassIdentifier)
+            {
+                throw new PostgresParseException("Unable to parse index operator class");
+            }
+
+            operatorClass = opClassIdentifier;
+        }
+
         Expression expr;
 
         if (context.colid() is { } colid)
@@ -58,6 +78,6 @@ public partial class PostgresVisitor
             throw new InvalidOperationException("Unexpected alternate for index element");
         }
 
-        return new IndexElement(expr, direction, nullOrder);
+        return new IndexElement(expr, direction, nullOrder, operatorClass);
     }
 }

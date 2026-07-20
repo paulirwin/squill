@@ -454,6 +454,55 @@ CREATE TABLE order_lines
         Assert.Equal("1.6", extension.GetProperty<string>(PostgresPropertyNames.Version));
     }
 
+    [Fact]
+    public async Task ExtractModel_VectorColumn_StoresTypeNameAndDimension()
+    {
+        var model = await BuildModel("""
+CREATE TABLE items
+(
+    embedding vector(3)
+);
+""");
+
+        var table = model.Elements.Single(i => i.Type == PostgresElementTypes.SqlTable);
+        var columns = table.Relationships.Single(r => r.Name == PostgresRelationshipNames.Columns);
+        var embeddingCol = Assert.IsType<Element>(Assert.Single(columns.Entries));
+
+        var typeElem = Assert.IsType<Element>(
+            embeddingCol.Relationships.Single(r => r.Name == PostgresRelationshipNames.TypeSpecifier).Entries[0]);
+
+        var typeRef = Assert.IsType<Reference>(
+            typeElem.Relationships.Single(r => r.Name == PostgresRelationshipNames.Type).Entries[0]);
+        // The custom type name is carried verbatim (matching the DB builder's udt_name).
+        Assert.Equal("vector", typeRef.Name);
+
+        // The dimension is modeled as Length, the same property the DB builder reports.
+        Assert.Equal(3, typeElem.GetProperty<int?>(PostgresPropertyNames.Length));
+    }
+
+    [Fact]
+    public async Task ExtractModel_HnswIndex_StoresOperatorClassAndStorageParameters()
+    {
+        var model = await BuildModel("""
+CREATE TABLE items
+(
+    embedding vector(3)
+);
+
+CREATE INDEX items_embedding_idx ON items USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+""");
+
+        var index = model.Elements.Single(i => i.Type == PostgresElementTypes.SqlIndex);
+        Assert.Equal("items_embedding_idx", index.Name);
+        Assert.Equal("hnsw", index.GetProperty<string>(PostgresPropertyNames.IndexMethod));
+        Assert.Equal("m=16, ef_construction=64", index.GetProperty<string>(PostgresPropertyNames.StorageParameters));
+
+        var columnSpecs = index.GetRelationship(PostgresRelationshipNames.ColumnSpecifications);
+        Assert.NotNull(columnSpecs);
+        var columnSpec = Assert.IsType<Element>(Assert.Single(columnSpecs.Entries));
+        Assert.Equal("vector_cosine_ops", columnSpec.GetProperty<string>(PostgresPropertyNames.OperatorClass));
+    }
+
     private static async Task<Model> BuildModel(string sql)
     {
         var parser = new AntlrPostgresParser();
