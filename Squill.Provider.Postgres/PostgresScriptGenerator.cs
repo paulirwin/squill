@@ -49,6 +49,11 @@ public class PostgresScriptGenerator
             return GenerateDropScript(dropDelta);
         }
 
+        if (delta is RecreateDelta recreateDelta)
+        {
+            return GenerateRecreateScript(recreateDelta);
+        }
+
         throw new NotImplementedException();
     }
 
@@ -92,6 +97,59 @@ public class PostgresScriptGenerator
             _ => throw new NotImplementedException(
                 $"Dropping an element of type {element.Type} is not supported."),
         };
+    }
+
+    // Emits a drop-and-recreate for an object whose definition changed but can't be altered
+    // in place — an index. DROP INDEX IF EXISTS keeps it idempotent, then the new shape is
+    // created. The DROP must precede the CREATE (same name, different definition).
+    private string GenerateRecreateScript(RecreateDelta recreateDelta)
+    {
+        var source = recreateDelta.SourceElement;
+
+        if (source.Type != PostgresElementTypes.SqlIndex)
+        {
+            throw new NotImplementedException(
+                $"Recreating an element of type {source.Type} is not supported.");
+        }
+
+        if (recreateDelta.TargetElement.Name is not string oldName)
+        {
+            throw new ArgumentException("Cannot drop an index without a name");
+        }
+
+        var sb = new StringBuilder();
+
+        // Drop the current index (qualified so a non-public index is found).
+        sb.Append("DROP INDEX IF EXISTS ")
+            .Append(SchemaQualified(recreateDelta.TargetElement, SqlName.Parse(oldName)))
+            .Append(';').AppendLine();
+
+        // Create the index with its desired shape, on its (qualified) table.
+        sb.Append(GenerateCreateIndexScript(source, IndexTableName(source)));
+
+        return sb.ToString();
+    }
+
+    // The qualified table name an index is defined on, from its IndexedObject reference.
+    // The referenced table name is bare; an index shares its table's schema, so qualify
+    // the table with the index's own schema (suppressed for public, as elsewhere).
+    private static string IndexTableName(Element index)
+    {
+        var reference = index.GetRelationship(PostgresRelationshipNames.IndexedObject)
+            ?.Entries.OfType<Reference>().SingleOrDefault();
+
+        if (reference == null)
+        {
+            throw new InvalidOperationException(
+                $"Index {index.Name} has no indexed-object reference");
+        }
+
+        var bare = SqlName.Parse(reference.Name);
+        var schema = GetSchema(index);
+
+        return schema is null or "public"
+            ? bare.Sql
+            : SqlName.Object(schema, bare.UnqualifiedName).Sql;
     }
 
     // A schema-qualified quoted name for a schema-scoped object (table or index), using its

@@ -65,6 +65,13 @@ public class SchemaCompare
             }
         }
 
+        // Recreate standalone dependents (indexes) that exist in both models but whose
+        // definition changed. These are skipped by the loop above (they are dependent
+        // elements), and a change to one doesn't alter its table's hash, so it would
+        // otherwise go undetected. Postgres has no ALTER for an index definition change, so
+        // the fix is drop-and-recreate.
+        AddRecreateDeltas(comparison, analyzer, source, target);
+
         // Drop standalone objects present in the target but absent from the source — only
         // when explicitly opted into, since dropping objects is destructive (SSDT's
         // DropObjectsNotInSource, off by default). Dropping a column from a still-present
@@ -89,6 +96,56 @@ public class SchemaCompare
         }
 
         return comparison;
+    }
+
+    // Adds a RecreateDelta for each droppable standalone dependent (an index) present in
+    // both models whose definition differs. Such an element is a separate top-level object
+    // that the main loop skips (it is a dependent) and whose change does not alter its
+    // table's hash, so without this pass an index-only change would be lost. A recreate
+    // holds no data, so it is never gated by a data-loss option.
+    private static void AddRecreateDeltas(
+        SchemaComparison comparison, IDatabaseDependencyAnalyzer analyzer, Model source, Model target)
+    {
+        // Indexes whose table is being created or rebuilt are already (re)created as that
+        // table's dependents, so recreating them here would double the CREATE (and emit a
+        // spurious DROP). Exclude them.
+        var coveredByTable = new HashSet<Element>(
+            comparison.Deltas
+                .SelectMany(delta => delta switch
+                {
+                    CreateDelta create => create.DependentElements,
+                    RebuildTableDelta rebuild => rebuild.DependentElements,
+                    _ => Enumerable.Empty<Element>(),
+                }));
+
+        foreach (var sourceElement in source.Elements)
+        {
+            if (!analyzer.IsDependentElementType(sourceElement.Type)
+                || !analyzer.IsDroppableStandaloneDependent(sourceElement.Type))
+            {
+                continue;
+            }
+
+            if (coveredByTable.Contains(sourceElement))
+            {
+                continue;
+            }
+
+            if (target.Elements.SingleOrDefault(i => ElementsMatch(analyzer, i, sourceElement))
+                is not Element targetElement)
+            {
+                // Absent in the target: a new index is created as its table's dependent
+                // (or, if the table already exists, handled elsewhere), not recreated here.
+                continue;
+            }
+
+            if (HashUtility.HashesEqual(sourceElement.Hash, targetElement.Hash))
+            {
+                continue;
+            }
+
+            comparison.Deltas.Add(new RecreateDelta(sourceElement, targetElement));
+        }
     }
 
     // Adds a DropDelta for each droppable target element that has no counterpart in the
