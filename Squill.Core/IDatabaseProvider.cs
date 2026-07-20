@@ -9,4 +9,6 @@ public interface IDatabaseProvider
     IDatabaseModelBuilder CreateDatabaseModelBuilder(IDatabase database);
     
     IDatabaseDependencyAnalyzer DependencyAnalyzer { get; }
+
+    ITableDiffAnalyzer TableDiffAnalyzer { get; }
 }

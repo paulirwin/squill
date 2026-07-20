@@ -42,13 +42,24 @@ static Command BuildDeployCommand()
         Description = "Print the SQL that would be run without executing it against the database."
     };
 
+    // Table rebuilds are allowed by default (like SSDT). Passing this flag disallows them,
+    // so a change that can only be deployed by rebuilding a table fails instead — useful
+    // for guarding large, transactional tables against a costly, unintended rebuild.
+    var disallowTableRebuildOption = new Option<bool>("--disallow-table-rebuild")
+    {
+        Description =
+            "Fail rather than rebuild a table when a change can't be applied with an "
+            + "in-place ALTER. Table rebuilds are allowed by default."
+    };
+
     var deployCommand = new Command(
         "deploy", "Deploy a DACPAC to a target PostgreSQL database.")
     {
         dacpacArgument,
         connectionStringOption,
         targetDatabaseOption,
-        dryRunOption
+        dryRunOption,
+        disallowTableRebuildOption
     };
 
     deployCommand.SetAction(async (parseResult, cancellationToken) =>
@@ -57,6 +68,7 @@ static Command BuildDeployCommand()
         var connectionString = parseResult.GetValue(connectionStringOption)!;
         var targetDatabase = parseResult.GetValue(targetDatabaseOption);
         var dryRun = parseResult.GetValue(dryRunOption);
+        var allowTableRebuild = !parseResult.GetValue(disallowTableRebuildOption);
 
         if (!dacpac.Exists)
         {
@@ -77,7 +89,8 @@ static Command BuildDeployCommand()
         try
         {
             var result = await DacpacDeployer.DeployFromFileAsync(
-                dacpac.FullName, connectionString, targetDatabase, dryRun, progress, cancellationToken);
+                dacpac.FullName, connectionString, targetDatabase, dryRun, progress,
+                allowTableRebuild, cancellationToken);
 
             if (string.IsNullOrEmpty(result.Script))
             {

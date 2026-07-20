@@ -34,4 +34,6 @@ public class PostgresDatabaseProvider : IDatabaseProvider
         => new PostgresDatabaseModelBuilder(database);
 
     public IDatabaseDependencyAnalyzer DependencyAnalyzer { get; } = new PostgresDatabaseDependencyAnalyzer();
+
+    public ITableDiffAnalyzer TableDiffAnalyzer { get; } = new PostgresTableDiffAnalyzer();
 }
