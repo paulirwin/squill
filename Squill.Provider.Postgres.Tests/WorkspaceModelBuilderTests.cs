@@ -159,4 +159,87 @@ CREATE UNIQUE INDEX idx_email ON users USING btree (email DESC NULLS LAST);
         Assert.Equal(false, columnSpec.GetProperty<bool?>(PostgresPropertyNames.NullsFirst));
     }
 
+    [Fact]
+    public async Task ExtractModel_InlineForeignKeyWithOnDeleteCascade()
+    {
+        const string sql = """
+CREATE TABLE customers
+(
+    id integer PRIMARY KEY
+);
+
+CREATE TABLE orders
+(
+    id          integer PRIMARY KEY,
+    customer_id integer NOT NULL REFERENCES customers (id) ON DELETE CASCADE
+);
+""";
+
+        var model = await BuildModel(sql);
+
+        var fk = Assert.Single(model.Elements, i => i.Type == PostgresElementTypes.SqlForeignKeyConstraint);
+
+        // Postgres convention for an unnamed inline FK: <table>_<column>_fkey.
+        Assert.Equal("orders_customer_id_fkey", fk.Name);
+
+        var definingTable = fk.GetRelationship(PostgresRelationshipNames.DefiningTable);
+        Assert.Equal("orders", Assert.IsType<Reference>(Assert.Single(definingTable!.Entries)).Name);
+
+        var fkColumns = fk.GetRelationship(PostgresRelationshipNames.ForeignKeyColumns);
+        Assert.Equal("orders.customer_id", Assert.IsType<Reference>(Assert.Single(fkColumns!.Entries)).Name);
+
+        var foreignTable = fk.GetRelationship(PostgresRelationshipNames.ForeignTable);
+        Assert.Equal("customers", Assert.IsType<Reference>(Assert.Single(foreignTable!.Entries)).Name);
+
+        var foreignColumns = fk.GetRelationship(PostgresRelationshipNames.ForeignColumns);
+        Assert.Equal("customers.id", Assert.IsType<Reference>(Assert.Single(foreignColumns!.Entries)).Name);
+
+        Assert.Equal("Cascade", fk.GetProperty<string>(PostgresPropertyNames.DeleteAction));
+        Assert.Null(fk.GetProperty<string>(PostgresPropertyNames.UpdateAction));
+    }
+
+    [Fact]
+    public async Task ExtractModel_TableLevelCompositeForeignKey()
+    {
+        const string sql = """
+CREATE TABLE order_lines
+(
+    order_id integer NOT NULL,
+    line_no  integer NOT NULL,
+    CONSTRAINT fk_lines FOREIGN KEY (order_id, line_no) REFERENCES orders (id, line_no)
+);
+""";
+
+        var model = await BuildModel(sql);
+
+        var fk = Assert.Single(model.Elements, i => i.Type == PostgresElementTypes.SqlForeignKeyConstraint);
+
+        // Explicitly named constraint keeps its name.
+        Assert.Equal("fk_lines", fk.Name);
+
+        var fkColumns = fk.GetRelationship(PostgresRelationshipNames.ForeignKeyColumns)!;
+        Assert.Equal(
+            new[] { "order_lines.order_id", "order_lines.line_no" },
+            fkColumns.Entries.OfType<Reference>().Select(r => r.Name));
+
+        var foreignColumns = fk.GetRelationship(PostgresRelationshipNames.ForeignColumns)!;
+        Assert.Equal(
+            new[] { "orders.id", "orders.line_no" },
+            foreignColumns.Entries.OfType<Reference>().Select(r => r.Name));
+
+        // No ON DELETE/UPDATE specified -> both action properties absent (NO ACTION default).
+        Assert.Null(fk.GetProperty<string>(PostgresPropertyNames.DeleteAction));
+        Assert.Null(fk.GetProperty<string>(PostgresPropertyNames.UpdateAction));
+    }
+
+    private static async Task<Model> BuildModel(string sql)
+    {
+        var parser = new AntlrPostgresParser();
+        var workspace = new Workspace();
+        workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
+
+        var builder = new ParserWorkspaceModelBuilder(workspace, parser);
+
+        return await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+    }
 }

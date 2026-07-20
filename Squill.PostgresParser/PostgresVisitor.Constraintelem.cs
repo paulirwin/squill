@@ -16,6 +16,42 @@ public partial class PostgresVisitor
             return new CheckTableConstraint(checkExpression);
         }
 
+        if (context.PRIMARY() is not null && context.KEY() is not null)
+        {
+            // PRIMARY KEY (columnlist) — the parenthesized form. The USING-index form
+            // (existingindex) has no columnlist and is not yet supported.
+            if (context.columnlist() is not { } columnlist)
+            {
+                throw new NotImplementedException("PRIMARY KEY USING INDEX form not yet supported");
+            }
+
+            return new PrimaryKeyTableConstraint(ParseColumnList(columnlist));
+        }
+
+        if (context.FOREIGN() is not null && context.KEY() is not null)
+        {
+            // FOREIGN KEY (cols) REFERENCES table (cols) key_match key_actions.
+            // The first columnlist is the referencing columns; opt_column_list is the
+            // referenced columns.
+            var columns = ParseColumnList(context.columnlist());
+
+            if (VisitQualified_name(context.qualified_name()) is not QualifiedName referencedTable)
+            {
+                throw new PostgresParseException("Unable to parse FOREIGN KEY target table");
+            }
+
+            var referencedColumns = ParseOptColumnList(context.opt_column_list());
+
+            var (onDelete, onUpdate) = ParseKeyActions(context.key_actions());
+
+            return new ForeignKeyTableConstraint(
+                columns,
+                referencedTable,
+                referencedColumns,
+                onDelete,
+                onUpdate);
+        }
+
         throw new NotImplementedException("Table constraint type not yet implemented");
     }
 }

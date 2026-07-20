@@ -5,7 +5,9 @@ namespace Squill.Provider.Postgres;
 public class PostgresDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
 {
     public bool IsDependentElementType(string type)
-        => type is PostgresElementTypes.SqlPrimaryKeyConstraint or PostgresElementTypes.SqlIndex;
+        => type is PostgresElementTypes.SqlPrimaryKeyConstraint
+            or PostgresElementTypes.SqlIndex
+            or PostgresElementTypes.SqlForeignKeyConstraint;
 
     public IList<Element>? GetDependentElements(Element sourceElement, Model model)
     {

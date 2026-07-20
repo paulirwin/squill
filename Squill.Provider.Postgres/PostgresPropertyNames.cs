@@ -11,4 +11,6 @@ public static class PostgresPropertyNames
     public const string IndexMethod = nameof(IndexMethod);
     public const string IsAscending = nameof(IsAscending);
     public const string NullsFirst = nameof(NullsFirst);
+    public const string DeleteAction = nameof(DeleteAction);
+    public const string UpdateAction = nameof(UpdateAction);
 }

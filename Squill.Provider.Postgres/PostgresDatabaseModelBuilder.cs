@@ -1,5 +1,6 @@
 using System.Data;
 using Squill.Core;
+using Squill.PostgresParser.Syntax;
 
 namespace Squill.Provider.Postgres;
 
@@ -52,10 +53,122 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             await ExtractColumnsAsync(table, cancellationToken);
             await ExtractPrimaryKeyAsync(model, table, cancellationToken);
             await ExtractIndexesAsync(model, table, cancellationToken);
+            await ExtractForeignKeysAsync(model, table, cancellationToken);
         }
 
         return model;
     }
+
+    private async Task ExtractForeignKeysAsync(Model model, TableRef table, CancellationToken cancellationToken = default)
+    {
+        var schema = table.Schema;
+        var tableSqlName = SqlName.Object(table.BareName);
+
+        // pg_constraint holds one row per FK. conkey/confkey are parallel arrays of the
+        // referencing/referenced column attnums, in key order; unnesting them WITH
+        // ORDINALITY and joining back to pg_attribute yields the ordered column pairs.
+        // confdeltype/confupdtype are single-char action codes (a/r/c/n/d).
+        const string sql = """
+            SELECT
+                c.conname AS constraint_name,
+                rt.relname AS referenced_table,
+                c.confdeltype AS delete_action,
+                c.confupdtype AS update_action,
+                k.ordinality AS key_ordinal,
+                la.attname AS column_name,
+                fa.attname AS referenced_column
+            FROM pg_constraint c
+            JOIN pg_class t ON t.oid = c.conrelid
+            JOIN pg_namespace n ON n.oid = t.relnamespace
+            JOIN pg_class rt ON rt.oid = c.confrelid
+            JOIN LATERAL unnest(c.conkey, c.confkey) WITH ORDINALITY AS k(attnum, refattnum, ordinality) ON TRUE
+            JOIN pg_attribute la ON la.attrelid = c.conrelid AND la.attnum = k.attnum
+            JOIN pg_attribute fa ON fa.attrelid = c.confrelid AND fa.attnum = k.refattnum
+            WHERE c.contype = 'f'
+              AND n.nspname = @schema
+              AND t.relname = @name
+            ORDER BY c.conname, k.ordinality;
+            """;
+
+        var parameters = new[]
+        {
+            new DatabaseParameter<string>("@schema", schema),
+            new DatabaseParameter<string>("@name", table.BareName),
+        };
+
+        var foreignKeys = new Dictionary<string, ForeignKeyAccumulator>();
+        var order = new List<string>();
+
+        await using (var reader = await _database.RunScriptReaderAsync(sql, parameters, cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var constraintName = reader.GetString("constraint_name");
+
+                if (!foreignKeys.TryGetValue(constraintName, out var accumulator))
+                {
+                    var referencedTable = SqlName.Object(reader.GetString("referenced_table"));
+
+                    accumulator = new ForeignKeyAccumulator(
+                        referencedTable,
+                        MapReferentialAction(reader.GetFieldValue<char>("delete_action")),
+                        MapReferentialAction(reader.GetFieldValue<char>("update_action")));
+
+                    foreignKeys.Add(constraintName, accumulator);
+                    order.Add(constraintName);
+                }
+
+                accumulator.Columns.Add(tableSqlName.Child(reader.GetString("column_name")));
+                accumulator.ReferencedColumns.Add(
+                    accumulator.ReferencedTable.Child(reader.GetString("referenced_column")));
+            }
+        }
+
+        foreach (var constraintName in order)
+        {
+            var accumulator = foreignKeys[constraintName];
+
+            model.Elements.Add(PostgresModelFactory.CreateForeignKey(
+                SqlName.Object(constraintName),
+                tableSqlName,
+                accumulator.Columns,
+                accumulator.ReferencedTable,
+                accumulator.ReferencedColumns,
+                accumulator.OnDelete,
+                accumulator.OnUpdate));
+        }
+    }
+
+    // Accumulates the ordered column pairs of one foreign key across result rows.
+    private sealed class ForeignKeyAccumulator
+    {
+        public ForeignKeyAccumulator(SqlName referencedTable,
+            ReferentialAction onDelete,
+            ReferentialAction onUpdate)
+        {
+            ReferencedTable = referencedTable;
+            OnDelete = onDelete;
+            OnUpdate = onUpdate;
+        }
+
+        public SqlName ReferencedTable { get; }
+        public ReferentialAction OnDelete { get; }
+        public ReferentialAction OnUpdate { get; }
+        public List<SqlName> Columns { get; } = new();
+        public List<SqlName> ReferencedColumns { get; } = new();
+    }
+
+    // pg_constraint stores the ON DELETE/UPDATE action as a single char.
+    private static ReferentialAction MapReferentialAction(char code)
+        => code switch
+        {
+            'a' => ReferentialAction.NoAction,
+            'r' => ReferentialAction.Restrict,
+            'c' => ReferentialAction.Cascade,
+            'n' => ReferentialAction.SetNull,
+            'd' => ReferentialAction.SetDefault,
+            _ => throw new InvalidOperationException($"Unknown pg_constraint action code: {code}"),
+        };
 
     private async Task ExtractIndexesAsync(Model model, TableRef table, CancellationToken cancellationToken = default)
     {

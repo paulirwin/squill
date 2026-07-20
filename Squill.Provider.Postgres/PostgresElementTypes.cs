@@ -9,4 +9,5 @@ public static class PostgresElementTypes
     public const string SqlPrimaryKeyConstraint = nameof(SqlPrimaryKeyConstraint);
     public const string SqlIndexedColumnSpecification = nameof(SqlIndexedColumnSpecification);
     public const string SqlIndex = nameof(SqlIndex);
+    public const string SqlForeignKeyConstraint = nameof(SqlForeignKeyConstraint);
 }

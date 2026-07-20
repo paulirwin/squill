@@ -27,7 +27,34 @@ public partial class PostgresVisitor
             return new DefaultColumnConstraint(context.GetText(), expression);
         }
 
-        // TODO: support UNIQUE, CHECK, DEFAULT, GENERATED, and REFERENCES
+        if (context.REFERENCES() is not null)
+        {
+            if (VisitQualified_name(context.qualified_name()) is not QualifiedName referencedTable)
+            {
+                throw new PostgresParseException("Unable to parse REFERENCES target table");
+            }
+
+            // opt_column_list on an inline reference names a single referenced column;
+            // omitting it defaults to the referenced table's primary key.
+            var referencedColumns = ParseOptColumnList(context.opt_column_list());
+
+            if (referencedColumns.Count > 1)
+            {
+                throw new PostgresParseException(
+                    "An inline column REFERENCES clause may reference at most one column");
+            }
+
+            var (onDelete, onUpdate) = ParseKeyActions(context.key_actions());
+
+            return new ForeignKeyColumnConstraint(
+                context.GetText(),
+                referencedTable,
+                referencedColumns.Count == 1 ? referencedColumns[0] : null,
+                onDelete,
+                onUpdate);
+        }
+
+        // TODO: support UNIQUE, CHECK, and GENERATED
         throw new NotImplementedException("Column constraint type not yet implemented");
     }
 }
