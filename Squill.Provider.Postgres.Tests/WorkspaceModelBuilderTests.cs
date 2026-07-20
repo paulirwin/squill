@@ -233,6 +233,57 @@ CREATE UNIQUE INDEX idx_email ON users USING btree (email DESC NULLS LAST);
     }
 
     [Fact]
+    public async Task ExtractModel_PartialIndexTest()
+    {
+        const string sql = """
+CREATE TABLE users
+(
+    id    integer PRIMARY KEY,
+    email varchar(255)
+);
+
+CREATE INDEX idx_email ON users (email) WHERE email IS NOT NULL;
+""";
+
+        var parser = new AntlrPostgresParser();
+        var workspace = new Workspace();
+        workspace.Files.Add(new InMemoryStringFile("Users.sql", FileKind.Compile, sql));
+
+        var builder = new ParserWorkspaceModelBuilder(workspace, parser);
+
+        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        var index = model.Elements.Single(i => i.Type == PostgresElementTypes.SqlIndex);
+        Assert.Equal("idx_email", index.Name);
+        Assert.Equal("\"email\" IS NOT NULL", index.GetProperty<string>(PostgresPropertyNames.FilterPredicate));
+    }
+
+    [Fact]
+    public async Task ExtractModel_FullIndex_HasNoFilterPredicate()
+    {
+        const string sql = """
+CREATE TABLE film
+(
+    film_id integer PRIMARY KEY,
+    title   varchar(255) NOT NULL
+);
+
+CREATE INDEX idx_title ON film (title);
+""";
+
+        var parser = new AntlrPostgresParser();
+        var workspace = new Workspace();
+        workspace.Files.Add(new InMemoryStringFile("Film.sql", FileKind.Compile, sql));
+
+        var builder = new ParserWorkspaceModelBuilder(workspace, parser);
+
+        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        var index = model.Elements.Single(i => i.Type == PostgresElementTypes.SqlIndex);
+        Assert.Null(index.GetProperty<string>(PostgresPropertyNames.FilterPredicate));
+    }
+
+    [Fact]
     public async Task ExtractModel_InlineForeignKeyWithOnDeleteCascade()
     {
         const string sql = """

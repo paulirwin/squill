@@ -29,5 +29,11 @@ public class CreateIndexStatement : Statement
 
     public Identifier? UsingMethod { get; }
 
+    /// <summary>
+    /// The optional WHERE predicate that makes this a partial (filtered) index.
+    /// Null for a full index.
+    /// </summary>
+    public Expression? WhereClause { get; set; }
+
     public IList<IndexElement> Elements { get; } = new List<IndexElement>();
 }

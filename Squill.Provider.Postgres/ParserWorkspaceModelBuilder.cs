@@ -367,13 +367,20 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                 tableName.Child(columnReference.Identifier.Name), isAscending, nullsFirst));
         }
 
+        // A WHERE clause makes this a partial (filtered) index; render its predicate
+        // back to SQL text so it can be carried in the model and re-emitted on publish.
+        var filterPredicate = createIndexStatement.WhereClause is { } whereClause
+            ? ExpressionSqlRenderer.Render(whereClause)
+            : null;
+
         // NOTE: CONCURRENTLY and IF NOT EXISTS affect how the index gets created, not the desired schema state
         return PostgresModelFactory.CreateIndex(
             indexName,
             tableName,
             createIndexStatement.Unique,
             createIndexStatement.UsingMethod?.Name,
-            columns);
+            columns,
+            filterPredicate);
     }
 
     private static SqlName ToSqlName(QualifiedName qualifiedName)

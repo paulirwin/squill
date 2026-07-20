@@ -155,6 +155,7 @@ public class PostgresScriptGenerator
 
         var isUnique = index.GetProperty<bool?>(PostgresPropertyNames.IsUnique) == true;
         var indexMethod = index.GetProperty<string>(PostgresPropertyNames.IndexMethod);
+        var filterPredicate = index.GetProperty<string>(PostgresPropertyNames.FilterPredicate);
 
         var columnSpecs = index.GetRelationship(PostgresRelationshipNames.ColumnSpecifications);
 
@@ -209,7 +210,15 @@ public class PostgresScriptGenerator
             sb.Append(" USING ").Append(indexMethod);
         }
 
-        sb.Append(" (").Append(string.Join(", ", columnText)).AppendLine(");");
+        sb.Append(" (").Append(string.Join(", ", columnText)).Append(')');
+
+        // Partial (filtered) index: append the WHERE predicate carried in the model.
+        if (filterPredicate != null)
+        {
+            sb.Append(" WHERE ").Append(filterPredicate);
+        }
+
+        sb.AppendLine(";");
 
         return sb.ToString();
     }

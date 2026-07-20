@@ -34,4 +34,60 @@ CREATE INDEX film_fulltext_idx ON film USING gist (fulltext);
         var col = Assert.IsType<ColumnReferenceExpression>(createIndex.Elements[0].Expression);
         Assert.Equal("fulltext", col.Identifier.Name);
     }
+
+    [Fact]
+    public void PartialIndex_WhereIsNotNull()
+    {
+        var parser = new AntlrPostgresParser();
+
+        const string text = """
+CREATE INDEX idx_email ON users (email) WHERE email IS NOT NULL;
+""";
+
+        var root = parser.Parse(text);
+        var createIndex = Assert.IsType<CreateIndexStatement>(Assert.Single(root.Statements));
+
+        Assert.NotNull(createIndex.WhereClause);
+        var unary = Assert.IsType<UnaryExpression>(createIndex.WhereClause);
+        Assert.Equal(PostgresBuiltInUnaryOperator.IsNotNull, unary.Operator);
+        var col = Assert.IsType<ColumnReferenceExpression>(unary.Expression);
+        Assert.Equal("email", col.Identifier.Name);
+    }
+
+    [Fact]
+    public void PartialIndex_WhereComparison()
+    {
+        var parser = new AntlrPostgresParser();
+
+        const string text = """
+CREATE INDEX idx_active ON orders (customer_id) WHERE status = 'active';
+""";
+
+        var root = parser.Parse(text);
+        var createIndex = Assert.IsType<CreateIndexStatement>(Assert.Single(root.Statements));
+
+        Assert.NotNull(createIndex.WhereClause);
+        var binary = Assert.IsType<BinaryExpression>(createIndex.WhereClause);
+        var op = Assert.IsType<BuiltInOperator>(binary.Operator);
+        Assert.Equal(PostgresBuiltInBinaryOperator.Equal, op.Operator);
+        var left = Assert.IsType<ColumnReferenceExpression>(binary.Left);
+        Assert.Equal("status", left.Identifier.Name);
+        var right = Assert.IsType<LiteralExpression>(binary.Right);
+        Assert.Equal("active", right.Value);
+    }
+
+    [Fact]
+    public void FullIndex_HasNoWhereClause()
+    {
+        var parser = new AntlrPostgresParser();
+
+        const string text = """
+CREATE INDEX idx_title ON film (title);
+""";
+
+        var root = parser.Parse(text);
+        var createIndex = Assert.IsType<CreateIndexStatement>(Assert.Single(root.Statements));
+
+        Assert.Null(createIndex.WhereClause);
+    }
 }

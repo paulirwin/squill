@@ -186,6 +186,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 i.relname AS index_name,
                 ix.indisunique AS is_unique,
                 am.amname AS index_method,
+                pg_get_expr(ix.indpred, ix.indrelid) AS filter_predicate,
                 a.attname AS column_name,
                 k.ordinality AS column_ordinal,
                 ix.indoption[k.ordinality - 1] AS column_option
@@ -213,7 +214,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
         // Accumulate rows per index (ordered by column ordinal in the query) so a
         // multi-column index is built as a single element via the factory.
-        var indexRows = new Dictionary<string, (bool IsUnique, string Method, List<PostgresModelFactory.IndexedColumn> Columns)>();
+        var indexRows = new Dictionary<string, (bool IsUnique, string Method, string? FilterPredicate, List<PostgresModelFactory.IndexedColumn> Columns)>();
         var order = new List<string>();
 
         await using (var reader = await _database.RunScriptReaderAsync(sql, parameters, cancellationToken))
@@ -224,7 +225,13 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
                 if (!indexRows.TryGetValue(indexName, out var entry))
                 {
-                    entry = (reader.GetBoolean("is_unique"), reader.GetString("index_method"), new());
+                    // pg_get_expr returns NULL for a non-partial index; a partial index
+                    // yields its canonical WHERE predicate text.
+                    var filterPredicate = reader.IsDBNull("filter_predicate")
+                        ? null
+                        : reader.GetString("filter_predicate");
+
+                    entry = (reader.GetBoolean("is_unique"), reader.GetString("index_method"), filterPredicate, new());
                     indexRows.Add(indexName, entry);
                     order.Add(indexName);
                 }
@@ -243,10 +250,10 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
         foreach (var indexName in order)
         {
-            var (isUnique, method, columns) = indexRows[indexName];
+            var (isUnique, method, filterPredicate, columns) = indexRows[indexName];
 
             model.Elements.Add(PostgresModelFactory.CreateIndex(
-                SqlName.Object(indexName), tableSqlName, isUnique, method, columns));
+                SqlName.Object(indexName), tableSqlName, isUnique, method, columns, filterPredicate));
         }
     }
 
