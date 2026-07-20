@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Reflection;
 using Squill.Core;
 
 namespace Squill.Dacpac.Tests;
@@ -70,6 +71,35 @@ public class DacpacSerializationTests
         Assert.Single(zip.Entries, e => e.Name == "[Content Types].xml");
         Assert.Single(zip.Entries, e => e.Name == "DacMetadata.xml");
         Assert.Single(zip.Entries, e => e.Name == "model.xml");
+    }
+
+    [Fact]
+    public async Task DacpacSerializer_Origin_RecordsAssemblyProductVersion()
+    {
+        var metadata = new ModelMetadata { ProviderName = "Postgresql" };
+        var model = BuildSampleModel();
+        await using var stream = new MemoryStream();
+
+        await DacpacSerializer.Serialize(metadata, model, stream, TestContext.Current.CancellationToken);
+
+        stream.Position = 0;
+        using var zip = new ZipArchive(stream, ZipArchiveMode.Read);
+        var originEntry = Assert.Single(zip.Entries, e => e.Name == "Origin.xml");
+
+        await using var originStream = originEntry.Open();
+        var doc = System.Xml.Linq.XDocument.Load(originStream);
+        var ns = doc.Root!.Name.Namespace;
+        var productVersion = doc.Root.Element(ns + "ProductVersion")?.Value;
+
+        // ProductVersion comes from the assembly's version, not a hardcoded value.
+        var expected =
+            typeof(DacpacSerializer).Assembly
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+                .InformationalVersion
+            ?? typeof(DacpacSerializer).Assembly.GetName().Version?.ToString();
+
+        Assert.False(string.IsNullOrWhiteSpace(productVersion));
+        Assert.Equal(expected, productVersion);
     }
 
     [Fact]

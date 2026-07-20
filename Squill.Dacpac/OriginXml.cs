@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Xml;
 using System.Xml.Linq;
 
@@ -26,7 +27,7 @@ internal static class OriginXml
         writer.WriteStartElement("DacOrigin", DacpacConstants.SerializationNamespace);
 
         writer.WriteElementString("ProductName", DacpacConstants.SerializationNamespace, DacpacConstants.ProductName);
-        writer.WriteElementString("ProductVersion", DacpacConstants.SerializationNamespace, DacpacConstants.ProductVersion);
+        writer.WriteElementString("ProductVersion", DacpacConstants.SerializationNamespace, GetProductVersion());
 
         // DspName identifies the database schema provider so the deploy side knows
         // which IDatabaseProvider to use when consuming this DACPAC.
@@ -64,5 +65,25 @@ internal static class OriginXml
             .Elements(ns + "Checksum")
             .FirstOrDefault(c => (string?)c.Attribute("Uri") == DacpacConstants.ModelPartUri)?
             .Value;
+    }
+
+    /// <summary>
+    /// The version of the tool producing this DACPAC, taken from this assembly.
+    /// Prefers the informational version (which carries the NuGet/SemVer string),
+    /// falling back to the assembly version.
+    /// </summary>
+    private static string GetProductVersion()
+    {
+        var assembly = typeof(OriginXml).Assembly;
+
+        var informationalVersion = assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion;
+        if (!string.IsNullOrWhiteSpace(informationalVersion))
+        {
+            return informationalVersion;
+        }
+
+        return assembly.GetName().Version?.ToString() ?? "0.0.0.0";
     }
 }

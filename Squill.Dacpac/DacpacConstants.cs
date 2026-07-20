@@ -27,7 +27,7 @@ internal static class DacpacConstants
     public const string FileFormatVersion = "1.2";
     public const string SchemaVersion = "3.0";
 
-    // The name of the tool producing the package, recorded in Origin.xml.
+    // The name of the tool producing the package, recorded in Origin.xml. The
+    // accompanying ProductVersion is read from the assembly at write time.
     public const string ProductName = "Squill";
-    public const string ProductVersion = "1.0.0.0";
 }
