@@ -28,9 +28,8 @@ public class SchemaCompare
                 continue;
             }
 
-            if (target.Elements.SingleOrDefault(i =>
-                    i.Type.Equals(sourceElement.Type)
-                    && i.Name?.Equals(sourceElement.Name) != false) is Element targetElement)
+            if (target.Elements.SingleOrDefault(i => ElementsMatch(analyzer, i, sourceElement))
+                is Element targetElement)
             {
                 // The element exists in both models. If their hashes match, it is
                 // unchanged and needs no delta; otherwise produce an ALTER (or, when an
@@ -76,6 +75,8 @@ public class SchemaCompare
             AddDropDeltas(comparison, analyzer, source, target);
         }
 
+        OrderDeltas(comparison, analyzer);
+
         // Record any data-loss reasons on the comparison so a caller can surface them
         // (e.g. on a dry run). Enforcement — throwing PossibleDataLossException when
         // BlockOnPossibleDataLoss is on — is left to the caller via
@@ -109,9 +110,7 @@ public class SchemaCompare
                 continue;
             }
 
-            var existsInSource = source.Elements.Any(i =>
-                i.Type.Equals(targetElement.Type)
-                && i.Name?.Equals(targetElement.Name) != false);
+            var existsInSource = source.Elements.Any(i => ElementsMatch(analyzer, i, targetElement));
 
             if (!existsInSource)
             {
@@ -157,6 +156,64 @@ public class SchemaCompare
     }
 
     private static string Describe(Element element) => $"{element.Type} '{element.Name}'";
+
+    // Orders the deltas so deploy steps run in dependency order: creates first (a schema
+    // before the tables in it, an extension before a table using it), then in-place changes,
+    // then drops in the reverse of the create order (a table before the schema that holds
+    // it). A stable ordering preserves the existing relative order within each rank.
+    private static void OrderDeltas(SchemaComparison comparison, IDatabaseDependencyAnalyzer analyzer)
+    {
+        // Phase groups: creates (0) run before alters/rebuilds (1) before drops (2).
+        static int Phase(SchemaDelta delta) => delta switch
+        {
+            CreateDelta => 0,
+            DropDelta => 2,
+            _ => 1,
+        };
+
+        // Within creates, ascending create-rank; within drops, descending; alters keep 0.
+        int Rank(SchemaDelta delta) => delta switch
+        {
+            CreateDelta create => analyzer.GetCreateOrder(create.Element.Type),
+            DropDelta drop => -analyzer.GetCreateOrder(drop.Element.Type),
+            _ => 0,
+        };
+
+        var ordered = comparison.Deltas
+            .Select((delta, index) => (delta, index))
+            .OrderBy(x => Phase(x.delta))
+            .ThenBy(x => Rank(x.delta))
+            .ThenBy(x => x.index)
+            .Select(x => x.delta)
+            .ToList();
+
+        comparison.Deltas.Clear();
+
+        foreach (var delta in ordered)
+        {
+            comparison.Deltas.Add(delta);
+        }
+    }
+
+    // Whether two elements denote the same database object: same type, same name, and —
+    // for schema-scoped types — same schema, so two same-named objects in different
+    // schemas (public.foo vs. staging.foo) are distinct. A null name never matches (an
+    // anonymous element is not identity-comparable), so it can't act as a wildcard.
+    private static bool ElementsMatch(IDatabaseDependencyAnalyzer analyzer, Element a, Element b)
+    {
+        if (!a.Type.Equals(b.Type))
+        {
+            return false;
+        }
+
+        if (a.Name is null || b.Name is null)
+        {
+            return false;
+        }
+
+        return a.Name.Equals(b.Name)
+            && string.Equals(analyzer.GetElementSchema(a), analyzer.GetElementSchema(b), StringComparison.Ordinal);
+    }
 
     // Produces the delta for an element present in both models whose definitions differ.
     // Currently only tables support in-place alteration; other element types (indexes,

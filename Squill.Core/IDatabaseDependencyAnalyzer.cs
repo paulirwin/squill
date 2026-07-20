@@ -24,5 +24,22 @@ public interface IDatabaseDependencyAnalyzer
     /// </summary>
     bool IsDroppableStandaloneDependent(string type);
 
+    /// <summary>
+    /// The schema (namespace) an element belongs to, for element identity — so two
+    /// same-named objects in different schemas are distinct. Returns <c>null</c> for
+    /// element types that are not schema-scoped (e.g. an extension, or a schema itself).
+    /// The schema is part of a database's object identity but is stored provider-specific
+    /// (a relationship, a name segment, …), so reading it lives behind the provider.
+    /// </summary>
+    string? GetElementSchema(Element element);
+
+    /// <summary>
+    /// A relative rank for creating an element of this type, so deploy steps run in
+    /// dependency order — a lower rank is created first (e.g. a schema before the tables in
+    /// it, an extension before a table using its types). Drops run in the reverse of this
+    /// order. Elements of equal rank keep their existing relative order.
+    /// </summary>
+    int GetCreateOrder(string type);
+
     IList<Element>? GetDependentElements(Element sourceElement, Model model);
 }

@@ -26,9 +26,11 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
         const string sql = "SELECT * FROM information_schema.tables;";
 
-        // Extensions are extracted first so they lead the model's element order. A table
-        // may use a type provided by an extension (e.g. pgvector's vector), so on publish
-        // the CREATE EXTENSION must run before the CREATE TABLE that depends on it.
+        // Schemas and extensions are extracted first so they lead the model's element
+        // order. A table lives in a schema and may use a type provided by an extension
+        // (e.g. pgvector's vector), so on publish the CREATE SCHEMA / CREATE EXTENSION must
+        // run before the CREATE TABLE that depends on them.
+        await ExtractSchemasAsync(model, cancellationToken);
         await ExtractExtensionsAsync(model, cancellationToken);
 
         var tables = new List<TableRef>();
@@ -62,6 +64,34 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         }
 
         return model;
+    }
+
+    private async Task ExtractSchemasAsync(Model model, CancellationToken cancellationToken = default)
+    {
+        // Emit a SqlSchema element for each user-declared schema. 'public' exists in every
+        // database by default and is not a declared object (users don't write CREATE
+        // SCHEMA public), so it is skipped — matching the parser builder, which only emits
+        // SqlSchema for an explicit CREATE SCHEMA. System schemas (pg_*, information_schema)
+        // are likewise excluded. This keeps a parsed model hash-matching an extracted one.
+        const string sql =
+            "SELECT schema_name FROM information_schema.schemata "
+            + "WHERE schema_name NOT IN ('public', 'information_schema') "
+            + "AND schema_name NOT LIKE 'pg_%' ORDER BY schema_name;";
+
+        var schemas = new List<string>();
+
+        await using (var reader = await _database.RunScriptReaderAsync(sql, cancellationToken: cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                schemas.Add(reader.GetString("schema_name"));
+            }
+        }
+
+        foreach (var schemaName in schemas)
+        {
+            model.Elements.Add(PostgresModelFactory.CreateSchema(SqlName.Object(schemaName)));
+        }
     }
 
     private async Task ExtractExtensionsAsync(Model model, CancellationToken cancellationToken = default)
@@ -102,6 +132,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             SELECT
                 c.conname AS constraint_name,
                 rt.relname AS referenced_table,
+                rn.nspname AS referenced_schema,
                 c.confdeltype AS delete_action,
                 c.confupdtype AS update_action,
                 k.ordinality AS key_ordinal,
@@ -111,6 +142,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             JOIN pg_class t ON t.oid = c.conrelid
             JOIN pg_namespace n ON n.oid = t.relnamespace
             JOIN pg_class rt ON rt.oid = c.confrelid
+            JOIN pg_namespace rn ON rn.oid = rt.relnamespace
             JOIN LATERAL unnest(c.conkey, c.confkey) WITH ORDINALITY AS k(attnum, refattnum, ordinality) ON TRUE
             JOIN pg_attribute la ON la.attrelid = c.conrelid AND la.attnum = k.attnum
             JOIN pg_attribute fa ON fa.attrelid = c.confrelid AND fa.attnum = k.refattnum
@@ -137,7 +169,15 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
                 if (!foreignKeys.TryGetValue(constraintName, out var accumulator))
                 {
-                    var referencedTable = SqlName.Object(reader.GetString("referenced_table"));
+                    // Qualify a referenced table in a non-public schema so a cross-schema
+                    // FK round-trips with the parser (which keeps the written qualifier).
+                    // A public referenced table stays bare, matching an unqualified source
+                    // reference — the common case.
+                    var referencedSchema = reader.GetString("referenced_schema");
+                    var referencedTableName = reader.GetString("referenced_table");
+                    var referencedTable = referencedSchema == "public"
+                        ? SqlName.Object(referencedTableName)
+                        : SqlName.Object(referencedSchema, referencedTableName);
 
                     accumulator = new ForeignKeyAccumulator(
                         referencedTable,
@@ -334,7 +374,8 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             var (isUnique, method, filterPredicate, storageParameters, columns) = indexRows[indexName];
 
             model.Elements.Add(PostgresModelFactory.CreateIndex(
-                SqlName.Object(indexName), tableSqlName, isUnique, method, columns, filterPredicate, storageParameters));
+                SqlName.Object(indexName), tableSqlName, isUnique, method, columns,
+                filterPredicate, storageParameters, schema));
         }
     }
 

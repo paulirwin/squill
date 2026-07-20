@@ -54,6 +54,18 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
 
                 model.Elements.Add(element);
             }
+            else if (statement is CreateSchemaStatement createSchemaStatement)
+            {
+                // 'public' exists in every database by default and is not a declared
+                // object, so a CREATE SCHEMA public is ignored — matching the DB-extraction
+                // builder, which never emits a SqlSchema for public. Otherwise the two
+                // models would never agree and a redeploy would never converge.
+                if (!string.Equals(createSchemaStatement.Name.Name, "public", StringComparison.Ordinal))
+                {
+                    model.Elements.Add(
+                        PostgresModelFactory.CreateSchema(SqlName.Object(createSchemaStatement.Name.Name)));
+                }
+            }
             else
             {
                 throw new NotImplementedException(
@@ -108,7 +120,7 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
 
     private static Element MakeForeignKeyElement(SqlName tableName, ForeignKeySpec spec)
     {
-        var referencedTable = ToSqlName(spec.ReferencedTable);
+        var referencedTable = NormalizeReferencedTable(spec.ReferencedTable);
 
         // Postgres derives an unnamed FK constraint's name as <table>_<firstcolumn>_fkey.
         // Predicting it here lets a parsed model hash-match one extracted from the DB.
@@ -392,11 +404,12 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
             throw new NotImplementedException("ONLY and descendant table syntax on CREATE INDEX are not yet supported");
         }
 
-        var tableName = ToSqlName(createIndexStatement.OnRelation.Name);
+        // The table an index is ON may be schema-qualified (ON staging.film); split off the
+        // schema so the table reference, column references, and index name are all bare —
+        // matching the DB-extraction builder — with the schema carried separately.
+        var (schema, tableName) = SplitSchema(createIndexStatement.OnRelation.Name);
 
-        // Indexes always live in the same schema as their table, so the index name is
-        // the table's qualifier with the index identifier as the final segment.
-        var indexName = tableName.Sibling(createIndexStatement.Name.Name);
+        var indexName = SqlName.Object(createIndexStatement.Name.Name);
 
         // btree is Postgres's implicit access method when USING is omitted. Defaulting to
         // it here (rather than leaving the method null) matches the DB builder, which reads
@@ -457,7 +470,8 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
             indexMethod,
             columns,
             filterPredicate,
-            storageParameters);
+            storageParameters,
+            schema);
     }
 
     private static Element MakeCreateExtensionElement(CreateExtensionStatement createExtensionStatement)
@@ -479,6 +493,17 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
     private static SqlName ToSqlName(QualifiedName qualifiedName)
         => SqlName.Object(qualifiedName.Segments.Select(i => i.Name).ToArray());
 
+    // Normalizes a foreign key's referenced-table name to the convention both builders
+    // share: bare when it resolves to the public schema (matching an unqualified source
+    // reference and the DB builder's bare public names), schema-qualified otherwise (so a
+    // cross-schema FK round-trips). e.g. `public.book` -> book; `audit.log` -> audit.log.
+    private static SqlName NormalizeReferencedTable(QualifiedName qualifiedName)
+    {
+        var (schema, name) = SplitSchema(qualifiedName);
+
+        return schema == "public" ? name : SqlName.Object(schema, name.UnqualifiedName);
+    }
+
     // Splits a (possibly schema-qualified) table name into its schema and its bare,
     // schema-less name, mirroring how the DB builder stores tables: the element Name is
     // the bare table name (e.g. "film") and the schema is carried as a separate Schema
@@ -488,8 +513,15 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
     {
         var segments = qualifiedName.Segments.Select(i => i.Name).ToArray();
 
-        return segments.Length > 1
-            ? (segments[^2], SqlName.Object(segments[^1]))
-            : ("public", SqlName.Object(segments[0]));
+        return segments.Length switch
+        {
+            1 => ("public", SqlName.Object(segments[0])),
+            2 => (segments[0], SqlName.Object(segments[1])),
+            // A 3-part name (catalog.schema.object) would silently drop the catalog; reject
+            // it rather than deploy to a different place than written.
+            _ => throw new NotImplementedException(
+                $"Catalog-qualified names ({string.Join('.', segments)}) are not supported; "
+                + "use schema.object."),
+        };
     }
 }
