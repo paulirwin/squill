@@ -191,6 +191,67 @@ CREATE TABLE app.child
         }
     }
 
+    [Fact]
+    public async Task CrossSchemaForeignKey_RoundTrips()
+    {
+        // A non-public table with a foreign key back to a public table (as in the sample's
+        // audit.book_change -> public.book). The referenced-table name must round-trip so a
+        // redeploy is a no-op — this was the case that regressed schema support.
+        const string schema = """
+CREATE SCHEMA audit;
+
+CREATE TABLE record (record_id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY);
+
+CREATE TABLE audit.record_change
+(
+    record_change_id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    record_id        integer NOT NULL REFERENCES public.record (record_id)
+);
+""";
+
+        var ct = TestContext.Current.CancellationToken;
+        var tempDir = Directory.CreateTempSubdirectory("squill-crossfk");
+
+        try
+        {
+            var dacpacPath = await BuildDacpacAsync(tempDir.FullName, schema, ct);
+
+            Model dacpacModel;
+            await using (var stream = File.OpenRead(dacpacPath))
+            {
+                (_, dacpacModel) = await DacpacSerializer.Deserialize(stream, ct);
+            }
+
+            IDatabaseProvider provider = new PostgresDatabaseProvider(ConnectionString);
+            var targetDbName = $"squill_schema_{Guid.NewGuid():n}";
+            var createdDb = await provider.CreateDatabaseAsync(targetDbName, ct);
+
+            try
+            {
+                await DacpacDeployer.DeployFromFileAsync(
+                    dacpacPath, ConnectionString, targetDbName, cancellationToken: ct);
+
+                var deployed = await provider.CreateDatabaseModelBuilder(createdDb).ExtractModelAsync(ct);
+                Assert.Equal(ElementHashMultiset(dacpacModel), ElementHashMultiset(deployed));
+
+                // A second deploy must find nothing to do — proving the cross-schema FK
+                // round-trips (parser model == extracted model).
+                var redeploy = await DacpacDeployer.DeployFromFileAsync(
+                    dacpacPath, ConnectionString, targetDbName, cancellationToken: ct);
+                Assert.True(string.IsNullOrEmpty(redeploy.Script),
+                    "Redeploying an unchanged cross-schema FK should produce no script.");
+            }
+            finally
+            {
+                await createdDb.DropAsync(ct);
+            }
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
     private static async Task<string> BuildDacpacAsync(string dir, string schema, CancellationToken ct)
     {
         var sqlPath = Path.Combine(dir, "Schema.sql");

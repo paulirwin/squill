@@ -156,6 +156,28 @@ CREATE TABLE staging.child
     }
 
     [Fact]
+    public async Task ForeignKeyToPublicTable_FromNonPublic_IsNotOverQualified()
+    {
+        // A reference written as `public.parent` normalizes to the bare `parent`, matching
+        // an unqualified reference and the DB builder — so the FK's referenced-table name
+        // round-trips. The emitted DDL therefore references the unqualified public table.
+        var comparison = await CompareAsync("""
+CREATE SCHEMA app;
+CREATE TABLE parent (id integer PRIMARY KEY);
+CREATE TABLE app.child
+(
+    id        integer PRIMARY KEY,
+    parent_id integer NOT NULL REFERENCES public.parent (id)
+);
+""", "");
+
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        Assert.Contains("REFERENCES \"parent\"", sql);
+        Assert.DoesNotContain("REFERENCES \"public\".\"parent\"", sql);
+    }
+
+    [Fact]
     public async Task CreateSchemaPublic_IsIgnored()
     {
         // 'public' is not a declared object; declaring it must not produce a delta (else a

@@ -120,7 +120,7 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
 
     private static Element MakeForeignKeyElement(SqlName tableName, ForeignKeySpec spec)
     {
-        var referencedTable = ToSqlName(spec.ReferencedTable);
+        var referencedTable = NormalizeReferencedTable(spec.ReferencedTable);
 
         // Postgres derives an unnamed FK constraint's name as <table>_<firstcolumn>_fkey.
         // Predicting it here lets a parsed model hash-match one extracted from the DB.
@@ -492,6 +492,17 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
 
     private static SqlName ToSqlName(QualifiedName qualifiedName)
         => SqlName.Object(qualifiedName.Segments.Select(i => i.Name).ToArray());
+
+    // Normalizes a foreign key's referenced-table name to the convention both builders
+    // share: bare when it resolves to the public schema (matching an unqualified source
+    // reference and the DB builder's bare public names), schema-qualified otherwise (so a
+    // cross-schema FK round-trips). e.g. `public.book` -> book; `audit.log` -> audit.log.
+    private static SqlName NormalizeReferencedTable(QualifiedName qualifiedName)
+    {
+        var (schema, name) = SplitSchema(qualifiedName);
+
+        return schema == "public" ? name : SqlName.Object(schema, name.UnqualifiedName);
+    }
 
     // Splits a (possibly schema-qualified) table name into its schema and its bare,
     // schema-less name, mirroring how the DB builder stores tables: the element Name is

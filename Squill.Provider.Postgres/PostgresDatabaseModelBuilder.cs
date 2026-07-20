@@ -132,6 +132,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             SELECT
                 c.conname AS constraint_name,
                 rt.relname AS referenced_table,
+                rn.nspname AS referenced_schema,
                 c.confdeltype AS delete_action,
                 c.confupdtype AS update_action,
                 k.ordinality AS key_ordinal,
@@ -141,6 +142,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             JOIN pg_class t ON t.oid = c.conrelid
             JOIN pg_namespace n ON n.oid = t.relnamespace
             JOIN pg_class rt ON rt.oid = c.confrelid
+            JOIN pg_namespace rn ON rn.oid = rt.relnamespace
             JOIN LATERAL unnest(c.conkey, c.confkey) WITH ORDINALITY AS k(attnum, refattnum, ordinality) ON TRUE
             JOIN pg_attribute la ON la.attrelid = c.conrelid AND la.attnum = k.attnum
             JOIN pg_attribute fa ON fa.attrelid = c.confrelid AND fa.attnum = k.refattnum
@@ -167,7 +169,15 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
                 if (!foreignKeys.TryGetValue(constraintName, out var accumulator))
                 {
-                    var referencedTable = SqlName.Object(reader.GetString("referenced_table"));
+                    // Qualify a referenced table in a non-public schema so a cross-schema
+                    // FK round-trips with the parser (which keeps the written qualifier).
+                    // A public referenced table stays bare, matching an unqualified source
+                    // reference — the common case.
+                    var referencedSchema = reader.GetString("referenced_schema");
+                    var referencedTableName = reader.GetString("referenced_table");
+                    var referencedTable = referencedSchema == "public"
+                        ? SqlName.Object(referencedTableName)
+                        : SqlName.Object(referencedSchema, referencedTableName);
 
                     accumulator = new ForeignKeyAccumulator(
                         referencedTable,
