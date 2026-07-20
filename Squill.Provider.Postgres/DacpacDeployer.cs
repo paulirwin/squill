@@ -68,6 +68,36 @@ public static class DacpacDeployer
     }
 
     /// <summary>
+    /// Generates the deployment script that would bring the target database into the
+    /// schema described by the DACPAC at <paramref name="dacpacPath"/>, without executing
+    /// anything against the target. This backs the <c>squill script</c> verb (issue #21):
+    /// the target is only read (its current schema is extracted and diffed against the
+    /// DACPAC), so the connection needs no more than permission to view the schema.
+    /// </summary>
+    /// <remarks>
+    /// This is the diff-and-script half of <see cref="DeployFromFileAsync"/> with the
+    /// execute half omitted. Data-loss changes are <em>included</em> in the returned
+    /// script (so the generated script is a faithful preview of what a deploy would run);
+    /// the <see cref="DeployOptions.BlockOnPossibleDataLoss"/> policy is a deploy-time
+    /// concern and is not enforced here. The returned <see cref="DeployResult.WasExecuted"/>
+    /// is always <c>false</c>.
+    /// </remarks>
+    public static async Task<DeployResult> ScriptFromFileAsync(
+        string dacpacPath,
+        string connectionString,
+        string? targetDatabaseName = null,
+        IProgress<string>? progress = null,
+        DeployOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        await using var stream = File.OpenRead(dacpacPath);
+
+        return await DeployAsync(
+            stream, connectionString, targetDatabaseName, dryRun: true, progress, options,
+            cancellationToken);
+    }
+
+    /// <summary>
     /// Deploys the DACPAC read from <paramref name="dacpacStream"/> to the target
     /// database. See <see cref="DeployFromFileAsync"/> for parameter semantics.
     /// </summary>

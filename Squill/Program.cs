@@ -16,6 +16,7 @@ rootCommand.SetAction(_ =>
 });
 
 rootCommand.Subcommands.Add(BuildDeployCommand());
+rootCommand.Subcommands.Add(BuildScriptCommand());
 
 return rootCommand.Parse(args).Invoke();
 
@@ -145,6 +146,126 @@ static Command BuildDeployCommand()
     });
 
     return deployCommand;
+}
+
+static Command BuildScriptCommand()
+{
+    var dacpacArgument = new Argument<FileInfo>("dacpac")
+    {
+        Description = "Path to the .dacpac file to script a deployment for."
+    };
+
+    var connectionStringOption = new Option<string>("--connection-string", "-c")
+    {
+        Description =
+            "Npgsql connection string for the target PostgreSQL server. The target is only "
+            + "read to extract its current schema, so view-schema permission is sufficient.",
+        Required = true
+    };
+
+    var targetDatabaseOption = new Option<string?>("--target-database", "-d")
+    {
+        Description =
+            "Name of the database to diff against. Defaults to the connection string's Database."
+    };
+
+    // Where to write the generated script. When omitted, the script is written to stdout,
+    // so it can be piped or redirected; progress messages go to stderr to keep stdout clean.
+    var outputOption = new Option<FileInfo?>("--output", "-o")
+    {
+        Description =
+            "File to write the generated deployment script to. When omitted, the script is "
+            + "written to standard output."
+    };
+
+    // The same options that shape a deploy's generated SQL also shape the scripted output,
+    // so the script previews exactly what a deploy with the same flags would run.
+    var disallowTableRebuildOption = new Option<bool>("--disallow-table-rebuild")
+    {
+        Description =
+            "Fail rather than rebuild a table when a change can't be applied with an "
+            + "in-place ALTER. Table rebuilds are allowed by default."
+    };
+
+    var dropObjectsNotInSourceOption = new Option<bool>("--drop-objects-not-in-source")
+    {
+        Description =
+            "Include statements dropping standalone objects (tables, indexes, extensions) "
+            + "present in the target database but not in the DACPAC. Off by default."
+    };
+
+    var scriptCommand = new Command(
+        "script",
+        "Generate a deployment script for a DACPAC against a target database, without "
+        + "executing it. Only reads the target's schema.")
+    {
+        dacpacArgument,
+        connectionStringOption,
+        targetDatabaseOption,
+        outputOption,
+        disallowTableRebuildOption,
+        dropObjectsNotInSourceOption
+    };
+
+    scriptCommand.SetAction(async (parseResult, cancellationToken) =>
+    {
+        var dacpac = parseResult.GetValue(dacpacArgument)!;
+        var connectionString = parseResult.GetValue(connectionStringOption)!;
+        var targetDatabase = parseResult.GetValue(targetDatabaseOption);
+        var output = parseResult.GetValue(outputOption);
+
+        var options = new DeployOptions
+        {
+            AllowTableRebuild = !parseResult.GetValue(disallowTableRebuildOption),
+            DropObjectsNotInSource = parseResult.GetValue(dropObjectsNotInSourceOption),
+            // Data loss is a deploy-time policy; scripting always previews the full script.
+            BlockOnPossibleDataLoss = false,
+        };
+
+        if (!dacpac.Exists)
+        {
+            Console.Error.WriteLine($"DACPAC file not found: {dacpac.FullName}");
+            return 1;
+        }
+
+        // Progress goes to stderr so that stdout carries only the script when no --output
+        // file is given, keeping the script pipeable/redirectable.
+        IProgress<string> progress = new SynchronousProgress(Console.Error.WriteLine);
+
+        try
+        {
+            var result = await DacpacDeployer.ScriptFromFileAsync(
+                dacpac.FullName, connectionString, targetDatabase, progress, options,
+                cancellationToken);
+
+            if (string.IsNullOrEmpty(result.Script))
+            {
+                Console.Error.WriteLine(
+                    "Target database already matches the DACPAC; nothing to script.");
+                return 0;
+            }
+
+            if (output is null)
+            {
+                Console.WriteLine(result.Script);
+            }
+            else
+            {
+                await File.WriteAllTextAsync(
+                    output.FullName, result.Script, cancellationToken);
+                Console.Error.WriteLine($"Deployment script written to {output.FullName}");
+            }
+
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Script generation failed: {ex.Message}");
+            return 1;
+        }
+    });
+
+    return scriptCommand;
 }
 
 // An IProgress<string> that invokes its callback synchronously on the reporting thread,

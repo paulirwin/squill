@@ -170,6 +170,74 @@ public class PostgresDacpacDeployTest : PostgresIntegrationTestBase
         }
     }
 
+    // Full round trip through the script path (issue #21): build a real .dacpac, script a
+    // deployment against a real, empty Postgres database via DacpacDeployer.ScriptFromFileAsync
+    // — the code path the `squill script` CLI verb uses — assert the target is untouched
+    // (scripting only reads schema), then prove the generated script is valid, executable
+    // Postgres that produces the DACPAC's schema when run.
+    [Fact]
+    public async Task ScriptFromFile_GeneratesExecutableScript_WithoutTouchingTarget()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var tempDir = Directory.CreateTempSubdirectory("squill-script-integration");
+        try
+        {
+            var dacpacPath = await BuildDacpacAsync(tempDir.FullName, ct);
+
+            Model dacpacModel;
+            await using (var stream = File.OpenRead(dacpacPath))
+            {
+                (_, dacpacModel) = await DacpacSerializer.Deserialize(stream, ct);
+            }
+
+            IDatabaseProvider provider = new PostgresDatabaseProvider(ConnectionString);
+            var targetDbName = $"squill_script_{Guid.NewGuid():n}";
+            var createdDb = await provider.CreateDatabaseAsync(targetDbName, ct);
+
+            try
+            {
+                // Act: generate the deployment script against the empty target.
+                var result = await DacpacDeployer.ScriptFromFileAsync(
+                    dacpacPath, ConnectionString, targetDbName, cancellationToken: ct);
+
+                Assert.False(result.WasExecuted,
+                    "Scripting must not execute anything against the target.");
+                Assert.False(string.IsNullOrWhiteSpace(result.Script),
+                    "Scripting an empty target should generate a non-empty script.");
+
+                // The target must remain empty — scripting only reads the schema.
+                var untouchedModel = await provider
+                    .CreateDatabaseModelBuilder(createdDb)
+                    .ExtractModelAsync(ct);
+
+                Assert.DoesNotContain(
+                    untouchedModel.Elements,
+                    e => e.Type == PostgresElementTypes.SqlTable);
+
+                // Prove the generated script is valid, executable Postgres: run it against
+                // the target and assert the resulting schema matches the DACPAC's model.
+                await createdDb.RunScriptAsync(result.Script, cancellationToken: ct);
+
+                var deployedModel = await provider
+                    .CreateDatabaseModelBuilder(createdDb)
+                    .ExtractModelAsync(ct);
+
+                Assert.Equal(
+                    ElementHashMultiset(dacpacModel),
+                    ElementHashMultiset(deployedModel));
+            }
+            finally
+            {
+                await createdDb.DropAsync(ct);
+            }
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
     private static async Task<string> BuildDacpacAsync(string dir, CancellationToken ct)
     {
         var schema = await new EmbeddedResourceFile(
