@@ -11,6 +11,18 @@ public interface IDatabaseDependencyAnalyzer
     bool IsTableElementType(string type);
 
     /// <summary>
+    /// Whether <paramref name="type"/> is an extension element, which supports an in-place
+    /// version update (<c>ALTER EXTENSION ... UPDATE</c>) rather than a rebuild.
+    /// </summary>
+    bool IsExtensionElementType(string type);
+
+    /// <summary>
+    /// The version pinned on an extension element, or <c>null</c> if none is pinned. Reading
+    /// it lives behind the provider because how a version is stored is database-specific.
+    /// </summary>
+    string? GetExtensionVersion(Element extension);
+
+    /// <summary>
     /// Whether dropping an element of this type destroys data (e.g. a table's rows), as
     /// opposed to a metadata-only object like an index or extension. Used to decide
     /// whether a drop is blocked by <see cref="DeployOptions.BlockOnPossibleDataLoss"/>.
@@ -42,4 +54,14 @@ public interface IDatabaseDependencyAnalyzer
     int GetCreateOrder(string type);
 
     IList<Element>? GetDependentElements(Element sourceElement, Model model);
+
+    /// <summary>
+    /// Returns a copy of <paramref name="source"/> adjusted for comparison against its
+    /// matching <paramref name="target"/> in the database, or <paramref name="source"/>
+    /// itself when no adjustment is needed. This lets a provider neutralize a facet that
+    /// the database always reports but the source leaves unmanaged — e.g. an extension's
+    /// installed version, which is backfilled from the target when the source pins none, so
+    /// an unpinned extension still hash-matches. The original element is never mutated.
+    /// </summary>
+    Element NormalizeForComparison(Element source, Element target);
 }

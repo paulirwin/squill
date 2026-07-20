@@ -12,6 +12,12 @@ public class PostgresDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
     public bool IsTableElementType(string type)
         => type == PostgresElementTypes.SqlTable;
 
+    public bool IsExtensionElementType(string type)
+        => type == PostgresElementTypes.SqlExtension;
+
+    public string? GetExtensionVersion(Element extension)
+        => extension.GetProperty<string>(PostgresPropertyNames.Version);
+
     public bool DropCausesDataLoss(string type)
         => type == PostgresElementTypes.SqlTable;
 
@@ -40,6 +46,47 @@ public class PostgresDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
         PostgresElementTypes.SqlExtension => 1,
         _ => 2,
     };
+
+    public Element NormalizeForComparison(Element source, Element target)
+    {
+        // Only extensions need normalization, and only when the source pins no version:
+        // the database always reports an installed version, so an unpinned source would
+        // otherwise look different. Backfill the target's version onto a copy so an
+        // unmanaged extension hash-matches. A source that DOES pin a version keeps it, so a
+        // version difference is preserved and surfaces as an ALTER.
+        if (source.Type != PostgresElementTypes.SqlExtension
+            || target.Type != PostgresElementTypes.SqlExtension)
+        {
+            return source;
+        }
+
+        var sourceVersion = source.GetProperty<string>(PostgresPropertyNames.Version);
+
+        if (sourceVersion != null)
+        {
+            return source;
+        }
+
+        var targetVersion = target.GetProperty<string>(PostgresPropertyNames.Version);
+
+        if (targetVersion == null)
+        {
+            return source;
+        }
+
+        // Copy the extension and stamp the target's version so the comparison treats the
+        // unmanaged version as already-desired. The original source element is untouched.
+        var copy = new Element(source.Type) { Name = source.Name };
+
+        foreach (var property in source.Properties)
+        {
+            copy.Properties.Add(property);
+        }
+
+        copy.Properties.Add(new Property(PostgresPropertyNames.Version, targetVersion));
+
+        return copy;
+    }
 
     public IList<Element>? GetDependentElements(Element sourceElement, Model model)
     {
