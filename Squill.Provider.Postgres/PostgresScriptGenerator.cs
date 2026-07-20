@@ -68,18 +68,40 @@ public class PostgresScriptGenerator
             // those dependencies along with it so the drop doesn't fail. Dropping a table
             // is destructive, which is why it is gated by DropObjectsNotInSource and, when
             // it holds data, blocked unless BlockOnPossibleDataLoss is disabled.
-            PostgresElementTypes.SqlTable => $"DROP TABLE {parsed.Sql} CASCADE;{Environment.NewLine}",
+            PostgresElementTypes.SqlTable =>
+                $"DROP TABLE {SchemaQualified(element, parsed)} CASCADE;{Environment.NewLine}",
 
-            // An index lives in its table's schema; qualify it. IF EXISTS keeps the drop
-            // idempotent if a prior step (e.g. dropping its table) already removed it.
-            PostgresElementTypes.SqlIndex => $"DROP INDEX IF EXISTS {parsed.Sql};{Environment.NewLine}",
+            // An index lives in its table's schema; qualify it so a non-public index is
+            // found. IF EXISTS keeps the drop idempotent if a prior step (e.g. dropping its
+            // table) already removed it.
+            PostgresElementTypes.SqlIndex =>
+                $"DROP INDEX IF EXISTS {SchemaQualified(element, parsed)};{Environment.NewLine}",
 
+            // An extension is not schema-scoped (globally named per database).
             PostgresElementTypes.SqlExtension =>
                 $"DROP EXTENSION IF EXISTS {parsed.QuotedUnqualified};{Environment.NewLine}",
+
+            // A schema is dropped after its objects; RESTRICT (the default) fails loudly if
+            // anything still lives in it rather than silently cascading a drop. IF EXISTS
+            // keeps it idempotent if the schema was already removed by an earlier step.
+            PostgresElementTypes.SqlSchema =>
+                $"DROP SCHEMA IF EXISTS {parsed.QuotedUnqualified};{Environment.NewLine}",
 
             _ => throw new NotImplementedException(
                 $"Dropping an element of type {element.Type} is not supported."),
         };
+    }
+
+    // A schema-qualified quoted name for a schema-scoped object (table or index), using its
+    // Schema relationship. Emitted unqualified for the default "public" schema to keep the
+    // common case clean (public is on the search_path).
+    private static string SchemaQualified(Element element, SqlName bareName)
+    {
+        var schema = GetSchema(element);
+
+        return schema is null or "public"
+            ? bareName.QuotedUnqualified
+            : SqlName.Object(schema, bareName.UnqualifiedName).Sql;
     }
 
     // Emits ALTER TABLE ... ADD / DROP / ALTER COLUMN statements for an in-place table
@@ -361,6 +383,42 @@ public class PostgresScriptGenerator
         return text;
     }
 
+    // The table's fully-quoted, schema-qualified SQL name (e.g. "staging"."film"). A table
+    // in the default "public" schema is emitted unqualified ("film") to keep the common
+    // case clean, since public is on the search_path.
+    private static string QualifiedTableName(Element table)
+    {
+        if (table.Name is not string tableName)
+        {
+            throw new ArgumentException("Tables must have names");
+        }
+
+        var bare = SqlName.Parse(tableName);
+        var schema = GetSchema(table);
+
+        return schema is null or "public"
+            ? bare.Sql
+            : SqlName.Object(schema, bare.UnqualifiedName).Sql;
+    }
+
+    // The schema an element belongs to, from its Schema relationship, or null if it has
+    // none. Shared with the diff via the model factory so both agree on schema identity.
+    private static string? GetSchema(Element element) => PostgresModelFactory.GetSchema(element);
+
+    // A foreign-key REFERENCES target, quoted and schema-qualified when the referenced
+    // name carries a non-public schema segment, so the FK binds the right table regardless
+    // of the session search_path. A bare or public name is emitted unqualified.
+    private static string QualifiedForeignTable(string referencedName)
+    {
+        var parsed = SqlName.Parse(referencedName);
+
+        // A single-segment or public-qualified name renders unqualified; a name qualified
+        // with a non-public schema keeps its qualifier.
+        return referencedName.Contains('.') && !referencedName.StartsWith("public.", StringComparison.Ordinal)
+            ? parsed.Sql
+            : parsed.QuotedUnqualified;
+    }
+
     private static IEnumerable<string> GetOrderedColumnNames(Element table)
         => GetOrderedColumns(table).Select(c => c.Name);
 
@@ -397,7 +455,24 @@ public class PostgresScriptGenerator
             return GenerateCreateExtensionScript(createDelta.Element);
         }
 
+        if (createDelta.Element.Type == PostgresElementTypes.SqlSchema)
+        {
+            return GenerateCreateSchemaScript(createDelta.Element);
+        }
+
         throw new NotImplementedException();
+    }
+
+    private static string GenerateCreateSchemaScript(Element schema)
+    {
+        if (schema.Name is not string schemaName)
+        {
+            throw new ArgumentException("Schemas must have names");
+        }
+
+        // Squill models a schema as a declared object, so it is created explicitly. IF NOT
+        // EXISTS keeps publish idempotent for a schema that may already be present.
+        return $"CREATE SCHEMA IF NOT EXISTS {SqlName.Parse(schemaName).QuotedUnqualified};{Environment.NewLine}";
     }
 
     private string GenerateCreateTableScript(Element table, IList<Element> dependentElements)
@@ -407,8 +482,8 @@ public class PostgresScriptGenerator
             throw new ArgumentException("Tables must have names");
         }
 
-        // Stored names are canonical/unquoted; quote when emitting SQL.
-        var quotedTableName = SqlName.Parse(tableName).Sql;
+        // Stored names are canonical/unquoted; quote (and schema-qualify) when emitting SQL.
+        var quotedTableName = QualifiedTableName(table);
 
         var sb = new StringBuilder();
 
@@ -665,7 +740,7 @@ public class PostgresScriptGenerator
             .Append(" FOREIGN KEY (")
             .Append(string.Join(", ", columns.Select(c => $"\"{c}\"")))
             .Append(") REFERENCES ")
-            .Append(SqlName.Parse(foreignTableRef.Name).QuotedUnqualified);
+            .Append(QualifiedForeignTable(foreignTableRef.Name));
 
         if (foreignColumns.Count > 0)
         {

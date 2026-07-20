@@ -11,6 +11,27 @@ namespace Squill.Provider.Postgres;
 /// </summary>
 public static class PostgresModelFactory
 {
+    /// <summary>
+    /// Builds a Postgres schema (namespace) element. A schema is a top-level, standalone,
+    /// declared object identified by its name — Squill never creates one implicitly, so it
+    /// is modeled and deployed like a table or extension. Its objects reference it by name
+    /// via their own Schema relationship.
+    /// </summary>
+    public static Element CreateSchema(SqlName name)
+        => new(PostgresElementTypes.SqlSchema)
+        {
+            Name = name,
+        };
+
+    /// <summary>
+    /// Reads the schema (namespace) an element belongs to from its Schema relationship, or
+    /// returns <c>null</c> when it has none. Centralized here — the sole owner of element
+    /// shape — so the diff and the script generator agree on how a schema is stored.
+    /// </summary>
+    public static string? GetSchema(Element element)
+        => element.GetRelationship(PostgresRelationshipNames.Schema)
+            ?.Entries.OfType<Reference>().FirstOrDefault()?.Name;
+
     public static Element CreateTable(SqlName name, string schema)
         => new(PostgresElementTypes.SqlTable)
         {
@@ -98,7 +119,8 @@ public static class PostgresModelFactory
         string? indexMethod,
         IEnumerable<IndexedColumn> columns,
         string? filterPredicate = null,
-        string? storageParameters = null)
+        string? storageParameters = null,
+        string schema = "public")
     {
         var columnSpecs = new Relationship(PostgresRelationshipNames.ColumnSpecifications);
 
@@ -116,6 +138,13 @@ public static class PostgresModelFactory
                 new Relationship(PostgresRelationshipNames.IndexedObject)
                 {
                     new Reference(indexedObject)
+                },
+                // An index lives in its table's schema. Carrying it (like a table's Schema
+                // relationship) lets DROP INDEX qualify correctly and keeps the parser and
+                // DB-extraction builders agreeing for non-public schemas.
+                new Relationship(PostgresRelationshipNames.Schema)
+                {
+                    new Reference(schema) { ExternalSource = "BuiltIns" }
                 }
             }
         };

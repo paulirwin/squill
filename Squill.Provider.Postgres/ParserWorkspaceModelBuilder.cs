@@ -54,6 +54,18 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
 
                 model.Elements.Add(element);
             }
+            else if (statement is CreateSchemaStatement createSchemaStatement)
+            {
+                // 'public' exists in every database by default and is not a declared
+                // object, so a CREATE SCHEMA public is ignored — matching the DB-extraction
+                // builder, which never emits a SqlSchema for public. Otherwise the two
+                // models would never agree and a redeploy would never converge.
+                if (!string.Equals(createSchemaStatement.Name.Name, "public", StringComparison.Ordinal))
+                {
+                    model.Elements.Add(
+                        PostgresModelFactory.CreateSchema(SqlName.Object(createSchemaStatement.Name.Name)));
+                }
+            }
             else
             {
                 throw new NotImplementedException(
@@ -392,11 +404,12 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
             throw new NotImplementedException("ONLY and descendant table syntax on CREATE INDEX are not yet supported");
         }
 
-        var tableName = ToSqlName(createIndexStatement.OnRelation.Name);
+        // The table an index is ON may be schema-qualified (ON staging.film); split off the
+        // schema so the table reference, column references, and index name are all bare —
+        // matching the DB-extraction builder — with the schema carried separately.
+        var (schema, tableName) = SplitSchema(createIndexStatement.OnRelation.Name);
 
-        // Indexes always live in the same schema as their table, so the index name is
-        // the table's qualifier with the index identifier as the final segment.
-        var indexName = tableName.Sibling(createIndexStatement.Name.Name);
+        var indexName = SqlName.Object(createIndexStatement.Name.Name);
 
         // btree is Postgres's implicit access method when USING is omitted. Defaulting to
         // it here (rather than leaving the method null) matches the DB builder, which reads
@@ -457,7 +470,8 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
             indexMethod,
             columns,
             filterPredicate,
-            storageParameters);
+            storageParameters,
+            schema);
     }
 
     private static Element MakeCreateExtensionElement(CreateExtensionStatement createExtensionStatement)
@@ -488,8 +502,15 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
     {
         var segments = qualifiedName.Segments.Select(i => i.Name).ToArray();
 
-        return segments.Length > 1
-            ? (segments[^2], SqlName.Object(segments[^1]))
-            : ("public", SqlName.Object(segments[0]));
+        return segments.Length switch
+        {
+            1 => ("public", SqlName.Object(segments[0])),
+            2 => (segments[0], SqlName.Object(segments[1])),
+            // A 3-part name (catalog.schema.object) would silently drop the catalog; reject
+            // it rather than deploy to a different place than written.
+            _ => throw new NotImplementedException(
+                $"Catalog-qualified names ({string.Join('.', segments)}) are not supported; "
+                + "use schema.object."),
+        };
     }
 }

@@ -194,6 +194,7 @@ public static class DacpacDeployer
         PostgresElementTypes.SqlTable => "table",
         PostgresElementTypes.SqlExtension => "extension",
         PostgresElementTypes.SqlIndex => "index",
+        PostgresElementTypes.SqlSchema => "schema",
         _ => elementType,
     };
 
