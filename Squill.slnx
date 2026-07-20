@@ -1,0 +1,20 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="Squill.Build.Tests/Squill.Build.Tests.csproj" />
+  <Project Path="Squill.Build/Squill.Build.csproj" />
+  <Project Path="Squill.Core/Squill.Core.csproj" />
+  <Project Path="Squill.Dacpac.Tests/Squill.Dacpac.Tests.csproj" />
+  <Project Path="Squill.Dacpac/Squill.Dacpac.csproj" />
+  <Project Path="Squill.IntegrationTests/Squill.IntegrationTests.csproj" />
+  <Project Path="Squill.PostgresParser.Tests/Squill.PostgresParser.Tests.csproj" />
+  <Project Path="Squill.PostgresParser/Squill.PostgresParser.csproj" />
+  <Project Path="Squill.Provider.Postgres.Tests/Squill.Provider.Postgres.Tests.csproj" />
+  <Project Path="Squill.Provider.Postgres/Squill.Provider.Postgres.csproj" />
+  <Project Path="Squill.Sdk/Squill.Sdk.csproj" />
+  <Project Path="Squill/Squill.csproj" />
+  <Project Path="samples/SampleDatabase/SampleDatabase.squillproj" Type="9A19103F-16F7-4668-BE54-9A1E7A4F7556" />
+</Solution>

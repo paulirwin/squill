@@ -10,7 +10,7 @@ A declarative, cross-platform, database-independent SQL deployment tool inspired
 
 Requires the .NET 10 SDK (all projects target `net10.0`).
 
-- Build: `dotnet build Squill.sln`
+- Build: `dotnet build Squill.slnx`
 - Run all tests: `dotnet test`
 - Run one test project: `dotnet test Squill.PostgresParser.Tests`
 - Run a single test (xunit v3): `dotnet test Squill.PostgresParser.Tests --filter "FullyQualifiedName~CreateTableTests.TestName"`

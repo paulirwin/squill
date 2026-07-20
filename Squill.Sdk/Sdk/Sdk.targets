@@ -53,9 +53,14 @@
 
   <Target Name="Rebuild" DependsOnTargets="Clean;Build" />
 
-  <!-- No-op restore/publish hooks so the project participates in solution builds
-       without erroring when these standard targets are requested. -->
+  <!-- No-op hooks for the standard targets that solution-wide operations invoke on
+       every project. Without these, `dotnet test`/`pack`/`publish` over a solution
+       that contains a .squillproj fails with MSB4057 ("target does not exist") when
+       it reaches this project. A database project has nothing to test/pack/publish,
+       so these are deliberately empty (Publish just builds the DACPAC). -->
   <Target Name="Restore" />
   <Target Name="Publish" DependsOnTargets="Build" />
+  <Target Name="VSTest" />
+  <Target Name="Pack" />
 
 </Project>

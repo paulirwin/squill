@@ -86,11 +86,11 @@ public class SquillProjBuildEndToEndTests
     }
 
     // Walk up from the test assembly location until we find the repository root
-    // (identified by Squill.sln), so the test works regardless of CWD.
+    // (identified by Squill.slnx), so the test works regardless of CWD.
     private static string FindRepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Squill.sln")))
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Squill.slnx")))
         {
             dir = dir.Parent;
         }
