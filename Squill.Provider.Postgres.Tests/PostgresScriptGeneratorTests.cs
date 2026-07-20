@@ -136,4 +136,53 @@ CREATE UNIQUE INDEX idx_account_email ON account USING btree (email DESC NULLS L
         Assert.Contains("CREATE UNIQUE INDEX \"idx_account_email\" ON \"account\" USING btree", sql);
         Assert.Contains("\"email\" DESC NULLS LAST", sql);
     }
+
+    [Fact]
+    public async Task GenerateScript_InlineForeignKeyWithOnDeleteCascade()
+    {
+        var comparison = await CompareToEmptyAsync("""
+CREATE TABLE customers
+(
+    id integer PRIMARY KEY
+);
+
+CREATE TABLE orders
+(
+    id          integer PRIMARY KEY,
+    customer_id integer NOT NULL REFERENCES customers (id) ON DELETE CASCADE
+);
+""");
+
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        Assert.Contains(
+            "CONSTRAINT \"orders_customer_id_fkey\" FOREIGN KEY (\"customer_id\") REFERENCES \"customers\" (\"id\") ON DELETE CASCADE",
+            sql);
+    }
+
+    [Fact]
+    public async Task GenerateScript_TableLevelCompositeForeignKey()
+    {
+        var comparison = await CompareToEmptyAsync("""
+CREATE TABLE orders
+(
+    id      integer NOT NULL,
+    line_no integer NOT NULL,
+    PRIMARY KEY (id, line_no)
+);
+
+CREATE TABLE order_lines
+(
+    order_id integer NOT NULL,
+    line_no  integer NOT NULL,
+    CONSTRAINT fk_lines FOREIGN KEY (order_id, line_no) REFERENCES orders (id, line_no) ON DELETE CASCADE ON UPDATE RESTRICT
+);
+""");
+
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        Assert.Contains(
+            "CONSTRAINT \"fk_lines\" FOREIGN KEY (\"order_id\", \"line_no\") REFERENCES \"orders\" (\"id\", \"line_no\") ON DELETE CASCADE ON UPDATE RESTRICT",
+            sql);
+    }
 }

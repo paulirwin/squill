@@ -11,4 +11,7 @@ public static class PostgresRelationshipNames
     public const string DefiningTable = nameof(DefiningTable);
     public const string Column = nameof(Column);
     public const string IndexedObject = nameof(IndexedObject);
+    public const string ForeignKeyColumns = nameof(ForeignKeyColumns);
+    public const string ForeignTable = nameof(ForeignTable);
+    public const string ForeignColumns = nameof(ForeignColumns);
 }

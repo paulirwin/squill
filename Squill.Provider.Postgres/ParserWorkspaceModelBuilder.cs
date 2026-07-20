@@ -56,6 +56,16 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
         }
     }
 
+    // A foreign key gathered while walking a CREATE TABLE, before it becomes an
+    // element (its name may be explicit or derived from the Postgres convention).
+    private sealed record ForeignKeySpec(
+        string? ExplicitName,
+        IReadOnlyList<string> Columns,
+        QualifiedName ReferencedTable,
+        IReadOnlyList<string> ReferencedColumns,
+        ReferentialAction OnDelete,
+        ReferentialAction OnUpdate);
+
     private static IEnumerable<Element> MakeCreateTableElements(CreateTableStatement createTableStatement)
     {
         var tableName = ToSqlName(createTableStatement.Name);
@@ -66,26 +76,97 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
         };
 
         var primaryKeyColumns = new List<PostgresModelFactory.IndexedColumn>();
+        var foreignKeys = new List<ForeignKeySpec>();
 
-        AddTableColumnsRelationship(tableElement, tableName, createTableStatement, primaryKeyColumns);
+        AddTableColumnsRelationship(tableElement, tableName, createTableStatement, primaryKeyColumns, foreignKeys);
+
+        var explicitPkName = CollectTableLevelConstraints(createTableStatement, tableName, primaryKeyColumns, foreignKeys);
 
         yield return tableElement;
 
-        // Postgres names an inline primary key PK_<table>. The PK is emitted as its own
-        // model element (not a table annotation) so both builders agree and so it is
+        // Postgres names an unnamed primary key <table>_pkey. The PK is emitted as its
+        // own model element (not a table annotation) so both builders agree and so it is
         // visible to schema comparison and scripting.
         if (primaryKeyColumns.Count > 0)
         {
-            var pkName = tableName.Sibling($"PK_{tableName.UnqualifiedName}");
+            var pkName = tableName.Sibling(explicitPkName ?? $"{tableName.UnqualifiedName}_pkey");
 
             yield return PostgresModelFactory.CreatePrimaryKey(pkName, tableName, primaryKeyColumns);
         }
+
+        foreach (var foreignKey in foreignKeys)
+        {
+            yield return MakeForeignKeyElement(tableName, foreignKey);
+        }
+    }
+
+    private static Element MakeForeignKeyElement(SqlName tableName, ForeignKeySpec spec)
+    {
+        var referencedTable = ToSqlName(spec.ReferencedTable);
+
+        // Postgres derives an unnamed FK constraint's name as <table>_<firstcolumn>_fkey.
+        // Predicting it here lets a parsed model hash-match one extracted from the DB.
+        var fkName = spec.ExplicitName is { } explicitName
+            ? tableName.Sibling(explicitName)
+            : tableName.Sibling($"{tableName.UnqualifiedName}_{spec.Columns[0]}_fkey");
+
+        var columns = spec.Columns.Select(tableName.Child);
+        var foreignColumns = spec.ReferencedColumns.Select(referencedTable.Child);
+
+        return PostgresModelFactory.CreateForeignKey(
+            fkName,
+            tableName,
+            columns,
+            referencedTable,
+            foreignColumns,
+            spec.OnDelete,
+            spec.OnUpdate);
+    }
+
+    // Walks the table-level constraints, appending table-level PK columns and FK specs.
+    // Returns the explicit name of a table-level PRIMARY KEY constraint if one was named.
+    private static string? CollectTableLevelConstraints(CreateTableStatement createTableStatement,
+        SqlName tableName,
+        List<PostgresModelFactory.IndexedColumn> primaryKeyColumns,
+        List<ForeignKeySpec> foreignKeys)
+    {
+        string? explicitPkName = null;
+
+        foreach (var tableConstraint in createTableStatement.Elements.OfType<TableConstraint>())
+        {
+            var (constraint, explicitName) = tableConstraint is NamedTableConstraint named
+                ? (named.Constraint, named.Name.Name)
+                : (tableConstraint, (string?)null);
+
+            if (constraint is PrimaryKeyTableConstraint pk)
+            {
+                foreach (var column in pk.Columns)
+                {
+                    primaryKeyColumns.Add(new PostgresModelFactory.IndexedColumn(tableName.Child(column.Name)));
+                }
+
+                explicitPkName = explicitName;
+            }
+            else if (constraint is ForeignKeyTableConstraint fk)
+            {
+                foreignKeys.Add(new ForeignKeySpec(
+                    explicitName,
+                    fk.Columns.Select(c => c.Name).ToList(),
+                    fk.ReferencedTable,
+                    fk.ReferencedColumns.Select(c => c.Name).ToList(),
+                    fk.OnDelete ?? ReferentialAction.NoAction,
+                    fk.OnUpdate ?? ReferentialAction.NoAction));
+            }
+        }
+
+        return explicitPkName;
     }
 
     private static void AddTableColumnsRelationship(Element sqlTableElement,
         SqlName tableName,
         CreateTableStatement createTableStatement,
-        List<PostgresModelFactory.IndexedColumn> primaryKeyColumns)
+        List<PostgresModelFactory.IndexedColumn> primaryKeyColumns,
+        List<ForeignKeySpec> foreignKeys)
     {
         var columns = new Relationship(PostgresRelationshipNames.Columns);
         sqlTableElement.Relationships.Add(columns);
@@ -101,21 +182,41 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
 
             foreach (var columnConstraint in columnDefinition.Constraints)
             {
-                if (columnConstraint is NullableColumnConstraint nullableColumnConstraint)
+                // A CONSTRAINT <name> wrapper carries an explicit name; unwrap it but
+                // remember the name for constraints (like FKs) that model it.
+                var (constraint, explicitName) = columnConstraint is NamedColumnConstraint named
+                    ? (named.Constraint, named.Name)
+                    : (columnConstraint, (string?)null);
+
+                if (constraint is NullableColumnConstraint nullableColumnConstraint)
                 {
                     element.Properties.Add(new Property(PostgresPropertyNames.IsNullable, nullableColumnConstraint.Nullable));
                 }
-                else if (columnConstraint is PrimaryKeyColumnConstraint)
+                else if (constraint is PrimaryKeyColumnConstraint)
                 {
                     primaryKeyColumns.Add(new PostgresModelFactory.IndexedColumn(columnName));
 
                     // PKs are not nullable
                     element.Properties.Add(new Property(PostgresPropertyNames.IsNullable, false));
                 }
+                else if (constraint is DefaultColumnConstraint)
+                {
+                    // TODO: model column DEFAULT values
+                }
+                else if (constraint is ForeignKeyColumnConstraint fk)
+                {
+                    foreignKeys.Add(new ForeignKeySpec(
+                        explicitName,
+                        new[] { columnDefinition.Name.Name },
+                        fk.ReferencedTable,
+                        fk.ReferencedColumn is { } refCol ? new[] { refCol.Name } : Array.Empty<string>(),
+                        fk.OnDelete ?? ReferentialAction.NoAction,
+                        fk.OnUpdate ?? ReferentialAction.NoAction));
+                }
                 else
                 {
                     throw new NotImplementedException(
-                        $"Column constraint type {columnConstraint.GetType()} to property mapping not implemented");
+                        $"Column constraint type {constraint.GetType()} to property mapping not implemented");
                 }
             }
 

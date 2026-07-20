@@ -1,5 +1,6 @@
 using System.Text;
 using Squill.Core;
+using Squill.PostgresParser.Syntax;
 
 namespace Squill.Provider.Postgres;
 
@@ -104,6 +105,11 @@ public class PostgresScriptGenerator
             columnText.Add($"PRIMARY KEY ({pkColumnList})");
         }
 
+        foreach (var foreignKey in dependentElements.Where(i => i.Type == PostgresElementTypes.SqlForeignKeyConstraint))
+        {
+            columnText.Add(GetForeignKeyClause(foreignKey));
+        }
+
         sb.Append("    ").AppendLine(string.Join($",{Environment.NewLine}    ", columnText));
 
         sb.AppendLine(");");
@@ -188,6 +194,88 @@ public class PostgresScriptGenerator
 
         return sb.ToString();
     }
+
+    // CONSTRAINT "<name>" FOREIGN KEY ("a", "b") REFERENCES "table" ("x", "y")
+    //   [ON DELETE <action>] [ON UPDATE <action>]
+    private static string GetForeignKeyClause(Element foreignKey)
+    {
+        if (foreignKey.Name is not string fkName)
+        {
+            throw new ArgumentException("Foreign keys must have names");
+        }
+
+        var columns = GetReferenceColumnNames(foreignKey, PostgresRelationshipNames.ForeignKeyColumns);
+
+        if (columns.Count == 0)
+        {
+            throw new InvalidOperationException($"Foreign key {fkName} has no referencing columns");
+        }
+
+        var foreignTableRef = foreignKey.GetRelationship(PostgresRelationshipNames.ForeignTable)
+            ?.Entries.OfType<Reference>().SingleOrDefault();
+
+        if (foreignTableRef == null)
+        {
+            throw new InvalidOperationException($"Foreign key {fkName} has no referenced table");
+        }
+
+        var foreignColumns = GetReferenceColumnNames(foreignKey, PostgresRelationshipNames.ForeignColumns);
+
+        var sb = new StringBuilder();
+
+        sb.Append("CONSTRAINT ").Append(SqlName.Parse(fkName).QuotedUnqualified)
+            .Append(" FOREIGN KEY (")
+            .Append(string.Join(", ", columns.Select(c => $"\"{c}\"")))
+            .Append(") REFERENCES ")
+            .Append(SqlName.Parse(foreignTableRef.Name).QuotedUnqualified);
+
+        if (foreignColumns.Count > 0)
+        {
+            sb.Append(" (").Append(string.Join(", ", foreignColumns.Select(c => $"\"{c}\""))).Append(')');
+        }
+
+        var deleteAction = foreignKey.GetProperty<string>(PostgresPropertyNames.DeleteAction);
+        if (deleteAction != null)
+        {
+            sb.Append(" ON DELETE ").Append(RenderReferentialAction(deleteAction));
+        }
+
+        var updateAction = foreignKey.GetProperty<string>(PostgresPropertyNames.UpdateAction);
+        if (updateAction != null)
+        {
+            sb.Append(" ON UPDATE ").Append(RenderReferentialAction(updateAction));
+        }
+
+        return sb.ToString();
+    }
+
+    // References store table-qualified names (e.g. orders.customer_id); a constraint
+    // clause needs just the bare column identifiers, in order.
+    private static IList<string> GetReferenceColumnNames(Element element, string relationshipName)
+    {
+        var relationship = element.GetRelationship(relationshipName);
+
+        if (relationship == null)
+        {
+            return new List<string>();
+        }
+
+        return relationship.Entries
+            .OfType<Reference>()
+            .Select(r => SqlName.UnqualifiedOf(r.Name))
+            .ToList();
+    }
+
+    private static string RenderReferentialAction(string action)
+        => Enum.Parse<ReferentialAction>(action) switch
+        {
+            ReferentialAction.NoAction => "NO ACTION",
+            ReferentialAction.Restrict => "RESTRICT",
+            ReferentialAction.Cascade => "CASCADE",
+            ReferentialAction.SetNull => "SET NULL",
+            ReferentialAction.SetDefault => "SET DEFAULT",
+            _ => throw new InvalidOperationException($"Unknown referential action: {action}"),
+        };
 
     private static IList<string> GetPrimaryKeyColumns(Element pkConstraint)
     {

@@ -1,4 +1,5 @@
 using Squill.Core;
+using Squill.PostgresParser.Syntax;
 
 namespace Squill.Provider.Postgres;
 
@@ -109,6 +110,65 @@ public static class PostgresModelFactory
         if (indexMethod is not null)
         {
             element.Properties.Add(new Property(PostgresPropertyNames.IndexMethod, indexMethod));
+        }
+
+        return element;
+    }
+
+    /// <summary>
+    /// Builds a foreign key constraint element. Referencing and referenced columns are
+    /// ordered, canonical (table-qualified) references so a composite key's column
+    /// pairing survives. NO ACTION is the Postgres default and is stored as an absent
+    /// property so parsed and extracted models hash-match when no action is specified.
+    /// </summary>
+    public static Element CreateForeignKey(SqlName name,
+        SqlName definingTable,
+        IEnumerable<SqlName> columns,
+        SqlName foreignTable,
+        IEnumerable<SqlName> foreignColumns,
+        ReferentialAction onDelete,
+        ReferentialAction onUpdate)
+    {
+        var columnRelationship = new Relationship(PostgresRelationshipNames.ForeignKeyColumns);
+
+        foreach (var column in columns)
+        {
+            columnRelationship.Add(new Reference(column));
+        }
+
+        var foreignColumnRelationship = new Relationship(PostgresRelationshipNames.ForeignColumns);
+
+        foreach (var foreignColumn in foreignColumns)
+        {
+            foreignColumnRelationship.Add(new Reference(foreignColumn));
+        }
+
+        var element = new Element(PostgresElementTypes.SqlForeignKeyConstraint)
+        {
+            Name = name,
+            Relationships =
+            {
+                columnRelationship,
+                new Relationship(PostgresRelationshipNames.DefiningTable)
+                {
+                    new Reference(definingTable)
+                },
+                new Relationship(PostgresRelationshipNames.ForeignTable)
+                {
+                    new Reference(foreignTable)
+                },
+                foreignColumnRelationship,
+            }
+        };
+
+        if (onDelete != ReferentialAction.NoAction)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.DeleteAction, onDelete.ToString()));
+        }
+
+        if (onUpdate != ReferentialAction.NoAction)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.UpdateAction, onUpdate.ToString()));
         }
 
         return element;
