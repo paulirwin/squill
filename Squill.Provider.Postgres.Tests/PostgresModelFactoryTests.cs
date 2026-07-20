@@ -67,6 +67,22 @@ public class PostgresModelFactoryTests
     }
 
     [Fact]
+    public void CreatePrimaryKey_MultipleColumns()
+    {
+        var pk = PostgresModelFactory.CreatePrimaryKey(
+            SqlName.Object("PK_enrollment"),
+            SqlName.Object("enrollment"),
+            columns:
+            [
+                new PostgresModelFactory.IndexedColumn(SqlName.Object("enrollment").Child("student_id")),
+                new PostgresModelFactory.IndexedColumn(SqlName.Object("enrollment").Child("course_id")),
+            ]);
+
+        var specs = pk.Relationships[0].Entries.OfType<Element>().ToList();
+        Assert.Equal(2, specs.Count);
+    }
+
+    [Fact]
     public void CreateIndexedColumnSpecification_OmitsUnspecifiedOrdering()
     {
         var spec = PostgresModelFactory.CreateIndexedColumnSpecification(

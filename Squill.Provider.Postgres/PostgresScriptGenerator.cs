@@ -77,6 +77,8 @@ public class PostgresScriptGenerator
                 // column definition needs just the bare, quoted identifier.
                 var text = $"\"{SqlName.UnqualifiedOf(columnName)}\" {columnType}";
 
+                // A single-column PK is written inline; a composite PK is emitted as a
+                // table-level clause below.
                 if (pkColumns.Count == 1 && pkColumns[0].Equals(columnName))
                 {
                     // TODO: support named PK constraints
@@ -91,6 +93,12 @@ public class PostgresScriptGenerator
 
                 columnText.Add(text);
             }
+        }
+
+        if (pkColumns.Count > 1)
+        {
+            var pkColumnList = string.Join(", ", pkColumns.Select(c => $"\"{SqlName.UnqualifiedOf(c)}\""));
+            columnText.Add($"PRIMARY KEY ({pkColumnList})");
         }
 
         sb.Append("    ").AppendLine(string.Join($",{Environment.NewLine}    ", columnText));
@@ -176,32 +184,34 @@ public class PostgresScriptGenerator
 
     private static IList<string> GetPrimaryKeyColumns(Element pkConstraint)
     {
-        var columnSpec = pkConstraint.GetRelationship(PostgresRelationshipNames.ColumnSpecifications);
+        var columnSpecs = pkConstraint.GetRelationship(PostgresRelationshipNames.ColumnSpecifications);
 
-        if (columnSpec == null)
+        if (columnSpecs == null)
         {
             return new List<string>();
         }
 
-        var indexedColumns = columnSpec.GetElement(PostgresElementTypes.SqlIndexedColumnSpecification);
+        var columns = new List<string>();
 
-        if (indexedColumns == null)
+        foreach (var indexedColumn in columnSpecs.Entries.OfType<Element>()
+                     .Where(i => i.Type == PostgresElementTypes.SqlIndexedColumnSpecification))
         {
-            throw new InvalidOperationException("ColumnSpecifications relationship does not contain a SqlIndexedColumnSpecification element");
+            var column = indexedColumn
+                .GetRelationship(PostgresRelationshipNames.Column)
+                ?.Entries
+                .OfType<Reference>()
+                .SingleOrDefault();
+
+            if (column == null)
+            {
+                throw new InvalidOperationException(
+                    "Primary key column specification has no column reference");
+            }
+
+            columns.Add(column.Name);
         }
 
-        var column = indexedColumns
-            .GetRelationship(PostgresRelationshipNames.Column)
-            ?.Entries
-            .OfType<Reference>()
-            .SingleOrDefault();
-
-        if (column == null)
-        {
-            throw new NotImplementedException("Support multiple columns in PK");
-        }
-
-        return new List<string> { column.Name };
+        return columns;
     }
 
     private string GetTypeStringForColumn(Element column)

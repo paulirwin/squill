@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Squill.Core")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bf03b4de68d351d1e1d23d59f01c9e8eaf0966a6")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e7451e569ea34d5ef70c8181a2ce678ac02e90b5")]
 [assembly: System.Reflection.AssemblyProductAttribute("Squill.Core")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Squill.Core")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

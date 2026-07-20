@@ -66,6 +66,57 @@ CREATE INDEX idx_film_title ON film (title);
     }
 
     [Fact]
+    public void GenerateScript_MultiColumnPrimaryKey_EmitsTableLevelClause()
+    {
+        // The parser can't yet parse table-level PRIMARY KEY (a, b), so build the model
+        // directly through the factory to exercise multi-column PK scripting.
+        var table = PostgresModelFactory.CreateTable(SqlName.Object("enrollment"), "public");
+        var columns = new Relationship(PostgresRelationshipNames.Columns);
+        table.Relationships.Add(columns);
+        foreach (var col in new[] { "student_id", "course_id" })
+        {
+            columns.Add(new Element(PostgresElementTypes.SqlSimpleColumn)
+            {
+                Name = SqlName.Object("enrollment").Child(col),
+                Relationships =
+                {
+                    new Relationship(PostgresRelationshipNames.TypeSpecifier)
+                    {
+                        new Element(PostgresElementTypes.SqlTypeSpecifier)
+                        {
+                            Relationships =
+                            {
+                                new Relationship(PostgresRelationshipNames.Type)
+                                {
+                                    new Reference("integer") { ExternalSource = "BuiltIns" }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        var pk = PostgresModelFactory.CreatePrimaryKey(
+            SqlName.Object("PK_enrollment"),
+            SqlName.Object("enrollment"),
+            columns:
+            [
+                new PostgresModelFactory.IndexedColumn(SqlName.Object("enrollment").Child("student_id")),
+                new PostgresModelFactory.IndexedColumn(SqlName.Object("enrollment").Child("course_id")),
+            ]);
+
+        var delta = new CreateDelta(table);
+        delta.DependentElements.Add(pk);
+
+        var sql = new PostgresScriptGenerator().GenerateScriptForDelta(delta);
+
+        // Multi-column PK must be a table-level clause, not inline on a single column.
+        Assert.DoesNotContain("integer PRIMARY KEY", sql);
+        Assert.Contains("PRIMARY KEY (\"student_id\", \"course_id\")", sql);
+    }
+
+    [Fact]
     public async Task GenerateScript_UniqueIndexWithMethodAndDirection()
     {
         var comparison = await CompareToEmptyAsync("""
