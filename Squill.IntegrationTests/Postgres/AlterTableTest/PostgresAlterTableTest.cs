@@ -136,6 +136,8 @@ WHERE table_name = 'customer' AND ordinal_position = 2;
                 var total = await ScalarAsync(conn, "SELECT count(*) FROM customer;");
                 Assert.Equal(3L, total);
             });
+        // No options override: this rebuild only inserts a column (drops none), so it is
+        // lossless and must deploy under the default data-loss guard.
     }
 
     [Fact]
@@ -184,7 +186,8 @@ CREATE TABLE customer
                 await Assert.ThrowsAsync<TableRebuildNotAllowedException>(() =>
                     DacpacDeployer.DeployFromFileAsync(
                         afterDacpac, ConnectionString, targetDbName,
-                        allowTableRebuild: false, cancellationToken: ct));
+                        options: new DeployOptions { AllowTableRebuild = false },
+                        cancellationToken: ct));
 
                 // The original table and its data must be untouched by the failed deploy.
                 await using var conn = await OpenAsync(targetDbName, ct);
@@ -216,7 +219,8 @@ WHERE table_name = 'customer' AND column_name = 'full_name';
         string before,
         string after,
         string seedSql,
-        Func<NpgsqlConnection, Task> assertAfterAsync)
+        Func<NpgsqlConnection, Task> assertAfterAsync,
+        DeployOptions? afterOptions = null)
     {
         var ct = TestContext.Current.CancellationToken;
         var tempDir = Directory.CreateTempSubdirectory("squill-alter-integration");
@@ -243,7 +247,8 @@ WHERE table_name = 'customer' AND column_name = 'full_name';
                 // Deploy the changed schema to the same database.
                 var afterDacpac = await BuildDacpacAsync(tempDir.FullName, "after", after, ct);
                 var result = await DacpacDeployer.DeployFromFileAsync(
-                    afterDacpac, ConnectionString, targetDbName, cancellationToken: ct);
+                    afterDacpac, ConnectionString, targetDbName, options: afterOptions,
+                    cancellationToken: ct);
 
                 Assert.True(result.WasExecuted);
                 Assert.False(string.IsNullOrWhiteSpace(result.Script),

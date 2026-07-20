@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.Reflection;
+using Squill.Core;
 using Squill.Provider.Postgres;
 
 var version = typeof(Program).Assembly
@@ -52,6 +53,24 @@ static Command BuildDeployCommand()
             + "in-place ALTER. Table rebuilds are allowed by default."
     };
 
+    // Dropping standalone objects (tables, indexes, extensions) not in the DACPAC is off
+    // by default, matching SSDT's DropObjectsNotInSource — dropping objects is destructive.
+    var dropObjectsNotInSourceOption = new Option<bool>("--drop-objects-not-in-source")
+    {
+        Description =
+            "Drop standalone objects (tables, indexes, extensions) present in the target "
+            + "database but not in the DACPAC. Off by default."
+    };
+
+    // Deployment is blocked on possible data loss by default, matching SSDT's
+    // BlockOnPossibleDataLoss. Passing this flag allows data-losing changes to proceed.
+    var allowDataLossOption = new Option<bool>("--allow-data-loss")
+    {
+        Description =
+            "Allow changes that may cause data loss (dropping a table or column, or "
+            + "rebuilding a table). By default the deploy is blocked on possible data loss."
+    };
+
     var deployCommand = new Command(
         "deploy", "Deploy a DACPAC to a target PostgreSQL database.")
     {
@@ -59,7 +78,9 @@ static Command BuildDeployCommand()
         connectionStringOption,
         targetDatabaseOption,
         dryRunOption,
-        disallowTableRebuildOption
+        disallowTableRebuildOption,
+        dropObjectsNotInSourceOption,
+        allowDataLossOption
     };
 
     deployCommand.SetAction(async (parseResult, cancellationToken) =>
@@ -68,7 +89,13 @@ static Command BuildDeployCommand()
         var connectionString = parseResult.GetValue(connectionStringOption)!;
         var targetDatabase = parseResult.GetValue(targetDatabaseOption);
         var dryRun = parseResult.GetValue(dryRunOption);
-        var allowTableRebuild = !parseResult.GetValue(disallowTableRebuildOption);
+
+        var options = new DeployOptions
+        {
+            AllowTableRebuild = !parseResult.GetValue(disallowTableRebuildOption),
+            DropObjectsNotInSource = parseResult.GetValue(dropObjectsNotInSourceOption),
+            BlockOnPossibleDataLoss = !parseResult.GetValue(allowDataLossOption),
+        };
 
         if (!dacpac.Exists)
         {
@@ -90,7 +117,7 @@ static Command BuildDeployCommand()
         {
             var result = await DacpacDeployer.DeployFromFileAsync(
                 dacpac.FullName, connectionString, targetDatabase, dryRun, progress,
-                allowTableRebuild, cancellationToken);
+                options, cancellationToken);
 
             if (string.IsNullOrEmpty(result.Script))
             {
