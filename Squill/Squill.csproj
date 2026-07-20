@@ -10,7 +10,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="System.CommandLine" Version="2.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Squill.Core\Squill.Core.csproj" />
+    <ProjectReference Include="..\Squill.Provider.Postgres\Squill.Provider.Postgres.csproj" />
   </ItemGroup>
 
 </Project>
