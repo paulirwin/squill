@@ -14,6 +14,10 @@ public class PostgresTableAlterTests
 {
     // Diffs a desired ("source") schema against a current ("target") schema, exactly as a
     // deploy would: the DACPAC's model vs. the database's current model.
+    // Most tests here exercise rebuild/drop mechanics, which can be data-losing; block-on-
+    // data-loss is turned off by default so those tests see the delta rather than the
+    // block. The data-loss block itself is covered by dedicated tests (PostgresDropAndData
+    // LossTests). allowTableRebuild always applies, so a test can assert it is enforced.
     private static async Task<SchemaComparison> CompareAsync(
         string sourceSql, string targetSql, bool allowTableRebuild = true)
     {
@@ -22,7 +26,13 @@ public class PostgresTableAlterTests
         var source = await BuildModelAsync(sourceSql);
         var target = await BuildModelAsync(targetSql);
 
-        return SchemaCompare.Compare(provider, source, target, allowTableRebuild);
+        var options = new DeployOptions
+        {
+            AllowTableRebuild = allowTableRebuild,
+            BlockOnPossibleDataLoss = false,
+        };
+
+        return SchemaCompare.Compare(provider, source, target, options);
     }
 
     private static async Task<Model> BuildModelAsync(string sql)

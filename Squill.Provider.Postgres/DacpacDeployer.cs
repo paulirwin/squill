@@ -46,10 +46,10 @@ public static class DacpacDeployer
     /// deploy (e.g. "Creating table public.customer") as it happens. Pass <c>null</c>
     /// for a silent deploy.
     /// </param>
-    /// <param name="allowTableRebuild">
-    /// When <c>true</c> (the default), a table change that can't be deployed with an
-    /// in-place ALTER is deployed by rebuilding the table. When <c>false</c>, such a
-    /// change fails with <see cref="TableRebuildNotAllowedException"/> instead.
+    /// <param name="options">
+    /// Deployment options mirroring SSDT's <c>DacDeployOptions</c> — table-rebuild
+    /// permission, whether to drop objects not in the source, and whether to block on
+    /// possible data loss. Defaults to <see cref="DeployOptions.Default"/> when null.
     /// </param>
     public static async Task<DeployResult> DeployFromFileAsync(
         string dacpacPath,
@@ -57,13 +57,13 @@ public static class DacpacDeployer
         string? targetDatabaseName = null,
         bool dryRun = false,
         IProgress<string>? progress = null,
-        bool allowTableRebuild = true,
+        DeployOptions? options = null,
         CancellationToken cancellationToken = default)
     {
         await using var stream = File.OpenRead(dacpacPath);
 
         return await DeployAsync(
-            stream, connectionString, targetDatabaseName, dryRun, progress, allowTableRebuild,
+            stream, connectionString, targetDatabaseName, dryRun, progress, options,
             cancellationToken);
     }
 
@@ -77,7 +77,7 @@ public static class DacpacDeployer
         string? targetDatabaseName = null,
         bool dryRun = false,
         IProgress<string>? progress = null,
-        bool allowTableRebuild = true,
+        DeployOptions? options = null,
         CancellationToken cancellationToken = default)
     {
         progress?.Report("Reading DACPAC...");
@@ -97,14 +97,36 @@ public static class DacpacDeployer
         var targetModel = await modelBuilder.ExtractModelAsync(cancellationToken);
 
         progress?.Report("Comparing schemas...");
-        var comparison = SchemaCompare.Compare(provider, sourceModel, targetModel, allowTableRebuild);
+
+        // Compare without enforcing the data-loss block, so the script (and its data-loss
+        // reasons) can be computed even for a dry run. The block is enforced below, only
+        // for a real run — a dry run must still be able to preview a destructive script.
+        var compareOptions = options ?? DeployOptions.Default;
+        var comparison = SchemaCompare.Compare(
+            provider, sourceModel, targetModel,
+            compareOptions with { BlockOnPossibleDataLoss = false });
 
         var generator = new PostgresScriptGenerator();
         var script = generator.GenerateScript(comparison);
 
         if (dryRun)
         {
+            // Surface the data-loss reasons so a dry run reveals what would be blocked.
+            if (comparison.CausesDataLoss)
+            {
+                foreach (var reason in comparison.DataLossReasons)
+                {
+                    progress?.Report($"WARNING (would block without --allow-data-loss): {reason}");
+                }
+            }
+
             return new DeployResult(script, WasExecuted: false);
+        }
+
+        // Enforce the block-on-possible-data-loss policy before executing anything.
+        if (compareOptions.BlockOnPossibleDataLoss)
+        {
+            comparison.ThrowIfDataLoss();
         }
 
         if (comparison.Deltas.Count == 0)
@@ -154,6 +176,14 @@ public static class DacpacDeployer
             var name = rebuild.SourceElement.Name ?? "(anonymous)";
 
             return $"Rebuilding table {name} ({rebuild.Reason})";
+        }
+
+        if (delta is DropDelta drop)
+        {
+            var label = ElementTypeLabel(drop.Element.Type);
+            var name = drop.Element.Name ?? "(anonymous)";
+
+            return $"Dropping {label} {name}";
         }
 
         return $"Applying {delta.GetType().Name}";

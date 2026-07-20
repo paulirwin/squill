@@ -2,15 +2,16 @@ namespace Squill.Core;
 
 public class SchemaCompare
 {
-    /// <param name="allowTableRebuild">
-    /// When <c>true</c> (the default), a table change that can't be expressed with an
-    /// in-place ALTER is deployed by rebuilding the table. When <c>false</c>, such a
-    /// change throws <see cref="TableRebuildNotAllowedException"/> instead — mirroring
-    /// SSDT's option to block costly data-motion operations unless explicitly permitted.
-    /// </param>
+    /// <summary>
+    /// Compares the source (desired) model against the target (current) model and produces
+    /// the deltas needed to bring the target in line with the source, honoring the given
+    /// <paramref name="options"/>.
+    /// </summary>
     public static SchemaComparison Compare(
-        IDatabaseProvider provider, Model source, Model target, bool allowTableRebuild = true)
+        IDatabaseProvider provider, Model source, Model target, DeployOptions? options = null)
     {
+        options ??= DeployOptions.Default;
+
         var comparison = new SchemaComparison();
         var analyzer = provider.DependencyAnalyzer;
 
@@ -40,7 +41,8 @@ public class SchemaCompare
                 }
 
                 var alterDelta = DiffExistingElement(
-                    provider, sourceElement, targetElement, source, target, allowTableRebuild);
+                    provider, sourceElement, targetElement, source, target,
+                    options.AllowTableRebuild);
 
                 if (alterDelta != null)
                 {
@@ -64,10 +66,97 @@ public class SchemaCompare
             }
         }
 
-        // TODO: support DROP
+        // Drop standalone objects present in the target but absent from the source — only
+        // when explicitly opted into, since dropping objects is destructive (SSDT's
+        // DropObjectsNotInSource, off by default). Dropping a column from a still-present
+        // table is handled by that table's ALTER above, not here, so it is never gated by
+        // this option.
+        if (options.DropObjectsNotInSource)
+        {
+            AddDropDeltas(comparison, analyzer, source, target);
+        }
+
+        // Record any data-loss reasons on the comparison so a caller can surface them
+        // (e.g. on a dry run). Enforcement — throwing PossibleDataLossException when
+        // BlockOnPossibleDataLoss is on — is left to the caller via
+        // SchemaComparison.ThrowIfDataLoss, so a dry run can still preview the script.
+        CollectDataLossReasons(comparison);
+
+        if (options.BlockOnPossibleDataLoss)
+        {
+            comparison.ThrowIfDataLoss();
+        }
 
         return comparison;
     }
+
+    // Adds a DropDelta for each droppable target element that has no counterpart in the
+    // source. Covers top-level objects (tables, extensions) and standalone indexes. A
+    // dependent whose parent table is also being dropped is not dropped on its own — it
+    // goes away with the table's DROP ... CASCADE. Reconciling a standalone constraint
+    // (PK/FK) change is out of scope here.
+    private static void AddDropDeltas(
+        SchemaComparison comparison, IDatabaseDependencyAnalyzer analyzer, Model source, Model target)
+    {
+        foreach (var targetElement in target.Elements)
+        {
+            // Skip dependent constraints (PK/FK); their lifecycle follows their table or a
+            // (not-yet-supported) constraint ALTER. Indexes are the one dependent type we
+            // drop standalone, so they fall through to the existence check below.
+            if (analyzer.IsDependentElementType(targetElement.Type)
+                && !analyzer.IsDroppableStandaloneDependent(targetElement.Type))
+            {
+                continue;
+            }
+
+            var existsInSource = source.Elements.Any(i =>
+                i.Type.Equals(targetElement.Type)
+                && i.Name?.Equals(targetElement.Name) != false);
+
+            if (!existsInSource)
+            {
+                comparison.Deltas.Add(
+                    new DropDelta(targetElement, analyzer.DropCausesDataLoss(targetElement.Type)));
+            }
+        }
+    }
+
+    // Records a reason for each delta that would destroy data: dropping a table, dropping
+    // a column from an altered table, or a rebuild that drops a column. A rebuild that only
+    // reorders columns (copying every row losslessly) is not data loss and is not recorded.
+    private static void CollectDataLossReasons(SchemaComparison comparison)
+    {
+        foreach (var delta in comparison.Deltas)
+        {
+            switch (delta)
+            {
+                case DropDelta { CausesDataLoss: true } drop:
+                    comparison.DataLossReasons.Add(
+                        $"dropping {Describe(drop.Element)} destroys its data");
+                    break;
+
+                case RebuildTableDelta { DropsData: true } rebuild:
+                    comparison.DataLossReasons.Add(
+                        $"rebuilding {Describe(rebuild.SourceElement)} drops one or more columns");
+                    break;
+
+                case AlterDelta alter:
+                    foreach (var change in alter.ColumnChanges)
+                    {
+                        if (change.Kind == ColumnChangeKind.Drop)
+                        {
+                            comparison.DataLossReasons.Add(
+                                $"dropping column '{change.ColumnName}' from "
+                                + $"{Describe(alter.SourceElement)} destroys its data");
+                        }
+                    }
+
+                    break;
+            }
+        }
+    }
+
+    private static string Describe(Element element) => $"{element.Type} '{element.Name}'";
 
     // Produces the delta for an element present in both models whose definitions differ.
     // Currently only tables support in-place alteration; other element types (indexes,

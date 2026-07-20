@@ -15,11 +15,13 @@ namespace Squill.Core;
 /// </remarks>
 public class RebuildTableDelta : SchemaDelta
 {
-    public RebuildTableDelta(Element sourceElement, Element targetElement, string reason)
+    public RebuildTableDelta(
+        Element sourceElement, Element targetElement, string reason, bool dropsData)
     {
         SourceElement = sourceElement;
         TargetElement = targetElement;
         Reason = reason;
+        DropsData = dropsData;
     }
 
     /// <summary>The desired-state table element from the source model (the DACPAC).</summary>
@@ -33,6 +35,15 @@ public class RebuildTableDelta : SchemaDelta
     /// ALTER (e.g. "a column was inserted between existing columns").
     /// </summary>
     public string Reason { get; }
+
+    /// <summary>
+    /// Whether this rebuild actually destroys data — true when the rebuild also drops a
+    /// column that held data. A rebuild driven purely by reordering (e.g. inserting a new
+    /// column mid-table) copies every existing row losslessly and does <em>not</em> set
+    /// this, so it is not blocked by the data-loss guard. (Rebuilding is still "data
+    /// motion", but SSDT's block-on-possible-data-loss is about loss, not movement.)
+    /// </summary>
+    public bool DropsData { get; }
 
     /// <summary>
     /// The table's dependent elements (PK, indexes, foreign keys) from the source model,

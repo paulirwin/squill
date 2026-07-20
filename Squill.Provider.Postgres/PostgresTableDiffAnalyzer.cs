@@ -184,7 +184,14 @@ public class PostgresTableDiffAnalyzer : ITableDiffAnalyzer
             throw new TableRebuildNotAllowedException(SqlName.UnqualifiedOf(tableName), reason);
         }
 
-        var delta = new RebuildTableDelta(sourceTable, targetTable, reason);
+        // The rebuild destroys data only if it drops a column the target still has — a
+        // rebuild driven purely by reordering copies every row losslessly. This drives the
+        // data-loss guard, so a lossless mid-table insert isn't blocked.
+        var sourceColumnNames = GetOrderedColumns(sourceTable).Select(c => c.Name).ToHashSet();
+        var dropsData = GetOrderedColumns(targetTable)
+            .Any(c => !sourceColumnNames.Contains(c.Name));
+
+        var delta = new RebuildTableDelta(sourceTable, targetTable, reason, dropsData);
 
         // Carry the desired dependent elements (PK, indexes, FKs) so the rebuilt table is
         // recreated with its full shape, mirroring CreateDelta.

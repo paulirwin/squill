@@ -42,7 +42,44 @@ public class PostgresScriptGenerator
             return GenerateRebuildScript(rebuildDelta);
         }
 
+        if (delta is DropDelta dropDelta)
+        {
+            return GenerateDropScript(dropDelta);
+        }
+
         throw new NotImplementedException();
+    }
+
+    // Emits a DROP statement for a standalone object no longer present in the source.
+    private string GenerateDropScript(DropDelta dropDelta)
+    {
+        var element = dropDelta.Element;
+
+        if (element.Name is not string name)
+        {
+            throw new ArgumentException("Cannot drop an object without a name");
+        }
+
+        var parsed = SqlName.Parse(name);
+
+        return element.Type switch
+        {
+            // A table can be referenced by other objects (FKs, views); CASCADE removes
+            // those dependencies along with it so the drop doesn't fail. Dropping a table
+            // is destructive, which is why it is gated by DropObjectsNotInSource and, when
+            // it holds data, blocked unless BlockOnPossibleDataLoss is disabled.
+            PostgresElementTypes.SqlTable => $"DROP TABLE {parsed.Sql} CASCADE;{Environment.NewLine}",
+
+            // An index lives in its table's schema; qualify it. IF EXISTS keeps the drop
+            // idempotent if a prior step (e.g. dropping its table) already removed it.
+            PostgresElementTypes.SqlIndex => $"DROP INDEX IF EXISTS {parsed.Sql};{Environment.NewLine}",
+
+            PostgresElementTypes.SqlExtension =>
+                $"DROP EXTENSION IF EXISTS {parsed.QuotedUnqualified};{Environment.NewLine}",
+
+            _ => throw new NotImplementedException(
+                $"Dropping an element of type {element.Type} is not supported."),
+        };
     }
 
     // Emits ALTER TABLE ... ADD / DROP / ALTER COLUMN statements for an in-place table

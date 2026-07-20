@@ -12,6 +12,12 @@ public class PostgresDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
     public bool IsTableElementType(string type)
         => type == PostgresElementTypes.SqlTable;
 
+    public bool DropCausesDataLoss(string type)
+        => type == PostgresElementTypes.SqlTable;
+
+    public bool IsDroppableStandaloneDependent(string type)
+        => type == PostgresElementTypes.SqlIndex;
+
     public IList<Element>? GetDependentElements(Element sourceElement, Model model)
     {
         if (sourceElement.Type != PostgresElementTypes.SqlTable
