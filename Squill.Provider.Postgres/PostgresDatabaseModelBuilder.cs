@@ -13,7 +13,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
     }
 
     // Postgres system catalogs store bare (unquoted) identifiers, so we query with
-    // those, but store the canonical quoted SqlName on the model element. This record
+    // those, but store the canonical SqlName on the model element. This record
     // pairs the two so extraction can do both without re-deriving one from the other.
     private sealed record TableRef(Element Element, string Schema, string BareName);
 

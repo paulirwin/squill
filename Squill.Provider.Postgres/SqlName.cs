@@ -1,10 +1,14 @@
 namespace Squill.Provider.Postgres;
 
 /// <summary>
-/// A canonical, quoted PostgreSQL object name made of one or more identifier
-/// segments (e.g. schema, object, column). Rendering is centralized here so every
-/// model builder produces identical names — a prerequisite for comparing a model
-/// built from parsed SQL against one extracted from a live database.
+/// A canonical PostgreSQL object name made of one or more identifier segments
+/// (e.g. schema, object, column). Rendering is centralized here so every model
+/// builder produces identical names — a prerequisite for comparing a model built
+/// from parsed SQL against one extracted from a live database.
+///
+/// The canonical (in-memory) form is unquoted and dot-joined (e.g. film.title);
+/// quoting is a SQL-serialization concern, produced on demand via <see cref="Sql"/>
+/// and <see cref="QuotedUnqualified"/>.
 /// </summary>
 public sealed class SqlName : IEquatable<SqlName>
 {
@@ -23,6 +27,9 @@ public sealed class SqlName : IEquatable<SqlName>
     /// <summary>Creates a name from one or more identifier segments (e.g. schema, object).</summary>
     public static SqlName Object(params string[] segments) => new(segments);
 
+    /// <summary>Parses a canonical (unquoted, dot-joined) rendering back into a SqlName.</summary>
+    public static SqlName Parse(string canonical) => new(canonical.Split('.'));
+
     /// <summary>Returns a new name with an additional trailing segment (e.g. a column of this table).</summary>
     public SqlName Child(string segment) => new([.._segments, segment]);
 
@@ -36,24 +43,20 @@ public sealed class SqlName : IEquatable<SqlName>
     public string UnqualifiedName => _segments[^1];
 
     /// <summary>The last segment, quoted but not schema-qualified (e.g. "title").</summary>
-    public string Quoted => $"\"{_segments[^1]}\"";
+    public string QuotedUnqualified => $"\"{_segments[^1]}\"";
 
-    /// <summary>The fully qualified, quoted rendering (e.g. "public"."film"."title").</summary>
-    public override string ToString() => string.Join('.', _segments.Select(s => $"\"{s}\""));
+    /// <summary>The fully qualified, quoted SQL rendering (e.g. "public"."film"."title").</summary>
+    public string Sql => string.Join('.', _segments.Select(s => $"\"{s}\""));
+
+    /// <summary>The canonical, unquoted, dot-joined rendering (e.g. public.film.title).</summary>
+    public override string ToString() => string.Join('.', _segments);
 
     /// <summary>
-    /// Parses a canonical rendered name (as stored in a model element's Name) and
-    /// returns its last segment, unquoted. Used where only the bare identifier is
-    /// valid, e.g. a column name inside a CREATE TABLE body.
+    /// Parses a canonical (unquoted, dot-joined) name — as stored in a model
+    /// element's Name — and returns its last segment. Used where only the bare
+    /// identifier is needed, e.g. a column name inside a CREATE TABLE body.
     /// </summary>
-    public static string UnqualifiedOf(string canonical)
-    {
-        var lastSegment = canonical.Split('.')[^1];
-
-        return lastSegment.StartsWith('"') && lastSegment.EndsWith('"')
-            ? lastSegment[1..^1]
-            : lastSegment;
-    }
+    public static string UnqualifiedOf(string canonical) => canonical.Split('.')[^1];
 
     public static implicit operator string(SqlName name) => name.ToString();
 

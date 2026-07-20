@@ -51,9 +51,12 @@ public class PostgresScriptGenerator
             throw new ArgumentException("Tables must have names");
         }
 
+        // Stored names are canonical/unquoted; quote when emitting SQL.
+        var quotedTableName = SqlName.Parse(tableName).Sql;
+
         var sb = new StringBuilder();
 
-        sb.Append("CREATE TABLE ").Append(tableName).AppendLine("");
+        sb.Append("CREATE TABLE ").Append(quotedTableName).AppendLine("");
         sb.AppendLine("(");
 
         var columnText = new List<string>();
@@ -73,8 +76,8 @@ public class PostgresScriptGenerator
 
                 var columnType = GetTypeStringForColumn(column);
 
-                // The stored column Name is table-qualified (e.g. "film"."title"); a
-                // column definition needs just the bare, quoted identifier.
+                // The stored column Name is table-qualified (e.g. film.title); a column
+                // definition needs just the bare, quoted identifier.
                 var text = $"\"{SqlName.UnqualifiedOf(columnName)}\" {columnType}";
 
                 // A single-column PK is written inline; a composite PK is emitted as a
@@ -108,18 +111,22 @@ public class PostgresScriptGenerator
         foreach (var index in dependentElements.Where(i => i.Type == PostgresElementTypes.SqlIndex))
         {
             sb.AppendLine();
-            sb.Append(GenerateCreateIndexScript(index, tableName));
+            sb.Append(GenerateCreateIndexScript(index, quotedTableName));
         }
 
         return sb.ToString();
     }
 
-    private static string GenerateCreateIndexScript(Element index, string tableName)
+    private static string GenerateCreateIndexScript(Element index, string quotedTableName)
     {
         if (index.Name is not string indexName)
         {
             throw new ArgumentException("Indexes must have names");
         }
+
+        // CREATE INDEX <name> ON <table>: the index name is bare (its schema is the
+        // table's), so emit just the quoted final segment.
+        var quotedIndexName = SqlName.Parse(indexName).QuotedUnqualified;
 
         var isUnique = index.GetProperty<bool?>(PostgresPropertyNames.IsUnique) == true;
         var indexMethod = index.GetProperty<string>(PostgresPropertyNames.IndexMethod);
@@ -144,7 +151,7 @@ public class PostgresScriptGenerator
                 throw new InvalidOperationException($"Index {indexName} column specification has no column reference");
             }
 
-            // Column references are stored table-qualified (e.g. "film"."title"); the
+            // Column references are stored table-qualified (e.g. film.title); the
             // CREATE INDEX column list needs just the bare, quoted column name.
             var text = $"\"{SqlName.UnqualifiedOf(columnReference.Name)}\"";
 
@@ -170,7 +177,7 @@ public class PostgresScriptGenerator
             sb.Append("UNIQUE ");
         }
 
-        sb.Append("INDEX ").Append(indexName).Append(" ON ").Append(tableName);
+        sb.Append("INDEX ").Append(quotedIndexName).Append(" ON ").Append(quotedTableName);
 
         if (indexMethod != null)
         {

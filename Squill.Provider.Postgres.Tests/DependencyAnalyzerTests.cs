@@ -34,6 +34,6 @@ CREATE INDEX idx_title ON film (title);
 
         Assert.NotNull(dependents);
         var index = Assert.Single(dependents, i => i.Type == PostgresElementTypes.SqlIndex);
-        Assert.Equal("\"idx_title\"", index.Name);
+        Assert.Equal("idx_title", index.Name);
     }
 }

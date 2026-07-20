@@ -15,7 +15,7 @@ public class PostgresModelFactoryTests
             columns: [new PostgresModelFactory.IndexedColumn(SqlName.Object("film").Child("title"))]);
 
         Assert.Equal(PostgresElementTypes.SqlIndex, index.Type);
-        Assert.Equal("\"idx_film_title\"", index.Name);
+        Assert.Equal("idx_film_title", index.Name);
         Assert.Equal(false, index.GetProperty<bool?>(PostgresPropertyNames.IsUnique));
         Assert.Null(index.GetProperty<string>(PostgresPropertyNames.IndexMethod));
 
@@ -24,7 +24,7 @@ public class PostgresModelFactoryTests
         Assert.Equal(PostgresRelationshipNames.IndexedObject, index.Relationships[1].Name);
 
         var indexedObject = (Reference)index.Relationships[1].Entries.Single();
-        Assert.Equal("\"film\"", indexedObject.Name);
+        Assert.Equal("film", indexedObject.Name);
     }
 
     [Fact]
@@ -58,12 +58,12 @@ public class PostgresModelFactoryTests
             columns: [new PostgresModelFactory.IndexedColumn(SqlName.Object("film").Child("film_id"))]);
 
         Assert.Equal(PostgresElementTypes.SqlPrimaryKeyConstraint, pk.Type);
-        Assert.Equal("\"PK_film\"", pk.Name);
+        Assert.Equal("PK_film", pk.Name);
         Assert.Equal(PostgresRelationshipNames.ColumnSpecifications, pk.Relationships[0].Name);
         Assert.Equal(PostgresRelationshipNames.DefiningTable, pk.Relationships[1].Name);
 
         var definingTable = (Reference)pk.Relationships[1].Entries.Single();
-        Assert.Equal("\"film\"", definingTable.Name);
+        Assert.Equal("film", definingTable.Name);
     }
 
     [Fact]
@@ -90,6 +90,6 @@ public class PostgresModelFactoryTests
 
         Assert.Empty(spec.Properties);
         var reference = (Reference)spec.Relationships.Single().Entries.Single();
-        Assert.Equal("\"film\".\"title\"", reference.Name);
+        Assert.Equal("film.title", reference.Name);
     }
 }

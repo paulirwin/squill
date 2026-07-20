@@ -20,7 +20,7 @@ public class PostgresSimpleTableTest : PostgresIntegrationTestBase
         var tables = model.Elements.Where(i => i.Type.Equals(PostgresElementTypes.SqlTable)).ToList();
 
         Assert.Single(tables);
-        Assert.Equal("\"distributors\"", tables[0].Name);
+        Assert.Equal("distributors", tables[0].Name);
 
         var columns = tables[0].Relationships.First(i => i.Name == PostgresRelationshipNames.Columns);
 

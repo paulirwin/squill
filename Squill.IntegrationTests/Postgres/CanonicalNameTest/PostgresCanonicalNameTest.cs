@@ -7,9 +7,9 @@ namespace Squill.IntegrationTests.Postgres.CanonicalNameTest;
 /// <summary>
 /// Verifies the payoff of the SqlName canonicalization: a model built by parsing
 /// SQL and a model extracted from a live database use identical element names for
-/// the same schema. (Whole-model hash equality is still blocked by other builder
-/// divergences — e.g. PK-as-annotation vs PK-as-element — so this asserts names,
-/// which is exactly what SqlName was introduced to unify.)
+/// the same schema. (Whole-model hash equality is still blocked by type-specifier
+/// divergence — see the skipped test below — so this asserts names, which is
+/// exactly what SqlName was introduced to unify.)
 /// </summary>
 public class PostgresCanonicalNameTest : PostgresIntegrationTestBase
 {
@@ -49,17 +49,17 @@ CREATE INDEX idx_film_title ON film (title);
             await db.DropAsync(TestContext.Current.CancellationToken);
         }
 
-        // Both builders name the table "film" (canonical, quoted, schema-less).
-        Assert.Equal("\"film\"", NameOf(parserModel, PostgresElementTypes.SqlTable));
-        Assert.Equal("\"film\"", NameOf(dbModel, PostgresElementTypes.SqlTable));
+        // Both builders name the table "film" (canonical, unquoted, schema-less).
+        Assert.Equal("film", NameOf(parserModel, PostgresElementTypes.SqlTable));
+        Assert.Equal("film", NameOf(dbModel, PostgresElementTypes.SqlTable));
 
         // Both name the index "idx_film_title".
-        Assert.Equal("\"idx_film_title\"", NameOf(parserModel, PostgresElementTypes.SqlIndex));
-        Assert.Equal("\"idx_film_title\"", NameOf(dbModel, PostgresElementTypes.SqlIndex));
+        Assert.Equal("idx_film_title", NameOf(parserModel, PostgresElementTypes.SqlIndex));
+        Assert.Equal("idx_film_title", NameOf(dbModel, PostgresElementTypes.SqlIndex));
 
         // The index's indexed column resolves to the same canonical reference on both.
-        Assert.Equal("\"film\".\"title\"", IndexColumnReference(parserModel));
-        Assert.Equal("\"film\".\"title\"", IndexColumnReference(dbModel));
+        Assert.Equal("film.title", IndexColumnReference(parserModel));
+        Assert.Equal("film.title", IndexColumnReference(dbModel));
     }
 
     // The end goal of unifying the builders is that a parsed model and an extracted

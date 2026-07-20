@@ -27,7 +27,7 @@ public class PostgresCreateIndexTest : PostgresIntegrationTestBase
         var model = await modelBuilder.BuildModelAsync(workspace, TestContext.Current.CancellationToken);
 
         var table = Assert.Single(model.Elements, i => i.Type == PostgresElementTypes.SqlTable);
-        Assert.Equal("\"film\"", table.Name);
+        Assert.Equal("film", table.Name);
     }
 
     // Proves the parser-based model builder produces the expected SqlIndex model
@@ -48,11 +48,11 @@ public class PostgresCreateIndexTest : PostgresIntegrationTestBase
 
         Assert.Equal(2, indexes.Count);
 
-        var plain = Assert.Single(indexes, i => i.Name == "\"idx_film_title\"");
+        var plain = Assert.Single(indexes, i => i.Name == "idx_film_title");
         Assert.Equal(false, plain.GetProperty<bool?>(PostgresPropertyNames.IsUnique));
         Assert.Null(plain.GetProperty<string>(PostgresPropertyNames.IndexMethod));
 
-        var unique = Assert.Single(indexes, i => i.Name == "\"idx_film_title_unique\"");
+        var unique = Assert.Single(indexes, i => i.Name == "idx_film_title_unique");
         Assert.Equal(true, unique.GetProperty<bool?>(PostgresPropertyNames.IsUnique));
         Assert.Equal("btree", unique.GetProperty<string>(PostgresPropertyNames.IndexMethod));
 
