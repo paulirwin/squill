@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Squill.Provider.Postgres")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d64404a8a976f6a64e01fec7e2b3b5c83b834d75")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+cc1fbc5c01dc0c98ca9f2bcba150647ef26786c2")]
 [assembly: System.Reflection.AssemblyProductAttribute("Squill.Provider.Postgres")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Squill.Provider.Postgres")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

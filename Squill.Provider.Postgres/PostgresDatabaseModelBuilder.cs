@@ -12,6 +12,11 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         _database = database;
     }
 
+    // Postgres system catalogs store bare (unquoted) identifiers, so we query with
+    // those, but store the canonical quoted SqlName on the model element. This record
+    // pairs the two so extraction can do both without re-deriving one from the other.
+    private sealed record TableRef(Element Element, string Schema, string BareName);
+
     public async Task<Model> ExtractModelAsync(CancellationToken cancellationToken = default)
     {
         var model = new Model();
@@ -20,7 +25,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
         const string sql = "SELECT * FROM information_schema.tables;";
 
-        var tables = new List<Element>();
+        var tables = new List<TableRef>();
 
         await using (var reader = await _database.RunScriptReaderAsync(sql, cancellationToken: cancellationToken))
         {
@@ -37,7 +42,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
                 var element = new Element(PostgresElementTypes.SqlTable)
                 {
-                    Name = name,
+                    Name = SqlName.Object(name),
                     Relationships =
                     {
                         new Relationship(PostgresRelationshipNames.Schema)
@@ -51,7 +56,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 };
 
                 model.Elements.Add(element);
-                tables.Add(element);
+                tables.Add(new TableRef(element, schema, name));
             }
         }
 
@@ -65,11 +70,13 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         return model;
     }
 
-    private async Task ExtractIndexesAsync(Model model, Element table, CancellationToken cancellationToken = default)
+    private async Task ExtractIndexesAsync(Model model, TableRef table, CancellationToken cancellationToken = default)
     {
-        var schemaRelationship = table.Relationships.Single(i => i.Name == PostgresRelationshipNames.Schema);
-        // HACK.PI: assume built-in public schema for now
-        var schema = schemaRelationship.Entries.OfType<Reference>().First().Name;
+        var schema = table.Schema;
+
+        // Table name is stored schema-less (matching the table element's Name) so the
+        // IndexedObject reference and column references resolve against it.
+        var tableSqlName = SqlName.Object(table.BareName);
 
         // pg_index.indisprimary / indisunique tell us the index kind; we skip indexes
         // that back a constraint (primary keys, unique constraints) since those are
@@ -101,7 +108,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         var parameters = new[]
         {
             new DatabaseParameter<string>("@schema", schema),
-            new DatabaseParameter<string>("@name", table.Name!),
+            new DatabaseParameter<string>("@name", table.BareName),
         };
 
         // Group rows by index so multi-column indexes build a single element.
@@ -120,13 +127,13 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
                 index = new Element(PostgresElementTypes.SqlIndex)
                 {
-                    Name = indexName,
+                    Name = SqlName.Object(indexName),
                     Relationships =
                     {
                         new Relationship(PostgresRelationshipNames.ColumnSpecifications),
                         new Relationship(PostgresRelationshipNames.IndexedObject)
                         {
-                            new Reference(table.Name!)
+                            new Reference(tableSqlName)
                         }
                     }
                 };
@@ -146,7 +153,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 {
                     new Relationship(PostgresRelationshipNames.Column)
                     {
-                        new Reference($"{table.Name!}.{columnName}")
+                        new Reference(tableSqlName.Child(columnName))
                     }
                 }
             };
@@ -165,11 +172,10 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         }
     }
 
-    private async Task ExtractPrimaryKeyAsync(Model model, Element table, CancellationToken cancellationToken = default)
+    private async Task ExtractPrimaryKeyAsync(Model model, TableRef table, CancellationToken cancellationToken = default)
     {
-        var schemaRelationship = table.Relationships.Single(i => i.Name == PostgresRelationshipNames.Schema);
-        // HACK.PI: assume built-in public schema for now
-        var schema = schemaRelationship.Entries.OfType<Reference>().First().Name;
+        var schema = table.Schema;
+        var tableSqlName = SqlName.Object(table.BareName);
 
         const string sql = "SELECT * FROM information_schema.table_constraints " +
             "WHERE table_catalog = @catalog " +
@@ -181,11 +187,11 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         {
             new DatabaseParameter<string>("@catalog", _database.Name),
             new DatabaseParameter<string>("@schema", schema),
-            new DatabaseParameter<string>("@name", table.Name!),
+            new DatabaseParameter<string>("@name", table.BareName),
         };
 
         string name, constraintSchema;
-        
+
         await using (var reader = await _database.RunScriptReaderAsync(sql, parameters, cancellationToken))
         {
             if (!await reader.ReadAsync(cancellationToken))
@@ -200,12 +206,12 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         // TODO.PI: make this code less procedural
         var constraint = new Element(PostgresElementTypes.SqlPrimaryKeyConstraint)
         {
-            Name = name,
+            Name = SqlName.Object(name),
             Relationships =
             {
                 new Relationship(PostgresRelationshipNames.DefiningTable)
                 {
-                    new Reference(table.Name!)
+                    new Reference(tableSqlName)
                 }
             }
         };
@@ -217,12 +223,12 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         var indexedColumns = new Element(PostgresElementTypes.SqlIndexedColumnSpecification);
         columnSpec.Entries.Add(indexedColumns);
 
-        await ExtractPrimaryKeyColumnsAsync(constraintSchema, name, table.Name!, indexedColumns, cancellationToken);
+        await ExtractPrimaryKeyColumnsAsync(constraintSchema, name, tableSqlName, indexedColumns, cancellationToken);
     }
 
-    private async Task ExtractPrimaryKeyColumnsAsync(string constraintSchema, 
-        string constraintName, 
-        string tableName,
+    private async Task ExtractPrimaryKeyColumnsAsync(string constraintSchema,
+        string constraintName,
+        SqlName tableSqlName,
         Element indexedColumns,
         CancellationToken cancellationToken = default)
     {
@@ -239,7 +245,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         await using var reader = await _database.RunScriptReaderAsync(sql, parameters, cancellationToken);
 
         var columns = new List<string>();
-        
+
         while (await reader.ReadAsync(cancellationToken))
         {
             columns.Add(reader.GetString("column_name"));
@@ -249,7 +255,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         {
             indexedColumns.Relationships.Add(new Relationship(PostgresRelationshipNames.Column)
             {
-                new Reference($"{tableName}.{columns[0]}")
+                new Reference(tableSqlName.Child(columns[0]))
             });
             return;
         }
@@ -257,12 +263,11 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         throw new NotImplementedException("Handle zero or multiple PK columns");
     }
 
-    private async Task ExtractColumnsAsync(Element table,
+    private async Task ExtractColumnsAsync(TableRef table,
         CancellationToken cancellationToken = default)
     {
-        var schemaRelationship = table.Relationships.Single(i => i.Name == PostgresRelationshipNames.Schema);
-        // HACK.PI: assume built-in public schema for now
-        var schema = schemaRelationship.Entries.OfType<Reference>().First().Name;
+        var schema = table.Schema;
+        var tableSqlName = SqlName.Object(table.BareName);
 
         const string sql = "SELECT * FROM information_schema.columns " +
             "WHERE table_catalog = @catalog " +
@@ -273,13 +278,13 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         {
             new DatabaseParameter<string>("@catalog", _database.Name),
             new DatabaseParameter<string>("@schema", schema),
-            new DatabaseParameter<string>("@name", table.Name!),
+            new DatabaseParameter<string>("@name", table.BareName),
         };
 
         await using var reader = await _database.RunScriptReaderAsync(sql, parameters, cancellationToken);
 
         var columns = new Relationship(PostgresRelationshipNames.Columns);
-        table.Relationships.Add(columns);
+        table.Element.Relationships.Add(columns);
 
         while (await reader.ReadAsync(cancellationToken))
         {
@@ -313,7 +318,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
             var column = new Element(PostgresElementTypes.SqlSimpleColumn)
             {
-                Name = name,
+                Name = tableSqlName.Child(name),
                 Relationships =
                 {
                     new Relationship(PostgresRelationshipNames.TypeSpecifier)

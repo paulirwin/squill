@@ -297,13 +297,16 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
 
     private static string FormatQualifiedName(QualifiedName qualifiedName, string? childElementName = null)
     {
-        string qNameString = string.Join('.', qualifiedName.Segments.Select(i => $"\"{i.Name}\""));
+        var name = ToSqlName(qualifiedName);
 
         if (childElementName is not null)
         {
-            qNameString += $".\"{childElementName}\"";
+            name = name.Child(childElementName);
         }
 
-        return qNameString;
+        return name;
     }
+
+    private static SqlName ToSqlName(QualifiedName qualifiedName)
+        => SqlName.Object(qualifiedName.Segments.Select(i => i.Name).ToArray());
 }

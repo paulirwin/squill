@@ -27,7 +27,7 @@ public class PostgresCreateIndexTest : PostgresIntegrationTestBase
         var model = await modelBuilder.BuildModelAsync(workspace, TestContext.Current.CancellationToken);
 
         var table = Assert.Single(model.Elements, i => i.Type == PostgresElementTypes.SqlTable);
-        Assert.Equal("film", table.Name);
+        Assert.Equal("\"film\"", table.Name);
     }
 
     // Proves the parser-based model builder produces the expected SqlIndex model

@@ -73,9 +73,11 @@ public class PostgresScriptGenerator
 
                 var columnType = GetTypeStringForColumn(column);
 
-                var text = $"{columnName} {columnType}";
+                // The stored column Name is table-qualified (e.g. "film"."title"); a
+                // column definition needs just the bare, quoted identifier.
+                var text = $"\"{SqlName.UnqualifiedOf(columnName)}\" {columnType}";
 
-                if (pkColumns.Count == 1 && pkColumns[0].Equals($"{tableName}.{columnName}"))
+                if (pkColumns.Count == 1 && pkColumns[0].Equals(columnName))
                 {
                     // TODO: support named PK constraints
                     text += " PRIMARY KEY";
@@ -135,10 +137,8 @@ public class PostgresScriptGenerator
             }
 
             // Column references are stored table-qualified (e.g. "film"."title"); the
-            // CREATE INDEX column list needs the bare column name.
-            var columnName = StripTableQualifier(columnReference.Name, tableName);
-
-            var text = columnName;
+            // CREATE INDEX column list needs just the bare, quoted column name.
+            var text = $"\"{SqlName.UnqualifiedOf(columnReference.Name)}\"";
 
             if (columnSpec.GetProperty<bool?>(PostgresPropertyNames.IsAscending) == false)
             {
@@ -172,15 +172,6 @@ public class PostgresScriptGenerator
         sb.Append(" (").Append(string.Join(", ", columnText)).AppendLine(");");
 
         return sb.ToString();
-    }
-
-    private static string StripTableQualifier(string columnReference, string tableName)
-    {
-        var prefix = $"{tableName}.";
-
-        return columnReference.StartsWith(prefix, StringComparison.Ordinal)
-            ? columnReference[prefix.Length..]
-            : columnReference;
     }
 
     private static IList<string> GetPrimaryKeyColumns(Element pkConstraint)
