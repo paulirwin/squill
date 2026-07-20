@@ -241,6 +241,22 @@ public class PostgresScriptGenerator
                 .Append(sourceNotNull ? " SET NOT NULL" : " DROP NOT NULL")
                 .AppendLine(";");
         }
+
+        // A default is a column facet: SET DEFAULT when the desired column has one (added
+        // or changed), DROP DEFAULT when it no longer does. Only emit when it changed.
+        var sourceDefault = source.GetProperty<string>(PostgresPropertyNames.DefaultValue);
+        var targetDefault = target.GetProperty<string>(PostgresPropertyNames.DefaultValue);
+
+        if (!string.Equals(sourceDefault, targetDefault, StringComparison.Ordinal))
+        {
+            sb.Append("ALTER TABLE ").Append(quotedTableName)
+                .Append(" ALTER COLUMN ").Append(quotedColumn);
+
+            sb.Append(sourceDefault is { } value
+                    ? $" SET DEFAULT {PostgresDefaultValue.ToSql(value)}"
+                    : " DROP DEFAULT")
+                .AppendLine(";");
+        }
     }
 
     // Rebuilds a table that can't be altered in place: rename the existing table aside,
@@ -440,8 +456,18 @@ public class PostgresScriptGenerator
             text += nullable == false ? " NOT NULL" : " NULL";
         }
 
+        text += DefaultClause(column);
+
         return text;
     }
+
+    // The " DEFAULT <value>" clause for a column carrying a modeled default, or an empty
+    // string if it has none. The stored value is already canonical SQL (a numeric,
+    // true/false, or a single-quoted string).
+    private static string DefaultClause(Element column)
+        => column.GetProperty<string>(PostgresPropertyNames.DefaultValue) is { } value
+            ? $" DEFAULT {PostgresDefaultValue.ToSql(value)}"
+            : string.Empty;
 
     // The table's fully-quoted, schema-qualified SQL name (e.g. "staging"."film"). A table
     // in the default "public" schema is emitted unqualified ("film") to keep the common
@@ -599,6 +625,8 @@ public class PostgresScriptGenerator
 
                     text += nullable == false ? " NOT NULL" : " NULL";
                 }
+
+                text += DefaultClause(column);
 
                 columnText.Add(text);
             }

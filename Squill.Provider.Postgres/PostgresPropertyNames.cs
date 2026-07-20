@@ -14,6 +14,8 @@ public static class PostgresPropertyNames
     public const string UpdateAction = nameof(UpdateAction);
     public const string IsIdentity = nameof(IsIdentity);
     public const string IdentityGeneration = nameof(IdentityGeneration);
+    // The canonical form of a column DEFAULT constant literal (see PostgresDefaultValue).
+    public const string DefaultValue = nameof(DefaultValue);
     public const string FilterPredicate = nameof(FilterPredicate);
     public const string Version = nameof(Version);
     // PostgreSQL terminology: an index element may specify an operator class (opclass),

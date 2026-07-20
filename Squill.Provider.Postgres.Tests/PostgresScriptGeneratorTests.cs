@@ -365,6 +365,89 @@ CREATE TABLE items
     }
 
     [Fact]
+    public async Task GenerateScript_ColumnWithIntegerDefault()
+    {
+        var comparison = await CompareToEmptyAsync("""
+CREATE TABLE widgets
+(
+    id    integer PRIMARY KEY,
+    count integer NOT NULL DEFAULT 0
+);
+""");
+
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        Assert.Contains("\"count\" integer NOT NULL DEFAULT 0", sql);
+    }
+
+    [Fact]
+    public async Task GenerateScript_ColumnWithStringDefault()
+    {
+        var comparison = await CompareToEmptyAsync("""
+CREATE TABLE orders
+(
+    id     integer PRIMARY KEY,
+    status varchar(20) NOT NULL DEFAULT 'active'
+);
+""");
+
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        Assert.Contains("\"status\" varchar(20) NOT NULL DEFAULT 'active'", sql);
+    }
+
+    [Fact]
+    public async Task GenerateScript_ColumnWithBooleanDefault()
+    {
+        var comparison = await CompareToEmptyAsync("""
+CREATE TABLE flags
+(
+    id       integer PRIMARY KEY,
+    enabled  boolean NOT NULL DEFAULT true
+);
+""");
+
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        Assert.Contains("\"enabled\" boolean NOT NULL DEFAULT true", sql);
+    }
+
+    [Fact]
+    public async Task GenerateScript_ColumnWithNumericDefault_PreservesScale()
+    {
+        var comparison = await CompareToEmptyAsync("""
+CREATE TABLE prices
+(
+    id      integer PRIMARY KEY,
+    balance numeric(8, 2) NOT NULL DEFAULT 1.50
+);
+""");
+
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        // The literal scale must be preserved (1.50, not 1.5) so it matches how Postgres
+        // stores the numeric default and the parsed model hashes to the extracted one.
+        Assert.Contains("\"balance\" numeric(8, 2) NOT NULL DEFAULT 1.50", sql);
+    }
+
+    [Fact]
+    public async Task GenerateScript_FunctionDefault_IsNotModeled()
+    {
+        var comparison = await CompareToEmptyAsync("""
+CREATE TABLE events
+(
+    id         integer PRIMARY KEY,
+    created_at timestamp NOT NULL DEFAULT now()
+);
+""");
+
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        // A function default is out of scope: it must not be emitted (and must not crash).
+        Assert.DoesNotContain("DEFAULT", sql);
+    }
+
+    [Fact]
     public async Task GenerateScript_HnswIndex_EmitsOperatorClassAndStorageParameters()
     {
         var comparison = await CompareToEmptyAsync("""
