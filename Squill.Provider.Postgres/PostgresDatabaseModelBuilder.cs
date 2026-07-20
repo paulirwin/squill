@@ -56,7 +56,34 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             await ExtractForeignKeysAsync(model, table, cancellationToken);
         }
 
+        await ExtractExtensionsAsync(model, cancellationToken);
+
         return model;
+    }
+
+    private async Task ExtractExtensionsAsync(Model model, CancellationToken cancellationToken = default)
+    {
+        // pg_extension lists every installed extension. plpgsql is created in every
+        // database by default and is not part of the declared schema, so it is skipped
+        // so a parsed model (which won't declare it) hash-matches the extracted one.
+        // Version is intentionally not stored: the installed version is not part of the
+        // desired-state identity (see PostgresModelFactory.CreateExtension).
+        const string sql = "SELECT extname FROM pg_extension WHERE extname <> 'plpgsql' ORDER BY extname;";
+
+        var extensions = new List<string>();
+
+        await using (var reader = await _database.RunScriptReaderAsync(sql, cancellationToken: cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                extensions.Add(reader.GetString("extname"));
+            }
+        }
+
+        foreach (var extensionName in extensions)
+        {
+            model.Elements.Add(PostgresModelFactory.CreateExtension(SqlName.Object(extensionName)));
+        }
     }
 
     private async Task ExtractForeignKeysAsync(Model model, TableRef table, CancellationToken cancellationToken = default)

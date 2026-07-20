@@ -42,6 +42,11 @@ public class PostgresScriptGenerator
             return GenerateCreateTableScript(createDelta.Element, createDelta.DependentElements);
         }
 
+        if (createDelta.Element.Type == PostgresElementTypes.SqlExtension)
+        {
+            return GenerateCreateExtensionScript(createDelta.Element);
+        }
+
         throw new NotImplementedException();
     }
 
@@ -216,6 +221,32 @@ public class PostgresScriptGenerator
         if (filterPredicate != null)
         {
             sb.Append(" WHERE ").Append(filterPredicate);
+        }
+
+        sb.AppendLine(";");
+
+        return sb.ToString();
+    }
+
+    private static string GenerateCreateExtensionScript(Element extension)
+    {
+        if (extension.Name is not string extensionName)
+        {
+            throw new ArgumentException("Extensions must have names");
+        }
+
+        // Extension names are stored unqualified; quote when emitting SQL. IF NOT EXISTS
+        // keeps publish idempotent for extensions that may already be installed.
+        var quotedName = SqlName.Parse(extensionName).QuotedUnqualified;
+
+        var sb = new StringBuilder();
+
+        sb.Append("CREATE EXTENSION IF NOT EXISTS ").Append(quotedName);
+
+        var version = extension.GetProperty<string>(PostgresPropertyNames.Version);
+        if (version != null)
+        {
+            sb.Append(" VERSION '").Append(version).Append('\'');
         }
 
         sb.AppendLine(";");

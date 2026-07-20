@@ -276,4 +276,25 @@ CREATE TABLE order_lines
             "CONSTRAINT \"fk_lines\" FOREIGN KEY (\"order_id\", \"line_no\") REFERENCES \"orders\" (\"id\", \"line_no\") ON DELETE CASCADE ON UPDATE RESTRICT",
             sql);
     }
+
+    [Fact]
+    public async Task GenerateScript_CreateExtension()
+    {
+        var comparison = await CompareToEmptyAsync("CREATE EXTENSION citext;");
+
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        // IF NOT EXISTS keeps publish idempotent for an already-installed extension.
+        Assert.Contains("CREATE EXTENSION IF NOT EXISTS \"citext\";", sql);
+    }
+
+    [Fact]
+    public async Task GenerateScript_CreateExtensionWithVersion()
+    {
+        var comparison = await CompareToEmptyAsync("CREATE EXTENSION citext WITH VERSION '1.6';");
+
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        Assert.Contains("CREATE EXTENSION IF NOT EXISTS \"citext\" VERSION '1.6';", sql);
+    }
 }
