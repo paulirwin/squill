@@ -1,0 +1,25 @@
+<Project>
+
+  <!--
+    A Squill database project. Building it produces bin\<Configuration>\SampleDatabase.dacpac
+    from the declarative .sql files in this folder.
+
+    In a consuming repo you would reference the published SDK by name and version:
+
+        <Project Sdk="Squill.Sdk/0.0.1">
+        </Project>
+
+    Here in the Squill source tree we import the SDK from its source location by
+    relative path so the sample builds against the local, uninstalled SDK. Both forms
+    are supported by MSBuild (see the "Reference an MSBuild Project SDK" docs).
+  -->
+
+  <Import Project="..\..\Squill.Sdk\Sdk\Sdk.props" />
+
+  <PropertyGroup>
+    <SquillProviderName>Postgresql</SquillProviderName>
+  </PropertyGroup>
+
+  <Import Project="..\..\Squill.Sdk\Sdk\Sdk.targets" />
+
+</Project>
