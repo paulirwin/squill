@@ -205,6 +205,7 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
             bool? isNullable = null;
             bool isIdentity = false;
             string? identityGeneration = null;
+            string? defaultValue = null;
 
             foreach (var columnConstraint in columnDefinition.Constraints)
             {
@@ -225,9 +226,24 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                     // PKs are not nullable
                     isNullable = false;
                 }
-                else if (constraint is DefaultColumnConstraint)
+                else if (constraint is DefaultColumnConstraint defaultConstraint)
                 {
-                    // TODO: model column DEFAULT values
+                    // Postgres accepts CONSTRAINT <name> DEFAULT <expr> but does not persist
+                    // the name (a column default is not a named constraint as in SQL Server),
+                    // so it could never survive a round-trip from the database. Reject it
+                    // with a clear message rather than model a name that would vanish.
+                    if (explicitName != null)
+                    {
+                        throw new NotSupportedException(
+                            $"Column '{columnName}' has a named DEFAULT constraint "
+                            + $"('{explicitName}'), but PostgreSQL does not store a name for a "
+                            + "column default; remove the constraint name.");
+                    }
+
+                    // Only constant literals are modeled (int/numeric/bool/string); a
+                    // function default (now(), a serial's nextval, …) or DEFAULT NULL is
+                    // left off the model. See PostgresDefaultValue.
+                    defaultValue = PostgresDefaultValue.FromExpression(defaultConstraint.Expression);
                 }
                 else if (constraint is IdentityColumnConstraint identity)
                 {
@@ -268,6 +284,13 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
             {
                 element.Properties.Add(new Property(PostgresPropertyNames.IsIdentity, true));
                 element.Properties.Add(new Property(PostgresPropertyNames.IdentityGeneration, identityGeneration!));
+            }
+
+            // Emitted after identity so parsed and DB-extracted models add the property in
+            // the same order (the Merkle hash is order-sensitive).
+            if (defaultValue != null)
+            {
+                element.Properties.Add(new Property(PostgresPropertyNames.DefaultValue, defaultValue));
             }
 
             if (columnDefinition.DataType is BuiltInDataType builtInDataType)

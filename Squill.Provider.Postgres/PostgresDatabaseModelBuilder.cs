@@ -473,6 +473,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 c.numeric_scale,
                 c.is_identity,
                 c.identity_generation,
+                c.column_default,
                 c.udt_name,
                 format_type(a.atttypid, a.atttypmod) AS formatted_type
             FROM information_schema.columns c
@@ -588,6 +589,19 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 column.Properties.Add(new Property(PostgresPropertyNames.IsIdentity, true));
                 column.Properties.Add(new Property(PostgresPropertyNames.IdentityGeneration,
                     identityGeneration == "ALWAYS" ? "Always" : "ByDefault"));
+            }
+
+            // A serial column's default is a nextval(...) sequence call, and an identity
+            // column has no default; PostgresDefaultValue models neither, so only a genuine
+            // constant-literal default is recorded. Emitted after identity so the property
+            // order matches the parser builder (the Merkle hash is order-sensitive).
+            var columnDefault = reader.IsDBNull(reader.GetOrdinal("column_default"))
+                ? null
+                : reader.GetString("column_default");
+
+            if (PostgresDefaultValue.FromDatabaseText(columnDefault) is { } defaultValue)
+            {
+                column.Properties.Add(new Property(PostgresPropertyNames.DefaultValue, defaultValue));
             }
 
             columns.Entries.Add(column);

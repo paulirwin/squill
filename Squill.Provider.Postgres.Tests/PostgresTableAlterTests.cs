@@ -646,4 +646,120 @@ CREATE INDEX idx_film_title ON film (title, rating);
         Assert.IsType<RecreateDelta>(Assert.Single(comparison.Deltas));
         Assert.Empty(comparison.DataLossReasons);
     }
+
+    // --- Column DEFAULT changes (issue #36) ---
+    // A default is a column facet, altered in place with ALTER COLUMN SET/DROP DEFAULT —
+    // no rebuild and no data motion.
+
+    [Fact]
+    public async Task AddColumnDefault_EmitsSetDefault()
+    {
+        const string target = """
+CREATE TABLE widgets
+(
+    id    integer PRIMARY KEY,
+    count integer NOT NULL
+);
+""";
+        const string source = """
+CREATE TABLE widgets
+(
+    id    integer PRIMARY KEY,
+    count integer NOT NULL DEFAULT 0
+);
+""";
+
+        var comparison = await CompareAsync(source, target);
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        var alter = Assert.IsType<AlterDelta>(Assert.Single(comparison.Deltas));
+        Assert.Contains(alter.ColumnChanges, c => c.ColumnName.EndsWith("count"));
+        Assert.Contains("ALTER TABLE \"widgets\" ALTER COLUMN \"count\" SET DEFAULT 0;", sql);
+    }
+
+    [Fact]
+    public async Task RemoveColumnDefault_EmitsDropDefault()
+    {
+        const string target = """
+CREATE TABLE widgets
+(
+    id    integer PRIMARY KEY,
+    count integer NOT NULL DEFAULT 0
+);
+""";
+        const string source = """
+CREATE TABLE widgets
+(
+    id    integer PRIMARY KEY,
+    count integer NOT NULL
+);
+""";
+
+        var comparison = await CompareAsync(source, target);
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        Assert.IsType<AlterDelta>(Assert.Single(comparison.Deltas));
+        Assert.Contains("ALTER TABLE \"widgets\" ALTER COLUMN \"count\" DROP DEFAULT;", sql);
+    }
+
+    [Fact]
+    public async Task ChangeColumnDefault_EmitsSetDefault()
+    {
+        const string target = """
+CREATE TABLE orders
+(
+    id     integer PRIMARY KEY,
+    status varchar(20) NOT NULL DEFAULT 'active'
+);
+""";
+        const string source = """
+CREATE TABLE orders
+(
+    id     integer PRIMARY KEY,
+    status varchar(20) NOT NULL DEFAULT 'pending'
+);
+""";
+
+        var comparison = await CompareAsync(source, target);
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        Assert.IsType<AlterDelta>(Assert.Single(comparison.Deltas));
+        Assert.Contains("ALTER TABLE \"orders\" ALTER COLUMN \"status\" SET DEFAULT 'pending';", sql);
+    }
+
+    [Fact]
+    public async Task SameColumnDefault_ProducesNoDelta()
+    {
+        const string sql = """
+CREATE TABLE widgets
+(
+    id    integer PRIMARY KEY,
+    count integer NOT NULL DEFAULT 0
+);
+""";
+
+        var comparison = await CompareAsync(sql, sql);
+
+        Assert.Empty(comparison.Deltas);
+    }
+
+    [Fact]
+    public async Task NamedColumnDefault_IsRejectedWithClearError()
+    {
+        // Postgres accepts CONSTRAINT <name> DEFAULT <expr> but silently discards the name
+        // (it is not stored, unlike SQL Server), so it could never round-trip. Reject it at
+        // build time with a message that says so, rather than model a name that vanishes.
+        const string sql = """
+CREATE TABLE widgets
+(
+    id    integer PRIMARY KEY,
+    count integer NOT NULL CONSTRAINT df_count DEFAULT 0
+);
+""";
+
+        var ex = await Assert.ThrowsAsync<NotSupportedException>(() => BuildModelAsync(sql));
+
+        Assert.Contains("named", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("default", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
 }
