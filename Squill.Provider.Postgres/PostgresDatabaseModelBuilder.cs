@@ -351,6 +351,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             var nullable = reader.GetString("is_nullable") == "YES";
             var dataType = reader.GetString("data_type");
             var maxLength = reader.GetFieldValue<int?>("character_maximum_length");
+            var isIdentity = reader.GetString("is_identity") == "YES";
 
             var typeElement = new Element(PostgresElementTypes.SqlTypeSpecifier)
             {
@@ -393,6 +394,17 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             if (!nullable)
             {
                 column.Properties.Add(new Property(PostgresPropertyNames.IsNullable, false));
+            }
+
+            if (isIdentity)
+            {
+                // identity_generation is ALWAYS or BY DEFAULT for identity columns
+                // (non-null whenever is_identity is YES).
+                var identityGeneration = reader.GetString("identity_generation");
+
+                column.Properties.Add(new Property(PostgresPropertyNames.IsIdentity, true));
+                column.Properties.Add(new Property(PostgresPropertyNames.IdentityGeneration,
+                    identityGeneration == "ALWAYS" ? "Always" : "ByDefault"));
             }
 
             columns.Entries.Add(column);

@@ -180,6 +180,14 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                 Name = columnName,
             };
 
+            // Nullability can be implied by several constraints (NOT NULL, PRIMARY KEY,
+            // IDENTITY); collect these here and emit the properties once, after the loop,
+            // in a fixed order (IsNullable then identity) so the model matches the
+            // DB-extraction builder's property order — the Merkle hash is order-sensitive.
+            bool? isNullable = null;
+            bool isIdentity = false;
+            string? identityGeneration = null;
+
             foreach (var columnConstraint in columnDefinition.Constraints)
             {
                 // A CONSTRAINT <name> wrapper carries an explicit name; unwrap it but
@@ -190,18 +198,26 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
 
                 if (constraint is NullableColumnConstraint nullableColumnConstraint)
                 {
-                    element.Properties.Add(new Property(PostgresPropertyNames.IsNullable, nullableColumnConstraint.Nullable));
+                    isNullable = nullableColumnConstraint.Nullable;
                 }
                 else if (constraint is PrimaryKeyColumnConstraint)
                 {
                     primaryKeyColumns.Add(new PostgresModelFactory.IndexedColumn(columnName));
 
                     // PKs are not nullable
-                    element.Properties.Add(new Property(PostgresPropertyNames.IsNullable, false));
+                    isNullable = false;
                 }
                 else if (constraint is DefaultColumnConstraint)
                 {
                     // TODO: model column DEFAULT values
+                }
+                else if (constraint is IdentityColumnConstraint identity)
+                {
+                    isIdentity = true;
+                    identityGeneration = identity.Always ? "Always" : "ByDefault";
+
+                    // Postgres identity columns are implicitly NOT NULL.
+                    isNullable = false;
                 }
                 else if (constraint is ForeignKeyColumnConstraint fk)
                 {
@@ -218,6 +234,17 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                     throw new NotImplementedException(
                         $"Column constraint type {constraint.GetType()} to property mapping not implemented");
                 }
+            }
+
+            if (isNullable is { } nullableValue)
+            {
+                element.Properties.Add(new Property(PostgresPropertyNames.IsNullable, nullableValue));
+            }
+
+            if (isIdentity)
+            {
+                element.Properties.Add(new Property(PostgresPropertyNames.IsIdentity, true));
+                element.Properties.Add(new Property(PostgresPropertyNames.IdentityGeneration, identityGeneration!));
             }
 
             if (columnDefinition.DataType is BuiltInDataType builtInDataType)
