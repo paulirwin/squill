@@ -7,9 +7,10 @@ namespace Squill.IntegrationTests.Postgres.CanonicalNameTest;
 /// <summary>
 /// Verifies the payoff of the SqlName canonicalization: a model built by parsing
 /// SQL and a model extracted from a live database use identical element names for
-/// the same schema, and that the varchar / character varying type specifiers agree
-/// across both builders (issue #6). Whole-model hash equality is not yet reached —
-/// see the skipped test below for the remaining divergences.
+/// the same schema, that the varchar / character varying type specifiers agree
+/// across both builders (issue #6), and — as of issue #25 — that the whole-model
+/// Merkle hashes match once the parser builder emits the same canonical defaults
+/// (public schema, btree index method, btree ordering defaults) the DB builder does.
 /// </summary>
 public class PostgresCanonicalNameTest : PostgresIntegrationTestBase
 {
@@ -70,14 +71,13 @@ CREATE INDEX idx_film_title ON film (title);
         Assert.Equal(TypeSpecHash(parserModel, "film.description"), TypeSpecHash(dbModel, "film.description"));
     }
 
-    // The end goal of unifying the builders is that a parsed model and an extracted
-    // model of the same schema hash-match, so schema compare works across sources.
-    // Names, PK shape, index shape, and (as of issue #6) varchar type specifiers are
-    // unified. Remaining divergences keep whole-model hashes apart: the DB builder
-    // adds a Schema relationship (public) and a btree IndexMethod, and records the
-    // index column's IsAscending / NullsFirst defaults, none of which the parser
-    // emits yet. Kept as a skipped executable spec of the target state.
-    [Fact(Skip = "Schema-qualification and index-default representations still diverge between builders")]
+    // The payoff of unifying the builders: a parsed model and an extracted model of the
+    // same schema hash-match, so schema compare works across sources. As of issue #25 the
+    // parser builder emits the same canonical defaults the DB builder does — an implicit
+    // "public" Schema relationship, a btree IndexMethod when USING is omitted, and the
+    // btree index column's ASC / NULLS LAST ordering defaults — so the whole-model Merkle
+    // hashes now match.
+    [Fact]
     public async Task ParserAndDatabaseBuilders_ProduceMatchingModelHashes()
     {
         var workspace = new Workspace();

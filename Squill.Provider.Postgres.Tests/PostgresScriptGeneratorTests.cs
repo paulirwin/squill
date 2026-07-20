@@ -84,6 +84,10 @@ CREATE INDEX idx_film_title ON film (title);
 
         Assert.Contains("CREATE INDEX \"idx_film_title\" ON \"film\"", sql);
         Assert.Contains("(\"title\")", sql);
+        // A plain btree index carries the btree defaults in the model, but the generated
+        // DDL suppresses the redundant "USING btree" and "NULLS LAST" so it stays clean.
+        Assert.DoesNotContain("USING btree", sql);
+        Assert.DoesNotContain("NULLS", sql);
     }
 
     [Fact]
@@ -224,7 +228,11 @@ CREATE UNIQUE INDEX idx_account_email ON account USING btree (email DESC NULLS L
 
         var sql = generator.GenerateScript(comparison);
 
-        Assert.Contains("CREATE UNIQUE INDEX \"idx_account_email\" ON \"account\" USING btree", sql);
+        // btree is Postgres's default access method, so "USING btree" is suppressed to
+        // keep the DDL clean (the model still records btree so parsed and extracted models
+        // hash-match). DESC defaults to NULLS FIRST, so the explicit NULLS LAST is emitted.
+        Assert.Contains("CREATE UNIQUE INDEX \"idx_account_email\" ON \"account\" (", sql);
+        Assert.DoesNotContain("USING btree", sql);
         Assert.Contains("\"email\" DESC NULLS LAST", sql);
     }
 

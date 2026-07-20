@@ -194,14 +194,25 @@ public class PostgresScriptGenerator
                 text += $" {operatorClass}";
             }
 
-            if (columnSpec.GetProperty<bool?>(PostgresPropertyNames.IsAscending) == false)
+            var isAscending = columnSpec.GetProperty<bool?>(PostgresPropertyNames.IsAscending);
+
+            if (isAscending == false)
             {
                 text += " DESC";
             }
 
+            // Postgres's default null ordering follows the sort direction: NULLS LAST for
+            // ASC, NULLS FIRST for DESC. Only emit an explicit NULLS clause when it differs
+            // from that default, so a model carrying the btree defaults (which both builders
+            // now record) does not produce redundant NULLS LAST / NULLS FIRST in the DDL.
             if (columnSpec.GetProperty<bool?>(PostgresPropertyNames.NullsFirst) is bool nullsFirst)
             {
-                text += nullsFirst ? " NULLS FIRST" : " NULLS LAST";
+                var defaultNullsFirst = isAscending == false;
+
+                if (nullsFirst != defaultNullsFirst)
+                {
+                    text += nullsFirst ? " NULLS FIRST" : " NULLS LAST";
+                }
             }
 
             columnText.Add(text);
@@ -218,7 +229,10 @@ public class PostgresScriptGenerator
 
         sb.Append("INDEX ").Append(quotedIndexName).Append(" ON ").Append(quotedTableName);
 
-        if (indexMethod != null)
+        // btree is Postgres's default access method; emitting "USING btree" is redundant.
+        // Both builders now record btree explicitly in the model, so suppress it here to
+        // keep the generated DDL clean (a non-default method like hnsw is still emitted).
+        if (indexMethod != null && !string.Equals(indexMethod, "btree", StringComparison.OrdinalIgnoreCase))
         {
             sb.Append(" USING ").Append(indexMethod);
         }

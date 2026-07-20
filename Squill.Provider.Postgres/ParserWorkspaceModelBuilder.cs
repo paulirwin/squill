@@ -74,12 +74,12 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
 
     private static IEnumerable<Element> MakeCreateTableElements(CreateTableStatement createTableStatement)
     {
-        var tableName = ToSqlName(createTableStatement.Name);
+        var (schema, tableName) = SplitSchema(createTableStatement.Name);
 
-        var tableElement = new Element(PostgresElementTypes.SqlTable)
-        {
-            Name = tableName,
-        };
+        // The table element is built through the factory so it carries the same schema
+        // relationship the DB builder emits (an implicit "public" when the CREATE TABLE
+        // is not schema-qualified), letting a parsed model hash-match an extracted one.
+        var tableElement = PostgresModelFactory.CreateTable(tableName, schema);
 
         var primaryKeyColumns = new List<PostgresModelFactory.IndexedColumn>();
         var foreignKeys = new List<ForeignKeySpec>();
@@ -393,6 +393,17 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
         // the table's qualifier with the index identifier as the final segment.
         var indexName = tableName.Sibling(createIndexStatement.Name.Name);
 
+        // btree is Postgres's implicit access method when USING is omitted. Defaulting to
+        // it here (rather than leaving the method null) matches the DB builder, which reads
+        // "btree" from pg_am — so a parsed index and one extracted from the database agree.
+        var indexMethod = createIndexStatement.UsingMethod?.Name ?? "btree";
+
+        // Only btree carries per-column ASC/DESC and NULLS ordering; other access methods
+        // (e.g. hnsw) reject those options and the DB builder omits them. So the implicit
+        // ASC / NULLS LAST defaults are only filled in for a btree index, keeping both
+        // builders' models identical.
+        var isBtree = string.Equals(indexMethod, "btree", StringComparison.OrdinalIgnoreCase);
+
         var columns = new List<PostgresModelFactory.IndexedColumn>();
 
         foreach (var indexElement in createIndexStatement.Elements)
@@ -403,13 +414,16 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                     $"Index element expression type {indexElement.Expression.GetType()} to element mapping not implemented");
             }
 
+            // When a btree index does not spell out a direction / null-order, Postgres
+            // applies ASC (IsAscending = true) and NULLS LAST (NullsFirst = false); the DB
+            // builder records those defaults, so the parser fills them in too.
             bool? isAscending = indexElement.Direction is IndexElementDirection direction
                 ? direction == IndexElementDirection.Asc
-                : null;
+                : isBtree ? true : null;
 
             bool? nullsFirst = indexElement.NullOrder is IndexElementNullOrder nullOrder
                 ? nullOrder == IndexElementNullOrder.NullsFirst
-                : null;
+                : isBtree ? false : null;
 
             columns.Add(new PostgresModelFactory.IndexedColumn(
                 tableName.Child(columnReference.Identifier.Name),
@@ -435,7 +449,7 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
             indexName,
             tableName,
             createIndexStatement.Unique,
-            createIndexStatement.UsingMethod?.Name,
+            indexMethod,
             columns,
             filterPredicate,
             storageParameters);
@@ -459,4 +473,18 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
 
     private static SqlName ToSqlName(QualifiedName qualifiedName)
         => SqlName.Object(qualifiedName.Segments.Select(i => i.Name).ToArray());
+
+    // Splits a (possibly schema-qualified) table name into its schema and its bare,
+    // schema-less name, mirroring how the DB builder stores tables: the element Name is
+    // the bare table name (e.g. "film") and the schema is carried as a separate Schema
+    // relationship. A CREATE TABLE with no schema qualifier defaults to "public", which
+    // is where Postgres puts it — so both builders agree.
+    private static (string Schema, SqlName Name) SplitSchema(QualifiedName qualifiedName)
+    {
+        var segments = qualifiedName.Segments.Select(i => i.Name).ToArray();
+
+        return segments.Length > 1
+            ? (segments[^2], SqlName.Object(segments[^1]))
+            : ("public", SqlName.Object(segments[0]));
+    }
 }
