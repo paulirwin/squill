@@ -31,16 +31,21 @@ public class SchemaCompare
             if (target.Elements.SingleOrDefault(i => ElementsMatch(analyzer, i, sourceElement))
                 is Element targetElement)
             {
+                // Normalize the source against its target before comparing, so a facet the
+                // database always reports but the source leaves unmanaged (e.g. an
+                // extension's installed version) does not read as a spurious change.
+                var normalizedSource = analyzer.NormalizeForComparison(sourceElement, targetElement);
+
                 // The element exists in both models. If their hashes match, it is
                 // unchanged and needs no delta; otherwise produce an ALTER (or, when an
                 // in-place ALTER can't express the change, a table rebuild).
-                if (HashUtility.HashesEqual(sourceElement.Hash, targetElement.Hash))
+                if (HashUtility.HashesEqual(normalizedSource.Hash, targetElement.Hash))
                 {
                     continue;
                 }
 
                 var alterDelta = DiffExistingElement(
-                    provider, sourceElement, targetElement, source, target,
+                    provider, normalizedSource, targetElement, source, target,
                     options.AllowTableRebuild);
 
                 if (alterDelta != null)
@@ -284,10 +289,28 @@ public class SchemaCompare
         Model targetModel,
         bool allowTableRebuild)
     {
-        if (provider.DependencyAnalyzer.IsTableElementType(sourceElement.Type))
+        var analyzer = provider.DependencyAnalyzer;
+
+        if (analyzer.IsTableElementType(sourceElement.Type))
         {
             return provider.TableDiffAnalyzer.DiffTable(
                 sourceElement, targetElement, sourceModel, targetModel, allowTableRebuild);
+        }
+
+        if (analyzer.IsExtensionElementType(sourceElement.Type))
+        {
+            // The source is already normalized: an unpinned version was backfilled to the
+            // target's, so reaching here means the source pins a version. If it differs
+            // from the installed version, update to it; otherwise there is nothing to do.
+            var sourceVersion = analyzer.GetExtensionVersion(sourceElement);
+            var targetVersion = analyzer.GetExtensionVersion(targetElement);
+
+            if (sourceVersion != null && !string.Equals(sourceVersion, targetVersion, StringComparison.Ordinal))
+            {
+                return new AlterExtensionVersionDelta(sourceElement, sourceVersion);
+            }
+
+            return null;
         }
 
         throw new NotImplementedException(

@@ -54,6 +54,11 @@ public class PostgresScriptGenerator
             return GenerateRecreateScript(recreateDelta);
         }
 
+        if (delta is AlterExtensionVersionDelta alterExtensionDelta)
+        {
+            return GenerateAlterExtensionScript(alterExtensionDelta);
+        }
+
         throw new NotImplementedException();
     }
 
@@ -794,6 +799,22 @@ public class PostgresScriptGenerator
         sb.AppendLine(";");
 
         return sb.ToString();
+    }
+
+    // Updates an installed extension to the source-pinned version.
+    private static string GenerateAlterExtensionScript(AlterExtensionVersionDelta delta)
+    {
+        if (delta.SourceElement.Name is not string extensionName)
+        {
+            throw new ArgumentException("Extensions must have names");
+        }
+
+        // Extension names are stored unqualified; quote when emitting SQL. Postgres has no
+        // IF EXISTS on ALTER EXTENSION ... UPDATE, but the extension is known to exist (it
+        // was matched in the target), so the update is safe.
+        var quotedName = SqlName.Parse(extensionName).QuotedUnqualified;
+
+        return $"ALTER EXTENSION {quotedName} UPDATE TO '{delta.TargetVersion}';{Environment.NewLine}";
     }
 
     // CONSTRAINT "<name>" FOREIGN KEY ("a", "b") REFERENCES "table" ("x", "y")

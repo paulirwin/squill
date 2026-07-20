@@ -99,23 +99,28 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         // pg_extension lists every installed extension. plpgsql is created in every
         // database by default and is not part of the declared schema, so it is skipped
         // so a parsed model (which won't declare it) hash-matches the extracted one.
-        // Version is intentionally not stored: the installed version is not part of the
-        // desired-state identity (see PostgresModelFactory.CreateExtension).
-        const string sql = "SELECT extname FROM pg_extension WHERE extname <> 'plpgsql' ORDER BY extname;";
+        // The installed version is recorded so a source that pins WITH VERSION can be
+        // diffed to an ALTER EXTENSION ... UPDATE. A source that pins no version leaves it
+        // unmanaged; SchemaCompare backfills the installed version onto the source before
+        // hashing so an unpinned extension still hash-matches (see the dependency
+        // analyzer's comparison normalization).
+        const string sql =
+            "SELECT extname, extversion FROM pg_extension WHERE extname <> 'plpgsql' ORDER BY extname;";
 
-        var extensions = new List<string>();
+        var extensions = new List<(string Name, string Version)>();
 
         await using (var reader = await _database.RunScriptReaderAsync(sql, cancellationToken: cancellationToken))
         {
             while (await reader.ReadAsync(cancellationToken))
             {
-                extensions.Add(reader.GetString("extname"));
+                extensions.Add((reader.GetString("extname"), reader.GetString("extversion")));
             }
         }
 
-        foreach (var extensionName in extensions)
+        foreach (var (extensionName, extensionVersion) in extensions)
         {
-            model.Elements.Add(PostgresModelFactory.CreateExtension(SqlName.Object(extensionName)));
+            model.Elements.Add(
+                PostgresModelFactory.CreateExtension(SqlName.Object(extensionName), extensionVersion));
         }
     }
 
