@@ -1,1 +1,22 @@
+## Build output
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+
+## Rider / ReSharper per-user settings
+*.DotSettings.user
+.idea/
+
+## Visual Studio / VS Code
+.vs/
+.vscode/
+
+## Test results
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+
+## OS
 .DS_Store
+Thumbs.db
