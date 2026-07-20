@@ -7,17 +7,18 @@ namespace Squill.IntegrationTests.Postgres.CanonicalNameTest;
 /// <summary>
 /// Verifies the payoff of the SqlName canonicalization: a model built by parsing
 /// SQL and a model extracted from a live database use identical element names for
-/// the same schema. (Whole-model hash equality is still blocked by type-specifier
-/// divergence — see the skipped test below — so this asserts names, which is
-/// exactly what SqlName was introduced to unify.)
+/// the same schema, and that the varchar / character varying type specifiers agree
+/// across both builders (issue #6). Whole-model hash equality is not yet reached —
+/// see the skipped test below for the remaining divergences.
 /// </summary>
 public class PostgresCanonicalNameTest : PostgresIntegrationTestBase
 {
     private const string Sql = """
 CREATE TABLE film
 (
-    film_id integer PRIMARY KEY,
-    title   varchar(255) NOT NULL
+    film_id     integer PRIMARY KEY,
+    title       varchar(255) NOT NULL,
+    description varchar
 );
 
 CREATE INDEX idx_film_title ON film (title);
@@ -60,15 +61,23 @@ CREATE INDEX idx_film_title ON film (title);
         // The index's indexed column resolves to the same canonical reference on both.
         Assert.Equal("film.title", IndexColumnReference(parserModel));
         Assert.Equal("film.title", IndexColumnReference(dbModel));
+
+        // Issue #6: the varchar / character varying type specifiers must be identical
+        // between the builders — same canonical type reference, and the same Length
+        // (present for varchar(255), absent for a bare varchar, matching Postgres's
+        // information_schema.character_maximum_length = NULL for an unbounded varchar).
+        Assert.Equal(TypeSpecHash(parserModel, "film.title"), TypeSpecHash(dbModel, "film.title"));
+        Assert.Equal(TypeSpecHash(parserModel, "film.description"), TypeSpecHash(dbModel, "film.description"));
     }
 
     // The end goal of unifying the builders is that a parsed model and an extracted
     // model of the same schema hash-match, so schema compare works across sources.
-    // Names, PK shape, and index shape are now unified, but type specifiers still
-    // diverge (e.g. the parser tags bare varchar with IsMax; the DB builder reports
-    // the canonical type name differently), so this does not yet hold. Kept as a
-    // skipped executable spec of the target state.
-    [Fact(Skip = "Type-specifier representations still diverge between builders; see model-factory follow-up")]
+    // Names, PK shape, index shape, and (as of issue #6) varchar type specifiers are
+    // unified. Remaining divergences keep whole-model hashes apart: the DB builder
+    // adds a Schema relationship (public) and a btree IndexMethod, and records the
+    // index column's IsAscending / NullsFirst defaults, none of which the parser
+    // emits yet. Kept as a skipped executable spec of the target state.
+    [Fact(Skip = "Schema-qualification and index-default representations still diverge between builders")]
     public async Task ParserAndDatabaseBuilders_ProduceMatchingModelHashes()
     {
         var workspace = new Workspace();
@@ -105,5 +114,18 @@ CREATE INDEX idx_film_title ON film (title);
         var columnSpec = (Element)index.GetRelationship(PostgresRelationshipNames.ColumnSpecifications)!.Entries.Single();
         var reference = (Reference)columnSpec.GetRelationship(PostgresRelationshipNames.Column)!.Entries.Single();
         return reference.Name;
+    }
+
+    // The Merkle hash of a column's type-specifier element captures its type reference
+    // plus any Length / Precision / Scale properties — everything issue #6 must unify.
+    private static string TypeSpecHash(Model model, string columnName)
+    {
+        var table = model.Elements.Single(i => i.Type == PostgresElementTypes.SqlTable);
+        var columns = table.GetRelationship(PostgresRelationshipNames.Columns)!;
+        var column = columns.Entries
+            .OfType<Element>()
+            .Single(c => c.Name == columnName);
+        var typeSpec = (Element)column.GetRelationship(PostgresRelationshipNames.TypeSpecifier)!.Entries.Single();
+        return Convert.ToHexString(typeSpec.Hash);
     }
 }

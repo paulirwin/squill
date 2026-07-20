@@ -343,8 +343,9 @@ public class PostgresScriptGenerator
 
         return typeReference.Name.ToLower() switch
         {
-            "varchar" or "nvarchar" => $"{typeReference.Name}({(maxLength != null ? maxLength : "MAX")})",
-            "character varying" => $"varchar({(maxLength != null ? maxLength : "MAX")})",
+            // A length-less character varying scripts as a bare `varchar`; Postgres has
+            // no `varchar(MAX)` (that is SQL-Server syntax).
+            "character varying" => maxLength != null ? $"varchar({maxLength})" : "varchar",
             _ => typeReference.Name,
         };
     }

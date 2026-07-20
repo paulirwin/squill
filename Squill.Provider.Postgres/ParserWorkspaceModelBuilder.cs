@@ -263,11 +263,11 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                     }
                 };
 
-                if (builtInDataType is { Type: PostgresBuiltInDataType.Varchar, Modifiers.Count: 0 })
-                {
-                    typeSpec.Properties.Add(new Property(PostgresPropertyNames.IsMax, true));
-                }
-                else if (builtInDataType.Modifiers.Count == 1)
+                // A type with no modifiers gets no length/precision properties. For a
+                // bare varchar this mirrors the DB builder, where an unbounded
+                // character varying reports character_maximum_length = NULL — so both
+                // sides agree and the model hashes match (issue #6).
+                if (builtInDataType.Modifiers.Count == 1)
                 {
                     if (builtInDataType.Type is PostgresBuiltInDataType.Varchar or PostgresBuiltInDataType.Char)
                     {
