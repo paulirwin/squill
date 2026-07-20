@@ -15,4 +15,5 @@ public static class PostgresPropertyNames
     public const string IsIdentity = nameof(IsIdentity);
     public const string IdentityGeneration = nameof(IdentityGeneration);
     public const string FilterPredicate = nameof(FilterPredicate);
+    public const string Version = nameof(Version);
 }

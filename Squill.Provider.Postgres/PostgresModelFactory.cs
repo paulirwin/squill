@@ -124,6 +124,28 @@ public static class PostgresModelFactory
     }
 
     /// <summary>
+    /// Builds a Postgres extension element. An extension is a top-level, standalone
+    /// object identified by its name; it is not dependent on any table. Version is
+    /// optional: it is only stored when explicitly declared, so a parsed model (which
+    /// usually omits the version) hash-matches one extracted from the database (whose
+    /// installed version is not part of the desired-state identity).
+    /// </summary>
+    public static Element CreateExtension(SqlName name, string? version = null)
+    {
+        var element = new Element(PostgresElementTypes.SqlExtension)
+        {
+            Name = name,
+        };
+
+        if (version is not null)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.Version, version));
+        }
+
+        return element;
+    }
+
+    /// <summary>
     /// Builds a foreign key constraint element. Referencing and referenced columns are
     /// ordered, canonical (table-qualified) references so a composite key's column
     /// pairing survives. NO ACTION is the Postgres default and is stored as an absent

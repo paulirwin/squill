@@ -421,6 +421,39 @@ CREATE TABLE order_lines
                 Assert.Single(spec.GetRelationship(PostgresRelationshipNames.Column)!.Entries)).Name);
     }
 
+    [Fact]
+    public async Task ExtractModel_CreateExtensionTest()
+    {
+        var model = await BuildModel("CREATE EXTENSION citext;");
+
+        var extension = Assert.Single(model.Elements);
+        Assert.Equal(PostgresElementTypes.SqlExtension, extension.Type);
+        Assert.Equal("citext", extension.Name);
+        // No version declared, so no Version property (name is the identity).
+        Assert.Null(extension.GetProperty<string>(PostgresPropertyNames.Version));
+    }
+
+    [Fact]
+    public async Task ExtractModel_CreateExtensionIfNotExistsTest()
+    {
+        var model = await BuildModel("CREATE EXTENSION IF NOT EXISTS vector;");
+
+        var extension = Assert.Single(model.Elements);
+        Assert.Equal(PostgresElementTypes.SqlExtension, extension.Type);
+        Assert.Equal("vector", extension.Name);
+    }
+
+    [Fact]
+    public async Task ExtractModel_CreateExtensionWithVersionTest()
+    {
+        var model = await BuildModel("CREATE EXTENSION citext WITH VERSION '1.6';");
+
+        var extension = Assert.Single(model.Elements);
+        Assert.Equal(PostgresElementTypes.SqlExtension, extension.Type);
+        Assert.Equal("citext", extension.Name);
+        Assert.Equal("1.6", extension.GetProperty<string>(PostgresPropertyNames.Version));
+    }
+
     private static async Task<Model> BuildModel(string sql)
     {
         var parser = new AntlrPostgresParser();

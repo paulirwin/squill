@@ -48,6 +48,12 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
 
                 model.Elements.Add(element);
             }
+            else if (statement is CreateExtensionStatement createExtensionStatement)
+            {
+                var element = MakeCreateExtensionElement(createExtensionStatement);
+
+                model.Elements.Add(element);
+            }
             else
             {
                 throw new NotImplementedException(
@@ -381,6 +387,15 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
             createIndexStatement.UsingMethod?.Name,
             columns,
             filterPredicate);
+    }
+
+    private static Element MakeCreateExtensionElement(CreateExtensionStatement createExtensionStatement)
+    {
+        // Extensions are database-level, standalone objects identified by name.
+        // The declared version (if any) is carried through; SCHEMA is not yet modeled.
+        var extensionName = SqlName.Object(createExtensionStatement.Name.Name);
+
+        return PostgresModelFactory.CreateExtension(extensionName, createExtensionStatement.Version);
     }
 
     private static SqlName ToSqlName(QualifiedName qualifiedName)
