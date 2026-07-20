@@ -63,8 +63,15 @@ CREATE TABLE Foo
         Assert.Equal("Foo", table.Name);
         Assert.Equal(PostgresElementTypes.SqlTable, table.Type);
 
-        Assert.Single(table.Relationships);
-        var columns = table.Relationships[0];
+        // The table carries a Schema relationship (implicit "public") plus its Columns,
+        // matching the DB builder so a parsed model hash-matches an extracted one.
+        Assert.Equal(2, table.Relationships.Count);
+        var schema = table.Relationships[0];
+        Assert.Equal(PostgresRelationshipNames.Schema, schema.Name);
+        var schemaRef = Assert.IsType<Reference>(Assert.Single(schema.Entries));
+        Assert.Equal("public", schemaRef.Name);
+
+        var columns = table.Relationships[1];
         Assert.Equal(PostgresRelationshipNames.Columns, columns.Name);
         Assert.Equal(2, columns.Entries.Count);
 
@@ -187,7 +194,9 @@ CREATE INDEX idx_title ON film (title);
         var index = model.Elements.Single(i => i.Type == PostgresElementTypes.SqlIndex);
         Assert.Equal("idx_title", index.Name);
         Assert.Equal(false, index.GetProperty<bool?>(PostgresPropertyNames.IsUnique));
-        Assert.Null(index.GetProperty<string>(PostgresPropertyNames.IndexMethod));
+        // With USING omitted, the index method defaults to btree — matching the DB builder,
+        // which reads "btree" from pg_am for a plain index.
+        Assert.Equal("btree", index.GetProperty<string>(PostgresPropertyNames.IndexMethod));
 
         var indexedObject = index.GetRelationship(PostgresRelationshipNames.IndexedObject);
         Assert.NotNull(indexedObject);
@@ -202,6 +211,12 @@ CREATE INDEX idx_title ON film (title);
         Assert.NotNull(columnRel);
         var columnRef = Assert.IsType<Reference>(Assert.Single(columnRel.Entries));
         Assert.Equal("film.title", columnRef.Name);
+
+        // A btree index column with no explicit ASC/DESC or NULLS carries Postgres's
+        // implicit defaults (ASC, NULLS LAST), recorded so a parsed index hash-matches
+        // one extracted from the database.
+        Assert.Equal(true, columnSpec.GetProperty<bool?>(PostgresPropertyNames.IsAscending));
+        Assert.Equal(false, columnSpec.GetProperty<bool?>(PostgresPropertyNames.NullsFirst));
     }
 
     [Fact]
@@ -501,6 +516,12 @@ CREATE INDEX items_embedding_idx ON items USING hnsw (embedding vector_cosine_op
         Assert.NotNull(columnSpecs);
         var columnSpec = Assert.IsType<Element>(Assert.Single(columnSpecs.Entries));
         Assert.Equal("vector_cosine_ops", columnSpec.GetProperty<string>(PostgresPropertyNames.OperatorClass));
+
+        // A non-btree access method (hnsw) rejects ASC/DESC and NULLS ordering, so neither
+        // builder records those defaults — leaving them out keeps the model free of
+        // ordering the emitted DDL can't legally carry.
+        Assert.Null(columnSpec.GetProperty<bool?>(PostgresPropertyNames.IsAscending));
+        Assert.Null(columnSpec.GetProperty<bool?>(PostgresPropertyNames.NullsFirst));
     }
 
     private static async Task<Model> BuildModel(string sql)

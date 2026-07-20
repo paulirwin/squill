@@ -50,7 +50,8 @@ public class PostgresCreateIndexTest : PostgresIntegrationTestBase
 
         var plain = Assert.Single(indexes, i => i.Name == "idx_film_title");
         Assert.Equal(false, plain.GetProperty<bool?>(PostgresPropertyNames.IsUnique));
-        Assert.Null(plain.GetProperty<string>(PostgresPropertyNames.IndexMethod));
+        // A plain index with USING omitted defaults to btree, matching the DB builder.
+        Assert.Equal("btree", plain.GetProperty<string>(PostgresPropertyNames.IndexMethod));
 
         var unique = Assert.Single(indexes, i => i.Name == "idx_film_title_unique");
         Assert.Equal(true, unique.GetProperty<bool?>(PostgresPropertyNames.IsUnique));
