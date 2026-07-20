@@ -469,6 +469,8 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 c.is_nullable,
                 c.data_type,
                 c.character_maximum_length,
+                c.numeric_precision,
+                c.numeric_scale,
                 c.is_identity,
                 c.identity_generation,
                 c.udt_name,
@@ -501,6 +503,8 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             var nullable = reader.GetString("is_nullable") == "YES";
             var dataType = reader.GetString("data_type");
             var maxLength = reader.GetFieldValue<int?>("character_maximum_length");
+            var numericPrecision = reader.GetFieldValue<int?>("numeric_precision");
+            var numericScale = reader.GetFieldValue<int?>("numeric_scale");
             var isIdentity = reader.GetString("is_identity") == "YES";
 
             // For a user-defined type the canonical name is udt_name (e.g. "vector"), not
@@ -539,6 +543,20 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             if (maxLength.HasValue)
             {
                 typeElement.Properties.Add(new Property(PostgresPropertyNames.Length, maxLength.Value));
+            }
+
+            // For a `numeric(p, s)` column, mirror the parser builder by emitting
+            // Precision and Scale (issue #33). information_schema reports a
+            // numeric_precision for other types too (e.g. integer -> 32), so this is
+            // gated on the numeric type. A bare, unconstrained `numeric` reports a
+            // NULL numeric_precision — the parser emits no modifiers there, so we
+            // emit none either. Stored as long to match the parser's value type.
+            if (dataType == "numeric" && numericPrecision.HasValue)
+            {
+                typeElement.Properties.Add(
+                    new Property(PostgresPropertyNames.Precision, (long)numericPrecision.Value));
+                typeElement.Properties.Add(
+                    new Property(PostgresPropertyNames.Scale, (long)(numericScale ?? 0)));
             }
 
             var column = new Element(PostgresElementTypes.SqlSimpleColumn)

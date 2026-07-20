@@ -88,6 +88,25 @@ CREATE TABLE notes
     }
 
     [Fact]
+    public async Task GenerateScript_Numeric_ScriptsWithPrecisionAndScale()
+    {
+        var comparison = await CompareToEmptyAsync("""
+CREATE TABLE prices
+(
+    amount numeric(12, 2) NOT NULL
+);
+""");
+
+        var generator = new PostgresScriptGenerator();
+
+        var sql = generator.GenerateScript(comparison);
+
+        // A numeric(p, s) column must script with its precision and scale so the
+        // deployed column has the declared type (issue #33).
+        Assert.Contains("numeric(12, 2)", sql);
+    }
+
+    [Fact]
     public async Task GenerateScript_CreateTableWithIndex()
     {
         var comparison = await CompareToEmptyAsync("""

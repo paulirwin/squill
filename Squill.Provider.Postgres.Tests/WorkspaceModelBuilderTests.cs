@@ -131,6 +131,42 @@ CREATE TABLE notes
     }
 
     [Fact]
+    public async Task ExtractModel_Numeric_HasPrecisionAndScale()
+    {
+        // A `numeric(p, s)` column must produce Precision/Scale properties on its
+        // type specifier, matching what the DB builder extracts, so parser-vs-DB
+        // hashes agree (issue #33). The parser stores both as long.
+        const string sql = """
+CREATE TABLE prices
+(
+    amount numeric(12, 2)
+);
+""";
+
+        var parser = new AntlrPostgresParser();
+        var workspace = new Workspace();
+        workspace.Files.Add(new InMemoryStringFile("Prices.sql", FileKind.Compile, sql));
+
+        var model = await new ParserWorkspaceModelBuilder(workspace, parser)
+            .ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        var table = model.Elements.Single(i => i.Type == PostgresElementTypes.SqlTable);
+        var columns = table.Relationships.Single(r => r.Name == PostgresRelationshipNames.Columns);
+        var amountCol = Assert.IsType<Element>(columns.Entries[0]);
+
+        var typeElem = Assert.IsType<Element>(
+            amountCol.Relationships.Single(r => r.Name == PostgresRelationshipNames.TypeSpecifier).Entries[0]);
+
+        var typeRef = Assert.IsType<Reference>(
+            typeElem.Relationships.Single(r => r.Name == PostgresRelationshipNames.Type).Entries[0]);
+        Assert.Equal("numeric", typeRef.Name);
+
+        Assert.Equal(12L, typeElem.GetProperty<long?>(PostgresPropertyNames.Precision));
+        Assert.Equal(2L, typeElem.GetProperty<long?>(PostgresPropertyNames.Scale));
+        Assert.Null(typeElem.GetProperty<int?>(PostgresPropertyNames.Length));
+    }
+
+    [Fact]
     public async Task ExtractModel_IdentityColumnTest()
     {
         const string sql = """
