@@ -45,6 +45,27 @@ CREATE TABLE film
     }
 
     [Fact]
+    public async Task GenerateScript_BareVarchar_ScriptsWithoutLengthOrMax()
+    {
+        var comparison = await CompareToEmptyAsync("""
+CREATE TABLE notes
+(
+    body varchar
+);
+""");
+
+        var generator = new PostgresScriptGenerator();
+
+        var sql = generator.GenerateScript(comparison);
+
+        // A length-less varchar must script as plain `varchar`; `varchar(MAX)` is
+        // SQL-Server syntax and is not valid Postgres.
+        Assert.Contains("varchar", sql);
+        Assert.DoesNotContain("MAX", sql);
+        Assert.DoesNotContain("varchar(", sql);
+    }
+
+    [Fact]
     public async Task GenerateScript_CreateTableWithIndex()
     {
         var comparison = await CompareToEmptyAsync("""

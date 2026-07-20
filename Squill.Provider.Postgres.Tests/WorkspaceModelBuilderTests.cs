@@ -88,6 +88,42 @@ CREATE TABLE Foo
     }
 
     [Fact]
+    public async Task ExtractModel_BareVarchar_HasNoLengthOrMaxProperties()
+    {
+        // A bare `varchar` (no length) must produce the same type-specifier shape as
+        // the DB builder, which reports character_maximum_length = NULL and so emits
+        // neither a Length nor an IsMax property. Emitting IsMax here would break
+        // parser-vs-DB hash equality (issue #6).
+        const string sql = """
+CREATE TABLE notes
+(
+    body varchar
+);
+""";
+
+        var parser = new AntlrPostgresParser();
+        var workspace = new Workspace();
+        workspace.Files.Add(new InMemoryStringFile("Notes.sql", FileKind.Compile, sql));
+
+        var model = await new ParserWorkspaceModelBuilder(workspace, parser)
+            .ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        var table = model.Elements.Single(i => i.Type == PostgresElementTypes.SqlTable);
+        var columns = table.Relationships.Single(r => r.Name == PostgresRelationshipNames.Columns);
+        var bodyCol = Assert.IsType<Element>(columns.Entries[0]);
+
+        var typeElem = Assert.IsType<Element>(
+            bodyCol.Relationships.Single(r => r.Name == PostgresRelationshipNames.TypeSpecifier).Entries[0]);
+
+        var typeRef = Assert.IsType<Reference>(
+            typeElem.Relationships.Single(r => r.Name == PostgresRelationshipNames.Type).Entries[0]);
+        Assert.Equal("character varying", typeRef.Name);
+
+        // No Length and no IsMax on a bare varchar — matches the DB builder exactly.
+        Assert.Empty(typeElem.Properties);
+    }
+
+    [Fact]
     public async Task ExtractModel_IdentityColumnTest()
     {
         const string sql = """
