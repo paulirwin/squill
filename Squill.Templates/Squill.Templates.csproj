@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Packaging-only project: it produces the Squill.Templates NuGet package, a
+         `dotnet new` template pack. Installing it (`dotnet new install Squill.Templates`)
+         adds the `dotnet new squill` template that scaffolds a .squillproj project.
+         It emits no assembly of its own. -->
+    <PackageType>Template</PackageType>
+    <TargetFramework>net10.0</TargetFramework>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <ContentTargetFolders>content</ContentTargetFolders>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <NoDefaultExcludes>true</NoDefaultExcludes>
+
+    <PackageId>Squill.Templates</PackageId>
+    <Version>0.0.1</Version>
+    <Authors>Paul Irwin</Authors>
+    <Title>Squill Database Project Templates</Title>
+    <Description>`dotnet new` templates for Squill (.squillproj) database projects. After installing, run `dotnet new squill` to scaffold a declarative Squill database project that builds a DACPAC.</Description>
+    <PackageTags>dotnet-new;templates;squill;dacpac;postgresql;mariadb;mysql;sql</PackageTags>
+
+    <!-- Templates ship content only (no lib/ref assemblies, no build output). -->
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <!-- NU5128: no lib/ref assemblies (this package ships template content, not a library). -->
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <!-- Pack the template content. The .template.config/template.json in each template
+       folder is what `dotnet new` reads. Exclude any build output that may exist under
+       the template folders from being packed as template content. -->
+  <ItemGroup>
+    <Content Include="templates\**\*" Exclude="templates\**\bin\**;templates\**\obj\**" />
+    <Compile Remove="**\*" />
+  </ItemGroup>
+
+</Project>

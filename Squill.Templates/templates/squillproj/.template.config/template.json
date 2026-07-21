@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Paul Irwin",
+  "classifications": [ "Database", "Squill", "DACPAC", "PostgreSQL", "MySQL", "MariaDB" ],
+  "identity": "Squill.Database.Project",
+  "name": "Squill Database Project",
+  "description": "A declarative Squill database project (.squillproj) that builds a DACPAC from CREATE-statement .sql files.",
+  "shortName": "squill",
+  "tags": {
+    "language": "SQL",
+    "type": "project"
+  },
+  "sourceName": "Database",
+  "preferNameDirectory": true,
+  "symbols": {
+    "Provider": {
+      "type": "parameter",
+      "datatype": "choice",
+      "description": "The target database engine / provider the DACPAC is built for.",
+      "defaultValue": "Postgresql",
+      "replaces": "PROVIDER_NAME",
+      "choices": [
+        {
+          "choice": "Postgresql",
+          "description": "PostgreSQL (default)."
+        },
+        {
+          "choice": "MariaDb",
+          "description": "MariaDB."
+        },
+        {
+          "choice": "MySql",
+          "description": "MySQL (served by the MariaDB provider)."
+        }
+      ]
+    },
+    "TargetVersion": {
+      "type": "parameter",
+      "datatype": "text",
+      "description": "The minimum target engine major version the DACPAC targets (e.g. 16 for PostgreSQL, 11 for MariaDB/MySQL). Leave empty for no version constraint.",
+      "defaultValue": "",
+      "replaces": "TARGET_VERSION"
+    },
+    "HasTargetVersion": {
+      "type": "computed",
+      "value": "(TargetVersion != \"\")"
+    },
+    "SdkVersion": {
+      "type": "parameter",
+      "datatype": "text",
+      "description": "The version of the Squill.Sdk package the generated project references.",
+      "defaultValue": "0.0.1",
+      "replaces": "SDK_VERSION"
+    }
+  },
+  "primaryOutputs": [
+    { "path": "Database.squillproj" }
+  ]
+}

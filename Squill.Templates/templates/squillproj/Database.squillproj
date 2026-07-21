@@ -1,0 +1,10 @@
+<Project Sdk="Squill.Sdk/SDK_VERSION">
+
+  <PropertyGroup>
+    <SquillProviderName>PROVIDER_NAME</SquillProviderName>
+    <!--#if (HasTargetVersion)-->
+    <SquillTargetVersion>TARGET_VERSION</SquillTargetVersion>
+    <!--#endif-->
+  </PropertyGroup>
+
+</Project>

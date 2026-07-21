@@ -42,6 +42,29 @@ dotnet tool install --global Squill
 
 Then use `squill deploy` and `squill script` to apply a DACPAC to a target database. See [the CLI readme](Squill/README.md) for usage.
 
+## Getting started
+
+Scaffold a new Squill database project with the `dotnet new` template:
+
+```sh
+# Install the template pack (once):
+dotnet new install Squill.Templates
+
+# Create a PostgreSQL project (the default) in a MyDatabase folder:
+dotnet new squill --name MyDatabase
+
+# Or target MariaDB/MySQL, optionally with a minimum engine version:
+dotnet new squill --name MyDatabase --Provider MariaDb --TargetVersion 11
+```
+
+This creates a `.squillproj` that references the `Squill.Sdk` package plus an example table
+under `Tables/`. `dotnet build` produces a DACPAC from the declarative `.sql` files; add more
+`.sql` files (tables, views, and so on) as your schema grows.
+
+The `--Provider` choice is `Postgresql` (default), `MariaDb`, or `MySql`, and selects the SQL
+dialect the DACPAC is built for. `--TargetVersion` records a minimum target engine major
+version, enforced on deploy; omit it for no version constraint.
+
 ## Architecture
 
 There are two phases for taking a Squill project from source code to updating your target database: building the DACPAC, and deploying the DACPAC.
