@@ -22,6 +22,22 @@ public class ModelMetadata
     public string Description { get; set; } = string.Empty;
 
     /// <summary>
+    /// SQL run against the target database <em>before</em> the schema diff is applied,
+    /// stored as the DACPAC's <c>predeploy.sql</c> part. Empty when the project declares
+    /// no pre-deployment script. Unlike the declarative sources this is imperative script
+    /// text: it is never parsed into the model, and it runs verbatim on every deploy.
+    /// </summary>
+    public string PreDeployScript { get; set; } = string.Empty;
+
+    /// <summary>
+    /// SQL run against the target database <em>after</em> the schema diff is applied,
+    /// stored as the DACPAC's <c>postdeploy.sql</c> part. The usual home for seeding or
+    /// data-preparation statements, which should be written to be idempotent since they
+    /// run on every deploy. See <see cref="PreDeployScript"/>.
+    /// </summary>
+    public string PostDeployScript { get; set; } = string.Empty;
+
+    /// <summary>
     /// The minimum target database engine <em>major</em> version this DACPAC was built for
     /// (e.g. <c>16</c> for PostgreSQL, <c>11</c> for MariaDB), like SSDT's target platform.
     /// Encoded into the DSP name on the <c>model.xml</c> root (see <see cref="DspName"/>) and

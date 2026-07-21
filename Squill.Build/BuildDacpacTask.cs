@@ -24,6 +24,20 @@ public class BuildDacpacTask : Microsoft.Build.Utilities.Task
     [Required]
     public ITaskItem[] SourceFiles { get; set; } = [];
 
+    /// <summary>
+    /// SQL files run against the target database <em>before</em> the schema diff is applied.
+    /// Unlike <see cref="SourceFiles"/> these are imperative scripts, not declarations: they
+    /// are stored verbatim in the DACPAC and never parsed into the model. Multiple files are
+    /// concatenated in item order.
+    /// </summary>
+    public ITaskItem[] PreDeployFiles { get; set; } = [];
+
+    /// <summary>
+    /// SQL files run against the target database <em>after</em> the schema diff is applied —
+    /// typically seeding or data preparation. See <see cref="PreDeployFiles"/>.
+    /// </summary>
+    public ITaskItem[] PostDeployFiles { get; set; } = [];
+
     /// <summary>Full path of the DACPAC file to write.</summary>
     [Required]
     public string OutputPath { get; set; } = string.Empty;
@@ -77,6 +91,8 @@ public class BuildDacpacTask : Microsoft.Build.Utilities.Task
                 Name = DacName,
                 Version = DacVersion,
                 TargetMajorVersion = ParseTargetVersion(TargetVersion),
+                PreDeployScript = ReadDeployScript(PreDeployFiles, "pre-deployment"),
+                PostDeployScript = ReadDeployScript(PostDeployFiles, "post-deployment"),
             };
 
             // MSBuild tasks are synchronous; block on the async build. There is no
@@ -125,6 +141,47 @@ public class BuildDacpacTask : Microsoft.Build.Utilities.Task
             endLineNumber: 0,
             endColumnNumber: 0,
             message: ex.Message);
+
+    /// <summary>
+    /// Reads the deploy-script items into the single script string stored in the DACPAC.
+    /// Files are concatenated in item order, each preceded by a comment naming its source
+    /// so a failure at deploy time can be traced back to the file it came from. A missing
+    /// file is a build error rather than a silently skipped script.
+    /// </summary>
+    private string ReadDeployScript(ITaskItem[] items, string description)
+    {
+        var paths = items
+            .Select(i => i.GetMetadata("FullPath"))
+            .Where(p => !string.IsNullOrEmpty(p))
+            .ToArray();
+
+        if (paths.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var builder = new System.Text.StringBuilder();
+
+        foreach (var path in paths)
+        {
+            if (!File.Exists(path))
+            {
+                throw new FileNotFoundException(
+                    $"Squill: the {description} script '{path}' was not found.", path);
+            }
+
+            builder.Append("-- Squill ").Append(description).Append(" script: ")
+                .AppendLine(Path.GetFileName(path));
+            builder.AppendLine(File.ReadAllText(path));
+            builder.AppendLine();
+        }
+
+        Log.LogMessage(
+            MessageImportance.Normal,
+            $"Squill: included {paths.Length} {description} script file(s).");
+
+        return builder.ToString();
+    }
 
     /// <summary>
     /// Parses the <see cref="TargetVersion"/> MSBuild property (a string, possibly empty or a

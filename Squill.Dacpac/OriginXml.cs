@@ -12,7 +12,12 @@ namespace Squill.Dacpac;
 /// </summary>
 internal static class OriginXml
 {
-    public static void Write(ModelMetadata metadata, string modelChecksum, Stream stream)
+    /// <summary>
+    /// Writes Origin.xml, recording a checksum for each part in
+    /// <paramref name="checksums"/> (keyed by part Uri, e.g. <c>/model.xml</c>).
+    /// </summary>
+    public static void Write(
+        ModelMetadata metadata, IReadOnlyList<(string Uri, string Checksum)> checksums, Stream stream)
     {
         var settings = new XmlWriterSettings
         {
@@ -34,10 +39,14 @@ internal static class OriginXml
         writer.WriteElementString("DspName", DacpacConstants.SerializationNamespace, metadata.ProviderName);
 
         writer.WriteStartElement("Checksums", DacpacConstants.SerializationNamespace);
-        writer.WriteStartElement("Checksum", DacpacConstants.SerializationNamespace);
-        writer.WriteAttributeString("Uri", DacpacConstants.ModelPartUri);
-        writer.WriteString(modelChecksum);
-        writer.WriteEndElement(); // Checksum
+        foreach (var (uri, checksum) in checksums)
+        {
+            writer.WriteStartElement("Checksum", DacpacConstants.SerializationNamespace);
+            writer.WriteAttributeString("Uri", uri);
+            writer.WriteString(checksum);
+            writer.WriteEndElement(); // Checksum
+        }
+
         writer.WriteEndElement(); // Checksums
 
         writer.WriteEndElement(); // DacOrigin
@@ -46,10 +55,10 @@ internal static class OriginXml
     }
 
     /// <summary>
-    /// Reads Origin.xml, applying the provider name onto the metadata and returning
-    /// the recorded checksum for <c>model.xml</c> (null if none is present).
+    /// Reads Origin.xml, applying the provider name onto the metadata and returning the
+    /// recorded checksums keyed by part Uri (empty when none are present).
     /// </summary>
-    public static string? ReadInto(Stream stream, ModelMetadata metadata)
+    public static IReadOnlyDictionary<string, string> ReadInto(Stream stream, ModelMetadata metadata)
     {
         var document = XDocument.Load(stream);
         var root = document.Root
@@ -61,10 +70,21 @@ internal static class OriginXml
             metadata.ProviderName = dspName;
         }
 
-        return root.Element(ns + "Checksums")?
-            .Elements(ns + "Checksum")
-            .FirstOrDefault(c => (string?)c.Attribute("Uri") == DacpacConstants.ModelPartUri)?
-            .Value;
+        var checksums = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        var elements = root.Element(ns + "Checksums")?.Elements(ns + "Checksum");
+        if (elements is not null)
+        {
+            foreach (var element in elements)
+            {
+                if ((string?)element.Attribute("Uri") is { } uri)
+                {
+                    checksums[uri] = element.Value;
+                }
+            }
+        }
+
+        return checksums;
     }
 
     /// <summary>

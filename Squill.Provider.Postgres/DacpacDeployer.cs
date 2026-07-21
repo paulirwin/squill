@@ -142,7 +142,11 @@ public static class DacpacDeployer
             compareOptions with { BlockOnPossibleDataLoss = false });
 
         var generator = new PostgresScriptGenerator();
-        var script = generator.GenerateScript(comparison);
+
+        // The full script is the schema diff bracketed by the DACPAC's deploy scripts, so
+        // `squill script` and a dry run preview exactly what a deploy would execute.
+        var script = DeploymentScripts.Compose(
+            metadata.PreDeployScript, generator.GenerateScript(comparison), metadata.PostDeployScript);
 
         if (dryRun)
         {
@@ -164,10 +168,18 @@ public static class DacpacDeployer
             comparison.ThrowIfDataLoss();
         }
 
+        // The pre-deployment script runs before any schema change, and runs even when the
+        // schema is already up to date: like SSDT, deploy scripts are part of every deploy,
+        // not just ones that alter the schema (seeding an unchanged schema must still work).
+        if (!string.IsNullOrWhiteSpace(metadata.PreDeployScript))
+        {
+            progress?.Report("Running pre-deployment script...");
+            await targetDb.RunScriptAsync(metadata.PreDeployScript, cancellationToken: cancellationToken);
+        }
+
         if (comparison.Deltas.Count == 0)
         {
-            progress?.Report("Target database already matches the DACPAC; nothing to deploy.");
-            return new DeployResult(script, WasExecuted: true);
+            progress?.Report("Target database schema already matches the DACPAC; no schema changes to apply.");
         }
 
         // Run the deltas one at a time (mirroring PostgresDatabase.PublishAsync) so each
@@ -179,6 +191,12 @@ public static class DacpacDeployer
 
             var sql = generator.GenerateScriptForDelta(delta);
             await targetDb.RunScriptAsync(sql, cancellationToken: cancellationToken);
+        }
+
+        if (!string.IsNullOrWhiteSpace(metadata.PostDeployScript))
+        {
+            progress?.Report("Running post-deployment script...");
+            await targetDb.RunScriptAsync(metadata.PostDeployScript, cancellationToken: cancellationToken);
         }
 
         return new DeployResult(script, WasExecuted: true);

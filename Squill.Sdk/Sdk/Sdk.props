@@ -43,12 +43,27 @@
     <EnableDefaultSquillItems Condition="'$(EnableDefaultSquillItems)' == ''">true</EnableDefaultSquillItems>
   </PropertyGroup>
 
-  <!-- Default include glob: every .sql file under the project is a compile input,
-       excluding build output. Projects can opt out with EnableDefaultSquillItems=false
-       and declare SquillCompile items by hand. -->
+  <!-- Default include globs. Pre/post-deployment scripts are matched first and then
+       excluded from SquillCompile: they are imperative scripts run around the schema
+       diff, not declarations, so they must not be parsed into the model. Following
+       SSDT, the conventional file names are PreDeploy.sql and PostDeploy.sql; both
+       the project root and a Scripts\ subfolder are recognised. Projects can opt out
+       with EnableDefaultSquillItems=false and declare the items by hand. -->
   <ItemGroup Condition="'$(EnableDefaultSquillItems)' == 'true'">
+    <!-- Guarded by Exists(): a literal Include creates an item even when the file is
+         absent, which would fail the build of every project that has no deploy scripts. -->
+    <SquillPreDeploy Include="PreDeploy.sql"
+                     Condition="Exists('$(MSBuildProjectDirectory)/PreDeploy.sql')" />
+    <SquillPreDeploy Include="Scripts/PreDeploy.sql"
+                     Condition="Exists('$(MSBuildProjectDirectory)/Scripts/PreDeploy.sql')" />
+
+    <SquillPostDeploy Include="PostDeploy.sql"
+                      Condition="Exists('$(MSBuildProjectDirectory)/PostDeploy.sql')" />
+    <SquillPostDeploy Include="Scripts/PostDeploy.sql"
+                      Condition="Exists('$(MSBuildProjectDirectory)/Scripts/PostDeploy.sql')" />
+
     <SquillCompile Include="**\*.sql"
-                   Exclude="$(BaseOutputPath)**;$(BaseIntermediateOutputPath)**;$(DefaultItemExcludes)" />
+                   Exclude="@(SquillPreDeploy);@(SquillPostDeploy);$(BaseOutputPath)**;$(BaseIntermediateOutputPath)**;$(DefaultItemExcludes)" />
   </ItemGroup>
 
 </Project>

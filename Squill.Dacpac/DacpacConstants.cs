@@ -15,8 +15,15 @@ internal static class DacpacConstants
     public const string DacMetadataPart = "DacMetadata.xml";
     public const string ContentTypesPart = "[Content Types].xml";
 
-    // The Uri form used to reference the model part from Origin.xml checksums.
+    // Optional pre/post-deployment script parts (issue #67). Present only when the
+    // project declares them, so a DACPAC without scripts keeps its original layout.
+    public const string PreDeployPart = "predeploy.sql";
+    public const string PostDeployPart = "postdeploy.sql";
+
+    // The Uri forms used to reference parts from Origin.xml checksums.
     public const string ModelPartUri = "/model.xml";
+    public const string PreDeployPartUri = "/predeploy.sql";
+    public const string PostDeployPartUri = "/postdeploy.sql";
 
     // DACFx 3.0 serialization namespace, shared by model.xml, Origin.xml and
     // DacMetadata.xml.
