@@ -27,11 +27,21 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         var model = new Model();
         var validator = new SourceValidator();
         var warnings = new List<SqlSourceDiagnostic>();
+        var views = new List<PendingView>();
 
         foreach (var file in _workspace.Files.Where(i => i.Kind == FileKind.Compile))
         {
-            await ProcessFile(file, model, validator, warnings, cancellationToken);
+            await ProcessFile(file, model, validator, warnings, views, cancellationToken);
         }
+
+        SortTablesByName(model);
+
+        // Views are added after the tables are sorted (so they are not dragged around as a
+        // table's dependents) and only once every table is known: expanding a SELECT * needs
+        // the referenced table's columns, which may be declared in a later file. This runs
+        // before validation so a broken view is reported alongside every other source error
+        // rather than on a later rebuild (issue #61).
+        AddViews(model, validator, views);
 
         // Validated after every file so declaration order (within and across files) does
         // not matter, just like it doesn't for the deployed schema. Parse and mapping errors
@@ -39,10 +49,39 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         // rather than one per rebuild (issue #61).
         validator.ThrowIfInvalid();
 
-        SortTablesByName(model);
         MoveProceduresToEnd(model);
 
         return new BuildResult(model, warnings);
+    }
+
+    // A view whose element cannot be built until every table in the workspace has been
+    // seen, kept with the file and position to report any failure against.
+    private sealed record PendingView(IFile File, CreateViewStatement Statement);
+
+    /// <summary>
+    /// Adds every view after the tables, ordered by name. The database-extraction builder
+    /// reads views in that order (information_schema has no notion of declaration order) and
+    /// the Merkle hash is order-sensitive, so a parsed model must adopt the same order.
+    /// </summary>
+    private static void AddViews(Model model, SourceValidator validator, List<PendingView> views)
+    {
+        // Ordinal, to match the database's byte-wise ordering of the same names.
+        foreach (var view in views.OrderBy(i => i.Statement.Name.Name, StringComparer.Ordinal))
+        {
+            try
+            {
+                model.Elements.Add(MakeCreateViewElement(view.Statement, validator));
+            }
+            catch (Exception ex) when (ex is NotImplementedException or NotSupportedException
+                or InvalidOperationException)
+            {
+                // Recorded rather than thrown, so a build reports every broken view at once
+                // alongside the other source errors (issue #61).
+                validator.AddError(new SqlSourceException(
+                    ex.Message, view.File.Name, view.Statement.Line, view.Statement.Column,
+                    SqlSourceException.UnresolvedReference, ex));
+            }
+        }
     }
 
     /// <summary>
@@ -137,6 +176,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         Model model,
         SourceValidator validator,
         List<SqlSourceDiagnostic> warnings,
+        List<PendingView> views,
         CancellationToken cancellationToken)
     {
         var text = await file.ReadAllTextAsync(cancellationToken);
@@ -193,6 +233,14 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         }
 
                         model.Elements.Add(MakeCreateProcedureElement(createProcedure));
+                        break;
+
+                    case CreateViewStatement createView:
+                        validator.AddCreateView(file, createView);
+
+                        // Held back until every file has been read: a SELECT * needs the
+                        // referenced table's columns, and that table may be declared later.
+                        views.Add(new PendingView(file, createView));
                         break;
 
                     case CreateFunctionStatement:
@@ -293,6 +341,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     private sealed class SourceValidator
     {
         private readonly Dictionary<string, HashSet<string>> _declaredTables =
+            new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, List<string>> _declaredColumnOrder =
             new(StringComparer.OrdinalIgnoreCase);
         private readonly List<TableReference> _tableReferences = [];
         private readonly List<SqlSourceException> _errors = [];
@@ -416,6 +466,13 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
             _tableOrigins[table] = new Origin(file.Name, createTable.Line);
             _declaredTables[table] = columns;
+
+            // The set above is for membership checks and is unordered; a view's SELECT *
+            // expands in declaration order, so that order is kept alongside it.
+            _declaredColumnOrder[table] = createTable.Elements
+                .OfType<ColumnDefinition>()
+                .Select(i => i.Name.Name)
+                .ToList();
 
             foreach (var tableConstraint in createTable.Elements.OfType<TableConstraint>())
             {
@@ -563,6 +620,27 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         // Describes where an object was first defined, for a duplicate-definition message.
         private static string DescribeOrigin(Origin origin)
             => origin.Line is { } line ? $"{origin.SourceFile} line {line}" : origin.SourceFile;
+
+        public void AddCreateView(IFile file, CreateViewStatement createView)
+        {
+            // Every table the view selects from must be declared in the project, so an
+            // unresolved one is reported like any other unresolved reference.
+            foreach (var sourceTable in createView.SourceTables)
+            {
+                _tableReferences.Add(new TableReference(
+                    file.Name, createView.Line, createView.Column,
+                    $"View '{createView.Name.Name}'",
+                    sourceTable.Name, []));
+            }
+        }
+
+        /// <summary>
+        /// The columns declared on a table, or null when the table is not declared in the
+        /// project. Used to expand a view's <c>SELECT *</c>; an unresolved table is already
+        /// reported as an error by <see cref="ThrowIfInvalid"/>.
+        /// </summary>
+        public IReadOnlyList<string>? GetDeclaredColumns(string table)
+            => _declaredColumnOrder.TryGetValue(table, out var columns) ? columns : null;
 
         public void AddCreateIndex(IFile file, CreateIndexStatement createIndex)
         {
@@ -1021,6 +1099,117 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
         return MariaDbModelFactory.CreateIndex(
             indexName, tableName, createIndex.Unique, indexMethod, columns);
+    }
+
+    /// <summary>
+    /// Builds a view element, resolving the names of the columns it exposes.
+    ///
+    /// An explicit column list names them outright. Otherwise each select-list entry
+    /// contributes one name: an alias, a plain column's own name, or — for a <c>*</c> — the
+    /// columns of the table it expands over, which is why this runs only after every table
+    /// in the workspace is known. An entry that names nothing (an unaliased expression) and
+    /// a <c>*</c> that cannot be resolved to a single table are build errors rather than
+    /// guesses, since guessing wrong would silently model the wrong shape.
+    /// </summary>
+    private static Element MakeCreateViewElement(CreateViewStatement statement, SourceValidator validator)
+    {
+        if (statement.Body is not { } definition)
+        {
+            throw new InvalidOperationException("A view must declare a query");
+        }
+
+        var columnNames = statement.ColumnNames.Count > 0
+            ? statement.ColumnNames.Select(i => i.Name).ToList()
+            : DeriveViewColumnNames(statement, validator);
+
+        if (columnNames.Count == 0)
+        {
+            throw new InvalidOperationException($"View '{statement.Name.Name}' exposes no columns");
+        }
+
+        // A view is not schema-scoped within a database, so a leading db qualifier is
+        // dropped exactly as it is for a table.
+        return MariaDbModelFactory.CreateView(
+            SqlName.Object(statement.Name.Name), columnNames, definition);
+    }
+
+    private static List<string> DeriveViewColumnNames(
+        CreateViewStatement statement,
+        SourceValidator validator)
+    {
+        var names = new List<string>();
+
+        foreach (var column in statement.SelectColumns)
+        {
+            if (column.IsWildcard)
+            {
+                names.AddRange(ExpandWildcard(statement, column.Qualifier, validator));
+
+                continue;
+            }
+
+            if (column.DerivedName is not { } derivedName)
+            {
+                throw new NotSupportedException(
+                    "A view's select list may only contain columns and aliased expressions; "
+                    + "give the expression an alias (e.g. SELECT qty * 2 AS doubled) so the "
+                    + "column has a name.");
+            }
+
+            names.Add(derivedName);
+        }
+
+        return names;
+    }
+
+    private static IEnumerable<string> ExpandWildcard(
+        CreateViewStatement statement,
+        string? qualifier,
+        SourceValidator validator)
+    {
+        // An unqualified * over several tables is ambiguous — which table's columns come
+        // first, and whether same-named columns collide, depends on the join. Rather than
+        // guess, ask the author to name the columns.
+        if (qualifier is null && statement.SourceTables.Count != 1)
+        {
+            throw new NotSupportedException(
+                "A view's SELECT * cannot be expanded over more than one table; "
+                + "list the columns explicitly instead.");
+        }
+
+        var table = qualifier is null
+            ? statement.SourceTables[0].Name
+            : ResolveQualifier(statement, qualifier);
+
+        var columns = validator.GetDeclaredColumns(table);
+
+        if (columns is null)
+        {
+            // The unresolved table is already reported by the validator; this keeps the
+            // view from being modeled with a wrong (empty) column list.
+            throw new NotSupportedException(
+                $"View cannot expand SELECT * because table '{table}' is not defined in the project.");
+        }
+
+        return columns;
+    }
+
+    private static string ResolveQualifier(CreateViewStatement statement, string qualifier)
+    {
+        // The qualifier on `t.*` is either a source table's own name or an alias for one.
+        // Only the former can be resolved without modeling the FROM clause's aliases, which
+        // is why an alias that does not match a table name is rejected.
+        foreach (var sourceTable in statement.SourceTables)
+        {
+            if (string.Equals(sourceTable.Name, qualifier, StringComparison.OrdinalIgnoreCase))
+            {
+                return sourceTable.Name;
+            }
+        }
+
+        throw new NotSupportedException(
+            $"A view's SELECT {qualifier}.* refers to '{qualifier}', which is not one of the "
+            + "tables it selects from; list the columns explicitly instead.");
     }
 
     private static Element MakeCreateProcedureElement(CreateProcedureStatement createProcedure)

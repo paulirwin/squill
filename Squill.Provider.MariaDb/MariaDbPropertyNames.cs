@@ -30,4 +30,11 @@ public static class MariaDbPropertyNames
     public const string IsDeterministic = nameof(IsDeterministic);
     public const string SqlDataAccess = nameof(SqlDataAccess);
     public const string IsSecurityInvoker = nameof(IsSecurityInvoker);
+
+    // Views (issue #42). A view's query is carried for scripting only and never takes part
+    // in comparison: MariaDB and MySQL both rewrite the query when they store it — and not
+    // even the same way as each other — so a declared body could never hash-match an
+    // extracted one. A view's modeled identity is its name and column list instead. Stored
+    // as a property that opts out of the element's hash; see MariaDbModelFactory.CreateView.
+    public const string Definition = nameof(Definition);
 }

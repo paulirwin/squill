@@ -24,7 +24,11 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
         await _database.ConnectAsync(cancellationToken);
 
-        const string sql = "SELECT * FROM information_schema.tables;";
+        // BASE TABLE excludes views, which information_schema.tables also lists: a view is
+        // extracted as its own SqlView element (issue #42), and without this filter every
+        // view would additionally be modeled as a table.
+        const string sql =
+            "SELECT * FROM information_schema.tables WHERE table_type = 'BASE TABLE';";
 
         // Schemas and extensions are extracted first so they lead the model's element
         // order. A table lives in a schema and may use a type provided by an extension
@@ -73,6 +77,11 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             await ExtractForeignKeysAsync(model, table, cancellationToken);
             await ExtractIndexesAsync(model, table, cancellationToken);
         }
+
+        // Views come after tables (a view selects from them) and before procedures, whose
+        // bodies may in turn query a view. The Merkle hash is order-sensitive, so this
+        // order must match the one the parser-based builder produces.
+        await ExtractViewsAsync(model, cancellationToken);
 
         // Procedures come last: a procedure body may reference any table in the model, so
         // on publish its CREATE must run after the tables it reads or writes exist.
@@ -138,6 +147,71 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 PostgresModelFactory.CreateExtension(SqlName.Object(extensionName), extensionVersion));
         }
     }
+
+    private async Task ExtractViewsAsync(Model model, CancellationToken cancellationToken = default)
+    {
+        // relkind = 'v' selects ordinary views; a materialized view ('m') is a different
+        // object type with its own storage and is not modeled.
+        //
+        // A view owned by an extension is skipped for the same reason an extension's
+        // procedures are: it is created by CREATE EXTENSION, not declared in the project.
+        //
+        // Note that the view's query is deliberately NOT read. PostgreSQL rewrites a view's
+        // definition when it stores it, so pg_get_viewdef returns reformatted SQL that
+        // could never match the declared source — reading it would make every view differ
+        // on every deploy. A view's modeled identity is its name and column list instead;
+        // see PostgresModelFactory.CreateView.
+        const string sql =
+            """
+            SELECT n.nspname AS schema_name,
+                   c.relname AS view_name,
+                   COALESCE((
+                       SELECT string_agg(a.attname, chr(30) ORDER BY a.attnum)
+                       FROM pg_attribute a
+                       WHERE a.attrelid = c.oid
+                         AND a.attnum > 0
+                         AND NOT a.attisdropped), '') AS column_names
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.relkind = 'v'
+              AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+              AND NOT EXISTS (
+                  SELECT 1 FROM pg_depend d
+                  WHERE d.objid = c.oid AND d.deptype = 'e')
+            -- The C collation sorts byte-wise, matching the ordinal ordering the
+            -- parser-based builder applies.
+            ORDER BY n.nspname COLLATE "C", c.relname COLLATE "C";
+            """;
+
+        var views = new List<Element>();
+
+        await using (var reader = await _database.RunScriptReaderAsync(sql, cancellationToken: cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var schema = reader.GetString("schema_name");
+                var name = reader.GetString("view_name");
+                var columnNames = reader.GetString("column_names");
+
+                views.Add(PostgresModelFactory.CreateView(
+                    SqlName.Object(schema, name),
+                    schema,
+                    columnNames.Length == 0
+                        ? []
+                        : columnNames.Split(ViewColumnSeparator),
+                    // The database's own query text is never modeled — see above.
+                    definition: null));
+            }
+        }
+
+        foreach (var view in views)
+        {
+            model.Elements.Add(view);
+        }
+    }
+
+    // Column names are joined with a record separator, which cannot occur in an identifier.
+    private const char ViewColumnSeparator = '';
 
     private async Task ExtractProceduresAsync(Model model, CancellationToken cancellationToken = default)
     {

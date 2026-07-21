@@ -13,4 +13,6 @@ public static class PostgresElementTypes
     public const string SqlExtension = nameof(SqlExtension);
     public const string SqlSchema = nameof(SqlSchema);
     public const string SqlProcedure = nameof(SqlProcedure);
+    public const string SqlView = nameof(SqlView);
+    public const string SqlViewColumn = nameof(SqlViewColumn);
 }

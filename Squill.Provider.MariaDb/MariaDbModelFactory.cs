@@ -237,6 +237,55 @@ public static class MariaDbModelFactory
     }
 
     /// <summary>
+    /// Builds a view element (issue #42).
+    ///
+    /// A view's identity is its name and its ordered column list — the facets both engines
+    /// report back faithfully through <c>information_schema.COLUMNS</c>. The query itself is
+    /// stored as <see cref="MariaDbPropertyNames.Definition"/> for scripting, but opts out
+    /// of the element's hash: MariaDB and MySQL each rewrite a view's query when they store
+    /// it, and not even in the same way as each other (MySQL parenthesizes a WHERE clause
+    /// where MariaDB does not, and both embed the database name), so a declared query could
+    /// never match an extracted one and would force a recreate on every deploy.
+    ///
+    /// The trade-off this buys is deliberate: a changed query that leaves the column list
+    /// untouched is not detected as a change. Adding, removing, renaming or reordering a
+    /// column is.
+    /// </summary>
+    /// <param name="definition">
+    /// The declared query, for scripting. Null when the element comes from a live database,
+    /// which holds only its own rewritten copy.
+    /// </param>
+    public static Element CreateView(
+        SqlName name,
+        IEnumerable<string> columnNames,
+        string? definition)
+    {
+        var columns = new Relationship(MariaDbRelationshipNames.Columns);
+
+        foreach (var columnName in columnNames)
+        {
+            columns.Add(new Element(MariaDbElementTypes.SqlViewColumn)
+            {
+                Name = name.Child(columnName),
+            });
+        }
+
+        var element = new Element(MariaDbElementTypes.SqlView)
+        {
+            Name = name,
+            Relationships = { columns },
+        };
+
+        if (definition is not null)
+        {
+            element.Properties.Add(new Property(
+                MariaDbPropertyNames.Definition, definition, participatesInIdentity: false));
+        }
+
+        return element;
+    }
+
+    /// <summary>
     /// Renders a procedure's parameter list as it is written in a CREATE PROCEDURE: mode
     /// first (IN is always written), then name, then type. Both model builders render
     /// through this, so a parsed parameter list compares equal to an extracted one.

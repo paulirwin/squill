@@ -3,7 +3,7 @@ namespace Squill.MariaDbParser.Syntax;
 /// <summary>
 /// The focused MariaDB syntax tree Squill consumes. This models exactly the statements the
 /// provider maps to model elements — CREATE TABLE (columns, data types, PK/FK/unique/index
-/// constraints), CREATE INDEX and CREATE PROCEDURE — rather than the full MariaDB grammar.
+/// constraints), CREATE INDEX, CREATE PROCEDURE and CREATE VIEW — rather than the full grammar.
 /// CREATE FUNCTION is parsed only so it can be reported as unsupported. Everything else in
 /// a script is ignored by the parser (see <see cref="AntlrMariaDbParser"/>).
 /// </summary>
@@ -260,6 +260,98 @@ public enum ParameterMode
     In,
     Out,
     InOut,
+}
+
+// ---- CREATE VIEW ----
+
+/// <summary>
+/// A <c>CREATE [OR REPLACE] VIEW name [(columns)] AS SELECT ...</c> statement.
+///
+/// Unlike a procedure body, a view's <see cref="Body"/> does <em>not</em> round-trip: both
+/// engines rewrite the query when they store it, and they do not even rewrite it the same
+/// way — MySQL parenthesizes a WHERE clause where MariaDB does not, and both fully qualify
+/// every column with the database name. So the body is carried for scripting only, and a
+/// view's identity in the model rests on its name and column list, which
+/// <c>information_schema.COLUMNS</c> reports faithfully on both engines. See
+/// <c>MariaDbModelFactory.CreateView</c>.
+/// </summary>
+public sealed class CreateViewStatement(QualifiedName name, bool orReplace) : Statement
+{
+    public QualifiedName Name { get; } = name;
+
+    /// <summary>
+    /// Whether OR REPLACE was written. This affects how the view is created, not the desired
+    /// schema state, so it does not participate in the model.
+    /// </summary>
+    public bool OrReplace { get; } = orReplace;
+
+    /// <summary>
+    /// The explicit column list written as <c>CREATE VIEW v (a, b) AS ...</c>, if any. When
+    /// present it names the view's columns outright; when empty the names are derived from
+    /// the select list.
+    /// </summary>
+    public IList<Identifier> ColumnNames { get; } = new List<Identifier>();
+
+    /// <summary>The columns the select list produces, in order.</summary>
+    public IList<ViewSelectColumn> SelectColumns { get; } = new List<ViewSelectColumn>();
+
+    /// <summary>
+    /// The tables the query selects from, in the order written. Used to resolve a
+    /// <c>SELECT *</c> against the tables declared in the project.
+    /// </summary>
+    public IList<QualifiedName> SourceTables { get; } = new List<QualifiedName>();
+
+    /// <summary>The query text, verbatim as written after <c>AS</c>.</summary>
+    public string? Body { get; set; }
+}
+
+/// <summary>
+/// A single entry in a view's select list, reduced to what naming the view's columns needs.
+///
+/// A view column takes its name from an explicit alias (<c>SELECT id AS the_id</c>), or
+/// failing that from the column being selected (<c>SELECT id</c>). An entry that is neither —
+/// an unaliased expression such as <c>SELECT qty * 2</c> — has no name Squill can derive, and
+/// <see cref="IsWildcard"/> marks a <c>*</c> that must be expanded against the source table.
+/// </summary>
+public sealed class ViewSelectColumn
+{
+    private ViewSelectColumn(string? alias, string? columnName, bool isWildcard, string? qualifier)
+    {
+        Alias = alias;
+        ColumnName = columnName;
+        IsWildcard = isWildcard;
+        Qualifier = qualifier;
+    }
+
+    /// <summary>An explicit alias, if one was written.</summary>
+    public string? Alias { get; }
+
+    /// <summary>The selected column's own name, when the entry is a plain column reference.</summary>
+    public string? ColumnName { get; }
+
+    /// <summary>Whether this entry is a <c>*</c> wildcard.</summary>
+    public bool IsWildcard { get; }
+
+    /// <summary>The table qualifier on a wildcard or column reference, if one was written.</summary>
+    public string? Qualifier { get; }
+
+    /// <summary>
+    /// The name this entry gives the view's column, or null when none can be derived.
+    /// </summary>
+    public string? DerivedName => Alias ?? ColumnName;
+
+    public static ViewSelectColumn Named(string columnName, string? qualifier = null)
+        => new(alias: null, columnName, isWildcard: false, qualifier);
+
+    public static ViewSelectColumn Aliased(string alias)
+        => new(alias, columnName: null, isWildcard: false, qualifier: null);
+
+    public static ViewSelectColumn Wildcard(string? qualifier = null)
+        => new(alias: null, columnName: null, isWildcard: true, qualifier);
+
+    /// <summary>An entry with no derivable name, e.g. an unaliased <c>qty * 2</c>.</summary>
+    public static ViewSelectColumn Unnamed()
+        => new(alias: null, columnName: null, isWildcard: false, qualifier: null);
 }
 
 // ---- CREATE FUNCTION ----

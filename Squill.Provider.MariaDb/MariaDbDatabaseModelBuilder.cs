@@ -67,12 +67,68 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
             await ExtractIndexesAsync(model, table, cancellationToken);
         }
 
+        // Views come after tables (a view selects from them) and before procedures, whose
+        // bodies may in turn query a view. The Merkle hash is order-sensitive, so this
+        // matches the order the parser-based builder produces.
+        await ExtractViewsAsync(model, cancellationToken);
+
         // Procedures come last, matching the parser-based builder: a procedure body may
         // reference any table, so on publish its CREATE must run after the tables it uses.
         await ExtractProceduresAsync(model, cancellationToken);
 
         return model;
     }
+
+    private async Task ExtractViewsAsync(Model model, CancellationToken cancellationToken = default)
+    {
+        // A view's columns are read from information_schema.COLUMNS in ordinal order, which
+        // is the shape both engines report for the deployed view.
+        //
+        // The view's own query (VIEW_DEFINITION) is deliberately NOT read. MariaDB and
+        // MySQL each rewrite the query when they store it — and differently from each other
+        // — so it could never match the declared source. A view's modeled identity is its
+        // name and column list instead; see MariaDbModelFactory.CreateView.
+        const string sql =
+            """
+            SELECT v.TABLE_NAME,
+                   (SELECT GROUP_CONCAT(c.COLUMN_NAME ORDER BY c.ORDINAL_POSITION SEPARATOR 0x1e)
+                    FROM information_schema.COLUMNS c
+                    WHERE c.TABLE_SCHEMA = v.TABLE_SCHEMA
+                      AND c.TABLE_NAME = v.TABLE_NAME) AS COLUMN_NAMES
+            FROM information_schema.VIEWS v
+            WHERE v.TABLE_SCHEMA = @db
+            ORDER BY v.TABLE_NAME;
+            """;
+
+        var dbParam = new[] { new DatabaseParameter<string>("@db", _database.Name) };
+
+        var views = new List<Element>();
+
+        await using (var reader = await _database.RunScriptReaderAsync(sql, dbParam, cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var name = reader.GetString("TABLE_NAME");
+                var columnNames = reader.IsDBNull(reader.GetOrdinal("COLUMN_NAMES"))
+                    ? string.Empty
+                    : reader.GetString("COLUMN_NAMES");
+
+                views.Add(MariaDbModelFactory.CreateView(
+                    SqlName.Object(name),
+                    columnNames.Length == 0 ? [] : columnNames.Split(ViewColumnSeparator),
+                    // The database's own query text is never modeled — see above.
+                    definition: null));
+            }
+        }
+
+        foreach (var view in views)
+        {
+            model.Elements.Add(view);
+        }
+    }
+
+    // Column names are joined with a record separator, which cannot occur in an identifier.
+    private const char ViewColumnSeparator = '\u001e';
 
     private async Task ExtractProceduresAsync(Model model, CancellationToken cancellationToken = default)
     {

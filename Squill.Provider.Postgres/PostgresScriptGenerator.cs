@@ -130,6 +130,11 @@ public class PostgresScriptGenerator
             PostgresElementTypes.SqlProcedure =>
                 $"DROP PROCEDURE IF EXISTS {ProcedureSignature(element)};{Environment.NewLine}",
 
+            // A view is dropped with RESTRICT (the default), so a view another object still
+            // depends on fails loudly rather than silently cascading the drop.
+            PostgresElementTypes.SqlView =>
+                $"DROP VIEW IF EXISTS {SchemaQualified(element, parsed)};{Environment.NewLine}",
+
             _ => throw new NotImplementedException(
                 $"Dropping an element of type {element.Type} is not supported."),
         };
@@ -164,6 +169,28 @@ public class PostgresScriptGenerator
         if (source.Type == PostgresElementTypes.SqlProcedure)
         {
             return GenerateCreateProcedureScript(source);
+        }
+
+        // A view whose column list changed cannot be replaced in place: PostgreSQL only
+        // allows CREATE OR REPLACE VIEW to add trailing columns, and rejects a rename,
+        // removal or reorder. Since a changed column list is what makes a view a changed
+        // element at all, the safe form is always drop-then-create.
+        if (source.Type == PostgresElementTypes.SqlView)
+        {
+            if (recreateDelta.TargetElement.Name is not string oldViewName)
+            {
+                throw new ArgumentException("Cannot drop a view without a name");
+            }
+
+            var view = new StringBuilder();
+
+            view.Append("DROP VIEW IF EXISTS ")
+                .Append(SchemaQualified(recreateDelta.TargetElement, SqlName.Parse(oldViewName)))
+                .Append(';').AppendLine();
+
+            view.Append(GenerateCreateViewScript(source));
+
+            return view.ToString();
         }
 
         if (source.Type != PostgresElementTypes.SqlIndex)
@@ -758,8 +785,62 @@ public class PostgresScriptGenerator
             return GenerateCreateProcedureScript(createDelta.Element);
         }
 
+        if (createDelta.Element.Type == PostgresElementTypes.SqlView)
+        {
+            return GenerateCreateViewScript(createDelta.Element);
+        }
+
         throw new NotImplementedException();
     }
+
+    // Scripts a view as CREATE OR REPLACE, naming its columns explicitly so the deployed
+    // view exposes exactly the shape the model records. The column list is what makes
+    // REPLACE safe here: PostgreSQL refuses to replace a view whose column list changed,
+    // and a changed column list is a changed element, which the comparison turns into a
+    // RecreateDelta (DROP then CREATE) rather than a replace.
+    private static string GenerateCreateViewScript(Element view)
+    {
+        var definition = view.GetRequiredProperty<string>(PostgresPropertyNames.Definition);
+        var schema = GetSchema(view);
+
+        if (view.Name is not string name)
+        {
+            throw new ArgumentException("Cannot create a view without a name");
+        }
+
+        var parsed = SqlName.Parse(name);
+
+        var qualified = schema is null or "public"
+            ? parsed.QuotedUnqualified
+            : parsed.Sql;
+
+        var sb = new StringBuilder();
+
+        sb.Append("CREATE OR REPLACE VIEW ").Append(qualified);
+
+        var columns = ViewColumnNames(view).ToList();
+
+        if (columns.Count > 0)
+        {
+            sb.Append(" (")
+                .Append(string.Join(", ", columns.Select(i => SqlName.Object(i).QuotedUnqualified)))
+                .Append(')');
+        }
+
+        sb.AppendLine(" AS").Append(definition).AppendLine(";");
+
+        return sb.ToString();
+    }
+
+    // A view's column names, taken from the trailing segment of each column element's
+    // (view-qualified) name.
+    private static IEnumerable<string> ViewColumnNames(Element view)
+        => view.GetRelationship(PostgresRelationshipNames.Columns)
+            ?.Entries.OfType<Element>()
+            .Select(i => i.Name is { } columnName
+                ? SqlName.Parse(columnName).UnqualifiedName
+                : throw new ArgumentException("A view column must have a name"))
+           ?? [];
 
     private static string GenerateCreateProcedureScript(Element procedure)
     {
