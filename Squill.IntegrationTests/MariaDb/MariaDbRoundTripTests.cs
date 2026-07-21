@@ -29,8 +29,8 @@ public abstract class MariaDbRoundTripTests
         workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
 
         var parser = new AntlrMariaDbParser();
-        var model = await new ParserWorkspaceModelBuilder(workspace, parser)
-            .ExtractModelAsync(cancellationToken);
+        var model = (await new ParserWorkspaceModelBuilder(workspace, parser)
+            .ExtractModelAsync(cancellationToken)).Model;
 
         var testDb = await provider.CreateDatabaseAsync($"squill_test_{Guid.NewGuid():n}", cancellationToken);
         var dbModelBuilder = provider.CreateDatabaseModelBuilder(testDb);

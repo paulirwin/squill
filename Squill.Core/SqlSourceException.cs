@@ -6,8 +6,8 @@ namespace Squill.Core;
 /// report a diagnostic that points the IDE at the source. <see cref="Code"/> is the
 /// diagnostic code the host should report: <c>SQ0001</c> (the default) for syntax and
 /// other per-statement errors, <c>SQ0002</c> for a reference to an object that is not
-/// defined in the project, <c>SQ0004</c> for a constraint whose shape is invalid.
-/// (<c>SQ0003</c> is reserved for duplicate definitions.)
+/// defined in the project, <c>SQ0003</c> for a duplicate definition, <c>SQ0004</c> for a
+/// constraint whose shape is invalid.
 /// </summary>
 public class SqlSourceException : Exception
 {
@@ -16,6 +16,13 @@ public class SqlSourceException : Exception
 
     /// <summary>Diagnostic code for a reference to an object not defined in the project.</summary>
     public const string UnresolvedReference = "SQ0002";
+
+    /// <summary>
+    /// Diagnostic code for an object defined more than once in the project: two
+    /// <c>CREATE TABLE</c>s for the same name, a duplicated column within a table, or a
+    /// reused constraint/index name. Reported at the second definition.
+    /// </summary>
+    public const string DuplicateDefinition = "SQ0003";
 
     /// <summary>Diagnostic code for a constraint whose shape is invalid (e.g. a foreign key column-count mismatch).</summary>
     public const string InvalidConstraint = "SQ0004";

@@ -80,8 +80,8 @@ public class PostgresIdentityTest : PostgresIntegrationTestBase
         workspace.Files.Add(new EmbeddedResourceFile(
             "Squill.IntegrationTests.Postgres.IdentityTest.TableWithIdentityOptions.sql", FileKind.Compile));
 
-        var model = await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
-            .ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
+            .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         AssertIdentityOptionColumns(model);
 

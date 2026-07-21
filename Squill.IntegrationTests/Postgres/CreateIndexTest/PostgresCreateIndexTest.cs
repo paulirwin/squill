@@ -40,7 +40,7 @@ public class PostgresCreateIndexTest : PostgresIntegrationTestBase
 
         var builder = new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser());
 
-        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await builder.ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         var indexes = model.Elements
             .Where(i => i.Type == PostgresElementTypes.SqlIndex)

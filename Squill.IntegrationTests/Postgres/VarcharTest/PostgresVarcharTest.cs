@@ -31,8 +31,8 @@ CREATE TABLE notes
     {
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Notes.sql", FileKind.Compile, Sql));
-        var parserModel = await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
-            .ExtractModelAsync(TestContext.Current.CancellationToken);
+        var parserModel = (await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
+            .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         IDatabaseProvider provider = new PostgresDatabaseProvider(ConnectionString);
         var db = await provider.CreateDatabaseAsync(

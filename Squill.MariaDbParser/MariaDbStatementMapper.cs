@@ -36,8 +36,26 @@ internal static class MariaDbStatementMapper
                 createFunction);
         }
 
-        // Any other DDL (CREATE VIEW, ALTER, DROP, …) is not modeled.
-        return null;
+        // Any other DDL (CREATE VIEW, ALTER, DROP, …) is not modeled. It becomes a marker
+        // statement rather than being dropped, so the model builder can warn that it will
+        // not reach the DACPAC instead of the construct silently vanishing (issue #61).
+        return At(new UnmodeledStatement(DescribeDdl(ddl)), ddl);
+    }
+
+    // A short, human-readable name for an unmodeled DDL statement: its first two tokens
+    // (CREATE VIEW, ALTER TABLE, DROP INDEX, …), so the warning names what was written.
+    private static string DescribeDdl(MariaDBParser.DdlStatementContext ddl)
+    {
+        var keywords = Trees.Descendants(ddl)
+            .OfType<ITerminalNode>()
+            .Select(i => i.Symbol.Text)
+            .Where(i => !string.IsNullOrWhiteSpace(i))
+            .Take(2)
+            .ToList();
+
+        return keywords.Count > 0
+            ? string.Join(' ', keywords).ToUpperInvariant()
+            : "statement";
     }
 
     // ---- CREATE TABLE ----
@@ -45,10 +63,11 @@ internal static class MariaDbStatementMapper
     private static Statement? MapCreateTable(MariaDBParser.CreateTableContext createTable)
     {
         // Only the column-list form (CREATE TABLE t (...)) is modeled; CREATE TABLE ... AS
-        // SELECT and CREATE TABLE ... LIKE describe no standalone column shape here.
+        // SELECT and CREATE TABLE ... LIKE describe no standalone column shape here. They
+        // become markers so the builder can warn rather than dropping them silently.
         if (createTable is not MariaDBParser.ColumnCreateTableContext columnCreate)
         {
-            return null;
+            return At(new UnmodeledStatement("CREATE TABLE (copy form)"), createTable);
         }
 
         var name = MapQualifiedName(columnCreate.tableName().fullId());

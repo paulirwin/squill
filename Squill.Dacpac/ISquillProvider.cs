@@ -31,8 +31,10 @@ public interface ISquillProvider
     /// <summary>
     /// Builds a <see cref="Model"/> from the declarative SQL files in
     /// <paramref name="workspace"/>, using this provider's parser (no live database needed).
+    /// The result also carries any non-fatal build warnings, which have no other channel out
+    /// of a provider, for the host to report (issue #61). Errors are thrown.
     /// </summary>
-    Task<Model> BuildModelAsync(Workspace workspace, CancellationToken cancellationToken = default);
+    Task<BuildResult> BuildModelAsync(Workspace workspace, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Deploys the DACPAC read from <paramref name="dacpacStream"/> to the target database:

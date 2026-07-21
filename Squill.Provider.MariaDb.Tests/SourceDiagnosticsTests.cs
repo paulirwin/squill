@@ -181,7 +181,7 @@ CREATE TABLE book
 """),
             ("Author.sql", "CREATE TABLE author (id int PRIMARY KEY);"));
 
-        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await builder.ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         Assert.Contains(model.Elements, e => e.Type == MariaDbElementTypes.SqlForeignKeyConstraint);
     }

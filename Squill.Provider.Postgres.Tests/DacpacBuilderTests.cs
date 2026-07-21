@@ -19,7 +19,7 @@ CREATE TABLE Foo
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Foo.sql", FileKind.Compile, SampleSchema));
 
-        var model = await DacpacBuilder.BuildModelAsync(workspace, TestContext.Current.CancellationToken);
+        var model = (await DacpacBuilder.BuildModelAsync(workspace, TestContext.Current.CancellationToken)).Model;
 
         Assert.Contains(model.Elements, e => e.Type == PostgresElementTypes.SqlTable);
     }
@@ -30,7 +30,7 @@ CREATE TABLE Foo
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Foo.sql", FileKind.Compile, SampleSchema));
 
-        var expectedModel = await DacpacBuilder.BuildModelAsync(workspace, TestContext.Current.CancellationToken);
+        var expectedModel = (await DacpacBuilder.BuildModelAsync(workspace, TestContext.Current.CancellationToken)).Model;
         var expectedHash = expectedModel.Hash;
 
         var metadata = new ModelMetadata { ProviderName = "Postgresql" };

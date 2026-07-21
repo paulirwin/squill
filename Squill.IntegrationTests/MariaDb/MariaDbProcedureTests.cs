@@ -27,7 +27,7 @@ public abstract class MariaDbProcedureTests
         workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
 
         return new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser())
-            .ExtractModelAsync(cancellationToken).GetAwaiter().GetResult();
+            .ExtractModelAsync(cancellationToken).GetAwaiter().GetResult().Model;
     }
 
     // Parses the given SQL, publishes it into a fresh database, and asserts the re-extracted

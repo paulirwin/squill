@@ -16,7 +16,7 @@ public class PostgresScriptGeneratorTests
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
 
-        var model = await new ParserWorkspaceModelBuilder(workspace, parser).ExtractModelAsync();
+        var model = (await new ParserWorkspaceModelBuilder(workspace, parser).ExtractModelAsync()).Model;
 
         var provider = new PostgresDatabaseProvider("Host=unused");
         return SchemaCompare.Compare(provider, model, new Model());

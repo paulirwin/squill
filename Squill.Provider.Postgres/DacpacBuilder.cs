@@ -23,9 +23,9 @@ public static class DacpacBuilder
         Stream stream,
         CancellationToken cancellationToken = default)
     {
-        var model = await BuildModelAsync(workspace, cancellationToken);
+        var result = await BuildModelAsync(workspace, cancellationToken);
 
-        await DacpacSerializer.Serialize(metadata, model, stream, cancellationToken);
+        await DacpacSerializer.Serialize(metadata, result.Model, stream, cancellationToken);
     }
 
     /// <summary>
@@ -52,9 +52,9 @@ public static class DacpacBuilder
 
     /// <summary>
     /// Parses every <see cref="FileKind.Compile"/> file in <paramref name="workspace"/>
-    /// into a <see cref="Model"/> without serializing it.
+    /// into a <see cref="Model"/> without serializing it, along with any build warnings.
     /// </summary>
-    public static Task<Model> BuildModelAsync(
+    public static Task<BuildResult> BuildModelAsync(
         Workspace workspace,
         CancellationToken cancellationToken = default)
     {

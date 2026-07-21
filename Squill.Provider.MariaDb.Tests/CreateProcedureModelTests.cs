@@ -15,8 +15,8 @@ public class CreateProcedureModelTests
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
 
-        return await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser())
-            .ExtractModelAsync(TestContext.Current.CancellationToken);
+        return (await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser())
+            .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
     }
 
     private static async Task<Element> BuildProcedureAsync(string sql)

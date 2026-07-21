@@ -125,8 +125,8 @@ public class PostgresExtensionAlterTest : PostgresIntegrationTestBase
 
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Ext.sql", FileKind.Compile, schema));
-        var model = await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
-            .ExtractModelAsync(ct);
+        var model = (await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
+            .ExtractModelAsync(ct)).Model;
 
         var extension = Assert.Single(model.Elements, i => i.Type == PostgresElementTypes.SqlExtension);
         Assert.Equal("1.6", extension.GetProperty<string>(PostgresPropertyNames.Version));

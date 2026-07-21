@@ -18,9 +18,9 @@ public static class DacpacBuilder
         Stream stream,
         CancellationToken cancellationToken = default)
     {
-        var model = await BuildModelAsync(workspace, cancellationToken);
+        var result = await BuildModelAsync(workspace, cancellationToken);
 
-        await DacpacSerializer.Serialize(metadata, model, stream, cancellationToken);
+        await DacpacSerializer.Serialize(metadata, result.Model, stream, cancellationToken);
     }
 
     public static async Task BuildToFileAsync(
@@ -40,7 +40,7 @@ public static class DacpacBuilder
         await BuildAsync(workspace, metadata, stream, cancellationToken);
     }
 
-    public static Task<Model> BuildModelAsync(
+    public static Task<BuildResult> BuildModelAsync(
         Workspace workspace,
         CancellationToken cancellationToken = default)
     {

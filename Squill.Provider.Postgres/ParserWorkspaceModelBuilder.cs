@@ -4,7 +4,7 @@ using Squill.PostgresParser.Syntax;
 
 namespace Squill.Provider.Postgres;
 
-public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
+public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 {
     private readonly Workspace _workspace;
     private readonly IPostgresParser _postgresParser;
@@ -15,28 +15,39 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
         _postgresParser = postgresParser;
     }
 
-    public async Task<Model> ExtractModelAsync(CancellationToken cancellationToken = default)
+    public async Task<BuildResult> ExtractModelAsync(CancellationToken cancellationToken = default)
     {
         var model = new Model();
         var validator = new SourceValidator();
+        var warnings = new List<SqlSourceDiagnostic>();
 
         foreach (var file in _workspace.Files.Where(i => i.Kind == FileKind.Compile))
         {
-            await ProcessFile(file, model, validator, cancellationToken);
+            await ProcessFile(file, model, validator, warnings, cancellationToken);
         }
 
         // Validated after every file so declaration order (within and across files) does
-        // not matter, just like it doesn't for the deployed schema.
+        // not matter, just like it doesn't for the deployed schema. Parse and mapping
+        // errors collected above are reported together with the reference errors, so one
+        // build surfaces every problem rather than one per rebuild (issue #61).
         validator.ThrowIfInvalid();
 
         MoveProceduresToEnd(model);
 
-        return model;
+        return new BuildResult(model, warnings);
     }
 
+    /// <summary>
+    /// Parses one file and maps its statements into the model. A syntax error aborts only
+    /// this file — it is recorded and the remaining files are still parsed, so a build
+    /// reports every broken file at once. A statement that cannot be mapped is likewise
+    /// recorded and the rest of the file continues, so multiple unsupported statements are
+    /// all reported (issue #61).
+    /// </summary>
     private async Task ProcessFile(IFile file,
         Model model,
         SourceValidator validator,
+        List<SqlSourceDiagnostic> warnings,
         CancellationToken cancellationToken)
     {
         var text = await file.ReadAllTextAsync(cancellationToken);
@@ -48,22 +59,27 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
         }
         catch (PostgresParseException ex)
         {
-            throw new SqlSourceException(ex.Message, file.Name, ex.Line, ex.Column, innerException: ex);
+            validator.AddError(new SqlSourceException(
+                ex.Message, file.Name, ex.Line, ex.Column, innerException: ex));
+
+            // The file did not parse, so it contributes no statements; carry on with the
+            // next file rather than aborting the whole build here.
+            return;
         }
 
         foreach (var statement in root.Statements)
         {
             try
             {
-                ProcessStatement(statement, model, file, validator);
+                ProcessStatement(statement, model, file, validator, warnings);
             }
             catch (Exception ex) when (ex is NotImplementedException or NotSupportedException
                 or InvalidOperationException or PostgresParseException)
             {
                 // Attach the source file and the statement's position so the host can
                 // report the failure as a diagnostic pointing at the offending statement.
-                throw new SqlSourceException(
-                    ex.Message, file.Name, statement.Line, statement.Column, innerException: ex);
+                validator.AddError(new SqlSourceException(
+                    ex.Message, file.Name, statement.Line, statement.Column, innerException: ex));
             }
         }
     }
@@ -105,11 +121,22 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
     private static void ProcessStatement(Statement statement,
         Model model,
         IFile file,
-        SourceValidator validator)
+        SourceValidator validator,
+        List<SqlSourceDiagnostic> warnings)
     {
         if (statement is CreateTableStatement createTableStatement)
         {
             validator.AddCreateTable(file, createTableStatement);
+
+            // A duplicate table would otherwise contribute a second set of elements for the
+            // same object; the build fails on the SQ0003 error, but skipping the elements
+            // keeps the half-built model coherent for anything that inspects it.
+            if (validator.IsDuplicateTable(createTableStatement))
+            {
+                return;
+            }
+
+            AddUnmodeledTableWarnings(file, createTableStatement, warnings);
 
             foreach (var element in MakeCreateTableElements(createTableStatement))
             {
@@ -148,6 +175,11 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
         {
             validator.AddCreateProcedure(file, createProcedureStatement);
 
+            if (validator.IsDuplicateProcedure(createProcedureStatement))
+            {
+                return;
+            }
+
             model.Elements.Add(MakeCreateProcedureElement(createProcedureStatement));
         }
         else if (statement is CreateFunctionStatement)
@@ -159,6 +191,60 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
         {
             throw new NotImplementedException(
                 $"Statement type {statement.GetType()} to Element transformation not yet implemented");
+        }
+    }
+
+    /// <summary>
+    /// Records a warning for every construct in a CREATE TABLE that is recognized but not
+    /// carried into the model, so a declared-but-unmodeled construct is visible rather than
+    /// silently absent from the DACPAC (issue #61). Currently: CHECK constraints, and column
+    /// defaults that are not constant literals (a function default like <c>now()</c>, or
+    /// <c>DEFAULT NULL</c>) — see <see cref="PostgresDefaultValue"/>.
+    /// </summary>
+    private static void AddUnmodeledTableWarnings(IFile file,
+        CreateTableStatement createTableStatement,
+        List<SqlSourceDiagnostic> warnings)
+    {
+        var table = SplitSchema(createTableStatement.Name).Name.UnqualifiedName;
+
+        foreach (var tableConstraint in createTableStatement.Elements.OfType<TableConstraint>())
+        {
+            var constraint = tableConstraint is NamedTableConstraint named
+                ? named.Constraint
+                : tableConstraint;
+
+            if (constraint is CheckTableConstraint)
+            {
+                warnings.Add(new SqlSourceDiagnostic(
+                    $"CHECK constraint on table '{table}' is not modeled and will not be "
+                    + "deployed or compared.",
+                    file.Name,
+                    constraint.Line ?? createTableStatement.Line,
+                    constraint.Column ?? createTableStatement.Column));
+            }
+        }
+
+        foreach (var columnDefinition in createTableStatement.Elements.OfType<ColumnDefinition>())
+        {
+            foreach (var columnConstraint in columnDefinition.Constraints)
+            {
+                var constraint = columnConstraint is NamedColumnConstraint named
+                    ? named.Constraint
+                    : columnConstraint;
+
+                // Only a non-constant default is unmodeled; a constant literal round-trips
+                // fine and must not warn.
+                if (constraint is DefaultColumnConstraint defaultConstraint
+                    && PostgresDefaultValue.FromExpression(defaultConstraint.Expression) is null)
+                {
+                    warnings.Add(new SqlSourceDiagnostic(
+                        $"DEFAULT on column '{table}.{columnDefinition.Name.Name}' is not a "
+                        + "constant literal and is not modeled; it will not be deployed or compared.",
+                        file.Name,
+                        constraint.Line ?? createTableStatement.Line,
+                        constraint.Column ?? createTableStatement.Column));
+                }
+            }
         }
     }
 
@@ -177,6 +263,39 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
         private readonly List<TableReference> _tableReferences = [];
         private readonly List<SchemaReference> _schemaReferences = [];
         private readonly List<SqlSourceException> _errors = [];
+
+        // Where each object was first defined, so a redefinition can name the original's
+        // file and line rather than just saying "already defined".
+        private readonly Dictionary<(string Schema, string Table), Origin> _tableOrigins = new();
+        private readonly Dictionary<(string Schema, string Name), Origin> _constraintOrigins = new();
+        private readonly Dictionary<(string Schema, string Name, string Args), Origin> _procedureOrigins = new();
+
+        // The column sets that are unique within each table: its primary key plus any unique
+        // index. A foreign key's referenced columns must match one of these exactly, or
+        // PostgreSQL rejects the constraint at deploy time — unlike InnoDB, a leftmost prefix
+        // of a wider index is not enough.
+        // NOTE: a table-level UNIQUE constraint is not yet parsed (VisitConstraintelem throws
+        // NotImplementedException), so only PKs and CREATE UNIQUE INDEX reach here today.
+        // When UNIQUE parsing is added it must also call AddUniqueColumnSet, or a foreign key
+        // to a UNIQUE column would be wrongly rejected.
+        private readonly Dictionary<(string Schema, string Table), List<HashSet<string>>> _uniqueColumnSets = new();
+        private readonly HashSet<(string Schema, string Table)> _tablesWithPrimaryKey = [];
+        private readonly List<ForeignKeyUniquenessCheck> _foreignKeyChecks = [];
+
+        // Where an object was first defined.
+        private sealed record Origin(string SourceFile, int? Line);
+
+        // A deferred check that a foreign key's referenced columns are backed by a primary
+        // key or unique constraint on the referenced table. Deferred so the referenced table
+        // may be declared anywhere in the project, in any file.
+        private sealed record ForeignKeyUniquenessCheck(
+            string SourceFile,
+            int? Line,
+            int? Column,
+            string Subject,
+            string Schema,
+            string Table,
+            IReadOnlyList<string> Columns);
 
         // A deferred reference to a table (and optionally columns on it) that must be
         // declared somewhere in the project, with the source position to report against.
@@ -199,9 +318,59 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
 
         public void AddSchema(string name) => _declaredSchemas.Add(name);
 
+        /// <summary>
+        /// Records an error found outside the validator (a syntax error, or a statement that
+        /// could not be mapped) so it is reported together with the reference errors instead
+        /// of aborting the build at the first file.
+        /// </summary>
+        public void AddError(SqlSourceException error) => _errors.Add(error);
+
+        /// <summary>
+        /// Whether this CREATE TABLE redefines a table already declared elsewhere — in which
+        /// case its elements are left out of the model. The error itself was recorded by
+        /// <see cref="AddCreateTable"/>.
+        /// </summary>
+        public bool IsDuplicateTable(CreateTableStatement createTableStatement)
+            => _duplicateTables.Contains(createTableStatement);
+
+        private readonly HashSet<CreateTableStatement> _duplicateTables = [];
+
+        /// <summary>
+        /// Whether this CREATE PROCEDURE redefines one already declared with the same name
+        /// and argument types.
+        /// </summary>
+        public bool IsDuplicateProcedure(CreateProcedureStatement createProcedureStatement)
+            => _duplicateProcedures.Contains(createProcedureStatement);
+
+        private readonly HashSet<CreateProcedureStatement> _duplicateProcedures = [];
+
         public void AddCreateProcedure(IFile file, CreateProcedureStatement createProcedureStatement)
         {
             var (schema, name) = SplitSchema(createProcedureStatement.Name);
+
+            // A routine's identity is its name plus its IN/INOUT argument types, so an
+            // overload with a different signature is a distinct object, not a duplicate.
+            var argumentTypes = string.Join(',', createProcedureStatement.Parameters
+                .Where(i => i.Mode is ParameterMode.In or ParameterMode.InOut or ParameterMode.Variadic)
+                .Select(i => NormalizeArgumentType(i.DataType)));
+
+            var procedureKey = (schema.ToLowerInvariant(), name.UnqualifiedName.ToLowerInvariant(), argumentTypes);
+
+            if (_procedureOrigins.TryGetValue(procedureKey, out var existingProcedure))
+            {
+                _errors.Add(new SqlSourceException(
+                    $"Procedure '{Display(schema, name.UnqualifiedName)}({argumentTypes})' is "
+                    + $"already defined in {DescribeOrigin(existingProcedure)}.",
+                    file.Name, createProcedureStatement.Line, createProcedureStatement.Column,
+                    SqlSourceException.DuplicateDefinition));
+
+                _duplicateProcedures.Add(createProcedureStatement);
+            }
+            else
+            {
+                _procedureOrigins[procedureKey] =
+                    new Origin(file.Name, createProcedureStatement.Line);
+            }
 
             // Schemas are declared objects (issue #37): a procedure in a non-public schema
             // needs that schema's CREATE SCHEMA somewhere in the project, or the deploy
@@ -222,10 +391,40 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
             var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var columnDefinition in createTableStatement.Elements.OfType<ColumnDefinition>())
             {
-                columns.Add(columnDefinition.Name.Name);
+                // A column named twice in the same table would silently collapse into one
+                // model element; Postgres rejects it outright, so it is a build error.
+                if (!columns.Add(columnDefinition.Name.Name))
+                {
+                    _errors.Add(new SqlSourceException(
+                        $"Column '{columnDefinition.Name.Name}' is defined more than once on "
+                        + $"table '{table}'.",
+                        file.Name, createTableStatement.Line, createTableStatement.Column,
+                        SqlSourceException.DuplicateDefinition));
+                }
             }
 
-            _declaredTables[TableKey(schema, table)] = columns;
+            var key = TableKey(schema, table);
+
+            // Two CREATE TABLEs for the same name: the declared-table map would last-win and
+            // the model would carry both elements, which confuses diffing — so it is an error
+            // reported at the second definition, naming where the first one is.
+            if (_tableOrigins.TryGetValue(key, out var existing))
+            {
+                _errors.Add(new SqlSourceException(
+                    $"Table '{Display(schema, table)}' is already defined in "
+                    + $"{DescribeOrigin(existing)}.",
+                    file.Name, createTableStatement.Line, createTableStatement.Column,
+                    SqlSourceException.DuplicateDefinition));
+
+                // Keep the first definition's columns as the authoritative set; the build is
+                // failing anyway, and this avoids cascading unresolved-reference errors.
+                _duplicateTables.Add(createTableStatement);
+
+                return;
+            }
+
+            _tableOrigins[key] = new Origin(file.Name, createTableStatement.Line);
+            _declaredTables[key] = columns;
 
             // Schemas are declared objects (issue #37): a table in a non-public schema
             // needs that schema's CREATE SCHEMA somewhere in the project or the deploy
@@ -239,18 +438,29 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
 
             foreach (var tableConstraint in createTableStatement.Elements.OfType<TableConstraint>())
             {
-                var constraint = tableConstraint is NamedTableConstraint named
-                    ? named.Constraint
-                    : tableConstraint;
+                var (constraint, constraintName) = tableConstraint is NamedTableConstraint named
+                    ? (named.Constraint, named.Name.Name)
+                    : (tableConstraint, (string?)null);
 
                 var line = constraint.Line ?? createTableStatement.Line;
                 var column = constraint.Column ?? createTableStatement.Column;
+
+                // Only an index-backed constraint (PRIMARY KEY, UNIQUE) takes a name in the
+                // schema's relation namespace. A FOREIGN KEY or CHECK name is scoped to its
+                // table, and Postgres happily accepts the same one on two tables — so
+                // checking those would reject valid SQL.
+                if (constraintName is not null && constraint is PrimaryKeyTableConstraint)
+                {
+                    CheckDuplicateConstraintName(file, line, column, schema, constraintName);
+                }
 
                 if (constraint is PrimaryKeyTableConstraint pk)
                 {
                     CheckOwnColumns(file, line, column,
                         $"Primary key on table '{table}'", table, columns,
                         pk.Columns.Select(c => c.Name));
+
+                    AddUniqueColumnSet(schema, table, pk.Columns.Select(c => c.Name), isPrimaryKey: true);
                 }
                 else if (constraint is ForeignKeyTableConstraint fk)
                 {
@@ -264,6 +474,14 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                             $"Foreign key on table '{table}' has {fk.Columns.Count} referencing "
                             + $"column(s) but {fk.ReferencedColumns.Count} referenced column(s).",
                             file.Name, line, column, SqlSourceException.InvalidConstraint));
+
+                        // The shape is already wrong; a uniqueness complaint on top of it
+                        // would only obscure the actual problem.
+                        AddForeignKeyReference(file, line, column, table,
+                            fk.ReferencedTable, fk.ReferencedColumns.Select(c => c.Name).ToList(),
+                            checkUniqueness: false);
+
+                        continue;
                     }
 
                     AddForeignKeyReference(file, line, column, table,
@@ -275,15 +493,30 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
             {
                 foreach (var columnConstraint in columnDefinition.Constraints)
                 {
-                    var constraint = columnConstraint is NamedColumnConstraint named
-                        ? named.Constraint
-                        : columnConstraint;
+                    var (constraint, constraintName) = columnConstraint is NamedColumnConstraint named
+                        ? (named.Constraint, named.Name)
+                        : (columnConstraint, (string?)null);
 
-                    if (constraint is ForeignKeyColumnConstraint fk)
+                    var line = constraint.Line ?? createTableStatement.Line;
+                    var column = constraint.Column ?? createTableStatement.Column;
+
+                    // As with table-level constraints, only an index-backed constraint claims
+                    // a name in the schema's relation namespace; an inline FOREIGN KEY name
+                    // is per-table, and a named DEFAULT is rejected downstream with a message
+                    // of its own.
+                    if (constraintName is not null && constraint is PrimaryKeyColumnConstraint)
                     {
-                        AddForeignKeyReference(file,
-                            constraint.Line ?? createTableStatement.Line,
-                            constraint.Column ?? createTableStatement.Column,
+                        CheckDuplicateConstraintName(file, line, column, schema, constraintName);
+                    }
+
+                    if (constraint is PrimaryKeyColumnConstraint)
+                    {
+                        AddUniqueColumnSet(schema, table,
+                            [columnDefinition.Name.Name], isPrimaryKey: true);
+                    }
+                    else if (constraint is ForeignKeyColumnConstraint fk)
+                    {
+                        AddForeignKeyReference(file, line, column,
                             table,
                             fk.ReferencedTable,
                             fk.ReferencedColumn is { } referencedColumn
@@ -313,6 +546,24 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
             _tableReferences.Add(new TableReference(
                 file.Name, createIndexStatement.Line, createIndexStatement.Column,
                 subject, schema, tableName.UnqualifiedName, columns));
+
+            // An index shares the constraint namespace within a schema, so a name reused by
+            // another index or a constraint is a duplicate definition.
+            if (createIndexStatement.Name is { } indexName)
+            {
+                CheckDuplicateConstraintName(file, createIndexStatement.Line,
+                    createIndexStatement.Column, schema, indexName.Name);
+            }
+
+            // A UNIQUE index backs a foreign key exactly as a unique constraint does, but
+            // only when every key is a plain column (a partial or expression index does not
+            // satisfy Postgres's requirement).
+            if (createIndexStatement.Unique
+                && createIndexStatement.WhereClause is null
+                && columns.Count == createIndexStatement.Elements.Count)
+            {
+                AddUniqueColumnSet(schema, tableName.UnqualifiedName, columns, isPrimaryKey: false);
+            }
         }
 
         public void ThrowIfInvalid()
@@ -360,6 +611,8 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                 }
             }
 
+            CheckForeignKeyUniqueness();
+
             if (_errors.Count == 1)
             {
                 throw _errors[0];
@@ -371,12 +624,88 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
             }
         }
 
+        /// <summary>
+        /// Checks that every foreign key's referenced columns are backed by a primary key or
+        /// unique constraint/index on the referenced table — PostgreSQL requires this and
+        /// otherwise fails at deploy time with "there is no unique constraint matching given
+        /// keys for referenced table". The columns are compared as a set, since a unique
+        /// constraint on (a, b) equally covers a reference to (b, a).
+        /// </summary>
+        private void CheckForeignKeyUniqueness()
+        {
+            foreach (var check in _foreignKeyChecks)
+            {
+                var key = TableKey(check.Schema, check.Table);
+
+                // An unresolved table was already reported as SQ0002; don't pile on.
+                if (!_declaredTables.TryGetValue(key, out var declaredColumns))
+                {
+                    continue;
+                }
+
+                // Likewise when a referenced column does not exist: that unresolved-reference
+                // error is the specific one, and "not covered by a unique constraint" on top
+                // of it would just be noise.
+                if (check.Columns.Any(i => !declaredColumns.Contains(i)))
+                {
+                    continue;
+                }
+
+                var display = Display(check.Schema, check.Table);
+
+                // No column list means "the referenced table's primary key", so the table
+                // must have one.
+                if (check.Columns.Count == 0)
+                {
+                    if (!_tablesWithPrimaryKey.Contains(key))
+                    {
+                        _errors.Add(new SqlSourceException(
+                            $"{check.Subject} references table '{display}', which has no "
+                            + "primary key. Either declare a primary key on it or name the "
+                            + "referenced columns explicitly.",
+                            check.SourceFile, check.Line, check.Column,
+                            SqlSourceException.InvalidConstraint));
+                    }
+
+                    continue;
+                }
+
+                var referenced = new HashSet<string>(check.Columns, StringComparer.OrdinalIgnoreCase);
+
+                var backed = _uniqueColumnSets.TryGetValue(key, out var sets)
+                    && sets.Any(referenced.SetEquals);
+
+                if (!backed)
+                {
+                    _errors.Add(new SqlSourceException(
+                        $"{check.Subject} references column(s) "
+                        + $"({string.Join(", ", check.Columns)}) on table '{display}', which "
+                        + "are not covered by a primary key or unique constraint. Add a unique "
+                        + "constraint or unique index on those columns.",
+                        check.SourceFile, check.Line, check.Column,
+                        SqlSourceException.InvalidConstraint));
+                }
+            }
+        }
+
+        // A table's name as it should read in a message: bare in the public schema (matching
+        // how it was almost certainly written), schema-qualified anywhere else.
+        private static string Display(string schema, string name)
+            => string.Equals(schema, "public", StringComparison.OrdinalIgnoreCase)
+                ? name
+                : $"{schema}.{name}";
+
+        // Describes where an object was first defined, for a duplicate-definition message.
+        private static string DescribeOrigin(Origin origin)
+            => origin.Line is { } line ? $"{origin.SourceFile} line {line}" : origin.SourceFile;
+
         private void AddForeignKeyReference(IFile file,
             int? line,
             int? column,
             string referencingTable,
             QualifiedName referencedTable,
-            IReadOnlyList<string> referencedColumns)
+            IReadOnlyList<string> referencedColumns,
+            bool checkUniqueness = true)
         {
             var (referencedSchema, referencedName) = SplitSchema(referencedTable);
 
@@ -384,6 +713,69 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                 file.Name, line, column,
                 $"Foreign key on table '{referencingTable}'",
                 referencedSchema, referencedName.UnqualifiedName, referencedColumns));
+
+            // Deferred: the referenced table may be declared later, or in another file, so
+            // its primary key / unique constraints are not all known yet.
+            if (checkUniqueness)
+            {
+                _foreignKeyChecks.Add(new ForeignKeyUniquenessCheck(
+                    file.Name, line, column,
+                    $"Foreign key on table '{referencingTable}'",
+                    referencedSchema, referencedName.UnqualifiedName, referencedColumns));
+            }
+        }
+
+        /// <summary>
+        /// Records a set of columns made unique by a primary key, unique constraint, or
+        /// unique index, so a foreign key referencing exactly that set can be validated.
+        /// </summary>
+        private void AddUniqueColumnSet(string schema,
+            string table,
+            IEnumerable<string> columns,
+            bool isPrimaryKey)
+        {
+            var key = TableKey(schema, table);
+
+            if (!_uniqueColumnSets.TryGetValue(key, out var sets))
+            {
+                sets = [];
+                _uniqueColumnSets[key] = sets;
+            }
+
+            sets.Add(new HashSet<string>(columns, StringComparer.OrdinalIgnoreCase));
+
+            if (isPrimaryKey)
+            {
+                _tablesWithPrimaryKey.Add(key);
+            }
+        }
+
+        /// <summary>
+        /// Reports a constraint or index name already used in the same schema. A primary key
+        /// or unique constraint is backed by an index, and indexes share the per-schema
+        /// relation namespace — so two tables in one schema cannot both have a
+        /// <c>CONSTRAINT pk_x PRIMARY KEY</c>, and the deploy would fail with
+        /// "relation already exists".
+        /// </summary>
+        private void CheckDuplicateConstraintName(IFile file,
+            int? line,
+            int? column,
+            string schema,
+            string name)
+        {
+            var key = (schema.ToLowerInvariant(), name.ToLowerInvariant());
+
+            if (_constraintOrigins.TryGetValue(key, out var existing))
+            {
+                _errors.Add(new SqlSourceException(
+                    $"Constraint or index '{name}' is already defined in "
+                    + $"{DescribeOrigin(existing)}.",
+                    file.Name, line, column, SqlSourceException.DuplicateDefinition));
+
+                return;
+            }
+
+            _constraintOrigins[key] = new Origin(file.Name, line);
         }
 
         private void CheckOwnColumns(IFile file,

@@ -102,7 +102,7 @@ CREATE TABLE book
             ("Book.sql", "CREATE TABLE book (id integer PRIMARY KEY, author_id integer REFERENCES author (id));"),
             ("Author.sql", "CREATE TABLE author (id integer PRIMARY KEY);"));
 
-        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await builder.ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         Assert.Contains(model.Elements, e => e.Type == PostgresElementTypes.SqlForeignKeyConstraint);
     }
@@ -119,7 +119,7 @@ CREATE TABLE employee
 """;
         var builder = BuilderFor(("Employee.sql", sql));
 
-        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await builder.ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         Assert.Contains(model.Elements, e => e.Type == PostgresElementTypes.SqlForeignKeyConstraint);
     }
@@ -132,7 +132,7 @@ CREATE TABLE employee
             ("Author.sql", "CREATE TABLE staging.author (id integer PRIMARY KEY);"),
             ("Book.sql", "CREATE TABLE book (id integer PRIMARY KEY, author_id integer REFERENCES staging.author (id));"));
 
-        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await builder.ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         Assert.Contains(model.Elements, e => e.Type == PostgresElementTypes.SqlForeignKeyConstraint);
     }
@@ -145,7 +145,7 @@ CREATE TABLE employee
             // No referenced column list: defaults to the referenced table's primary key.
             ("Book.sql", "CREATE TABLE book (id integer PRIMARY KEY, author_id integer REFERENCES author);"));
 
-        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await builder.ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         Assert.Contains(model.Elements, e => e.Type == PostgresElementTypes.SqlForeignKeyConstraint);
     }
@@ -186,7 +186,7 @@ CREATE TABLE employee
             ("Index.sql", "CREATE INDEX ix_foo_name ON foo (name);"),
             ("Foo.sql", "CREATE TABLE foo (id integer PRIMARY KEY, name varchar(50) NOT NULL);"));
 
-        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await builder.ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         Assert.Contains(model.Elements, e => e.Type == PostgresElementTypes.SqlIndex);
     }

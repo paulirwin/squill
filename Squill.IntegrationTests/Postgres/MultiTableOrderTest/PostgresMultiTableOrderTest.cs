@@ -19,8 +19,8 @@ public class PostgresMultiTableOrderTest : PostgresIntegrationTestBase
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
 
-        var parsed = await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
-            .ExtractModelAsync(TestContext.Current.CancellationToken);
+        var parsed = (await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
+            .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         var testDb = await provider.CreateDatabaseAsync(
             $"squill_test_{Guid.NewGuid():n}", TestContext.Current.CancellationToken);

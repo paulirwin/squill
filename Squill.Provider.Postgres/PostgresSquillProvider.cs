@@ -16,7 +16,7 @@ public sealed class PostgresSquillProvider : ISquillProvider
             || string.Equals(providerName, "Postgres", StringComparison.OrdinalIgnoreCase)
             || string.Equals(providerName, "PostgreSQL", StringComparison.OrdinalIgnoreCase);
 
-    public Task<Model> BuildModelAsync(Workspace workspace, CancellationToken cancellationToken = default)
+    public Task<BuildResult> BuildModelAsync(Workspace workspace, CancellationToken cancellationToken = default)
         => DacpacBuilder.BuildModelAsync(workspace, cancellationToken);
 
     public async Task<Squill.Dacpac.DeployResult> DeployAsync(

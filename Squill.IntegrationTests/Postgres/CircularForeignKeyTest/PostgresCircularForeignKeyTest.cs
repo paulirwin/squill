@@ -26,8 +26,8 @@ public class PostgresCircularForeignKeyTest : PostgresIntegrationTestBase
             "Squill.IntegrationTests.Postgres.CircularForeignKeyTest.CircularTables.sql",
             FileKind.Compile));
 
-        var model = await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
-            .ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
+            .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         var testDb = await provider.CreateDatabaseAsync(
             $"squill_test_{Guid.NewGuid():n}", TestContext.Current.CancellationToken);

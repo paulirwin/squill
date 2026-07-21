@@ -37,8 +37,8 @@ CREATE TABLE settings
         // the parser and database builders agree on the canonical default form.
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Settings.sql", FileKind.Compile, schema));
-        var model = await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
-            .ExtractModelAsync(ct);
+        var model = (await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
+            .ExtractModelAsync(ct)).Model;
 
         var testDb = await provider.CreateDatabaseAsync($"squill_test_{Guid.NewGuid():n}", ct);
         var dbModelBuilder = provider.CreateDatabaseModelBuilder(testDb);

@@ -13,7 +13,7 @@ public class WorkspaceModelBuilderTests
 
         var builder = new ParserWorkspaceModelBuilder(workspace, parser);
 
-        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await builder.ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         Assert.NotNull(model);
         Assert.Empty(model.Elements);
@@ -28,7 +28,7 @@ public class WorkspaceModelBuilderTests
 
         var builder = new ParserWorkspaceModelBuilder(workspace, parser);
 
-        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await builder.ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         Assert.NotNull(model);
         Assert.Empty(model.Elements);
@@ -51,7 +51,7 @@ CREATE TABLE Foo
 
         var builder = new ParserWorkspaceModelBuilder(workspace, parser);
 
-        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await builder.ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         Assert.NotNull(model);
         // A table with an inline PRIMARY KEY now yields two elements: the table and
@@ -112,8 +112,8 @@ CREATE TABLE notes
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Notes.sql", FileKind.Compile, sql));
 
-        var model = await new ParserWorkspaceModelBuilder(workspace, parser)
-            .ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await new ParserWorkspaceModelBuilder(workspace, parser)
+            .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         var table = model.Elements.Single(i => i.Type == PostgresElementTypes.SqlTable);
         var columns = table.Relationships.Single(r => r.Name == PostgresRelationshipNames.Columns);
@@ -147,8 +147,8 @@ CREATE TABLE prices
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Prices.sql", FileKind.Compile, sql));
 
-        var model = await new ParserWorkspaceModelBuilder(workspace, parser)
-            .ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await new ParserWorkspaceModelBuilder(workspace, parser)
+            .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         var table = model.Elements.Single(i => i.Type == PostgresElementTypes.SqlTable);
         var columns = table.Relationships.Single(r => r.Name == PostgresRelationshipNames.Columns);
@@ -183,7 +183,7 @@ CREATE TABLE widgets
 
         var builder = new ParserWorkspaceModelBuilder(workspace, parser);
 
-        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await builder.ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         var table = model.Elements.Single(i => i.Type == PostgresElementTypes.SqlTable);
         var columns = table.Relationships.Single(r => r.Name == PostgresRelationshipNames.Columns);
@@ -222,7 +222,7 @@ CREATE INDEX idx_title ON film (title);
 
         var builder = new ParserWorkspaceModelBuilder(workspace, parser);
 
-        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await builder.ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         // table + primary-key constraint + index
         Assert.Equal(3, model.Elements.Count);
@@ -273,7 +273,7 @@ CREATE UNIQUE INDEX idx_email ON users USING btree (email DESC NULLS LAST);
 
         var builder = new ParserWorkspaceModelBuilder(workspace, parser);
 
-        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await builder.ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         var index = Assert.Single(model.Elements, e => e.Type == PostgresElementTypes.SqlIndex);
         Assert.Equal("idx_email", index.Name);
@@ -306,7 +306,7 @@ CREATE INDEX idx_email ON users (email) WHERE email IS NOT NULL;
 
         var builder = new ParserWorkspaceModelBuilder(workspace, parser);
 
-        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await builder.ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         var index = model.Elements.Single(i => i.Type == PostgresElementTypes.SqlIndex);
         Assert.Equal("idx_email", index.Name);
@@ -332,7 +332,7 @@ CREATE INDEX idx_title ON film (title);
 
         var builder = new ParserWorkspaceModelBuilder(workspace, parser);
 
-        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await builder.ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         var index = model.Elements.Single(i => i.Type == PostgresElementTypes.SqlIndex);
         Assert.Null(index.GetProperty<string>(PostgresPropertyNames.FilterPredicate));
@@ -578,6 +578,6 @@ CREATE INDEX items_embedding_idx ON items USING hnsw (embedding vector_cosine_op
 
         var builder = new ParserWorkspaceModelBuilder(workspace, parser);
 
-        return await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+        return (await builder.ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
     }
 }

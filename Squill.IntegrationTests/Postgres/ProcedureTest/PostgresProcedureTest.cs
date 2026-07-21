@@ -20,8 +20,8 @@ public class PostgresProcedureTest : PostgresIntegrationTestBase
         workspace.Files.Add(new EmbeddedResourceFile(
             "Squill.IntegrationTests.Postgres.ProcedureTest.Procedures.sql", FileKind.Compile));
 
-        var model = await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
-            .ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
+            .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         AssertProcedures(model);
 
@@ -109,8 +109,8 @@ public class PostgresProcedureTest : PostgresIntegrationTestBase
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
 
-        return await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
-            .ExtractModelAsync(TestContext.Current.CancellationToken);
+        return (await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
+            .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
     }
 
     private static void AssertProcedures(Model model)

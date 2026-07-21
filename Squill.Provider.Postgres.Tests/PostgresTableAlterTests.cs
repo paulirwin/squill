@@ -42,7 +42,7 @@ public class PostgresTableAlterTests
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
 
-        return await new ParserWorkspaceModelBuilder(workspace, parser).ExtractModelAsync();
+        return (await new ParserWorkspaceModelBuilder(workspace, parser).ExtractModelAsync()).Model;
     }
 
     [Fact]
