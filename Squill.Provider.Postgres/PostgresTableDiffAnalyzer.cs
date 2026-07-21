@@ -80,12 +80,18 @@ public class PostgresTableDiffAnalyzer : ITableDiffAnalyzer
 
         if (changes.Count == 0)
         {
-            // The table element's hash differs but its columns are identical — the change
-            // is in something in-place column ALTER doesn't cover yet (e.g. a constraint
-            // or index on a dependent element). Rebuild so the table reaches its desired
-            // shape rather than silently doing nothing.
-            return BuildRebuild(sourceTable, targetTable, sourceModel, targetModel,
-                allowTableRebuild, tableName, "the table's non-column definition changed");
+            // The table element's hash differs but its columns are identical. A table
+            // element hashes only its name, schema, and columns; a genuine column change
+            // would have surfaced as a column diff above, and a dependent object (index,
+            // PK, FK) is a separate element whose change does not alter the table's hash —
+            // so this branch is not reachable through normal diffing. Rather than silently
+            // perform a full data-moving rebuild for a change we can't identify, fail
+            // loudly with context. (Standalone index changes are handled by RecreateDelta
+            // in SchemaCompare, not here.)
+            throw new InvalidOperationException(
+                $"Table '{SqlName.UnqualifiedOf(tableName)}' differs from the target but no "
+                + "column change was detected; refusing a blind rebuild. This likely "
+                + "indicates a change Squill does not yet model.");
         }
 
         var alterDelta = new AlterDelta(sourceTable, targetTable);
@@ -168,16 +174,11 @@ public class PostgresTableDiffAnalyzer : ITableDiffAnalyzer
         string tableName,
         string reason)
     {
-        // A rebuild renames the current table aside and drops it. If another table's
-        // foreign key references this one, that DROP fails (the dependency survives the
-        // rename). Reconciling inbound FKs across a rebuild is not yet supported, so fail
-        // with a clear message rather than emit a script that aborts mid-transaction.
-        if (HasInboundForeignKey(tableName, targetModel))
-        {
-            throw new TableRebuildNotSupportedException(
-                SqlName.UnqualifiedOf(tableName),
-                $"{reason}, but another table has a foreign key referencing it");
-        }
+        // A rebuild renames the current table aside and drops it, which fails while another
+        // table's foreign key references it (the dependency survives the rename). Those
+        // inbound FKs are dropped before the rebuild and recreated after, inside the
+        // rebuild transaction.
+        var inboundForeignKeys = GetInboundForeignKeys(tableName, targetModel);
 
         if (!allowTableRebuild)
         {
@@ -210,30 +211,39 @@ public class PostgresTableDiffAnalyzer : ITableDiffAnalyzer
             delta.TargetDependentElements.Add(dependent);
         }
 
+        // Carry the inbound FKs (from other tables) so the generator can drop them before
+        // the rebuild and recreate them after.
+        foreach (var inboundForeignKey in inboundForeignKeys)
+        {
+            delta.InboundForeignKeys.Add(inboundForeignKey);
+        }
+
         return delta;
     }
 
-    // Whether any foreign key in the model references the named table from another table.
-    private static bool HasInboundForeignKey(string tableName, Model model)
+    // Foreign keys defined on other tables that reference the named table. A self-
+    // referencing FK is dropped with the table itself, so it doesn't need reconciling;
+    // only a reference from a different table does.
+    private static IList<Element> GetInboundForeignKeys(string tableName, Model model)
     {
+        var inbound = new List<Element>();
+
         foreach (var element in model.Elements
                      .Where(i => i.Type == PostgresElementTypes.SqlForeignKeyConstraint))
         {
             var foreignTable = element.GetRelationship(PostgresRelationshipNames.ForeignTable)
                 ?.Entries.OfType<Reference>().SingleOrDefault();
 
-            // A self-referencing FK is dropped with the table itself, so it doesn't block
-            // the rebuild; only a reference from a different table does.
             var definingTable = element.GetRelationship(PostgresRelationshipNames.DefiningTable)
                 ?.Entries.OfType<Reference>().SingleOrDefault();
 
             if (foreignTable?.Name == tableName && definingTable?.Name != tableName)
             {
-                return true;
+                inbound.Add(element);
             }
         }
 
-        return false;
+        return inbound;
     }
 
     // The table's columns in declaration order, as (canonical name, element) pairs.

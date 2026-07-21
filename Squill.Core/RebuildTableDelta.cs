@@ -59,4 +59,12 @@ public class RebuildTableDelta : SchemaDelta
     /// from the source model's names — before the recreated table can reuse them.
     /// </summary>
     public IList<Element> TargetDependentElements { get; } = new List<Element>();
+
+    /// <summary>
+    /// Foreign keys on <em>other</em> tables that reference this one, from the target
+    /// database. A rebuild drops the renamed-aside table, which fails while an inbound FK
+    /// points at it, so each of these is dropped before the rebuild and recreated after —
+    /// within the rebuild's transaction.
+    /// </summary>
+    public IList<Element> InboundForeignKeys { get; } = new List<Element>();
 }

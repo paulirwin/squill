@@ -25,7 +25,8 @@ CREATE TABLE order_lines
 );
 """;
 
-        await AssertParserModelRoundTrips(sql, expectedPkName: "order_lines_pkey");
+        await AssertParserModelRoundTrips(sql, expectedPkName: "order_lines_pkey",
+            expectedPkColumns: ["order_lines.order_id", "order_lines.line_no"]);
     }
 
     [Fact]
@@ -40,16 +41,35 @@ CREATE TABLE order_lines
 );
 """;
 
-        await AssertParserModelRoundTrips(sql, expectedPkName: "pk_order_lines");
+        await AssertParserModelRoundTrips(sql, expectedPkName: "pk_order_lines",
+            expectedPkColumns: ["order_lines.order_id", "order_lines.line_no"]);
+    }
+
+    [Fact]
+    public async Task NamedSingleColumnPrimaryKeyRoundTrip_ModelHashesMatchAfterPublish()
+    {
+        // A CONSTRAINT pk_x PRIMARY KEY on a single column must keep its name through
+        // publish + extract (issue #36), rather than being replaced by <table>_pkey.
+        const string sql = """
+CREATE TABLE film
+(
+    film_id integer CONSTRAINT pk_film PRIMARY KEY,
+    title   varchar(255) NOT NULL
+);
+""";
+
+        await AssertParserModelRoundTrips(sql, expectedPkName: "pk_film",
+            expectedPkColumns: ["film.film_id"]);
     }
 
     // Builds a model from SQL via the parser (issue #7), publishes it into a fresh
     // database, re-extracts, and asserts the primary-key element and whole-model hashes
     // survive the round trip.
-    private async Task AssertParserModelRoundTrips(string sql, string expectedPkName)
+    private async Task AssertParserModelRoundTrips(
+        string sql, string expectedPkName, string[] expectedPkColumns)
     {
         var workspace = new Workspace();
-        workspace.Files.Add(new InMemoryStringFile("OrderLines.sql", FileKind.Compile, sql));
+        workspace.Files.Add(new InMemoryStringFile("Schema.sql", FileKind.Compile, sql));
 
         var parserModel = await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
             .ExtractModelAsync(TestContext.Current.CancellationToken);
@@ -57,9 +77,7 @@ CREATE TABLE order_lines
         var parserPk = Assert.Single(parserModel.Elements,
             i => i.Type == PostgresElementTypes.SqlPrimaryKeyConstraint);
         Assert.Equal(expectedPkName, parserPk.Name);
-        Assert.Equal(
-            new[] { "order_lines.order_id", "order_lines.line_no" },
-            PrimaryKeyColumnReferences(parserPk));
+        Assert.Equal(expectedPkColumns, PrimaryKeyColumnReferences(parserPk));
 
         IDatabaseProvider provider = new PostgresDatabaseProvider(ConnectionString);
         var testDb = await provider.CreateDatabaseAsync(
@@ -79,12 +97,10 @@ CREATE TABLE order_lines
             var publishedPk = Assert.Single(publishedModel.Elements,
                 i => i.Type == PostgresElementTypes.SqlPrimaryKeyConstraint);
 
-            // The publish must produce a valid composite PK in the real database that
-            // re-extracts with the same constraint name and columns the parser modeled.
+            // The publish must produce a valid PK in the real database that re-extracts
+            // with the same constraint name and columns the parser modeled.
             Assert.Equal(expectedPkName, publishedPk.Name);
-            Assert.Equal(
-                new[] { "order_lines.order_id", "order_lines.line_no" },
-                PrimaryKeyColumnReferences(publishedPk));
+            Assert.Equal(expectedPkColumns, PrimaryKeyColumnReferences(publishedPk));
 
             // The primary-key element itself must be byte-for-byte identical (same
             // Merkle hash) whether built from parsed SQL or extracted from Postgres.

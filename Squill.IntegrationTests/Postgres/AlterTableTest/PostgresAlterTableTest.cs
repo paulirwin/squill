@@ -141,6 +141,68 @@ WHERE table_name = 'customer' AND ordinal_position = 2;
     }
 
     [Fact]
+    public async Task RebuildReferencedTable_DropsAndRecreatesInboundForeignKey_AndPreservesData()
+    {
+        // customer is referenced by orders' FK. Rebuilding customer (inserting a column
+        // mid-table) must drop that FK, rebuild, and recreate it — all in one transaction —
+        // preserving both tables' data and leaving the FK enforcing again.
+        const string before = """
+CREATE TABLE customer
+(
+    customer_id integer PRIMARY KEY,
+    email       varchar(320) NOT NULL
+);
+
+CREATE TABLE orders
+(
+    order_id    integer PRIMARY KEY,
+    customer_id integer NOT NULL REFERENCES customer (customer_id)
+);
+""";
+        const string after = """
+CREATE TABLE customer
+(
+    customer_id integer PRIMARY KEY,
+    full_name   varchar(200) NULL,
+    email       varchar(320) NOT NULL
+);
+
+CREATE TABLE orders
+(
+    order_id    integer PRIMARY KEY,
+    customer_id integer NOT NULL REFERENCES customer (customer_id)
+);
+""";
+
+        await RunDeployScenarioAsync(
+            before, after,
+            seedSql: """
+INSERT INTO customer (customer_id, email) VALUES (1, 'a@example.com');
+INSERT INTO orders (order_id, customer_id) VALUES (10, 1);
+""",
+            assertAfterAsync: async conn =>
+            {
+                // Both tables' rows survive the rebuild.
+                Assert.Equal(1L, await ScalarAsync(conn, "SELECT count(*) FROM customer;"));
+                Assert.Equal(1L, await ScalarAsync(conn, "SELECT count(*) FROM orders;"));
+
+                // The FK is back and enforcing: an order referencing a missing customer fails.
+                await Assert.ThrowsAsync<Npgsql.PostgresException>(() => ExecuteAsync(
+                    conn, "INSERT INTO orders (order_id, customer_id) VALUES (11, 999);",
+                    TestContext.Current.CancellationToken));
+
+                // The FK still points at customer (one inbound FK on orders).
+                var fkCount = await ScalarAsync(conn, """
+SELECT count(*) FROM pg_constraint c
+JOIN pg_class t ON t.oid = c.conrelid
+JOIN pg_class rt ON rt.oid = c.confrelid
+WHERE c.contype = 'f' AND t.relname = 'orders' AND rt.relname = 'customer';
+""");
+                Assert.Equal(1L, fkCount);
+            });
+    }
+
+    [Fact]
     public async Task InsertColumnBetweenExisting_WhenRebuildDisallowed_FailsAndLeavesTableUnchanged()
     {
         const string before = """
