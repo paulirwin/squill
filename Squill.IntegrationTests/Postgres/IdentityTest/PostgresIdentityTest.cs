@@ -1,4 +1,5 @@
 using Squill.Core;
+using Squill.PostgresParser;
 using Squill.Provider.Postgres;
 
 namespace Squill.IntegrationTests.Postgres.IdentityTest;
@@ -63,5 +64,78 @@ public class PostgresIdentityTest : PostgresIntegrationTestBase
 
         var nameColumn = columns.Entries.OfType<Element>().Single(c => c.Name as string == "widgets.name");
         Assert.Null(nameColumn.GetProperty<bool?>(PostgresPropertyNames.IsIdentity));
+    }
+
+    // Full round trip for identity *sequence options* (issue #13): parse the SQL with the
+    // parser-based builder (no database), publish the model into a fresh database (which
+    // exercises option scripting), re-extract it (which exercises option extraction from
+    // information_schema/pg_sequence), and assert the parsed and extracted models hash
+    // identically — proving both builders agree on which options are non-default.
+    [Fact]
+    public async Task IdentitySequenceOptionsRoundTrip_ParsedAndExtractedModelsHashMatch()
+    {
+        IDatabaseProvider provider = new PostgresDatabaseProvider(ConnectionString);
+
+        var workspace = new Workspace();
+        workspace.Files.Add(new EmbeddedResourceFile(
+            "Squill.IntegrationTests.Postgres.IdentityTest.TableWithIdentityOptions.sql", FileKind.Compile));
+
+        var model = await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
+            .ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        AssertIdentityOptionColumns(model);
+
+        var testDb = await provider.CreateDatabaseAsync(
+            $"squill_test_{Guid.NewGuid():n}", TestContext.Current.CancellationToken);
+        var dbModelBuilder = provider.CreateDatabaseModelBuilder(testDb);
+
+        try
+        {
+            var emptyModel = await dbModelBuilder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+            var comparison = SchemaCompare.Compare(provider, model, emptyModel);
+
+            await testDb.PublishAsync(comparison, TestContext.Current.CancellationToken);
+
+            var publishedModel = await dbModelBuilder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+            AssertIdentityOptionColumns(publishedModel);
+
+            Assert.True(HashUtility.HashesEqual(model.Hash, publishedModel.Hash), "Model hashes do not match");
+        }
+        finally
+        {
+            await testDb.DropAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    private static void AssertIdentityOptionColumns(Model model)
+    {
+        var table = model.Elements.Single(i => i.Type == PostgresElementTypes.SqlTable);
+        var columns = table.GetRelationship(PostgresRelationshipNames.Columns)!;
+
+        var idColumn = columns.Entries.OfType<Element>().Single(c => c.Name as string == "gadgets.id");
+        Assert.Equal(100L, idColumn.GetProperty<long?>(PostgresPropertyNames.StartValue));
+        Assert.Equal(5L, idColumn.GetProperty<long?>(PostgresPropertyNames.Increment));
+        Assert.Equal(100L, idColumn.GetProperty<long?>(PostgresPropertyNames.MinValue));
+        Assert.Equal(9999L, idColumn.GetProperty<long?>(PostgresPropertyNames.MaxValue));
+        Assert.Equal(10L, idColumn.GetProperty<long?>(PostgresPropertyNames.CacheSize));
+        Assert.Equal(true, idColumn.GetProperty<bool?>(PostgresPropertyNames.IsCycling));
+
+        // A descending bigint identity: only the increment is non-default (start/min/max
+        // fall out of the descending defaults for bigint).
+        var countdownColumn = columns.Entries.OfType<Element>().Single(c => c.Name as string == "gadgets.countdown");
+        Assert.Equal(-2L, countdownColumn.GetProperty<long?>(PostgresPropertyNames.Increment));
+        Assert.Null(countdownColumn.GetProperty<long?>(PostgresPropertyNames.StartValue));
+        Assert.Null(countdownColumn.GetProperty<long?>(PostgresPropertyNames.MinValue));
+        Assert.Null(countdownColumn.GetProperty<long?>(PostgresPropertyNames.MaxValue));
+
+        // A plain identity stores no option properties at all.
+        var plainColumn = columns.Entries.OfType<Element>().Single(c => c.Name as string == "gadgets.plain_id");
+        Assert.Equal(true, plainColumn.GetProperty<bool?>(PostgresPropertyNames.IsIdentity));
+        Assert.Null(plainColumn.GetProperty<long?>(PostgresPropertyNames.StartValue));
+        Assert.Null(plainColumn.GetProperty<long?>(PostgresPropertyNames.Increment));
+        Assert.Null(plainColumn.GetProperty<long?>(PostgresPropertyNames.CacheSize));
+        Assert.Null(plainColumn.GetProperty<bool?>(PostgresPropertyNames.IsCycling));
     }
 }

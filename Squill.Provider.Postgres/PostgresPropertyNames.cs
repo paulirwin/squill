@@ -14,6 +14,15 @@ public static class PostgresPropertyNames
     public const string UpdateAction = nameof(UpdateAction);
     public const string IsIdentity = nameof(IsIdentity);
     public const string IdentityGeneration = nameof(IdentityGeneration);
+    // Identity sequence options (issue #13), stored only when they differ from the
+    // Postgres default for the column's type and sequence direction — see
+    // PostgresIdentitySequenceDefaults. Names follow SSDT's SqlSequence properties.
+    public const string StartValue = nameof(StartValue);
+    public const string Increment = nameof(Increment);
+    public const string MinValue = nameof(MinValue);
+    public const string MaxValue = nameof(MaxValue);
+    public const string CacheSize = nameof(CacheSize);
+    public const string IsCycling = nameof(IsCycling);
     // The canonical form of a column DEFAULT constant literal (see PostgresDefaultValue).
     public const string DefaultValue = nameof(DefaultValue);
     public const string FilterPredicate = nameof(FilterPredicate);
