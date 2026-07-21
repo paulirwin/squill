@@ -478,6 +478,12 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 c.numeric_scale,
                 c.is_identity,
                 c.identity_generation,
+                c.identity_start,
+                c.identity_increment,
+                c.identity_minimum,
+                c.identity_maximum,
+                c.identity_cycle,
+                seq.seqcache AS identity_cache,
                 c.column_default,
                 c.udt_name,
                 format_type(a.atttypid, a.atttypmod) AS formatted_type
@@ -485,6 +491,15 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             JOIN pg_namespace n ON n.nspname = c.table_schema
             JOIN pg_class t ON t.relname = c.table_name AND t.relnamespace = n.oid
             JOIN pg_attribute a ON a.attrelid = t.oid AND a.attname = c.column_name
+            -- An identity column's CACHE lives on its implicit sequence (pg_sequence),
+            -- which information_schema does not expose; the sequence is found through
+            -- its internal ('i') dependency on the column.
+            LEFT JOIN pg_depend dep ON dep.refclassid = 'pg_class'::regclass
+                AND dep.refobjid = t.oid
+                AND dep.refobjsubid = a.attnum
+                AND dep.classid = 'pg_class'::regclass
+                AND dep.deptype = 'i'
+            LEFT JOIN pg_sequence seq ON seq.seqrelid = dep.objid
             WHERE c.table_catalog = @catalog
               AND c.table_schema = @schema
               AND c.table_name = @name
@@ -594,6 +609,56 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 column.Properties.Add(new Property(PostgresPropertyNames.IsIdentity, true));
                 column.Properties.Add(new Property(PostgresPropertyNames.IdentityGeneration,
                     identityGeneration == "ALWAYS" ? "Always" : "ByDefault"));
+
+                // Sequence options (issue #13): information_schema reports every option
+                // with defaults filled in (identity_start = 1 for a plain identity), so
+                // values equal to the type/direction default are omitted — mirroring the
+                // parser builder, which stores only what was written and non-default.
+                // The identity_* columns are character_data; parse them as longs.
+                var startValue = long.Parse(reader.GetString("identity_start"),
+                    System.Globalization.CultureInfo.InvariantCulture);
+                var increment = long.Parse(reader.GetString("identity_increment"),
+                    System.Globalization.CultureInfo.InvariantCulture);
+                var minValue = long.Parse(reader.GetString("identity_minimum"),
+                    System.Globalization.CultureInfo.InvariantCulture);
+                var maxValue = long.Parse(reader.GetString("identity_maximum"),
+                    System.Globalization.CultureInfo.InvariantCulture);
+                var isCycling = reader.GetString("identity_cycle") == "YES";
+                var cacheSize = reader.GetFieldValue<long?>("identity_cache")
+                    ?? PostgresIdentitySequenceDefaults.CacheSize;
+
+                var (defaultStart, defaultMin, defaultMax) =
+                    PostgresIdentitySequenceDefaults.For(dataType, increment);
+
+                if (startValue != defaultStart)
+                {
+                    column.Properties.Add(new Property(PostgresPropertyNames.StartValue, startValue));
+                }
+
+                if (increment != PostgresIdentitySequenceDefaults.Increment)
+                {
+                    column.Properties.Add(new Property(PostgresPropertyNames.Increment, increment));
+                }
+
+                if (minValue != defaultMin)
+                {
+                    column.Properties.Add(new Property(PostgresPropertyNames.MinValue, minValue));
+                }
+
+                if (maxValue != defaultMax)
+                {
+                    column.Properties.Add(new Property(PostgresPropertyNames.MaxValue, maxValue));
+                }
+
+                if (cacheSize != PostgresIdentitySequenceDefaults.CacheSize)
+                {
+                    column.Properties.Add(new Property(PostgresPropertyNames.CacheSize, cacheSize));
+                }
+
+                if (isCycling != PostgresIdentitySequenceDefaults.IsCycling)
+                {
+                    column.Properties.Add(new Property(PostgresPropertyNames.IsCycling, isCycling));
+                }
             }
 
             // A serial column's default is a nextval(...) sequence call, and an identity
