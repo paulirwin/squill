@@ -149,7 +149,10 @@ public class PostgresTableDiffAnalyzer : ITableDiffAnalyzer
         return false;
     }
 
-    // Whether two versions of the same column differ in their identity definition.
+    // Whether two versions of the same column differ in their identity definition —
+    // generation mode or any sequence option (issue #13). Any such change is handled by
+    // a table rebuild. (Postgres could ALTER COLUMN ... SET <seqoption> in place; that
+    // optimization is future work.)
     private static bool IdentityDiffers(Element source, Element target)
     {
         var sourceIdentity = source.GetProperty<bool?>(PostgresPropertyNames.IsIdentity) == true;
@@ -160,9 +163,25 @@ public class PostgresTableDiffAnalyzer : ITableDiffAnalyzer
             return true;
         }
 
-        return sourceIdentity
-            && source.GetProperty<string>(PostgresPropertyNames.IdentityGeneration)
-                != target.GetProperty<string>(PostgresPropertyNames.IdentityGeneration);
+        if (!sourceIdentity)
+        {
+            return false;
+        }
+
+        return source.GetProperty<string>(PostgresPropertyNames.IdentityGeneration)
+                != target.GetProperty<string>(PostgresPropertyNames.IdentityGeneration)
+            || source.GetProperty<long?>(PostgresPropertyNames.StartValue)
+                != target.GetProperty<long?>(PostgresPropertyNames.StartValue)
+            || source.GetProperty<long?>(PostgresPropertyNames.Increment)
+                != target.GetProperty<long?>(PostgresPropertyNames.Increment)
+            || source.GetProperty<long?>(PostgresPropertyNames.MinValue)
+                != target.GetProperty<long?>(PostgresPropertyNames.MinValue)
+            || source.GetProperty<long?>(PostgresPropertyNames.MaxValue)
+                != target.GetProperty<long?>(PostgresPropertyNames.MaxValue)
+            || source.GetProperty<long?>(PostgresPropertyNames.CacheSize)
+                != target.GetProperty<long?>(PostgresPropertyNames.CacheSize)
+            || source.GetProperty<bool?>(PostgresPropertyNames.IsCycling)
+                != target.GetProperty<bool?>(PostgresPropertyNames.IsCycling);
     }
 
     private SchemaDelta BuildRebuild(

@@ -213,8 +213,7 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
             // in a fixed order (IsNullable then identity) so the model matches the
             // DB-extraction builder's property order — the Merkle hash is order-sensitive.
             bool? isNullable = null;
-            bool isIdentity = false;
-            string? identityGeneration = null;
+            IdentityColumnConstraint? identityConstraint = null;
             string? defaultValue = null;
 
             foreach (var columnConstraint in columnDefinition.Constraints)
@@ -264,8 +263,7 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                 }
                 else if (constraint is IdentityColumnConstraint identity)
                 {
-                    isIdentity = true;
-                    identityGeneration = identity.Always ? "Always" : "ByDefault";
+                    identityConstraint = identity;
 
                     // Postgres identity columns are implicitly NOT NULL.
                     isNullable = false;
@@ -297,10 +295,13 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                 element.Properties.Add(new Property(PostgresPropertyNames.IsNullable, false));
             }
 
-            if (isIdentity)
+            if (identityConstraint is not null)
             {
                 element.Properties.Add(new Property(PostgresPropertyNames.IsIdentity, true));
-                element.Properties.Add(new Property(PostgresPropertyNames.IdentityGeneration, identityGeneration!));
+                element.Properties.Add(new Property(PostgresPropertyNames.IdentityGeneration,
+                    identityConstraint.Always ? "Always" : "ByDefault"));
+
+                AddIdentitySequenceOptionProperties(element, identityConstraint, columnDefinition.DataType);
             }
 
             // Emitted after identity so parsed and DB-extracted models add the property in
@@ -431,6 +432,52 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
         }
 
         return inlinePkName;
+    }
+
+    // Emits the identity sequence-option properties (issue #13) in a fixed order —
+    // StartValue, Increment, MinValue, MaxValue, CacheSize, IsCycling — omitting any
+    // option equal to the Postgres default for the column's type and sequence direction,
+    // so the model hash-matches a DB extraction (which reports defaults filled in).
+    private static void AddIdentitySequenceOptionProperties(
+        Element element, IdentityColumnConstraint identity, DataType dataType)
+    {
+        var canonicalType = dataType is BuiltInDataType builtIn
+            ? builtIn.Type.CanonicalName()
+            : "integer";
+
+        var increment = identity.Increment ?? PostgresIdentitySequenceDefaults.Increment;
+        var (defaultStart, defaultMin, defaultMax) =
+            PostgresIdentitySequenceDefaults.For(canonicalType, increment);
+
+        if (identity.StartValue is { } startValue && startValue != defaultStart)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.StartValue, startValue));
+        }
+
+        if (increment != PostgresIdentitySequenceDefaults.Increment)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.Increment, increment));
+        }
+
+        if (identity.MinValue is { } minValue && minValue != defaultMin)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.MinValue, minValue));
+        }
+
+        if (identity.MaxValue is { } maxValue && maxValue != defaultMax)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.MaxValue, maxValue));
+        }
+
+        if (identity.CacheSize is { } cacheSize && cacheSize != PostgresIdentitySequenceDefaults.CacheSize)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.CacheSize, cacheSize));
+        }
+
+        if (identity.Cycle is { } cycle && cycle != PostgresIdentitySequenceDefaults.IsCycling)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.IsCycling, cycle));
+        }
     }
 
     private static Element MakeCreateIndexElement(CreateIndexStatement createIndexStatement)
