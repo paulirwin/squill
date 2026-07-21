@@ -27,7 +27,7 @@ public class PostgresDropAndDataLossTests
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
 
-        return await new ParserWorkspaceModelBuilder(workspace, parser).ExtractModelAsync();
+        return (await new ParserWorkspaceModelBuilder(workspace, parser).ExtractModelAsync()).Model;
     }
 
     // Options that keep the focus on drops: object drops on, data-loss block off so the

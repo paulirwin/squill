@@ -17,8 +17,8 @@ public class IdentitySequenceOptionsTests
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Widgets.sql", FileKind.Compile, sql));
 
-        var model = await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
-            .ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
+            .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         var table = model.Elements.Single(i => i.Type == PostgresElementTypes.SqlTable);
         var columns = table.GetRelationship(PostgresRelationshipNames.Columns)!;

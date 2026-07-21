@@ -16,8 +16,8 @@ public class SquillProviderRegistryTests
 
         public bool Matches(string providerName) => _names.Contains(providerName);
 
-        public Task<Model> BuildModelAsync(Workspace workspace, CancellationToken cancellationToken = default)
-            => Task.FromResult(new Model());
+        public Task<BuildResult> BuildModelAsync(Workspace workspace, CancellationToken cancellationToken = default)
+            => Task.FromResult(new BuildResult(new Model()));
 
         public Task<DeployResult> DeployAsync(Stream dacpacStream, string connectionString,
             string? targetDatabaseName, bool dryRun, IProgress<string>? progress,

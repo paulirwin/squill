@@ -31,8 +31,8 @@ CREATE INDEX idx_film_title ON film (title);
         // Parser-built model (no database).
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Film.sql", FileKind.Compile, Sql));
-        var parserModel = await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
-            .ExtractModelAsync(TestContext.Current.CancellationToken);
+        var parserModel = (await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
+            .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         // Database-built model: run the same SQL into a real database, then extract.
         IDatabaseProvider provider = new PostgresDatabaseProvider(ConnectionString);
@@ -82,8 +82,8 @@ CREATE INDEX idx_film_title ON film (title);
     {
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Film.sql", FileKind.Compile, Sql));
-        var parserModel = await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
-            .ExtractModelAsync(TestContext.Current.CancellationToken);
+        var parserModel = (await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
+            .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         IDatabaseProvider provider = new PostgresDatabaseProvider(ConnectionString);
         var db = await provider.CreateDatabaseAsync(

@@ -15,8 +15,8 @@ public class ForeignKeyCreateOrderTests
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
 
-        var model = await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
-            .ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
+            .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         var provider = new PostgresDatabaseProvider("Host=unused");
 

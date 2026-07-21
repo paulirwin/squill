@@ -71,8 +71,8 @@ CREATE TABLE film
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Schema.sql", FileKind.Compile, sql));
 
-        var parserModel = await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
-            .ExtractModelAsync(TestContext.Current.CancellationToken);
+        var parserModel = (await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
+            .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         var parserPk = Assert.Single(parserModel.Elements,
             i => i.Type == PostgresElementTypes.SqlPrimaryKeyConstraint);

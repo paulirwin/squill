@@ -163,7 +163,7 @@ CREATE TABLE Foo
 
             // The model produced through the shared builder is the source of truth.
             var workspace = DacpacBuilder.CreateWorkspace([sqlPath]);
-            var expected = await DacpacBuilder.BuildModelAsync(workspace, TestContext.Current.CancellationToken);
+            var expected = (await DacpacBuilder.BuildModelAsync(workspace, TestContext.Current.CancellationToken)).Model;
 
             var outputPath = Path.Combine(tempDir.FullName, "bin", "Sample.dacpac");
             var task = new BuildDacpacTask
@@ -294,6 +294,117 @@ CREATE TABLE book
 
     // Minimal IBuildEngine that records logged errors/warnings so tests can assert on
     // them — including the file/line/column metadata MSBuild diagnostics carry.
+    [Fact]
+    public async Task Execute_ReportsUnmodeledConstructAsCodedWarning()
+    {
+        // A build warning has to reach MSBuild with a code and a source position, or
+        // NoWarn / WarningsAsErrors cannot act on it and the IDE cannot navigate to it
+        // (issue #61).
+        const string schema = """
+CREATE TABLE Event
+(
+    id integer PRIMARY KEY,
+    created_at timestamp DEFAULT now()
+);
+""";
+        var tempDir = Directory.CreateTempSubdirectory("squill-buildtask-warn");
+        try
+        {
+            var sqlPath = Path.Combine(tempDir.FullName, "Event.sql");
+            await File.WriteAllTextAsync(sqlPath, schema, TestContext.Current.CancellationToken);
+
+            var outputPath = Path.Combine(tempDir.FullName, "bin", "Sample.dacpac");
+
+            var engine = new StubBuildEngine();
+            var task = new BuildDacpacTask
+            {
+                BuildEngine = engine,
+                SourceFiles = [new TaskItem(sqlPath)],
+                OutputPath = outputPath,
+                ProviderName = "Postgresql",
+            };
+
+            var result = task.Execute();
+
+            // A warning must not fail the build.
+            Assert.True(result, "An unmodeled construct is a warning, not an error.");
+            Assert.Empty(engine.Errors);
+            Assert.True(File.Exists(outputPath), "The DACPAC should still be written.");
+
+            var warning = Assert.Single(engine.Warnings);
+            Assert.Equal("SQ1002", warning.Code);
+            Assert.Equal(sqlPath, warning.File);
+            Assert.Equal(4, warning.LineNumber);
+            Assert.Contains("created_at", warning.Message);
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Execute_NoSourceFiles_WarnsWithSuppressibleCode()
+    {
+        var tempDir = Directory.CreateTempSubdirectory("squill-buildtask-nosource");
+        try
+        {
+            var engine = new StubBuildEngine();
+            var task = new BuildDacpacTask
+            {
+                BuildEngine = engine,
+                SourceFiles = [],
+                OutputPath = Path.Combine(tempDir.FullName, "bin", "Empty.dacpac"),
+                ProviderName = "Postgresql",
+            };
+
+            Assert.True(task.Execute());
+
+            var warning = Assert.Single(engine.Warnings);
+            Assert.Equal("SQ1001", warning.Code);
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Execute_ReportsErrorsFromEveryFileInOneBuild()
+    {
+        // Failing fast on the first bad file meant one rebuild per broken file; every file's
+        // errors should surface together (issue #61).
+        var tempDir = Directory.CreateTempSubdirectory("squill-buildtask-multierror");
+        try
+        {
+            var firstPath = Path.Combine(tempDir.FullName, "A.sql");
+            var secondPath = Path.Combine(tempDir.FullName, "B.sql");
+
+            await File.WriteAllTextAsync(firstPath, "CREATE bogus;", TestContext.Current.CancellationToken);
+            await File.WriteAllTextAsync(secondPath, "CREATE alsobogus;", TestContext.Current.CancellationToken);
+
+            var engine = new StubBuildEngine();
+            var task = new BuildDacpacTask
+            {
+                BuildEngine = engine,
+                SourceFiles = [new TaskItem(firstPath), new TaskItem(secondPath)],
+                OutputPath = Path.Combine(tempDir.FullName, "bin", "Sample.dacpac"),
+                ProviderName = "Postgresql",
+            };
+
+            Assert.False(task.Execute());
+
+            Assert.Equal(2, engine.Errors.Count);
+            Assert.Contains(engine.Errors, e => e.File == firstPath);
+            Assert.Contains(engine.Errors, e => e.File == secondPath);
+            Assert.All(engine.Errors, e => Assert.Equal("SQ0001", e.Code));
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
     private sealed class StubBuildEngine : IBuildEngine
     {
         public List<BuildErrorEventArgs> Errors { get; } = [];

@@ -11,7 +11,7 @@ namespace Squill.Provider.MariaDb;
 /// constraint names (a <c>PRIMARY</c> key, <c>&lt;table&gt;_ibfk_N</c> foreign keys) so a
 /// parsed model hash-matches one extracted from a live database.
 /// </summary>
-public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
+public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 {
     private readonly Workspace _workspace;
     private readonly IMariaDbParser _parser;
@@ -22,24 +22,27 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
         _parser = parser;
     }
 
-    public async Task<Model> ExtractModelAsync(CancellationToken cancellationToken = default)
+    public async Task<BuildResult> ExtractModelAsync(CancellationToken cancellationToken = default)
     {
         var model = new Model();
         var validator = new SourceValidator();
+        var warnings = new List<SqlSourceDiagnostic>();
 
         foreach (var file in _workspace.Files.Where(i => i.Kind == FileKind.Compile))
         {
-            await ProcessFile(file, model, validator, cancellationToken);
+            await ProcessFile(file, model, validator, warnings, cancellationToken);
         }
 
         // Validated after every file so declaration order (within and across files) does
-        // not matter, just like it doesn't for the deployed schema.
+        // not matter, just like it doesn't for the deployed schema. Parse and mapping errors
+        // collected above are reported alongside, so one build surfaces every problem
+        // rather than one per rebuild (issue #61).
         validator.ThrowIfInvalid();
 
         SortTablesByName(model);
         MoveProceduresToEnd(model);
 
-        return model;
+        return new BuildResult(model, warnings);
     }
 
     /// <summary>
@@ -124,9 +127,16 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
         }
     }
 
+    /// <summary>
+    /// Parses one file and maps its statements into the model. A syntax error aborts only
+    /// this file — it is recorded and the remaining files are still parsed, so a build
+    /// reports every broken file at once. A statement that cannot be mapped is likewise
+    /// recorded and the rest of the file continues (issue #61).
+    /// </summary>
     private async Task ProcessFile(IFile file,
         Model model,
         SourceValidator validator,
+        List<SqlSourceDiagnostic> warnings,
         CancellationToken cancellationToken)
     {
         var text = await file.ReadAllTextAsync(cancellationToken);
@@ -138,7 +148,12 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
         }
         catch (MariaDbParseException ex)
         {
-            throw new SqlSourceException(ex.Message, file.Name, ex.Line, ex.Column, innerException: ex);
+            validator.AddError(new SqlSourceException(
+                ex.Message, file.Name, ex.Line, ex.Column, innerException: ex));
+
+            // The file did not parse, so it contributes no statements; carry on with the
+            // next file rather than aborting the whole build here.
+            return;
         }
 
         foreach (var statement in root.Statements)
@@ -149,6 +164,13 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                 {
                     case CreateTableStatement createTable:
                         validator.AddCreateTable(file, createTable);
+
+                        if (validator.IsDuplicateTable(createTable))
+                        {
+                            break;
+                        }
+
+                        AddUnmodeledTableWarnings(file, createTable, warnings);
 
                         foreach (var element in MakeCreateTableElements(createTable))
                         {
@@ -163,12 +185,29 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                         break;
 
                     case CreateProcedureStatement createProcedure:
+                        validator.AddCreateProcedure(file, createProcedure);
+
+                        if (validator.IsDuplicateProcedure(createProcedure))
+                        {
+                            break;
+                        }
+
                         model.Elements.Add(MakeCreateProcedureElement(createProcedure));
                         break;
 
                     case CreateFunctionStatement:
                         throw new NotSupportedException(
                             "CREATE FUNCTION is not yet supported; only CREATE PROCEDURE is modeled");
+
+                    // Recognized but not modeled (CREATE VIEW, ALTER, …). Not fatal — the
+                    // rest of the project still builds — but the construct will not reach
+                    // the DACPAC, so say so rather than dropping it silently.
+                    case UnmodeledStatement unmodeled:
+                        warnings.Add(new SqlSourceDiagnostic(
+                            $"{unmodeled.Description} is not modeled by Squill and will not be "
+                            + "deployed or compared.",
+                            file.Name, statement.Line, statement.Column));
+                        break;
                 }
             }
             catch (Exception ex) when (ex is NotImplementedException or NotSupportedException
@@ -176,8 +215,68 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
             {
                 // Attach the source file and the statement's position so the host can
                 // report the failure as a diagnostic pointing at the offending statement.
-                throw new SqlSourceException(
-                    ex.Message, file.Name, statement.Line, statement.Column, innerException: ex);
+                validator.AddError(new SqlSourceException(
+                    ex.Message, file.Name, statement.Line, statement.Column, innerException: ex));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Records a warning for every construct in a CREATE TABLE that is recognized but not
+    /// carried into the model (issue #61): CHECK/COMMENT/COLLATE and other ignored
+    /// constraints, and column defaults that are not constant literals (<c>CURRENT_TIMESTAMP</c>,
+    /// <c>NOW()</c>, <c>DEFAULT NULL</c>) — see <see cref="MariaDbDefaultValue"/>.
+    /// </summary>
+    private static void AddUnmodeledTableWarnings(IFile file,
+        CreateTableStatement createTable,
+        List<SqlSourceDiagnostic> warnings)
+    {
+        var table = createTable.Name.Name;
+
+        foreach (var tableConstraint in createTable.Elements.OfType<TableConstraint>())
+        {
+            var constraint = tableConstraint is NamedTableConstraint named
+                ? named.Constraint
+                : tableConstraint;
+
+            if (constraint is IgnoredTableConstraint)
+            {
+                warnings.Add(new SqlSourceDiagnostic(
+                    $"A constraint on table '{table}' (CHECK, FULLTEXT, SPATIAL, …) is not "
+                    + "modeled and will not be deployed or compared.",
+                    file.Name,
+                    constraint.Line ?? createTable.Line,
+                    constraint.Column ?? createTable.Column));
+            }
+        }
+
+        foreach (var columnDefinition in createTable.Elements.OfType<ColumnDefinition>())
+        {
+            foreach (var columnConstraint in columnDefinition.Constraints)
+            {
+                var constraint = columnConstraint is NamedColumnConstraint named
+                    ? named.Constraint
+                    : columnConstraint;
+
+                var line = constraint.Line ?? createTable.Line;
+                var column = constraint.Column ?? createTable.Column;
+
+                if (constraint is IgnoredColumnConstraint)
+                {
+                    warnings.Add(new SqlSourceDiagnostic(
+                        $"A constraint on column '{table}.{columnDefinition.Name.Name}' "
+                        + "(CHECK, COMMENT, COLLATE, …) is not modeled and will not be "
+                        + "deployed or compared.",
+                        file.Name, line, column));
+                }
+                else if (constraint is DefaultColumnConstraint defaultConstraint
+                    && MariaDbDefaultValue.FromSourceToken(defaultConstraint.Token) is null)
+                {
+                    warnings.Add(new SqlSourceDiagnostic(
+                        $"DEFAULT on column '{table}.{columnDefinition.Name.Name}' is not a "
+                        + "constant literal and is not modeled; it will not be deployed or compared.",
+                        file.Name, line, column));
+                }
             }
         }
     }
@@ -198,6 +297,79 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
         private readonly List<TableReference> _tableReferences = [];
         private readonly List<SqlSourceException> _errors = [];
 
+        // Where each object was first defined, so a redefinition can name the original.
+        private readonly Dictionary<string, Origin> _tableOrigins = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, Origin> _procedureOrigins = new(StringComparer.OrdinalIgnoreCase);
+
+        // An index name only has to be unique within its table in MariaDB, unlike Postgres
+        // where constraints and indexes share a per-schema namespace.
+        private readonly Dictionary<(string Table, string Name), Origin> _indexOrigins = new();
+
+        private readonly HashSet<CreateTableStatement> _duplicateTables = [];
+        private readonly HashSet<CreateProcedureStatement> _duplicateProcedures = [];
+
+        // The column sets made unique by a primary key or unique constraint/index on each
+        // table; a foreign key's referenced columns must match one of these exactly.
+        //
+        // This provider serves both MariaDB and MySQL, and the two genuinely differ here:
+        // MariaDB accepts a foreign key backed by the leftmost prefix of any index (unique or
+        // not), while MySQL 8+ requires a unique key on exactly the referenced columns and
+        // rejects the rest with "Missing unique key for constraint ... in the referenced
+        // table". The stricter MySQL rule is the one enforced, so a DACPAC that builds is
+        // deployable on either engine — accepting MariaDB's looser form would let a project
+        // build and then fail on deploy against MySQL.
+        private readonly Dictionary<string, List<HashSet<string>>> _uniqueColumnSets =
+            new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _tablesWithPrimaryKey = new(StringComparer.OrdinalIgnoreCase);
+        private readonly List<ForeignKeyUniquenessCheck> _foreignKeyChecks = [];
+
+        // Where an object was first defined.
+        private sealed record Origin(string SourceFile, int? Line);
+
+        // A deferred check that a foreign key's referenced columns are backed by a primary
+        // key or unique constraint on the referenced table.
+        private sealed record ForeignKeyUniquenessCheck(
+            string SourceFile,
+            int? Line,
+            int? Column,
+            string Subject,
+            string Table,
+            IReadOnlyList<string> Columns);
+
+        /// <summary>
+        /// Records an error found outside the validator (a syntax error, or a statement that
+        /// could not be mapped) so it is reported together with the reference errors instead
+        /// of aborting the build at the first file.
+        /// </summary>
+        public void AddError(SqlSourceException error) => _errors.Add(error);
+
+        public bool IsDuplicateTable(CreateTableStatement createTable)
+            => _duplicateTables.Contains(createTable);
+
+        public bool IsDuplicateProcedure(CreateProcedureStatement createProcedure)
+            => _duplicateProcedures.Contains(createProcedure);
+
+        public void AddCreateProcedure(IFile file, CreateProcedureStatement createProcedure)
+        {
+            // MariaDB does not allow routine overloading — a name identifies one procedure
+            // within the database, regardless of parameters.
+            var name = createProcedure.Name.Name;
+
+            if (_procedureOrigins.TryGetValue(name, out var existing))
+            {
+                _errors.Add(new SqlSourceException(
+                    $"Procedure '{name}' is already defined in {DescribeOrigin(existing)}.",
+                    file.Name, createProcedure.Line, createProcedure.Column,
+                    SqlSourceException.DuplicateDefinition));
+
+                _duplicateProcedures.Add(createProcedure);
+
+                return;
+            }
+
+            _procedureOrigins[name] = new Origin(file.Name, createProcedure.Line);
+        }
+
         // A deferred reference to a table (and optionally columns on it) that must be
         // declared somewhere in the project, with the source position to report against.
         private sealed record TableReference(
@@ -215,16 +387,41 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
             var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var columnDefinition in createTable.Elements.OfType<ColumnDefinition>())
             {
-                columns.Add(columnDefinition.Name.Name);
+                // A column named twice would silently collapse into one model element;
+                // MariaDB rejects it outright, so it is a build error.
+                if (!columns.Add(columnDefinition.Name.Name))
+                {
+                    _errors.Add(new SqlSourceException(
+                        $"Column '{columnDefinition.Name.Name}' is defined more than once on "
+                        + $"table '{table}'.",
+                        file.Name, createTable.Line, createTable.Column,
+                        SqlSourceException.DuplicateDefinition));
+                }
             }
 
+            // Two CREATE TABLEs for the same name would last-win in the declared-table map
+            // and put both element sets in the model, which confuses diffing — so it is an
+            // error reported at the second definition, naming where the first one is.
+            if (_tableOrigins.TryGetValue(table, out var existingTable))
+            {
+                _errors.Add(new SqlSourceException(
+                    $"Table '{table}' is already defined in {DescribeOrigin(existingTable)}.",
+                    file.Name, createTable.Line, createTable.Column,
+                    SqlSourceException.DuplicateDefinition));
+
+                _duplicateTables.Add(createTable);
+
+                return;
+            }
+
+            _tableOrigins[table] = new Origin(file.Name, createTable.Line);
             _declaredTables[table] = columns;
 
             foreach (var tableConstraint in createTable.Elements.OfType<TableConstraint>())
             {
-                var constraint = tableConstraint is NamedTableConstraint named
-                    ? named.Constraint
-                    : tableConstraint;
+                var (constraint, constraintName) = tableConstraint is NamedTableConstraint named
+                    ? (named.Constraint, named.Name)
+                    : (tableConstraint, (string?)null);
 
                 var line = constraint.Line ?? createTable.Line;
                 var column = constraint.Column ?? createTable.Column;
@@ -235,18 +432,33 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                         CheckOwnColumns(file, line, column,
                             $"Primary key on table '{table}'", table, columns,
                             pk.Columns.Select(c => c.Name));
+
+                        AddUniqueColumnSet(table, pk.Columns.Select(c => c.Name), isPrimaryKey: true);
                         break;
 
                     case UniqueKeyTableConstraint unique:
                         CheckOwnColumns(file, line, column,
                             $"Unique constraint on table '{table}'", table, columns,
                             unique.Columns.Select(c => c.Name));
+
+                        AddUniqueColumnSet(table, unique.Columns.Select(c => c.Name), isPrimaryKey: false);
+
+                        // An inline UNIQUE KEY shares the table's index-name namespace with a
+                        // standalone CREATE INDEX, so it has to be registered here too.
+                        CheckDuplicateIndexName(file, line, column, table,
+                            constraintName ?? unique.IndexName);
                         break;
 
                     case IndexTableConstraint index:
                         CheckOwnColumns(file, line, column,
                             $"Index on table '{table}'", table, columns,
                             index.Columns.Select(c => c.Column.Name));
+
+                        // A plain KEY/INDEX is deliberately not recorded as a unique set:
+                        // MariaDB would accept it as a foreign key's backing index, but MySQL
+                        // would not, and the check enforces the stricter of the two.
+                        CheckDuplicateIndexName(file, line, column, table,
+                            constraintName ?? index.IndexName);
                         break;
 
                     case ForeignKeyTableConstraint fk:
@@ -254,7 +466,10 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                             $"Foreign key on table '{table}'", table, columns,
                             fk.Columns.Select(c => c.Name));
 
-                        if (fk.ReferencedColumns.Count > 0 && fk.ReferencedColumns.Count != fk.Columns.Count)
+                        var shapeIsValid = fk.ReferencedColumns.Count == 0
+                            || fk.ReferencedColumns.Count == fk.Columns.Count;
+
+                        if (!shapeIsValid)
                         {
                             _errors.Add(new SqlSourceException(
                                 $"Foreign key on table '{table}' has {fk.Columns.Count} referencing "
@@ -267,6 +482,17 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                             $"Foreign key on table '{table}'",
                             fk.ReferencedTable.Name,
                             fk.ReferencedColumns.Select(c => c.Name).ToList()));
+
+                        // A foreign key whose shape is already wrong gets no uniqueness
+                        // complaint on top — that would only obscure the actual problem.
+                        if (shapeIsValid)
+                        {
+                            _foreignKeyChecks.Add(new ForeignKeyUniquenessCheck(
+                                file.Name, line, column,
+                                $"Foreign key on table '{table}'",
+                                fk.ReferencedTable.Name,
+                                fk.ReferencedColumns.Select(c => c.Name).ToList()));
+                        }
                         break;
                 }
             }
@@ -279,29 +505,116 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                         ? named.Constraint
                         : columnConstraint;
 
-                    if (constraint is ForeignKeyColumnConstraint fk)
+                    var line = constraint.Line ?? createTable.Line;
+                    var column = constraint.Column ?? createTable.Column;
+
+                    if (constraint is PrimaryKeyColumnConstraint)
                     {
+                        AddUniqueColumnSet(table, [columnDefinition.Name.Name], isPrimaryKey: true);
+                    }
+                    else if (constraint is UniqueKeyColumnConstraint)
+                    {
+                        AddUniqueColumnSet(table, [columnDefinition.Name.Name], isPrimaryKey: false);
+                    }
+                    else if (constraint is ForeignKeyColumnConstraint fk)
+                    {
+                        var referencedColumns = fk.ReferencedColumn is { } referencedColumn
+                            ? new[] { referencedColumn.Name }
+                            : Array.Empty<string>();
+
                         _tableReferences.Add(new TableReference(
-                            file.Name,
-                            constraint.Line ?? createTable.Line,
-                            constraint.Column ?? createTable.Column,
+                            file.Name, line, column,
                             $"Foreign key on table '{table}'",
                             fk.ReferencedTable.Name,
-                            fk.ReferencedColumn is { } referencedColumn
-                                ? new[] { referencedColumn.Name }
-                                : Array.Empty<string>()));
+                            referencedColumns));
+
+                        _foreignKeyChecks.Add(new ForeignKeyUniquenessCheck(
+                            file.Name, line, column,
+                            $"Foreign key on table '{table}'",
+                            fk.ReferencedTable.Name,
+                            referencedColumns));
                     }
                 }
             }
         }
 
+        /// <summary>
+        /// Records a set of columns made unique by a primary key or unique constraint/index,
+        /// so a foreign key referencing exactly that set can be validated. A non-unique index
+        /// is deliberately not recorded: MySQL does not accept one as a foreign key's backing
+        /// index, even though MariaDB does.
+        /// </summary>
+        private void AddUniqueColumnSet(string table, IEnumerable<string> columns, bool isPrimaryKey)
+        {
+            if (!_uniqueColumnSets.TryGetValue(table, out var sets))
+            {
+                sets = [];
+                _uniqueColumnSets[table] = sets;
+            }
+
+            sets.Add(new HashSet<string>(columns, StringComparer.OrdinalIgnoreCase));
+
+            if (isPrimaryKey)
+            {
+                _tablesWithPrimaryKey.Add(table);
+            }
+        }
+
+        // Describes where an object was first defined, for a duplicate-definition message.
+        private static string DescribeOrigin(Origin origin)
+            => origin.Line is { } line ? $"{origin.SourceFile} line {line}" : origin.SourceFile;
+
         public void AddCreateIndex(IFile file, CreateIndexStatement createIndex)
         {
+            var table = createIndex.OnTable.Name;
+            var columns = createIndex.Columns.Select(c => c.Column.Name).ToList();
+
             _tableReferences.Add(new TableReference(
                 file.Name, createIndex.Line, createIndex.Column,
                 createIndex.Name is { } name ? $"Index '{name}'" : "Index",
-                createIndex.OnTable.Name,
-                createIndex.Columns.Select(c => c.Column.Name).ToList()));
+                table,
+                columns));
+
+            CheckDuplicateIndexName(file, createIndex.Line, createIndex.Column,
+                table, createIndex.Name);
+
+            // Only a UNIQUE index backs a foreign key on both engines; MySQL rejects a
+            // non-unique one even though MariaDB accepts it.
+            if (createIndex.Unique)
+            {
+                AddUniqueColumnSet(table, columns, isPrimaryKey: false);
+            }
+        }
+
+        /// <summary>
+        /// Reports an index name already used on the same table. An index name must be unique
+        /// within its table (not across the database, as in Postgres), so the table is part of
+        /// the key. An unnamed index gets its name from MariaDB and cannot collide here.
+        /// </summary>
+        private void CheckDuplicateIndexName(IFile file,
+            int? line,
+            int? column,
+            string table,
+            string? indexName)
+        {
+            if (indexName is null)
+            {
+                return;
+            }
+
+            var key = (table.ToLowerInvariant(), indexName.ToLowerInvariant());
+
+            if (_indexOrigins.TryGetValue(key, out var existing))
+            {
+                _errors.Add(new SqlSourceException(
+                    $"Index '{indexName}' on table '{table}' is already defined in "
+                    + $"{DescribeOrigin(existing)}.",
+                    file.Name, line, column, SqlSourceException.DuplicateDefinition));
+
+                return;
+            }
+
+            _indexOrigins[key] = new Origin(file.Name, line);
         }
 
         public void ThrowIfInvalid()
@@ -332,6 +645,8 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                 }
             }
 
+            CheckForeignKeyUniqueness();
+
             if (_errors.Count == 1)
             {
                 throw _errors[0];
@@ -340,6 +655,64 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
             if (_errors.Count > 1)
             {
                 throw new AggregateException(_errors);
+            }
+        }
+
+        /// <summary>
+        /// Checks that every foreign key's referenced columns are backed by a primary key or
+        /// unique constraint/index on the referenced table — InnoDB requires this and
+        /// otherwise fails the deploy (errno 150). The columns are compared as a set, since a
+        /// unique constraint on (a, b) equally covers a reference to (b, a).
+        /// </summary>
+        private void CheckForeignKeyUniqueness()
+        {
+            foreach (var check in _foreignKeyChecks)
+            {
+                // An unresolved table was already reported as SQ0002; don't pile on.
+                if (!_declaredTables.TryGetValue(check.Table, out var declaredColumns))
+                {
+                    continue;
+                }
+
+                // Likewise when a referenced column does not exist: that unresolved-reference
+                // error is the specific one, and "not covered by a unique constraint" on top
+                // of it would just be noise.
+                if (check.Columns.Any(i => !declaredColumns.Contains(i)))
+                {
+                    continue;
+                }
+
+                // No column list means "the referenced table's primary key", so it must have one.
+                if (check.Columns.Count == 0)
+                {
+                    if (!_tablesWithPrimaryKey.Contains(check.Table))
+                    {
+                        _errors.Add(new SqlSourceException(
+                            $"{check.Subject} references table '{check.Table}', which has no "
+                            + "primary key. Either declare a primary key on it or name the "
+                            + "referenced columns explicitly.",
+                            check.SourceFile, check.Line, check.Column,
+                            SqlSourceException.InvalidConstraint));
+                    }
+
+                    continue;
+                }
+
+                var referenced = new HashSet<string>(check.Columns, StringComparer.OrdinalIgnoreCase);
+
+                var backed = _uniqueColumnSets.TryGetValue(check.Table, out var sets)
+                    && sets.Any(referenced.SetEquals);
+
+                if (!backed)
+                {
+                    _errors.Add(new SqlSourceException(
+                        $"{check.Subject} references column(s) "
+                        + $"({string.Join(", ", check.Columns)}) on table '{check.Table}', which "
+                        + "are not covered by a primary key or unique constraint. Add a unique "
+                        + "constraint or unique index on exactly those columns.",
+                        check.SourceFile, check.Line, check.Column,
+                        SqlSourceException.InvalidConstraint));
+                }
             }
         }
 

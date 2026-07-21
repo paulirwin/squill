@@ -13,7 +13,7 @@ public class WorkspaceModelBuilderTests
 
         var builder = new ParserWorkspaceModelBuilder(workspace, parser);
 
-        return await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+        return (await builder.ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
     }
 
     [Fact]
@@ -24,7 +24,7 @@ public class WorkspaceModelBuilderTests
 
         var builder = new ParserWorkspaceModelBuilder(workspace, parser);
 
-        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await builder.ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         Assert.Empty(model.Elements);
     }
@@ -38,7 +38,7 @@ public class WorkspaceModelBuilderTests
 
         var builder = new ParserWorkspaceModelBuilder(workspace, parser);
 
-        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await builder.ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         Assert.Empty(model.Elements);
     }

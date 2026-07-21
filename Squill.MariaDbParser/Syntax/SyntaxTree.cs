@@ -274,3 +274,15 @@ public sealed class CreateFunctionStatement(QualifiedName name) : Statement
 {
     public QualifiedName Name { get; } = name;
 }
+
+/// <summary>
+/// A DDL statement the parser recognized but Squill does not model (<c>CREATE VIEW</c>, a
+/// <c>CREATE TABLE ... AS SELECT</c>, <c>ALTER</c>, <c>DROP</c>, …). It is carried into the
+/// syntax tree as a marker rather than dropped so the model builder can warn that the
+/// construct will not reach the DACPAC, at its source position (issue #61).
+/// </summary>
+public sealed class UnmodeledStatement(string description) : Statement
+{
+    /// <summary>A short description of the construct, e.g. <c>CREATE VIEW</c>.</summary>
+    public string Description { get; } = description;
+}

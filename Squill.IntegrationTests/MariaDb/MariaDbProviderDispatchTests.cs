@@ -46,7 +46,7 @@ public abstract class MariaDbProviderDispatchTests
             var workspace = new Workspace();
             workspace.Files.Add(new FileSystemFile(sqlPath, FileKind.Compile));
 
-            var model = await new MariaDbSquillProvider().BuildModelAsync(workspace, ct);
+            var model = (await new MariaDbSquillProvider().BuildModelAsync(workspace, ct)).Model;
             var metadata = new ModelMetadata { Name = "Dispatch", ProviderName = providerName };
 
             var dacpacPath = Path.Combine(tempDir.FullName, "Dispatch.dacpac");

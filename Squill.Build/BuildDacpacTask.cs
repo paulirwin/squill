@@ -72,7 +72,18 @@ public class BuildDacpacTask : Microsoft.Build.Utilities.Task
 
             if (sourcePaths.Length == 0)
             {
-                Log.LogWarning("Squill: no SQL source files were provided; the DACPAC will be empty.");
+                // Coded so it can be suppressed with NoWarn or escalated with
+                // WarningsAsErrors like any other MSBuild warning (issue #61).
+                Log.LogWarning(
+                    subcategory: null,
+                    warningCode: SqlSourceDiagnostic.NoSourceFiles,
+                    helpKeyword: null,
+                    file: null,
+                    lineNumber: 0,
+                    columnNumber: 0,
+                    endLineNumber: 0,
+                    endColumnNumber: 0,
+                    message: "Squill: no SQL source files were provided; the DACPAC will be empty.");
             }
 
             // Resolve the provider named by the project (ProviderName) so its parser builds
@@ -97,7 +108,15 @@ public class BuildDacpacTask : Microsoft.Build.Utilities.Task
 
             // MSBuild tasks are synchronous; block on the async build. There is no
             // synchronization context in the MSBuild host, so this cannot deadlock.
-            BuildAsync(provider, workspace, metadata, OutputPath).GetAwaiter().GetResult();
+            var warnings = BuildAsync(provider, workspace, metadata, OutputPath)
+                .GetAwaiter().GetResult();
+
+            // Constructs that were declared but not modeled don't fail the build, but they
+            // won't round-trip — report them so the gap is visible (issue #61).
+            foreach (var warning in warnings)
+            {
+                LogSourceWarning(warning);
+            }
 
             Log.LogMessage(MessageImportance.High, $"Squill: wrote DACPAC to {OutputPath}");
 
@@ -141,6 +160,21 @@ public class BuildDacpacTask : Microsoft.Build.Utilities.Task
             endLineNumber: 0,
             endColumnNumber: 0,
             message: ex.Message);
+
+    // Reports a build warning as a regular MSBuild diagnostic with file/line/column metadata,
+    // so NoWarn / WarningsAsErrors / TreatWarningsAsErrors apply to it and the IDE can
+    // navigate to the construct that will not round-trip (issue #61).
+    private void LogSourceWarning(SqlSourceDiagnostic warning)
+        => Log.LogWarning(
+            subcategory: null,
+            warningCode: warning.Code,
+            helpKeyword: null,
+            file: warning.SourceFile,
+            lineNumber: warning.Line ?? 0,
+            columnNumber: warning.Column ?? 0,
+            endLineNumber: 0,
+            endColumnNumber: 0,
+            message: warning.Message);
 
     /// <summary>
     /// Reads the deploy-script items into the single script string stored in the DACPAC.
@@ -209,10 +243,10 @@ public class BuildDacpacTask : Microsoft.Build.Utilities.Task
         return value;
     }
 
-    private static async Task BuildAsync(
+    private static async Task<IReadOnlyList<SqlSourceDiagnostic>> BuildAsync(
         ISquillProvider provider, Workspace workspace, ModelMetadata metadata, string outputPath)
     {
-        var model = await provider.BuildModelAsync(workspace);
+        var result = await provider.BuildModelAsync(workspace);
 
         var directory = Path.GetDirectoryName(outputPath);
         if (!string.IsNullOrEmpty(directory))
@@ -220,7 +254,11 @@ public class BuildDacpacTask : Microsoft.Build.Utilities.Task
             Directory.CreateDirectory(directory);
         }
 
-        await using var stream = File.Create(outputPath);
-        await DacpacSerializer.Serialize(metadata, model, stream);
+        await using (var stream = File.Create(outputPath))
+        {
+            await DacpacSerializer.Serialize(metadata, result.Model, stream);
+        }
+
+        return result.Warnings;
     }
 }
