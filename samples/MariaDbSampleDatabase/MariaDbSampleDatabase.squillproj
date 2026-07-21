@@ -1,0 +1,30 @@
+<Project>
+
+  <!--
+    A sample MariaDB / MySQL Squill database project. Building it produces
+    bin\<Configuration>\MariaDbSampleDatabase.dacpac from the declarative .sql files in
+    this folder. It uses MariaDB/MySQL dialect — AUTO_INCREMENT keys and backtick-free
+    plain SQL, with no schema objects (a MariaDB database is itself the schema).
+
+    Setting SquillProviderName to MariaDb selects the MariaDB provider (its parser and
+    SQL dialect) and records that in the DACPAC, so `squill deploy` targets MariaDB/MySQL.
+    A project targeting MySQL can set it to MySql instead — the same provider serves both.
+
+    In a consuming repo you would reference the published SDK by name and version:
+
+        <Project Sdk="Squill.Sdk/0.0.1">
+        </Project>
+
+    Here in the Squill source tree we import the SDK from its source location by
+    relative path so the sample builds against the local, uninstalled SDK.
+  -->
+
+  <Import Project="..\..\Squill.Sdk\Sdk\Sdk.props" />
+
+  <PropertyGroup>
+    <SquillProviderName>MariaDb</SquillProviderName>
+  </PropertyGroup>
+
+  <Import Project="..\..\Squill.Sdk\Sdk\Sdk.targets" />
+
+</Project>

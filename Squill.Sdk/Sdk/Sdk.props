@@ -13,7 +13,9 @@
     <!-- Identify this as a Squill project so targets/tasks can branch on it. -->
     <UsingSquillSdk>true</UsingSquillSdk>
 
-    <!-- Squill builds are database-independent; the provider only labels the output. -->
+    <!-- Selects the provider (and thus the SQL dialect/parser) the DACPAC is built for and
+         is recorded in the DACPAC so `squill deploy` targets the right database engine.
+         Supported: Postgresql (default), or MariaDb / MySql. -->
     <SquillProviderName Condition="'$(SquillProviderName)' == ''">Postgresql</SquillProviderName>
 
     <!-- Standard bin/obj layout so `dotnet build` drops the .dacpac in bin\ like SSDT. -->

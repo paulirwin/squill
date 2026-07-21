@@ -52,10 +52,16 @@ ANTLR4-based parser producing a typed syntax tree (the `Syntax/` classes, e.g. `
 
 Implements the Core abstractions using Npgsql. The string constants used in the generic model live here: `PostgresElementTypes`, `PostgresPropertyNames`, `PostgresRelationshipNames`, `PostgresAnnotationTypes`. `PostgresDatabaseModelBuilder` extracts a model from a live database; `PostgresDatabaseDependencyAnalyzer` encodes element dependency rules.
 
+### MariaDB/MySQL provider (`Squill.Provider.MariaDb` + `Squill.MariaDbParser`)
+
+A second reference provider (issue #12), covering **both MariaDB and MySQL** with one provider. Mirrors the Postgres provider's structure (`MariaDbDatabaseModelBuilder`, `MariaDbScriptGenerator`, `MariaDbTableDiffAnalyzer`, `MariaDbDatabaseDependencyAnalyzer`, `MariaDbModelFactory`, its own `SqlName`/constants) over MySqlConnector, with an ANTLR-based `Squill.MariaDbParser` (grammars-v4 MariaDB grammar, generated `.cs` checked in like the Postgres parser). MariaDB differences from Postgres: no schema/extension objects (a database *is* the schema), backtick identifiers, `AUTO_INCREMENT` instead of identity, and PK/FK naming (`PRIMARY`, `<table>_ibfk_N`). Integration tests run against both `mariadb:latest` and `mysql:latest` containers.
+
 ### DACPAC (`Squill.Dacpac`)
 
 Early scaffolding for serializing a model to the DACPAC zip format (`Origin.xml`, `DacMetadata.xml`, `model.xml`, `[Content Types].xml`), with the goal of byte-compatible output with SSDT-built DACPACs. Note the XML writer prototypes (`ModelWriter`, `OriginWriter`, etc.) currently live in `Squill.Dacpac.Tests` — this is work in progress.
 
+Also hosts the **provider-dispatch layer**: `ISquillProvider` (a host-facing provider adapter each concrete provider implements — `PostgresSquillProvider`, `MariaDbSquillProvider`), `SquillProviderRegistry` (resolves a provider by name; `MariaDb`/`MySql` → MariaDB, `Postgresql` → Postgres), and `DacpacProviderDispatch` (reads a DACPAC's recorded `ProviderName` and routes deploy/script to the matching provider). The registry is populated by the host so `Squill.Dacpac` stays free of provider references. `SquillProviderName` in a `.squillproj` selects the provider at build time and is recorded in the DACPAC for deploy-time dispatch.
+
 ### Entry point (`Squill`)
 
-The console executable; currently a stub that prints the version.
+The console executable. Provides `build`, `deploy`, and `script` verbs (System.CommandLine). `deploy`/`script` dispatch to the right provider via `DacpacProviderDispatch` based on the DACPAC's provider name, so one CLI targets PostgreSQL or MariaDB/MySQL.

@@ -1,10 +1,19 @@
 using System.CommandLine;
 using System.Reflection;
 using Squill.Core;
+using Squill.Dacpac;
+using Squill.Provider.MariaDb;
 using Squill.Provider.Postgres;
 
 var version = typeof(Program).Assembly
     .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+
+// The providers this CLI can deploy. The right one is chosen per deploy from the provider
+// name recorded in the DACPAC at build time (Postgresql, or MariaDb/MySql), so the same
+// `deploy`/`script` command targets PostgreSQL or MariaDB/MySQL without a separate flag.
+var providerRegistry = new SquillProviderRegistry()
+    .Register(new PostgresSquillProvider())
+    .Register(new MariaDbSquillProvider());
 
 var rootCommand = new RootCommand("Squill — declarative, cross-platform SQL deployment.");
 
@@ -28,8 +37,9 @@ var dacpacArgument = new Argument<FileInfo>("dacpac")
 var connectionStringOption = new Option<string>("--connection-string", "-c")
 {
     Description =
-        "Npgsql connection string for the target PostgreSQL server. The target's schema "
-        + "is only read to diff against the DACPAC, so view-schema permission is sufficient.",
+        "ADO.NET connection string for the target database server. The provider (PostgreSQL "
+        + "or MariaDB/MySQL) is chosen from the DACPAC's recorded provider name. The target's "
+        + "schema is only read to diff against the DACPAC, so view-schema permission suffices.",
     Required = true
 };
 
@@ -80,7 +90,7 @@ Command BuildDeployCommand()
     };
 
     var deployCommand = new Command(
-        "deploy", "Deploy a DACPAC to a target PostgreSQL database.")
+        "deploy", "Deploy a DACPAC to a target database (PostgreSQL or MariaDB/MySQL).")
     {
         dacpacArgument,
         connectionStringOption,
@@ -123,9 +133,9 @@ Command BuildDeployCommand()
 
         try
         {
-            var result = await DacpacDeployer.DeployFromFileAsync(
-                dacpac.FullName, connectionString, targetDatabase, dryRun, progress,
-                options, cancellationToken);
+            var result = await DacpacProviderDispatch.DeployFromFileAsync(
+                providerRegistry, dacpac.FullName, connectionString, targetDatabase, dryRun,
+                progress, options, cancellationToken);
 
             if (string.IsNullOrEmpty(result.Script))
             {
@@ -211,9 +221,9 @@ Command BuildScriptCommand()
 
         try
         {
-            var result = await DacpacDeployer.ScriptFromFileAsync(
-                dacpac.FullName, connectionString, targetDatabase, progress, options,
-                cancellationToken);
+            var result = await DacpacProviderDispatch.ScriptFromFileAsync(
+                providerRegistry, dacpac.FullName, connectionString, targetDatabase, progress,
+                options, cancellationToken);
 
             if (string.IsNullOrEmpty(result.Script))
             {
