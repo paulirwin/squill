@@ -23,6 +23,14 @@ public interface IDatabaseDependencyAnalyzer
     string? GetExtensionVersion(Element extension);
 
     /// <summary>
+    /// Whether an element of this type is replaced wholesale when its definition changes,
+    /// rather than altered facet by facet — a stored procedure, whose body is redefined in
+    /// one statement (<c>CREATE OR REPLACE PROCEDURE</c>). A change to one of these
+    /// produces a <see cref="RecreateDelta"/>.
+    /// </summary>
+    bool IsReplaceableElementType(string type);
+
+    /// <summary>
     /// Whether dropping an element of this type destroys data (e.g. a table's rows), as
     /// opposed to a metadata-only object like an index or extension. Used to decide
     /// whether a drop is blocked by <see cref="DeployOptions.BlockOnPossibleDataLoss"/>.

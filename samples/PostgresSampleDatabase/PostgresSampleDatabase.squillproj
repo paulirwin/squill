@@ -3,8 +3,9 @@
   <!--
     A sample PostgreSQL Squill database project. Building it produces
     bin\<Configuration>\PostgresSampleDatabase.dacpac from the declarative .sql files in
-    this folder. It uses PostgreSQL-specific features — schemas and
-    GENERATED ALWAYS AS IDENTITY — to exercise the Postgres provider.
+    this folder. It uses PostgreSQL-specific features — schemas,
+    GENERATED ALWAYS AS IDENTITY, and stored procedures (including an overloaded one)
+    — to exercise the Postgres provider.
 
     In a consuming repo you would reference the published SDK by name and version:
 

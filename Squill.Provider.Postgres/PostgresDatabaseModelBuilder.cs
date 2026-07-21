@@ -63,6 +63,10 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             await ExtractForeignKeysAsync(model, table, cancellationToken);
         }
 
+        // Procedures come last: a procedure body may reference any table in the model, so
+        // on publish its CREATE must run after the tables it reads or writes exist.
+        await ExtractProceduresAsync(model, cancellationToken);
+
         return model;
     }
 
@@ -121,6 +125,137 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         {
             model.Elements.Add(
                 PostgresModelFactory.CreateExtension(SqlName.Object(extensionName), extensionVersion));
+        }
+    }
+
+    private async Task ExtractProceduresAsync(Model model, CancellationToken cancellationToken = default)
+    {
+        // prokind = 'p' selects procedures (as opposed to functions, aggregates and window
+        // functions), which are the only routines Squill models today.
+        //
+        // A procedure owned by an extension is skipped: it is created by CREATE EXTENSION,
+        // not declared in the project, so including it would stop a parsed model from
+        // hash-matching the extracted one — the same reasoning that excludes plpgsql from
+        // the extension list.
+        //
+        // Argument types come from proargtypes (IN/INOUT only), which is exactly what
+        // determines a procedure's identity, and the full parameter list is rebuilt from
+        // proallargtypes so modes and names survive. format_type() renders the canonical
+        // type name without modifiers, matching what the parser-based builder normalizes to.
+        const string sql =
+            """
+            WITH routine AS (
+                SELECT p.oid,
+                       n.nspname AS schema_name,
+                       p.proname AS routine_name,
+                       l.lanname AS language_name,
+                       p.prosrc AS body,
+                       p.prosecdef AS is_security_definer,
+                       -- proargtypes is an oidvector, which is 0-based; proargnames and
+                       -- proargmodes are 1-based arrays. Rebuilding it through unnest
+                       -- yields a 1-based array so the three line up — casting it
+                       -- directly would offset every name by one.
+                       COALESCE(
+                           p.proallargtypes,
+                           ARRAY(SELECT t FROM unnest(p.proargtypes) t)) AS all_arg_types,
+                       p.proargmodes AS arg_modes,
+                       p.proargnames AS arg_names,
+                       p.proargtypes AS identity_arg_types
+                FROM pg_proc p
+                JOIN pg_namespace n ON n.oid = p.pronamespace
+                JOIN pg_language l ON l.oid = p.prolang
+                WHERE p.prokind = 'p'
+                  AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+                  AND NOT EXISTS (
+                      SELECT 1 FROM pg_depend d
+                      WHERE d.objid = p.oid AND d.deptype = 'e')
+            )
+            SELECT * FROM (
+            SELECT r.schema_name,
+                   r.routine_name,
+                   r.language_name,
+                   r.body,
+                   r.is_security_definer,
+                   COALESCE((
+                       SELECT string_agg(format_type(t, NULL), ',' ORDER BY o)
+                       FROM unnest(r.identity_arg_types) WITH ORDINALITY AS a(t, o)), '')
+                       AS argument_types,
+                   COALESCE((
+                       SELECT string_agg(
+                           CASE COALESCE(r.arg_modes[i], 'i')
+                               WHEN 'i' THEN 'IN'
+                               WHEN 'o' THEN 'OUT'
+                               WHEN 'b' THEN 'INOUT'
+                               WHEN 'v' THEN 'VARIADIC'
+                               WHEN 't' THEN 'TABLE'
+                           END
+                           || chr(31) || COALESCE(r.arg_names[i], '')
+                           || chr(31) || format_type(r.all_arg_types[i], NULL),
+                           chr(30) ORDER BY i)
+                       FROM generate_subscripts(r.all_arg_types, 1) i), '')
+                       AS arguments
+            FROM routine r
+            ) p
+            -- The C collation sorts byte-wise, matching the ordinal ordering the
+            -- parser-based builder applies. A database-default collation could order
+            -- these differently, which would break the hash match.
+            ORDER BY p.schema_name COLLATE "C",
+                     p.routine_name COLLATE "C",
+                     p.argument_types COLLATE "C";
+            """;
+
+        var procedures = new List<Element>();
+
+        await using (var reader = await _database.RunScriptReaderAsync(sql, cancellationToken: cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                procedures.Add(PostgresModelFactory.CreateProcedure(
+                    reader.GetString("schema_name"),
+                    reader.GetString("routine_name"),
+                    reader.GetString("argument_types"),
+                    reader.GetString("language_name"),
+                    reader.GetString("body"),
+                    ParseArguments(reader.GetString("arguments")),
+                    reader.GetBoolean("is_security_definer")));
+            }
+        }
+
+        foreach (var procedure in procedures)
+        {
+            model.Elements.Add(procedure);
+        }
+    }
+
+    // The extraction query joins each parameter's mode, name and type with a unit
+    // separator and the parameters with a record separator. Neither can occur in an
+    // identifier or a type name, so splitting is unambiguous — unlike splitting on spaces,
+    // which cannot tell an unnamed `double precision` parameter from a named one.
+    private const char ParameterPartSeparator = '\u001f';
+    private const char ParameterSeparator = '\u001e';
+
+    private static IEnumerable<PostgresModelFactory.ProcedureParameter> ParseArguments(string arguments)
+    {
+        if (string.IsNullOrEmpty(arguments))
+        {
+            yield break;
+        }
+
+        foreach (var argument in arguments.Split(ParameterSeparator))
+        {
+            var parts = argument.Split(ParameterPartSeparator);
+
+            if (parts.Length != 3)
+            {
+                throw new InvalidOperationException(
+                    $"Unable to parse procedure parameter '{argument}'");
+            }
+
+            // An unnamed parameter comes back with an empty name part.
+            yield return new PostgresModelFactory.ProcedureParameter(
+                parts[0],
+                string.IsNullOrEmpty(parts[1]) ? null : parts[1],
+                parts[2]);
         }
     }
 

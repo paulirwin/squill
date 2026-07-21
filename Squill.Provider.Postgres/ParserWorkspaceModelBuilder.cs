@@ -29,6 +29,8 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
         // not matter, just like it doesn't for the deployed schema.
         validator.ThrowIfInvalid();
 
+        MoveProceduresToEnd(model);
+
         return model;
     }
 
@@ -63,6 +65,40 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                 throw new SqlSourceException(
                     ex.Message, file.Name, statement.Line, statement.Column, innerException: ex);
             }
+        }
+    }
+
+    /// <summary>
+    /// Moves procedures after every other element, ordered by schema, name and argument
+    /// types. The database-extraction builder emits them last in exactly that order (the
+    /// catalog has no notion of the order they were declared in), and the Merkle hash is
+    /// order-sensitive — so a parsed model must adopt the same order to hash-match one
+    /// extracted from a live database. Ordering them last also matches the create order,
+    /// since a procedure body may reference any table.
+    /// </summary>
+    private static void MoveProceduresToEnd(Model model)
+    {
+        var procedures = model.Elements
+            .Where(i => i.Type == PostgresElementTypes.SqlProcedure)
+            .ToList();
+
+        if (procedures.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var procedure in procedures)
+        {
+            model.Elements.Remove(procedure);
+        }
+
+        // Ordinal, to match the database's byte-wise ordering of the same values.
+        foreach (var procedure in procedures
+                     .OrderBy(i => PostgresModelFactory.GetSchema(i), StringComparer.Ordinal)
+                     .ThenBy(i => i.GetProperty<string>(PostgresPropertyNames.RoutineName), StringComparer.Ordinal)
+                     .ThenBy(i => i.GetProperty<string>(PostgresPropertyNames.ArgumentTypes), StringComparer.Ordinal))
+        {
+            model.Elements.Add(procedure);
         }
     }
 
@@ -108,6 +144,17 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                     PostgresModelFactory.CreateSchema(SqlName.Object(createSchemaStatement.Name.Name)));
             }
         }
+        else if (statement is CreateProcedureStatement createProcedureStatement)
+        {
+            validator.AddCreateProcedure(file, createProcedureStatement);
+
+            model.Elements.Add(MakeCreateProcedureElement(createProcedureStatement));
+        }
+        else if (statement is CreateFunctionStatement)
+        {
+            throw new NotImplementedException(
+                "CREATE FUNCTION is not yet supported; only CREATE PROCEDURE is modeled");
+        }
         else
         {
             throw new NotImplementedException(
@@ -151,6 +198,21 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
             string Schema);
 
         public void AddSchema(string name) => _declaredSchemas.Add(name);
+
+        public void AddCreateProcedure(IFile file, CreateProcedureStatement createProcedureStatement)
+        {
+            var (schema, name) = SplitSchema(createProcedureStatement.Name);
+
+            // Schemas are declared objects (issue #37): a procedure in a non-public schema
+            // needs that schema's CREATE SCHEMA somewhere in the project, or the deploy
+            // would fail — so its absence is a build error.
+            if (!string.Equals(schema, "public", StringComparison.OrdinalIgnoreCase))
+            {
+                _schemaReferences.Add(new SchemaReference(
+                    file.Name, createProcedureStatement.Line, createProcedureStatement.Column,
+                    $"Procedure '{schema}.{name.UnqualifiedName}'", schema));
+            }
+        }
 
         public void AddCreateTable(IFile file, CreateTableStatement createTableStatement)
         {
@@ -875,6 +937,130 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
     // the bare table name (e.g. "film") and the schema is carried as a separate Schema
     // relationship. A CREATE TABLE with no schema qualifier defaults to "public", which
     // is where Postgres puts it — so both builders agree.
+    /// <summary>
+    /// PostgreSQL's internal type-name aliases mapped to the canonical spelling
+    /// format_type() reports. Taken from pg_catalog, where these are the base types whose
+    /// typname differs from their formatted name.
+    ///
+    /// The 1-byte internal <c>"char"</c> type is deliberately absent: the grammar already
+    /// resolves a written <c>char</c> to <c>character</c>, and mapping it here would turn
+    /// <c>char(3)</c> into the wrong type.
+    /// </summary>
+    private static readonly Dictionary<string, string> PostgresTypeAliases =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["bool"] = "boolean",
+            ["bpchar"] = "character",
+            ["float4"] = "real",
+            ["float8"] = "double precision",
+            ["int2"] = "smallint",
+            ["int4"] = "integer",
+            ["int8"] = "bigint",
+            ["time"] = "time without time zone",
+            ["timestamp"] = "timestamp without time zone",
+            ["timestamptz"] = "timestamp with time zone",
+            ["timetz"] = "time with time zone",
+            ["varbit"] = "bit varying",
+            ["varchar"] = "character varying",
+        };
+
+    private static Element MakeCreateProcedureElement(CreateProcedureStatement statement)
+    {
+        var (schema, name) = SplitSchema(statement.Name);
+
+        if (statement.Language is not { } language)
+        {
+            throw new InvalidOperationException("A procedure must declare a LANGUAGE");
+        }
+
+        if (statement.Body is not { } body)
+        {
+            throw new InvalidOperationException("A procedure must declare a body");
+        }
+
+        // The parameter type is stored normalized (modifiers discarded) rather than as
+        // written, because that is all PostgreSQL retains for a routine parameter — a
+        // `varchar(10)` parameter is not length-checked, and the catalog reports it as
+        // plain `character varying`. Storing the declared form would mean a parsed model
+        // could never hash-match an extracted one.
+        // A parameter DEFAULT is not modeled: PostgreSQL rewrites the expression when it
+        // stores it (a bare 'x' comes back as 'x'::text), so a parsed model could not
+        // hash-match an extracted one. Rejecting it keeps the gap explicit rather than
+        // silently deploying a procedure that loses its defaults.
+        if (statement.Parameters.FirstOrDefault(i => i.DefaultExpression is not null) is { } withDefault)
+        {
+            throw new NotImplementedException(
+                $"A DEFAULT on procedure parameter '{withDefault.Name?.Name ?? "(unnamed)"}' "
+                + "is not yet supported");
+        }
+
+        var parameters = statement.Parameters
+            .Select(parameter => new PostgresModelFactory.ProcedureParameter(
+                RenderParameterMode(parameter.Mode),
+                parameter.Name?.Name,
+                NormalizeArgumentType(parameter.DataType)))
+            .ToList();
+
+        // Only IN and INOUT parameters form a procedure's identity, matching
+        // pg_proc.proargtypes — which is what the DB-extraction builder reads back.
+        var argumentTypes = string.Join(',', statement.Parameters
+            .Where(i => i.Mode is ParameterMode.In or ParameterMode.InOut or ParameterMode.Variadic)
+            .Select(i => NormalizeArgumentType(i.DataType)));
+
+        return PostgresModelFactory.CreateProcedure(
+            schema,
+            name.UnqualifiedName,
+            argumentTypes,
+            language,
+            body,
+            parameters,
+            statement.SecurityDefiner);
+    }
+
+    private static string RenderParameterMode(ParameterMode mode) => mode switch
+    {
+        ParameterMode.In => "IN",
+        ParameterMode.Out => "OUT",
+        ParameterMode.InOut => "INOUT",
+        ParameterMode.Variadic => "VARIADIC",
+        _ => throw new NotImplementedException($"Parameter mode {mode} is not supported"),
+    };
+
+    /// <summary>
+    /// Renders a parameter's type the way PostgreSQL records it in a routine's argument
+    /// signature: the canonical type name with all modifiers discarded, so `varchar(10)`
+    /// becomes `character varying` and `numeric(5,2)` becomes `numeric`. This must match
+    /// format_type() exactly, since the DB-extraction builder reads the signature back
+    /// through it and the two models are compared by hash.
+    /// </summary>
+    private static string NormalizeArgumentType(DataType dataType)
+    {
+        if (dataType is ArrayDataType arrayDataType)
+        {
+            return $"{NormalizeArgumentType(arrayDataType.ElementType)}[]";
+        }
+
+        if (dataType is not BuiltInDataType builtIn)
+        {
+            var typeName = dataType.TypeName.ToLowerInvariant();
+
+            // PostgreSQL's internal type aliases are not recognized as built-ins by the
+            // grammar, but format_type always reports the canonical spelling — so map them
+            // here or a signature written with an alias would never hash-match.
+            // See https://www.postgresql.org/docs/current/datatype.html
+            return PostgresTypeAliases.TryGetValue(typeName, out var canonical) ? canonical : typeName;
+        }
+
+        // A bare `timestamp`/`time` is spelled out in full in an argument signature, unlike
+        // in a column type specifier where the short form is what the catalog reports.
+        return builtIn.Type switch
+        {
+            PostgresBuiltInDataType.Timestamp => "timestamp without time zone",
+            PostgresBuiltInDataType.Time => "time without time zone",
+            _ => builtIn.Type.CanonicalName(),
+        };
+    }
+
     private static (string Schema, SqlName Name) SplitSchema(QualifiedName qualifiedName)
     {
         var segments = qualifiedName.Segments.Select(i => i.Name).ToArray();

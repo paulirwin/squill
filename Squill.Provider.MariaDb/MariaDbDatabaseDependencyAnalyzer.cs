@@ -24,6 +24,9 @@ public class MariaDbDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
 
     public string? GetExtensionVersion(Element extension) => null;
 
+    // MariaDB routines are not modeled yet, so no element type is replaced wholesale.
+    public bool IsReplaceableElementType(string type) => false;
+
     public bool DropCausesDataLoss(string type)
         => type == MariaDbElementTypes.SqlTable;
 

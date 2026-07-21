@@ -313,6 +313,13 @@ public class SchemaCompare
             return null;
         }
 
+        // An object that is redefined wholesale (a procedure) needs no facet-by-facet diff:
+        // the source definition simply replaces the target's.
+        if (analyzer.IsReplaceableElementType(sourceElement.Type))
+        {
+            return new RecreateDelta(sourceElement, targetElement);
+        }
+
         throw new NotImplementedException(
             $"Altering an existing {sourceElement.Type} is not yet supported.");
     }

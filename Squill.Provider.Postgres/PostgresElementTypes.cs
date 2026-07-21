@@ -12,4 +12,5 @@ public static class PostgresElementTypes
     public const string SqlForeignKeyConstraint = nameof(SqlForeignKeyConstraint);
     public const string SqlExtension = nameof(SqlExtension);
     public const string SqlSchema = nameof(SqlSchema);
+    public const string SqlProcedure = nameof(SqlProcedure);
 }

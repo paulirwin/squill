@@ -99,9 +99,29 @@ public class PostgresScriptGenerator
             PostgresElementTypes.SqlSchema =>
                 $"DROP SCHEMA IF EXISTS {parsed.QuotedUnqualified};{Environment.NewLine}",
 
+            // A procedure is identified by its argument types as well as its name, so the
+            // signature must be given for PostgreSQL to know which overload to drop.
+            PostgresElementTypes.SqlProcedure =>
+                $"DROP PROCEDURE IF EXISTS {ProcedureSignature(element)};{Environment.NewLine}",
+
             _ => throw new NotImplementedException(
                 $"Dropping an element of type {element.Type} is not supported."),
         };
+    }
+
+    // Renders a procedure's schema-qualified name followed by its argument types, which is
+    // how PostgreSQL identifies one overload among several (e.g. public."p"(integer,text)).
+    private static string ProcedureSignature(Element procedure)
+    {
+        var routineName = procedure.GetRequiredProperty<string>(PostgresPropertyNames.RoutineName);
+        var argumentTypes = procedure.GetRequiredProperty<string>(PostgresPropertyNames.ArgumentTypes);
+        var schema = GetSchema(procedure);
+
+        var qualified = schema is null or "public"
+            ? SqlName.Object(routineName).QuotedUnqualified
+            : SqlName.Object(schema, routineName).Sql;
+
+        return $"{qualified}({argumentTypes})";
     }
 
     // Emits a drop-and-recreate for an object whose definition changed but can't be altered
@@ -110,6 +130,15 @@ public class PostgresScriptGenerator
     private string GenerateRecreateScript(RecreateDelta recreateDelta)
     {
         var source = recreateDelta.SourceElement;
+
+        // A procedure is redefined in a single statement — no drop is needed, and issuing
+        // one would momentarily remove a procedure that other sessions may be calling.
+        // The signature is unchanged (it is part of the element's identity, so a changed
+        // one would be a different element), which is what makes REPLACE valid here.
+        if (source.Type == PostgresElementTypes.SqlProcedure)
+        {
+            return GenerateCreateProcedureScript(source);
+        }
 
         if (source.Type != PostgresElementTypes.SqlIndex)
         {
@@ -698,7 +727,61 @@ public class PostgresScriptGenerator
             return GenerateCreateSchemaScript(createDelta.Element);
         }
 
+        if (createDelta.Element.Type == PostgresElementTypes.SqlProcedure)
+        {
+            return GenerateCreateProcedureScript(createDelta.Element);
+        }
+
         throw new NotImplementedException();
+    }
+
+    private static string GenerateCreateProcedureScript(Element procedure)
+    {
+        var routineName = procedure.GetRequiredProperty<string>(PostgresPropertyNames.RoutineName);
+        var arguments = procedure.GetRequiredProperty<string>(PostgresPropertyNames.Arguments);
+        var language = procedure.GetRequiredProperty<string>(PostgresPropertyNames.Language);
+        var body = procedure.GetRequiredProperty<string>(PostgresPropertyNames.Body);
+        var schema = GetSchema(procedure);
+
+        var qualified = schema is null or "public"
+            ? SqlName.Object(routineName).QuotedUnqualified
+            : SqlName.Object(schema, routineName).Sql;
+
+        var sb = new StringBuilder();
+
+        // OR REPLACE makes publish idempotent and is also how an existing procedure's body
+        // is updated in place — PostgreSQL has no ALTER PROCEDURE for the body. Replacing
+        // is only valid while the signature is unchanged; a changed signature is a
+        // different procedure, which the comparison surfaces as a separate create/drop.
+        sb.Append("CREATE OR REPLACE PROCEDURE ").Append(qualified)
+            .Append('(').Append(arguments).AppendLine(")");
+        sb.Append("    LANGUAGE ").Append(SqlName.Object(language).QuotedUnqualified);
+
+        if (procedure.GetProperty<bool?>(PostgresPropertyNames.IsSecurityDefiner) == true)
+        {
+            sb.AppendLine().Append("    SECURITY DEFINER");
+        }
+
+        sb.AppendLine().Append("AS ").Append(DollarQuote(body)).AppendLine(";");
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Wraps a routine body in dollar quotes, choosing a tag that does not occur in the
+    /// body. Dollar quoting has no escape sequence, so a body containing the delimiter
+    /// would otherwise terminate the string early and produce invalid SQL.
+    /// </summary>
+    private static string DollarQuote(string body)
+    {
+        var tag = string.Empty;
+
+        while (body.Contains($"${tag}$", StringComparison.Ordinal))
+        {
+            tag = tag.Length == 0 ? "squill" : $"{tag}_";
+        }
+
+        return $"${tag}${body}${tag}$";
     }
 
     private static string GenerateCreateSchemaScript(Element schema)

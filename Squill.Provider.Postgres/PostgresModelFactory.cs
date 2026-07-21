@@ -197,6 +197,84 @@ public static class PostgresModelFactory
     }
 
     /// <summary>
+    /// A procedure parameter as it appears in the routine's declaration: its mode, optional
+    /// name, the type exactly as written, and any DEFAULT expression. This is what the
+    /// procedure is scripted from; identity comes from the normalized argument types.
+    /// </summary>
+    /// <param name="Mode">IN, INOUT, OUT or VARIADIC, spelled as PostgreSQL writes it.</param>
+    /// <param name="Name">The parameter name, or null when the parameter is unnamed.</param>
+    /// <param name="Type">
+    /// The PostgreSQL-normalized type name with modifiers discarded (e.g. <c>character
+    /// varying</c>), which is all the catalog retains for a routine parameter.
+    /// </param>
+    public readonly record struct ProcedureParameter(
+        string Mode,
+        string? Name,
+        string Type);
+
+    /// <summary>
+    /// Builds a stored procedure element.
+    ///
+    /// PostgreSQL allows overloading — <c>p(integer)</c> and <c>p(text)</c> are distinct
+    /// procedures — but the schema comparison identifies an element by its type, name and
+    /// schema alone. The argument signature is therefore folded into the name (as
+    /// <c>schema.name(type,type)</c>) so overloads never collide, and the bare name and
+    /// argument list are kept as properties for scripting.
+    ///
+    /// <paramref name="argumentTypes"/> must be the PostgreSQL-normalized type names (e.g.
+    /// <c>character varying</c>, not <c>varchar(10)</c>) so a parsed model hash-matches one
+    /// extracted from a live database, which reads them back from pg_proc.
+    /// </summary>
+    public static Element CreateProcedure(
+        string schema,
+        string routineName,
+        string argumentTypes,
+        string language,
+        string body,
+        IEnumerable<ProcedureParameter> parameters,
+        bool isSecurityDefiner = false)
+    {
+        var element = new Element(PostgresElementTypes.SqlProcedure)
+        {
+            Name = SqlName.Object(schema, $"{routineName}({argumentTypes})"),
+            Relationships =
+            {
+                new Relationship(PostgresRelationshipNames.Schema)
+                {
+                    new Reference(schema) { ExternalSource = "BuiltIns" }
+                }
+            },
+            Properties =
+            {
+                new Property(PostgresPropertyNames.RoutineName, routineName),
+                new Property(PostgresPropertyNames.ArgumentTypes, argumentTypes),
+                new Property(PostgresPropertyNames.Arguments, RenderParameters(parameters)),
+                new Property(PostgresPropertyNames.Language, language),
+                new Property(PostgresPropertyNames.Body, body),
+            },
+        };
+
+        // INVOKER is the PostgreSQL default, so only DEFINER is stored — keeping the
+        // element's shape identical to the extracted one for the common case.
+        if (isSecurityDefiner)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.IsSecurityDefiner, true));
+        }
+
+        return element;
+    }
+
+    /// <summary>
+    /// Renders a procedure's parameter list the way PostgreSQL's
+    /// pg_get_function_arguments does, so the parsed and extracted models agree: mode
+    /// first (IN is always written), then name, then type, then any DEFAULT.
+    /// </summary>
+    private static string RenderParameters(IEnumerable<ProcedureParameter> parameters)
+        => string.Join(", ", parameters.Select(parameter => parameter.Name is { } name
+            ? $"{parameter.Mode} {name} {parameter.Type}"
+            : $"{parameter.Mode} {parameter.Type}"));
+
+    /// <summary>
     /// Builds a foreign key constraint element. Referencing and referenced columns are
     /// ordered, canonical (table-qualified) references so a composite key's column
     /// pairing survives. NO ACTION is the Postgres default and is stored as an absent
