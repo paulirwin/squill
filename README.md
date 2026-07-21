@@ -32,6 +32,16 @@ A requirement for this is that the tooling must work cross-platform on macOS, Li
 Some other secondary goals include compatibility with SQL Server (such that a DACPAC built with Squill is otherwise identical to one built by SSDT and could be deployed via Microsoft tooling, or vice versa), supporting a hybrid declarative/migration approach to allow for the few cases where migrations are a better choice, SQL generation via schema comparison (aka database-first), and IDE support.
 Note that heavily SQL-Server-specific functionality like CLR assemblies might not be in scope anytime soon, as that functionality is well supported already by SSDT.
 
+## Installation
+
+The Squill CLI is distributed as a [.NET tool](https://learn.microsoft.com/en-us/dotnet/core/tools/global-tools). Install it globally to get a `squill` command on your PATH:
+
+```sh
+dotnet tool install --global Squill
+```
+
+Then use `squill deploy` and `squill script` to apply a DACPAC to a target database. See [the CLI readme](Squill/README.md) for usage.
+
 ## Architecture
 
 There are two phases for taking a Squill project from source code to updating your target database: building the DACPAC, and deploying the DACPAC.
