@@ -1,0 +1,34 @@
+# Keep the Docker build context small and reproducible: exclude build output,
+# IDE/editor state, VCS metadata, and test/sample projects the CLI image doesn't
+# need. Restore/publish inside the image regenerates bin/ and obj/ cleanly.
+
+## Build output
+**/[Bb]in/
+**/[Oo]bj/
+**/[Oo]ut/
+
+## Git / CI metadata
+.git/
+.github/
+.claude/
+
+## IDE / editor
+.idea/
+.vs/
+.vscode/
+*.DotSettings
+*.DotSettings.user
+
+## Test results
+**/[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Docker
+Dockerfile
+.dockerignore

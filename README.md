@@ -42,6 +42,20 @@ dotnet tool install --global Squill
 
 Then use `squill deploy` and `squill script` to apply a DACPAC to a target database. See [the CLI readme](Squill/README.md) for usage.
 
+### Docker
+
+A container image with the `squill` CLI (and the .NET runtime) preinstalled is published to the GitHub Container Registry as [`ghcr.io/paulirwin/squill`](https://github.com/paulirwin/squill/pkgs/container/squill). Use it as the base for a deployment-job image that ships your DACPAC:
+
+```dockerfile
+FROM ghcr.io/paulirwin/squill:latest
+
+COPY path/to/my_db.dacpac /app/
+
+CMD ["squill", "deploy", "/app/my_db.dacpac", "--connection-string", "$CONN_STR"]
+```
+
+The `latest` tag tracks `main`; images are also tagged by commit SHA. You can also run the CLI directly, e.g. `docker run --rm ghcr.io/paulirwin/squill:latest --help`.
+
 ## Getting started
 
 Scaffold a new Squill database project with the `dotnet new` template:
