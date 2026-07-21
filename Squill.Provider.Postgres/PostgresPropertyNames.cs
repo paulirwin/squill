@@ -32,4 +32,14 @@ public static class PostgresPropertyNames
     // https://www.postgresql.org/docs/current/sql-createindex.html
     public const string OperatorClass = nameof(OperatorClass);
     public const string StorageParameters = nameof(StorageParameters);
+    // Stored procedures (issue #41). A procedure element's Name carries its argument
+    // signature so overloads are distinct objects, so the bare name and the signature are
+    // also stored separately for scripting. Body is the routine source held verbatim, as
+    // PostgreSQL stores it in pg_proc.prosrc.
+    public const string RoutineName = nameof(RoutineName);
+    public const string ArgumentTypes = nameof(ArgumentTypes);
+    public const string Arguments = nameof(Arguments);
+    public const string Language = nameof(Language);
+    public const string Body = nameof(Body);
+    public const string IsSecurityDefiner = nameof(IsSecurityDefiner);
 }
