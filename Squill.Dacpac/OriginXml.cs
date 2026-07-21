@@ -33,6 +33,7 @@ internal static class OriginXml
         // which IDatabaseProvider to use when consuming this DACPAC.
         writer.WriteElementString("DspName", DacpacConstants.SerializationNamespace, metadata.ProviderName);
 
+        // Only the model part is checksummed, matching SSDT-built packages.
         writer.WriteStartElement("Checksums", DacpacConstants.SerializationNamespace);
         writer.WriteStartElement("Checksum", DacpacConstants.SerializationNamespace);
         writer.WriteAttributeString("Uri", DacpacConstants.ModelPartUri);

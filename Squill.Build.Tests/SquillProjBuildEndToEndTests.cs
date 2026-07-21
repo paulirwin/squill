@@ -225,6 +225,69 @@ public class SquillProjBuildEndToEndTests
         }
     }
 
+    // The SDK's default globs must pick up PreDeploy.sql/PostDeploy.sql as deploy scripts
+    // and — critically — exclude them from SquillCompile, so their contents are stored as
+    // script text rather than parsed into the schema model (issue #67).
+    [Fact]
+    public async Task DotnetBuild_PicksUpDeployScripts_AndExcludesThemFromModel()
+    {
+        var repoRoot = FindRepoRoot();
+
+        var tempDir = Directory.CreateTempSubdirectory("squill-e2e-deployscripts");
+        try
+        {
+            var sdkDir = Path.Combine(repoRoot, "Squill.Sdk", "Sdk");
+            var projContent = $"""
+<Project>
+  <Import Project="{Path.Combine(sdkDir, "Sdk.props")}" />
+  <Import Project="{Path.Combine(sdkDir, "Sdk.targets")}" />
+</Project>
+""";
+            await File.WriteAllTextAsync(
+                Path.Combine(tempDir.FullName, "TestDb.squillproj"),
+                projContent,
+                TestContext.Current.CancellationToken);
+
+            await File.WriteAllTextAsync(
+                Path.Combine(tempDir.FullName, "Widget.sql"),
+                "CREATE TABLE widget (id integer PRIMARY KEY, label varchar(50) NOT NULL);",
+                TestContext.Current.CancellationToken);
+
+            await File.WriteAllTextAsync(
+                Path.Combine(tempDir.FullName, "PreDeploy.sql"),
+                "SELECT 'pre-deploy marker';",
+                TestContext.Current.CancellationToken);
+
+            // Deliberately DDL: if this were compiled into the model it would add a table.
+            await File.WriteAllTextAsync(
+                Path.Combine(tempDir.FullName, "PostDeploy.sql"),
+                "CREATE TABLE IF NOT EXISTS seed_marker (id integer);",
+                TestContext.Current.CancellationToken);
+
+            var (exitCode, output) = await RunDotnetBuild(tempDir.FullName, "TestDb.squillproj");
+
+            Assert.True(exitCode == 0, $"dotnet build should succeed. Output:\n{output}");
+
+            var dacpacPath = Path.Combine(tempDir.FullName, "bin", "Debug", "TestDb.dacpac");
+            await using var stream = File.OpenRead(dacpacPath);
+            var (metadata, model) =
+                await DacpacSerializer.Deserialize(stream, TestContext.Current.CancellationToken);
+
+            Assert.Contains("pre-deploy marker", metadata.PreDeployScript);
+            Assert.Contains("seed_marker", metadata.PostDeployScript);
+
+            // The declared table is in the model; the post-deploy script's table is not.
+            Assert.Contains(model.Elements, e => e.Name?.Contains("widget", StringComparison.OrdinalIgnoreCase) == true);
+            Assert.DoesNotContain(
+                model.Elements,
+                e => e.Name?.Contains("seed_marker", StringComparison.OrdinalIgnoreCase) == true);
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
     private static async Task<(int ExitCode, string Output)> RunDotnetBuild(string workingDir, string project)
     {
         var psi = new ProcessStartInfo("dotnet")

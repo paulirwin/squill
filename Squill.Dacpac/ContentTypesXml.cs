@@ -26,10 +26,18 @@ internal static class ContentTypesXml
         writer.WriteStartDocument();
         writer.WriteStartElement("Types", ContentTypesNamespace);
 
-        // All of our parts are XML.
+        // The model/metadata parts are XML.
         writer.WriteStartElement("Default", ContentTypesNamespace);
         writer.WriteAttributeString("Extension", "xml");
         writer.WriteAttributeString("ContentType", "text/xml");
+        writer.WriteEndElement(); // Default
+
+        // Pre/post-deployment scripts are plain-text SQL parts. SSDT declares this
+        // unconditionally — even in packages containing no .sql part at all — so we
+        // match that rather than gating it on whether scripts are present.
+        writer.WriteStartElement("Default", ContentTypesNamespace);
+        writer.WriteAttributeString("Extension", "sql");
+        writer.WriteAttributeString("ContentType", "text/plain");
         writer.WriteEndElement(); // Default
 
         writer.WriteEndElement(); // Types

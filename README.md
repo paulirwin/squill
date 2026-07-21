@@ -65,6 +65,41 @@ The `--Provider` choice is `Postgresql` (default), `MariaDb`, or `MySql`, and se
 dialect the DACPAC is built for. `--TargetVersion` records a minimum target engine major
 version, enforced on deploy; omit it for no version constraint.
 
+### Pre- and post-deployment scripts
+
+Alongside the declarative schema, a project can carry imperative scripts that run around the
+schema changes — typically to seed or prepare data. Add a `PreDeploy.sql` and/or
+`PostDeploy.sql` to the project root or a `Scripts/` folder and the SDK picks them up
+automatically:
+
+```
+MyDatabase/
+├── MyDatabase.squillproj
+├── PostDeploy.sql      ← runs after the schema changes
+└── Tables/
+    └── Author.sql      ← declarative schema
+```
+
+A deploy runs the pre-deployment script, then the schema changes, then the post-deployment
+script. Both are stored verbatim in the DACPAC and are **not** parsed into the schema model —
+a `CREATE TABLE` in a post-deployment script is executed as written, not treated as a
+declaration.
+
+Deploy scripts run on **every** deploy, including one that finds no schema changes to make
+(otherwise seeding an already-current database would silently do nothing), so write them to be
+idempotent — `ON CONFLICT DO NOTHING` on PostgreSQL, `ON DUPLICATE KEY UPDATE` on MariaDB/MySQL.
+`squill script` includes them in its output, so the emitted script is a faithful preview of
+what a deploy would execute. See `samples/PostgresSampleDatabase/PostDeploy.sql` for a worked
+example.
+
+To use different file names, set the items explicitly in the `.squillproj`:
+
+```xml
+<ItemGroup>
+  <SquillPostDeploy Include="Seed/ReferenceData.sql" />
+</ItemGroup>
+```
+
 ## Architecture
 
 There are two phases for taking a Squill project from source code to updating your target database: building the DACPAC, and deploying the DACPAC.

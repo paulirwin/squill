@@ -15,6 +15,12 @@ internal static class DacpacConstants
     public const string DacMetadataPart = "DacMetadata.xml";
     public const string ContentTypesPart = "[Content Types].xml";
 
+    // Optional pre/post-deployment script parts (issue #67), named and cased exactly as
+    // DacFx names them. Present only when the project declares them. SSDT records no
+    // checksum for these parts, so they have no Uri form here.
+    public const string PreDeployPart = "predeploy.sql";
+    public const string PostDeployPart = "postdeploy.sql";
+
     // The Uri form used to reference the model part from Origin.xml checksums.
     public const string ModelPartUri = "/model.xml";
 

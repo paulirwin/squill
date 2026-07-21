@@ -14,6 +14,15 @@ namespace Squill.Dacpac;
 /// </summary>
 public static class DacpacSerializer
 {
+    // DacFx writes the deploy-script parts as UTF-8 *with* a BOM (verified by inspecting
+    // SSDT-built packages), so we match that for byte-compatible output. The BOM is
+    // stripped on read so the script text itself round-trips unchanged.
+    private static readonly System.Text.UTF8Encoding ScriptEncoding =
+        new(encoderShouldEmitUTF8Identifier: true);
+
+    // U+FEFF, the character a UTF-8 BOM decodes to.
+    private const char ByteOrderMark = '﻿';
+
     public static Task Serialize(
         ModelMetadata metadata,
         Model model,
@@ -31,7 +40,14 @@ public static class DacpacSerializer
             modelBytes = modelBuffer.ToArray();
         }
 
+        // Only model.xml is checksummed. SSDT-built packages record no checksum for the
+        // deploy-script parts even when present, so neither do we.
         var modelChecksum = Convert.ToHexString(SHA256.HashData(modelBytes));
+
+        // Pre/post-deployment scripts are optional root-level parts, named exactly as
+        // DacFx names them.
+        var preDeployBytes = EncodeScript(metadata.PreDeployScript);
+        var postDeployBytes = EncodeScript(metadata.PostDeployScript);
 
         using var zip = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true);
 
@@ -39,6 +55,16 @@ public static class DacpacSerializer
         WriteEntry(zip, DacpacConstants.ModelPart, s => s.Write(modelBytes));
         WriteEntry(zip, DacpacConstants.OriginPart, s => OriginXml.Write(metadata, modelChecksum, s));
         WriteEntry(zip, DacpacConstants.DacMetadataPart, s => DacMetadataXml.Write(metadata, s));
+
+        if (preDeployBytes is not null)
+        {
+            WriteEntry(zip, DacpacConstants.PreDeployPart, s => s.Write(preDeployBytes));
+        }
+
+        if (postDeployBytes is not null)
+        {
+            WriteEntry(zip, DacpacConstants.PostDeployPart, s => s.Write(postDeployBytes));
+        }
 
         return Task.CompletedTask;
     }
@@ -85,10 +111,52 @@ public static class DacpacSerializer
             }
         }
 
+        metadata.PreDeployScript = ReadScriptPart(zip, DacpacConstants.PreDeployPart);
+        metadata.PostDeployScript = ReadScriptPart(zip, DacpacConstants.PostDeployPart);
+
         using var modelStream = new MemoryStream(modelBytes, writable: false);
         var model = ModelXmlReader.Read(modelStream, metadata);
 
         return Task.FromResult((metadata, model));
+    }
+
+    /// <summary>
+    /// Encodes a deploy script as the bytes of its part — UTF-8 with a BOM, as DacFx
+    /// writes them — or <c>null</c> when there is no script, in which case the part is
+    /// omitted entirely.
+    /// </summary>
+    private static byte[]? EncodeScript(string script)
+    {
+        if (string.IsNullOrWhiteSpace(script))
+        {
+            return null;
+        }
+
+        var preamble = ScriptEncoding.GetPreamble();
+        var bytes = new byte[preamble.Length + ScriptEncoding.GetByteCount(script)];
+
+        preamble.CopyTo(bytes, 0);
+        ScriptEncoding.GetBytes(script, 0, script.Length, bytes, preamble.Length);
+
+        return bytes;
+    }
+
+    /// <summary>
+    /// Reads an optional deploy-script part, stripping the leading BOM so the script text
+    /// round-trips unchanged. Returns an empty string when the part is absent.
+    /// </summary>
+    private static string ReadScriptPart(ZipArchive zip, string partName)
+    {
+        if (zip.GetEntry(partName) is not { } entry)
+        {
+            return string.Empty;
+        }
+
+        // A leading BOM is part of the encoding, not of the script: leaving it in place
+        // would put U+FEFF at the head of the SQL we send to the database.
+        var text = ScriptEncoding.GetString(ReadEntryBytes(entry));
+
+        return text.TrimStart(ByteOrderMark);
     }
 
     private static void WriteEntry(ZipArchive zip, string name, Action<Stream> write)

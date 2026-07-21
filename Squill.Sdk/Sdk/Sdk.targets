@@ -28,12 +28,14 @@
   <!-- Let the DACPAC land under an all-configurations path when none is chosen,
        so `dotnet build` with no -c still produces a discoverable artifact. -->
   <Target Name="CoreCompile"
-          Inputs="@(SquillCompile)"
+          Inputs="@(SquillCompile);@(SquillPreDeploy);@(SquillPostDeploy)"
           Outputs="$(SquillDacpacPath)">
 
     <MakeDir Directories="$(IntermediateOutputPath)" Condition="!Exists('$(IntermediateOutputPath)')" />
 
     <BuildDacpacTask SourceFiles="@(SquillCompile)"
+                     PreDeployFiles="@(SquillPreDeploy)"
+                     PostDeployFiles="@(SquillPostDeploy)"
                      OutputPath="$(SquillDacpacPath)"
                      ProviderName="$(SquillProviderName)"
                      DacName="$(SquillDacName)"
