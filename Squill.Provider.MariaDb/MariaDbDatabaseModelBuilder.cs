@@ -44,13 +44,19 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
 
                 var element = MariaDbModelFactory.CreateTable(SqlName.Object(name));
 
-                model.Elements.Add(element);
                 tables.Add(new TableRef(element, name));
             }
         }
 
+        // Emit each table immediately followed by its dependents (primary key, indexes,
+        // foreign keys), so the element order matches the parser-based builder, which yields
+        // a table and its dependents together. The Merkle hash is order-sensitive, so the
+        // two builders must agree on ordering for a parsed model to hash-match an extracted
+        // one.
         foreach (var table in tables)
         {
+            model.Elements.Add(table.Element);
+
             await ExtractColumnsAsync(table, cancellationToken);
             await ExtractPrimaryKeyAsync(model, table, cancellationToken);
             await ExtractIndexesAsync(model, table, cancellationToken);
@@ -97,9 +103,11 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
             var nullable = reader.GetString("IS_NULLABLE") == "YES";
             var dataType = reader.GetString("DATA_TYPE").ToLowerInvariant();
             var columnType = reader.GetString("COLUMN_TYPE").ToLowerInvariant();
-            var maxLength = reader.GetFieldValue<long?>("CHARACTER_MAXIMUM_LENGTH");
-            var numericPrecision = reader.GetFieldValue<ulong?>("NUMERIC_PRECISION");
-            var numericScale = reader.GetFieldValue<ulong?>("NUMERIC_SCALE");
+            // MariaDB and MySQL disagree on the CLR type of these information_schema numeric
+            // columns (MariaDB returns ulong, MySQL long), so read them engine-agnostically.
+            var maxLength = reader.GetNullableInt64("CHARACTER_MAXIMUM_LENGTH");
+            var numericPrecision = reader.GetNullableInt64("NUMERIC_PRECISION");
+            var numericScale = reader.GetNullableInt64("NUMERIC_SCALE");
             var extra = reader.GetString("EXTRA");
             var isAutoIncrement = extra.Contains("auto_increment", StringComparison.OrdinalIgnoreCase);
             var isUnsigned = columnType.Contains("unsigned", StringComparison.Ordinal);
@@ -163,7 +171,7 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
                 ? null
                 : reader.GetString("COLUMN_DEFAULT");
 
-            if (MariaDbDefaultValue.FromDatabaseText(columnDefault) is { } defaultValue)
+            if (MariaDbDefaultValue.FromDatabaseText(columnDefault, IsCharacterType(dataType)) is { } defaultValue)
             {
                 column.Properties.Add(new Property(MariaDbPropertyNames.DefaultValue, defaultValue));
             }
@@ -250,7 +258,7 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
 
                 if (!indexRows.TryGetValue(indexName, out var entry))
                 {
-                    var nonUnique = reader.GetInt32("NON_UNIQUE");
+                    var nonUnique = reader.GetNullableInt64("NON_UNIQUE") ?? 1;
                     var indexType = reader.GetString("INDEX_TYPE").ToUpperInvariant();
 
                     entry = (nonUnique == 0, indexType, new());

@@ -52,9 +52,12 @@ internal static class MariaDbDefaultValue
 
     /// <summary>
     /// The canonical form of a database <c>COLUMN_DEFAULT</c> text, or <c>null</c> if it is
-    /// absent or not a modeled constant literal.
+    /// absent or not a modeled constant literal. <paramref name="isCharacterColumn"/> lets a
+    /// string default on a character column be recognized even on MySQL, which — unlike
+    /// MariaDB — reports a string default unquoted (e.g. <c>active</c> rather than
+    /// <c>'active'</c>).
     /// </summary>
-    public static string? FromDatabaseText(string? columnDefault)
+    public static string? FromDatabaseText(string? columnDefault, bool isCharacterColumn = false)
     {
         if (string.IsNullOrWhiteSpace(columnDefault))
         {
@@ -70,20 +73,41 @@ internal static class MariaDbDefaultValue
             return null;
         }
 
-        // Modern MariaDB wraps a string default in single quotes in information_schema.
+        // A string default already wrapped in single quotes (MariaDB's information_schema
+        // form) is canonical as-is.
         if (text.Length >= 2 && text[0] == '\'' && text[^1] == '\'')
         {
             return text;
         }
 
+        // On a character column, MySQL reports a string literal default unquoted. Treat the
+        // bare value as a string literal and re-quote it, unless it is an expression default
+        // MySQL surfaces literally (e.g. CURRENT_TIMESTAMP, or a parenthesized expression),
+        // which is not a modeled constant.
+        if (isCharacterColumn && !IsExpressionDefault(text))
+        {
+            return "'" + text.Replace("'", "''") + "'";
+        }
+
         return NormalizeNumericText(text);
     }
+
+    // Whether a bare database default text is a non-literal expression (a function call such
+    // as CURRENT_TIMESTAMP / NOW(), or a parenthesized expression) rather than a string
+    // literal, so it is left unmodeled.
+    private static bool IsExpressionDefault(string text)
+        => text.StartsWith('(')
+            || text.Contains('(')
+            || string.Equals(text, "CURRENT_TIMESTAMP", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(text, "current_timestamp()", StringComparison.OrdinalIgnoreCase);
 
     // Renders a canonical default back to SQL. The canonical form is already valid SQL.
     public static string ToSql(string canonical) => canonical;
 
-    // Returns the invariant text of a numeric literal, or null if it isn't one. Preserves
-    // the written scale (1.50 stays 1.50), matching how MariaDB stores numeric defaults.
+    // Returns a canonical invariant text of a numeric literal, or null if it isn't one.
+    // Trailing fractional zeros are trimmed so both sides agree: a source DEFAULT 0 on a
+    // decimal(12,4) column and the database's reported '0.0000' both canonicalize to "0"
+    // (and 1.50 → 1.5), since MariaDB pads a numeric default to the column's scale.
     private static string? NormalizeNumericText(string text)
     {
         if (long.TryParse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var l))
@@ -91,12 +115,19 @@ internal static class MariaDbDefaultValue
             return l.ToString(CultureInfo.InvariantCulture);
         }
 
-        if (decimal.TryParse(text, NumberStyles.Number | NumberStyles.AllowLeadingSign,
+        if (!decimal.TryParse(text, NumberStyles.Number | NumberStyles.AllowLeadingSign,
                 CultureInfo.InvariantCulture, out _))
         {
-            return text;
+            return null;
         }
 
-        return null;
+        // Trim trailing zeros after the decimal point, and a trailing bare decimal point, so
+        // the scale MariaDB pads to (e.g. 0.0000) collapses to the same canonical form the
+        // source literal (0) produces.
+        var trimmed = text.Contains('.')
+            ? text.TrimEnd('0').TrimEnd('.')
+            : text;
+
+        return trimmed.Length == 0 || trimmed == "-" ? "0" : trimmed;
     }
 }

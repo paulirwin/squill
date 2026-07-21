@@ -1,0 +1,206 @@
+using Squill.Core;
+using Squill.MariaDbParser;
+using Squill.Provider.MariaDb;
+
+namespace Squill.IntegrationTests.MariaDb;
+
+/// <summary>
+/// End-to-end schema round-trip tests for the MariaDB provider, run against a real MariaDB
+/// or MySQL server. Each test parses declarative SQL into a model, publishes it into a fresh
+/// database, extracts the database's model, and asserts the two models hash-match — proving
+/// the DDL we generate is valid, executable SQL and that a parsed model agrees with one
+/// extracted from the live database.
+///
+/// The scenarios live on this abstract base and run once per engine via the concrete
+/// <c>MariaDb*</c> / <c>MySql*</c> subclasses at the bottom of this file.
+/// </summary>
+public abstract class MariaDbRoundTripTests
+{
+    protected abstract MariaDbLikeFixture Fixture { get; }
+
+    // Parses the given SQL into a model, publishes it into a fresh database, and asserts the
+    // re-extracted database model hash-matches the parsed one. Returns the published model so
+    // a caller can make additional assertions about its shape.
+    private async Task<Model> AssertRoundTripAsync(string sql, CancellationToken cancellationToken)
+    {
+        var provider = new MariaDbDatabaseProvider(Fixture.ConnectionString);
+
+        var workspace = new Workspace();
+        workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
+
+        var parser = new AntlrMariaDbParser();
+        var model = await new ParserWorkspaceModelBuilder(workspace, parser)
+            .ExtractModelAsync(cancellationToken);
+
+        var testDb = await provider.CreateDatabaseAsync($"squill_test_{Guid.NewGuid():n}", cancellationToken);
+        var dbModelBuilder = provider.CreateDatabaseModelBuilder(testDb);
+
+        try
+        {
+            var targetModel = await dbModelBuilder.ExtractModelAsync(cancellationToken);
+
+            var comparison = SchemaCompare.Compare(provider, model, targetModel);
+
+            await testDb.PublishAsync(comparison, cancellationToken);
+
+            var newModel = await dbModelBuilder.ExtractModelAsync(cancellationToken);
+
+            Assert.True(
+                HashUtility.HashesEqual(model.Hash, newModel.Hash),
+                $"[{Fixture.EngineName}] Parsed and extracted model hashes do not match.");
+
+            return model;
+        }
+        finally
+        {
+            await testDb.DropAsync(cancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task SimpleTable_RoundTrips()
+    {
+        await AssertRoundTripAsync("""
+            CREATE TABLE distributors
+            (
+                did  int NOT NULL,
+                name varchar(100) NULL
+            );
+            """, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task PrimaryKey_RoundTrips()
+    {
+        await AssertRoundTripAsync("""
+            CREATE TABLE film
+            (
+                film_id int NOT NULL PRIMARY KEY,
+                title   varchar(255) NOT NULL
+            );
+            """, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task AutoIncrement_RoundTrips()
+    {
+        await AssertRoundTripAsync("""
+            CREATE TABLE film
+            (
+                film_id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                title   varchar(255) NOT NULL
+            );
+            """, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task CompositePrimaryKey_RoundTrips()
+    {
+        await AssertRoundTripAsync("""
+            CREATE TABLE film_actor
+            (
+                film_id  int NOT NULL,
+                actor_id int NOT NULL,
+                PRIMARY KEY (film_id, actor_id)
+            );
+            """, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task VarcharAndDefaults_RoundTrip()
+    {
+        await AssertRoundTripAsync("""
+            CREATE TABLE account
+            (
+                id     int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                status varchar(20) NOT NULL DEFAULT 'active',
+                logins int NOT NULL DEFAULT 0
+            );
+            """, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task Decimal_RoundTrips()
+    {
+        await AssertRoundTripAsync("""
+            CREATE TABLE payment
+            (
+                payment_id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                amount     decimal(10, 2) NOT NULL
+            );
+            """, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task MultiColumnTable_RoundTrips()
+    {
+        await AssertRoundTripAsync("""
+            CREATE TABLE person
+            (
+                id         int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                first_name varchar(50) NOT NULL,
+                last_name  varchar(50) NOT NULL,
+                age        int NULL,
+                balance    decimal(12, 4) NOT NULL DEFAULT 0
+            );
+            """, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task StandaloneIndex_RoundTrips()
+    {
+        await AssertRoundTripAsync("""
+            CREATE TABLE film
+            (
+                film_id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                title   varchar(255) NOT NULL
+            );
+            CREATE INDEX ix_film_title ON film (title);
+            """, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task UniqueIndex_RoundTrips()
+    {
+        await AssertRoundTripAsync("""
+            CREATE TABLE account
+            (
+                id    int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                email varchar(255) NOT NULL,
+                CONSTRAINT uq_account_email UNIQUE (email)
+            );
+            """, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task ForeignKey_RoundTrips()
+    {
+        await AssertRoundTripAsync("""
+            CREATE TABLE customer
+            (
+                id   int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                name varchar(100) NOT NULL
+            );
+            CREATE TABLE orders
+            (
+                id          int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                customer_id int NOT NULL,
+                CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customer (id) ON DELETE CASCADE
+            );
+            """, TestContext.Current.CancellationToken);
+    }
+}
+
+// ---- Per-engine bindings: each scenario runs once against MariaDB and once against MySQL. ----
+
+public sealed class MariaDbRoundTripTestsMariaDb(MariaDbFixture fixture)
+    : MariaDbRoundTripTests, IClassFixture<MariaDbFixture>
+{
+    protected override MariaDbLikeFixture Fixture { get; } = fixture;
+}
+
+public sealed class MariaDbRoundTripTestsMySql(MySqlFixture fixture)
+    : MariaDbRoundTripTests, IClassFixture<MySqlFixture>
+{
+    protected override MariaDbLikeFixture Fixture { get; } = fixture;
+}

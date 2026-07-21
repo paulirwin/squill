@@ -31,4 +31,23 @@ internal static class DataReaderExtensions
 
         return reader.GetFieldValue<T>(ordinal);
     }
+
+    /// <summary>
+    /// Reads a nullable 64-bit integer column, coercing whatever numeric CLR type the driver
+    /// returns. MariaDB and MySQL disagree on the signedness of information_schema numeric
+    /// columns (MariaDB returns them as <c>ulong</c>, MySQL as <c>long</c>), so a fixed
+    /// <c>GetFieldValue&lt;T&gt;</c> throws on one engine. Coercing the boxed value works for
+    /// both.
+    /// </summary>
+    public static long? GetNullableInt64(this DbDataReader reader, string name)
+    {
+        var ordinal = reader.GetOrdinal(name);
+
+        if (reader.IsDBNull(ordinal))
+        {
+            return null;
+        }
+
+        return Convert.ToInt64(reader.GetValue(ordinal), System.Globalization.CultureInfo.InvariantCulture);
+    }
 }
