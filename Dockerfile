@@ -37,13 +37,23 @@ RUN dotnet publish Squill/Squill.csproj -c Release -o /app --no-restore
 FROM mcr.microsoft.com/dotnet/runtime:${DOTNET_VERSION} AS runtime
 WORKDIR /app
 
+# Npgsql probes libgssapi_krb5 for GSSAPI/Kerberos auth negotiation; it isn't in
+# the runtime base image, so without it every connect logs a noisy "Cannot load
+# library" error (and Kerberos auth would be unavailable). Install it and clean
+# up apt lists to keep the layer small.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgssapi-krb5-2 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app ./
 
 # Expose the CLI as `squill` on the PATH. The published host executable is named
 # after the project (Squill); symlink a lowercase `squill` for the documented UX.
 RUN ln -s /app/Squill /usr/local/bin/squill
 
-# Default to printing help so `docker run <image>` with no args is informative;
-# deployment images override this with their own `squill deploy ...` CMD.
-ENTRYPOINT ["squill"]
-CMD ["--help"]
+# No ENTRYPOINT: leaving it unset keeps this a general-purpose base image, so a
+# downstream CMD (or `docker run <image> ...`) is the full command line and can
+# invoke `squill`, a shell, or anything else without having to reset an
+# inherited entrypoint. Default to printing help so a bare `docker run <image>`
+# is informative; deployment images override this with their own CMD.
+CMD ["squill", "--help"]
