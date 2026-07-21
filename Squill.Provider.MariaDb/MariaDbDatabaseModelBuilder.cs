@@ -67,7 +67,154 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
             await ExtractIndexesAsync(model, table, cancellationToken);
         }
 
+        // Procedures come last, matching the parser-based builder: a procedure body may
+        // reference any table, so on publish its CREATE must run after the tables it uses.
+        await ExtractProceduresAsync(model, cancellationToken);
+
         return model;
+    }
+
+    private async Task ExtractProceduresAsync(Model model, CancellationToken cancellationToken = default)
+    {
+        // ROUTINE_TYPE = 'PROCEDURE' excludes functions, which are not modeled. Both engines
+        // return ROUTINE_DEFINITION verbatim, so the body needs no canonicalization on
+        // either side. Ordered by name to match the parser-based builder, since the catalog
+        // has no notion of the order routines were declared in.
+        const string routineSql =
+            """
+            SELECT ROUTINE_NAME, ROUTINE_DEFINITION, IS_DETERMINISTIC,
+                   SQL_DATA_ACCESS, SECURITY_TYPE
+            FROM information_schema.ROUTINES
+            WHERE ROUTINE_SCHEMA = @db AND ROUTINE_TYPE = 'PROCEDURE'
+            ORDER BY ROUTINE_NAME;
+            """;
+
+        var dbParam = new[] { new DatabaseParameter<string>("@db", _database.Name) };
+
+        var routines = new List<(string Name, string Body, bool IsDeterministic,
+            string SqlDataAccess, bool IsSecurityInvoker)>();
+
+        await using (var reader = await _database.RunScriptReaderAsync(
+            routineSql, dbParam, cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var name = reader.GetString("ROUTINE_NAME");
+
+                // ROUTINE_DEFINITION is NULL when the connected user lacks the privileges to
+                // read a routine's body. Deploying the resulting model would silently
+                // replace the procedure with an empty one, so fail loudly instead.
+                if (reader.IsDBNull(reader.GetOrdinal("ROUTINE_DEFINITION")))
+                {
+                    throw new InvalidOperationException(
+                        $"The body of procedure '{name}' could not be read. The connected user "
+                        + "needs privileges on the routine to extract its definition.");
+                }
+
+                routines.Add((
+                    name,
+                    reader.GetString("ROUTINE_DEFINITION"),
+                    reader.GetString("IS_DETERMINISTIC") == "YES",
+                    reader.GetString("SQL_DATA_ACCESS"),
+                    reader.GetString("SECURITY_TYPE") == "INVOKER"));
+            }
+        }
+
+        foreach (var routine in routines)
+        {
+            model.Elements.Add(MariaDbModelFactory.CreateProcedure(
+                SqlName.Object(routine.Name),
+                routine.Body,
+                await ExtractProcedureParametersAsync(routine.Name, cancellationToken),
+                routine.IsDeterministic,
+                routine.SqlDataAccess,
+                routine.IsSecurityInvoker));
+        }
+    }
+
+    private async Task<IReadOnlyList<MariaDbModelFactory.ProcedureParameter>>
+        ExtractProcedureParametersAsync(string routineName, CancellationToken cancellationToken = default)
+    {
+        // The type is rebuilt from DATA_TYPE plus length/precision rather than read from
+        // DTD_IDENTIFIER, because the two engines spell that column differently: MariaDB
+        // reports an integer's display width (int(11)) and MySQL does not (int). DATA_TYPE
+        // and the numeric columns agree on both, so building from them keeps one model
+        // shape across engines. See MariaDbTypeNormalizer.
+        //
+        // A procedure's own row has ORDINAL_POSITION 0 with a NULL name (it is the return
+        // value slot, used by functions), so parameters start at 1.
+        const string sql =
+            """
+            SELECT PARAMETER_MODE, PARAMETER_NAME, DATA_TYPE,
+                   CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, DTD_IDENTIFIER
+            FROM information_schema.PARAMETERS
+            WHERE SPECIFIC_SCHEMA = @db AND SPECIFIC_NAME = @routine AND ORDINAL_POSITION > 0
+            ORDER BY ORDINAL_POSITION;
+            """;
+
+        var parameters = new IDatabaseParameter[]
+        {
+            new DatabaseParameter<string>("@db", _database.Name),
+            new DatabaseParameter<string>("@routine", routineName),
+        };
+
+        var result = new List<MariaDbModelFactory.ProcedureParameter>();
+
+        await using var reader = await _database.RunScriptReaderAsync(sql, parameters, cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var dataType = reader.GetString("DATA_TYPE").ToLowerInvariant();
+            var dtd = reader.GetString("DTD_IDENTIFIER").ToLowerInvariant();
+
+            // MariaDB and MySQL disagree on the CLR type of these information_schema numeric
+            // columns (MariaDB returns ulong, MySQL long), so read them engine-agnostically.
+            var maxLength = reader.GetNullableInt64("CHARACTER_MAXIMUM_LENGTH");
+            var precision = reader.GetNullableInt64("NUMERIC_PRECISION");
+            var scale = reader.GetNullableInt64("NUMERIC_SCALE");
+
+            result.Add(new MariaDbModelFactory.ProcedureParameter(
+                reader.GetString("PARAMETER_MODE"),
+                reader.GetString("PARAMETER_NAME"),
+                NormalizeParameterType(dataType, dtd, maxLength, precision, scale)));
+        }
+
+        return result;
+    }
+
+    // Rebuilds a parameter's canonical type text from the catalog's engine-agnostic columns.
+    private static string NormalizeParameterType(
+        string dataType, string dtd, long? maxLength, long? precision, long? scale)
+    {
+        var isUnsigned = dtd.Contains("unsigned", StringComparison.Ordinal);
+
+        // An enum or set carries its member list, which only DTD_IDENTIFIER holds; both
+        // engines spell it identically, so it is taken verbatim.
+        if (dataType is "enum" or "set")
+        {
+            return dtd.Replace(" unsigned", string.Empty, StringComparison.Ordinal) is var bare
+                && isUnsigned ? $"{bare} unsigned" : dtd;
+        }
+
+        var modifiers = new List<long>();
+
+        if (IsCharacterType(dataType) && maxLength.HasValue)
+        {
+            modifiers.Add(maxLength.Value);
+        }
+        else if (IsDecimalType(dataType) && precision.HasValue)
+        {
+            modifiers.Add(precision.Value);
+            modifiers.Add(scale ?? 0);
+        }
+        else if (dataType == "tinyint" && dtd.StartsWith("tinyint(1)", StringComparison.Ordinal))
+        {
+            // Both engines spell a BOOL parameter tinyint(1), and the width is meaningful
+            // there — it is what distinguishes BOOL from a plain TINYINT.
+            modifiers.Add(1);
+        }
+
+        return MariaDbTypeNormalizer.Normalize(dataType, modifiers, isUnsigned);
     }
 
     private async Task ExtractColumnsAsync(TableRef table, CancellationToken cancellationToken = default)

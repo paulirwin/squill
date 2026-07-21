@@ -24,8 +24,9 @@ public class MariaDbDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
 
     public string? GetExtensionVersion(Element extension) => null;
 
-    // MariaDB routines are not modeled yet, so no element type is replaced wholesale.
-    public bool IsReplaceableElementType(string type) => false;
+    // A procedure's definition is replaced wholesale rather than altered facet by facet.
+    public bool IsReplaceableElementType(string type)
+        => type == MariaDbElementTypes.SqlProcedure;
 
     public bool DropCausesDataLoss(string type)
         => type == MariaDbElementTypes.SqlTable;
@@ -38,8 +39,11 @@ public class MariaDbDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
     public string? GetElementSchema(Element element) => null;
 
     // MariaDB has no schema/extension objects that must precede tables, so every element
-    // sorts to the same create order.
-    public int GetCreateOrder(string type) => 0;
+    // sorts to the same create order — except a procedure, whose body may reference any
+    // table. Its body is not parsed for dependencies, so creating procedures last is what
+    // makes a procedure that reads or writes a table in the same deploy work.
+    public int GetCreateOrder(string type)
+        => type == MariaDbElementTypes.SqlProcedure ? 1 : 0;
 
     // MariaDB has no extension version to normalize, so the source is compared as-is.
     public IEnumerable<CreateDependency> GetCreateDependencies(Element element, Model model)

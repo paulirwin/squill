@@ -3,7 +3,8 @@ namespace Squill.MariaDbParser.Syntax;
 /// <summary>
 /// The focused MariaDB syntax tree Squill consumes. This models exactly the statements the
 /// provider maps to model elements — CREATE TABLE (columns, data types, PK/FK/unique/index
-/// constraints) and CREATE INDEX — rather than the full MariaDB grammar. Everything else in
+/// constraints), CREATE INDEX and CREATE PROCEDURE — rather than the full MariaDB grammar.
+/// CREATE FUNCTION is parsed only so it can be reported as unsupported. Everything else in
 /// a script is ignored by the parser (see <see cref="AntlrMariaDbParser"/>).
 /// </summary>
 public sealed class Root
@@ -191,4 +192,85 @@ public sealed class IndexColumn(Identifier column, bool? isAscending)
 {
     public Identifier Column { get; } = column;
     public bool? IsAscending { get; } = isAscending;
+}
+
+// ---- CREATE PROCEDURE ----
+
+/// <summary>
+/// A <c>CREATE [OR REPLACE] PROCEDURE name(params) [options] body</c> statement.
+///
+/// The <see cref="Body"/> is held verbatim — exactly the characters the body spans in the
+/// source — because that is what MariaDB and MySQL both return from
+/// <c>information_schema.ROUTINES.ROUTINE_DEFINITION</c>. Keeping it byte-for-byte lets a
+/// model parsed from source hash-match one extracted from a live database without
+/// canonicalizing the body.
+/// </summary>
+public sealed class CreateProcedureStatement(QualifiedName name, bool orReplace) : Statement
+{
+    public QualifiedName Name { get; } = name;
+
+    /// <summary>
+    /// Whether OR REPLACE was written (MariaDB-only syntax). This affects how the procedure
+    /// is created, not the desired schema state, so it does not participate in the model.
+    /// </summary>
+    public bool OrReplace { get; } = orReplace;
+
+    public IList<RoutineParameter> Parameters { get; } = new List<RoutineParameter>();
+
+    /// <summary>The routine body, verbatim as written in the source.</summary>
+    public string? Body { get; set; }
+
+    /// <summary>
+    /// Whether DETERMINISTIC was written. NOT DETERMINISTIC is the default on both engines.
+    /// </summary>
+    public bool IsDeterministic { get; set; }
+
+    /// <summary>
+    /// The SQL data access clause as the catalog spells it (<c>CONTAINS SQL</c>,
+    /// <c>NO SQL</c>, <c>READS SQL DATA</c>, <c>MODIFIES SQL DATA</c>), or null when
+    /// unwritten — in which case both engines report <c>CONTAINS SQL</c>.
+    /// </summary>
+    public string? SqlDataAccess { get; set; }
+
+    /// <summary>
+    /// Whether SQL SECURITY INVOKER was written. DEFINER is the default on both engines
+    /// (the opposite of PostgreSQL), so the invoker case is the one worth recording.
+    /// </summary>
+    public bool IsSecurityInvoker { get; set; }
+}
+
+/// <summary>
+/// A single parameter of a routine — its mode, name and declared type. Unlike PostgreSQL,
+/// MariaDB and MySQL always name a routine parameter.
+/// </summary>
+public sealed class RoutineParameter(Identifier name, ParameterMode mode, DataType dataType)
+    : SyntaxNode
+{
+    public Identifier Name { get; } = name;
+    public ParameterMode Mode { get; } = mode;
+    public DataType DataType { get; } = dataType;
+}
+
+/// <summary>
+/// The argument mode of a routine parameter. The default when no mode is written is
+/// <see cref="In"/>, which is why it is the first (default) member.
+/// </summary>
+public enum ParameterMode
+{
+    In,
+    Out,
+    InOut,
+}
+
+// ---- CREATE FUNCTION ----
+
+/// <summary>
+/// A <c>CREATE FUNCTION</c> statement. Functions are not modeled yet, but one is parsed
+/// into this marker rather than dropped so the model builder can report it as a diagnostic
+/// anchored at the statement's source position, like any other unsupported construct,
+/// instead of silently producing an incomplete model.
+/// </summary>
+public sealed class CreateFunctionStatement(QualifiedName name) : Statement
+{
+    public QualifiedName Name { get; } = name;
 }

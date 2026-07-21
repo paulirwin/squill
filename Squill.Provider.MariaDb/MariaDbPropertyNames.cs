@@ -20,4 +20,14 @@ public static class MariaDbPropertyNames
     public const string UpdateAction = nameof(UpdateAction);
     public const string IsAutoIncrement = nameof(IsAutoIncrement);
     public const string DefaultValue = nameof(DefaultValue);
+
+    // Stored procedures (issue #41). Body is the routine source held verbatim, which is
+    // what both engines return from information_schema.ROUTINES.ROUTINE_DEFINITION.
+    // Unlike PostgreSQL there is no Language (SQL is the only one) and no ArgumentTypes
+    // (neither engine allows overloading, so a routine's name alone identifies it).
+    public const string Arguments = nameof(Arguments);
+    public const string Body = nameof(Body);
+    public const string IsDeterministic = nameof(IsDeterministic);
+    public const string SqlDataAccess = nameof(SqlDataAccess);
+    public const string IsSecurityInvoker = nameof(IsSecurityInvoker);
 }

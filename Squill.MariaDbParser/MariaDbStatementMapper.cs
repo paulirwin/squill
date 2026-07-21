@@ -1,4 +1,5 @@
 using Antlr4.Runtime;
+using Antlr4.Runtime.Misc;
 using Antlr4.Runtime.Tree;
 using Squill.MariaDbParser.Syntax;
 
@@ -20,6 +21,19 @@ internal static class MariaDbStatementMapper
         if (ddl.createIndex() is { } createIndex)
         {
             return MapCreateIndex(createIndex);
+        }
+
+        if (ddl.createProcedure() is { } createProcedure)
+        {
+            return MapCreateProcedure(createProcedure);
+        }
+
+        // A function is parsed into a marker statement rather than dropped, so the model
+        // builder can report it as unsupported at its source position.
+        if (ddl.createFunction() is { } createFunction)
+        {
+            return At(new CreateFunctionStatement(MapQualifiedName(createFunction.fullId())),
+                createFunction);
         }
 
         // Any other DDL (CREATE VIEW, ALTER, DROP, …) is not modeled.
@@ -358,6 +372,95 @@ internal static class MariaDbStatementMapper
 
         return null;
     }
+
+    // ---- CREATE PROCEDURE ----
+
+    private static Statement MapCreateProcedure(MariaDBParser.CreateProcedureContext createProcedure)
+    {
+        var statement = At(
+            new CreateProcedureStatement(
+                MapQualifiedName(createProcedure.fullId()),
+                createProcedure.orReplace() is not null),
+            createProcedure);
+
+        foreach (var parameter in createProcedure.procedureParameter())
+        {
+            statement.Parameters.Add(At(
+                new RoutineParameter(
+                    new Identifier(UidText(parameter.uid())),
+                    MapParameterMode(parameter.direction),
+                    MapDataType(parameter.dataType())),
+                parameter));
+        }
+
+        foreach (var option in createProcedure.routineOption())
+        {
+            ApplyRoutineOption(statement, option);
+        }
+
+        statement.Body = SourceText(createProcedure.routineBody());
+
+        return statement;
+    }
+
+    private static ParameterMode MapParameterMode(IToken? direction)
+        => direction?.Type switch
+        {
+            null => ParameterMode.In,
+            MariaDBParser.OUT => ParameterMode.Out,
+            MariaDBParser.INOUT => ParameterMode.InOut,
+            _ => ParameterMode.In,
+        };
+
+    private static void ApplyRoutineOption(
+        CreateProcedureStatement statement,
+        MariaDBParser.RoutineOptionContext option)
+    {
+        switch (option)
+        {
+            case MariaDBParser.RoutineBehaviorContext behavior:
+                // `NOT DETERMINISTIC` is the default; only a bare DETERMINISTIC sets it.
+                statement.IsDeterministic = behavior.NOT() is null;
+                break;
+
+            case MariaDBParser.RoutineDataContext data:
+                statement.SqlDataAccess = SqlDataAccessText(data);
+                break;
+
+            case MariaDBParser.RoutineSecurityContext security:
+                statement.IsSecurityInvoker = security.context?.Type == MariaDBParser.INVOKER;
+                break;
+
+            // A COMMENT or LANGUAGE SQL clause does not participate in the model: LANGUAGE
+            // SQL is the only language either engine supports, and a comment is not a
+            // schema facet Squill tracks.
+        }
+    }
+
+    // Renders a routine's data-access clause the way information_schema.ROUTINES spells it
+    // (e.g. "READS SQL DATA"), so a parsed value compares equal to an extracted one. The
+    // context's own text has the keywords concatenated without spaces.
+    private static string SqlDataAccessText(MariaDBParser.RoutineDataContext data)
+    {
+        var words = new List<string>();
+
+        for (var i = 0; i < data.ChildCount; i++)
+        {
+            if (data.GetChild(i) is ITerminalNode terminal)
+            {
+                words.Add(terminal.GetText().ToUpperInvariant());
+            }
+        }
+
+        return string.Join(' ', words);
+    }
+
+    // The exact source text a context spans. Unlike GetText(), which concatenates tokens and
+    // so discards all whitespace, this reads back from the input stream — required for a
+    // routine body, which both engines return verbatim from ROUTINE_DEFINITION.
+    private static string SourceText(ParserRuleContext context)
+        => context.Start.InputStream.GetText(
+            Interval.Of(context.Start.StartIndex, context.Stop.StopIndex));
 
     private static DataType MapDataType(MariaDBParser.DataTypeContext dataType)
     {
