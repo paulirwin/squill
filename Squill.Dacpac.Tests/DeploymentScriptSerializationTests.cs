@@ -84,8 +84,36 @@ public class DeploymentScriptSerializationTests
         Assert.Single(zip.Entries, e => e.Name == "postdeploy.sql");
     }
 
+    // SSDT declares the sql Default unconditionally — it is present even in packages
+    // containing no .sql part at all — so we match that rather than gating on scripts.
+    [Theory]
+    [InlineData("")]
+    [InlineData("SELECT 1;")]
+    public async Task Serialize_AlwaysDeclaresSqlContentType(string postDeployScript)
+    {
+        var metadata = new ModelMetadata
+        {
+            ProviderName = "Postgresql",
+            PostDeployScript = postDeployScript,
+        };
+        await using var stream = new MemoryStream();
+
+        await DacpacSerializer.Serialize(
+            metadata, BuildModel(), stream, TestContext.Current.CancellationToken);
+
+        stream.Position = 0;
+        using var zip = new ZipArchive(stream, ZipArchiveMode.Read);
+        var contentTypes = Assert.Single(zip.Entries, e => e.Name == "[Content Types].xml");
+
+        var xml = await ReadEntryAsync(contentTypes);
+
+        Assert.Contains("Extension=\"sql\"", xml);
+        Assert.Contains("ContentType=\"text/plain\"", xml);
+    }
+
+    // DacFx writes the script parts as UTF-8 with a BOM; we match that byte layout.
     [Fact]
-    public async Task Serialize_DeclaresSqlContentType_WhenScriptsPresent()
+    public async Task Serialize_WritesScriptParts_AsUtf8WithBom()
     {
         var metadata = new ModelMetadata
         {
@@ -99,12 +127,62 @@ public class DeploymentScriptSerializationTests
 
         stream.Position = 0;
         using var zip = new ZipArchive(stream, ZipArchiveMode.Read);
-        var contentTypes = Assert.Single(zip.Entries, e => e.Name == "[Content Types].xml");
+        var post = Assert.Single(zip.Entries, e => e.Name == "postdeploy.sql");
 
-        var xml = await ReadEntryAsync(contentTypes);
+        await using var entryStream = post.Open();
+        using var buffer = new MemoryStream();
+        await entryStream.CopyToAsync(buffer, TestContext.Current.CancellationToken);
+        var bytes = buffer.ToArray();
 
-        // OPC requires every part extension in the package to be declared.
-        Assert.Contains("Extension=\"sql\"", xml);
+        Assert.True(bytes.Length >= 3, "The part should carry a BOM plus content.");
+        Assert.Equal(new byte[] { 0xEF, 0xBB, 0xBF }, bytes[..3]);
+    }
+
+    // SSDT records a checksum only for /model.xml, even when script parts are present.
+    [Fact]
+    public async Task Serialize_DoesNotChecksumScriptParts()
+    {
+        var metadata = new ModelMetadata
+        {
+            ProviderName = "Postgresql",
+            PreDeployScript = "SELECT 'pre';",
+            PostDeployScript = "SELECT 'post';",
+        };
+        await using var stream = new MemoryStream();
+
+        await DacpacSerializer.Serialize(
+            metadata, BuildModel(), stream, TestContext.Current.CancellationToken);
+
+        stream.Position = 0;
+        using var zip = new ZipArchive(stream, ZipArchiveMode.Read);
+        var origin = Assert.Single(zip.Entries, e => e.Name == "Origin.xml");
+
+        var xml = await ReadEntryAsync(origin);
+
+        Assert.Contains("/model.xml", xml);
+        Assert.DoesNotContain("predeploy.sql", xml);
+        Assert.DoesNotContain("postdeploy.sql", xml);
+    }
+
+    // SSDT-built packages carry no _rels/.rels; parts are located by fixed name. Adding
+    // one would diverge from the layout we are matching.
+    [Fact]
+    public async Task Serialize_WritesNoRelationshipsPart()
+    {
+        var metadata = new ModelMetadata
+        {
+            ProviderName = "Postgresql",
+            PostDeployScript = "SELECT 1;",
+        };
+        await using var stream = new MemoryStream();
+
+        await DacpacSerializer.Serialize(
+            metadata, BuildModel(), stream, TestContext.Current.CancellationToken);
+
+        stream.Position = 0;
+        using var zip = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        Assert.DoesNotContain(zip.Entries, e => e.FullName.Contains("_rels"));
     }
 
     [Fact]
@@ -168,39 +246,30 @@ public class DeploymentScriptSerializationTests
         Assert.Equal("INSERT INTO city (name) VALUES ('Ōsaka', 'Köln');", result.PostDeployScript);
     }
 
+    // A script part written without a BOM (as another tool might) still reads correctly.
     [Fact]
-    public async Task Deserialize_TamperedScript_Throws()
+    public async Task Deserialize_ScriptPartWithoutBom_ReadsCleanly()
     {
-        // Script parts are checksummed in Origin.xml just like model.xml, so a
-        // tampered script is caught rather than silently executed on deploy.
-        var metadata = new ModelMetadata
-        {
-            ProviderName = "Postgresql",
-            PostDeployScript = "SELECT 1;",
-        };
+        var metadata = new ModelMetadata { ProviderName = "Postgresql" };
         await using var stream = new MemoryStream();
 
         await DacpacSerializer.Serialize(
             metadata, BuildModel(), stream, TestContext.Current.CancellationToken);
 
-        // Rewrite postdeploy.sql in place, leaving the recorded checksum stale.
         stream.Position = 0;
         using (var zip = new ZipArchive(stream, ZipArchiveMode.Update, leaveOpen: true))
         {
-            var entry = zip.GetEntry("postdeploy.sql")!;
-            entry.Delete();
-
-            var replacement = zip.CreateEntry("postdeploy.sql");
-            await using var entryStream = replacement.Open();
+            var entry = zip.CreateEntry("postdeploy.sql");
+            await using var entryStream = entry.Open();
             await using var writer = new StreamWriter(entryStream, new UTF8Encoding(false));
-            await writer.WriteAsync("DROP TABLE foo;");
+            await writer.WriteAsync("SELECT 1;");
         }
 
         stream.Position = 0;
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => DacpacSerializer.Deserialize(stream, TestContext.Current.CancellationToken));
+        var (result, _) = await DacpacSerializer.Deserialize(
+            stream, TestContext.Current.CancellationToken);
 
-        Assert.Contains("postdeploy.sql", exception.Message);
+        Assert.Equal("SELECT 1;", result.PostDeployScript);
     }
 
     private static async Task<string> ReadEntryAsync(ZipArchiveEntry entry)

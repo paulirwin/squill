@@ -12,13 +12,7 @@ internal static class ContentTypesXml
     private const string ContentTypesNamespace =
         "http://schemas.openxmlformats.org/package/2006/content-types";
 
-    /// <summary>
-    /// Writes the content-types part. <paramref name="includeSqlParts"/> declares the
-    /// <c>sql</c> extension used by the optional pre/post-deployment script parts; it is
-    /// omitted when the package has no scripts so such a DACPAC stays byte-identical to
-    /// one built before that feature existed.
-    /// </summary>
-    public static void Write(Stream stream, bool includeSqlParts = false)
+    public static void Write(Stream stream)
     {
         var settings = new XmlWriterSettings
         {
@@ -38,14 +32,13 @@ internal static class ContentTypesXml
         writer.WriteAttributeString("ContentType", "text/xml");
         writer.WriteEndElement(); // Default
 
-        // Pre/post-deployment scripts are plain-text SQL parts.
-        if (includeSqlParts)
-        {
-            writer.WriteStartElement("Default", ContentTypesNamespace);
-            writer.WriteAttributeString("Extension", "sql");
-            writer.WriteAttributeString("ContentType", "text/plain");
-            writer.WriteEndElement(); // Default
-        }
+        // Pre/post-deployment scripts are plain-text SQL parts. SSDT declares this
+        // unconditionally — even in packages containing no .sql part at all — so we
+        // match that rather than gating it on whether scripts are present.
+        writer.WriteStartElement("Default", ContentTypesNamespace);
+        writer.WriteAttributeString("Extension", "sql");
+        writer.WriteAttributeString("ContentType", "text/plain");
+        writer.WriteEndElement(); // Default
 
         writer.WriteEndElement(); // Types
         writer.WriteEndDocument();
