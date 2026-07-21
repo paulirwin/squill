@@ -42,4 +42,10 @@ public static class PostgresPropertyNames
     public const string Language = nameof(Language);
     public const string Body = nameof(Body);
     public const string IsSecurityDefiner = nameof(IsSecurityDefiner);
+    // Views (issue #42). A view's query is carried for scripting only and never takes part
+    // in comparison: every engine rewrites the query it is given (PostgreSQL reformats it
+    // through pg_get_viewdef), so a declared body can never hash-match an extracted one. A
+    // view's modeled identity is its name and column list instead — see
+    // PostgresModelFactory.CreateView and PostgresDatabaseDependencyAnalyzer.NormalizeForComparison.
+    public const string Definition = nameof(Definition);
 }

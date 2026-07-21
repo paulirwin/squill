@@ -265,6 +265,69 @@ public static class PostgresModelFactory
     }
 
     /// <summary>
+    /// Builds a view element (issue #42).
+    ///
+    /// A view's identity is its name and its ordered column list — the two facets
+    /// PostgreSQL reports back faithfully. The query itself is stored as
+    /// <see cref="PostgresPropertyNames.Definition"/> for scripting, but is excluded from
+    /// comparison by
+    /// <see cref="PostgresDatabaseDependencyAnalyzer.NormalizeForComparison"/>: PostgreSQL
+    /// rewrites a view's query when it stores it (<c>pg_get_viewdef</c> reformats
+    /// whitespace and layout), so a declared body could never hash-match an extracted one
+    /// and would otherwise force a recreate on every single deploy.
+    ///
+    /// The trade-off this buys is deliberate: a changed query that leaves the column list
+    /// untouched is not detected as a change. Adding, removing, renaming or reordering a
+    /// column is.
+    /// </summary>
+    /// <param name="definition">
+    /// The declared query, for scripting. Null when the element comes from a live database:
+    /// PostgreSQL has only its own rewritten copy of the query, which would never match a
+    /// declared one, so an extracted view carries no definition at all. That keeps both
+    /// sides of a comparison hash-equal on the facets that do round-trip.
+    /// </param>
+    public static Element CreateView(
+        SqlName name,
+        string schema,
+        IEnumerable<string> columnNames,
+        string? definition)
+    {
+        var columns = new Relationship(PostgresRelationshipNames.Columns);
+
+        foreach (var columnName in columnNames)
+        {
+            columns.Add(new Element(PostgresElementTypes.SqlViewColumn)
+            {
+                Name = name.Child(columnName),
+            });
+        }
+
+        var element = new Element(PostgresElementTypes.SqlView)
+        {
+            Name = name,
+            Relationships =
+            {
+                columns,
+                new Relationship(PostgresRelationshipNames.Schema)
+                {
+                    new Reference(schema) { ExternalSource = "BuiltIns" }
+                }
+            },
+        };
+
+        if (definition is not null)
+        {
+            // Excluded from the element's identity: PostgreSQL rewrites a view's query when
+            // it stores it, so this declared text could never match what the database
+            // reports back. The view's name and column list carry its identity instead.
+            element.Properties.Add(new Property(
+                PostgresPropertyNames.Definition, definition, participatesInIdentity: false));
+        }
+
+        return element;
+    }
+
+    /// <summary>
     /// Renders a procedure's parameter list the way PostgreSQL's
     /// pg_get_function_arguments does, so the parsed and extracted models agree: mode
     /// first (IN is always written), then name, then type, then any DEFAULT.

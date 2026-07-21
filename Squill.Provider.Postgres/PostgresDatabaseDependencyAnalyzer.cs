@@ -18,8 +18,11 @@ public class PostgresDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
     public string? GetExtensionVersion(Element extension)
         => extension.GetProperty<string>(PostgresPropertyNames.Version);
 
+    // A procedure's body is replaced wholesale. A view is here too, but its recreate is
+    // scripted as DROP + CREATE: PostgreSQL will not replace a view whose column list
+    // changed, and a changed column list is the only thing that makes a view differ.
     public bool IsReplaceableElementType(string type)
-        => type == PostgresElementTypes.SqlProcedure;
+        => type is PostgresElementTypes.SqlProcedure or PostgresElementTypes.SqlView;
 
     public bool DropCausesDataLoss(string type)
         => type == PostgresElementTypes.SqlTable;
@@ -34,7 +37,8 @@ public class PostgresDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
         // database; a schema is the namespace), so they have no schema for identity.
         if (element.Type is not (PostgresElementTypes.SqlTable
             or PostgresElementTypes.SqlIndex
-            or PostgresElementTypes.SqlProcedure))
+            or PostgresElementTypes.SqlProcedure
+            or PostgresElementTypes.SqlView))
         {
             return null;
         }
@@ -52,7 +56,10 @@ public class PostgresDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
         // A procedure body may reference any table, so it is created after them. Its body
         // is not parsed for dependencies, so this ordering is what makes a procedure that
         // reads or writes a table in the same deploy work.
-        PostgresElementTypes.SqlProcedure => 3,
+        PostgresElementTypes.SqlProcedure => 4,
+        // A view selects from tables (and may select from another view), so it is created
+        // after them and before procedures, whose bodies may in turn query a view.
+        PostgresElementTypes.SqlView => 3,
         _ => 2,
     };
 
@@ -134,6 +141,11 @@ public class PostgresDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
 
     public Element NormalizeForComparison(Element source, Element target)
     {
+        // A view needs no normalization: its query is stored as a property that opts out of
+        // the element's identity (see PostgresModelFactory.CreateView), so the fact that
+        // PostgreSQL rewrites it — and that an extracted view carries no query at all —
+        // never reaches the comparison.
+
         // Only extensions need normalization, and only when the source pins no version:
         // the database always reports an installed version, so an unpinned source would
         // otherwise look different. Backfill the target's version onto a copy so an
