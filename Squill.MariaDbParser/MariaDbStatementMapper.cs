@@ -28,6 +28,11 @@ internal static class MariaDbStatementMapper
             return MapCreateProcedure(createProcedure);
         }
 
+        if (ddl.createView() is { } createView)
+        {
+            return MapCreateView(createView);
+        }
+
         // A function is parsed into a marker statement rather than dropped, so the model
         // builder can report it as unsupported at its source position.
         if (ddl.createFunction() is { } createFunction)
@@ -36,7 +41,7 @@ internal static class MariaDbStatementMapper
                 createFunction);
         }
 
-        // Any other DDL (CREATE VIEW, ALTER, DROP, …) is not modeled. It becomes a marker
+        // Any other DDL (ALTER, DROP, …) is not modeled. It becomes a marker
         // statement rather than being dropped, so the model builder can warn that it will
         // not reach the DACPAC instead of the construct silently vanishing (issue #61).
         return At(new UnmodeledStatement(DescribeDdl(ddl)), ddl);
@@ -266,6 +271,203 @@ internal static class MariaDbStatementMapper
 
         return statement;
     }
+
+    // ---- CREATE VIEW ----
+
+    // createView
+    //   : CREATE orReplace? (ALGORITHM '=' algType)? ownerStatement? (SQL SECURITY secContext)?
+    //     VIEW fullId ('(' uidList ')')? AS
+    //     ( '(' withClause? selectStatement ')' | withClause? selectStatement (WITH ... CHECK OPTION)? )
+    //
+    // Only the facets that make up a view's modeled identity are pulled out — its name, its
+    // column list, and the tables it selects from — plus the query text, carried verbatim
+    // for scripting. See CreateViewStatement for why the body cannot participate in the model.
+    private static Statement MapCreateView(MariaDBParser.CreateViewContext createView)
+    {
+        var statement = At(
+            new CreateViewStatement(
+                MapQualifiedName(createView.fullId()),
+                createView.orReplace() is not null),
+            createView);
+
+        if (createView.uidList() is { } columnList)
+        {
+            foreach (var uid in columnList.uid())
+            {
+                statement.ColumnNames.Add(new Identifier(UidText(uid)));
+            }
+        }
+
+        var select = createView.selectStatement();
+
+        statement.Body = SourceText(select);
+
+        var query = FirstQuerySpecification(select);
+
+        if (query is null)
+        {
+            throw new NotSupportedException(
+                "A view over this form of query is not yet supported; "
+                + "only a SELECT with an explicit select list is modeled");
+        }
+
+        foreach (var column in MapSelectElements(query))
+        {
+            statement.SelectColumns.Add(column);
+        }
+
+        foreach (var table in MapSourceTables(query))
+        {
+            statement.SourceTables.Add(table);
+        }
+
+        return statement;
+    }
+
+    private static IEnumerable<ViewSelectColumn> MapSelectElements(ParserRuleContext query)
+    {
+        var selectElements = query.GetRuleContext<MariaDBParser.SelectElementsContext>(0);
+
+        if (selectElements is null)
+        {
+            yield break;
+        }
+
+        // `SELECT *` is a bare star token on selectElements, not a selectElement.
+        if (selectElements.STAR() is not null)
+        {
+            yield return ViewSelectColumn.Wildcard();
+        }
+
+        foreach (var element in selectElements.selectElement())
+        {
+            yield return MapSelectElement(element);
+        }
+    }
+
+    private static ViewSelectColumn MapSelectElement(MariaDBParser.SelectElementContext element)
+    {
+        switch (element)
+        {
+            // `t.*`
+            case MariaDBParser.SelectStarElementContext star:
+                return ViewSelectColumn.Wildcard(MapQualifiedName(star.fullId()).Name);
+
+            case MariaDBParser.SelectColumnElementContext column:
+                // An explicit alias always wins over the column's own name.
+                if (column.uid() is { } columnAlias)
+                {
+                    return ViewSelectColumn.Aliased(UidText(columnAlias));
+                }
+
+                return MapFullColumnName(column.fullColumnName());
+
+            case MariaDBParser.SelectFunctionElementContext function:
+                return function.uid() is { } functionAlias
+                    ? ViewSelectColumn.Aliased(UidText(functionAlias))
+                    : ViewSelectColumn.Unnamed();
+
+            case MariaDBParser.SelectExpressionElementContext expression:
+                return expression.uid() is { } expressionAlias
+                    ? ViewSelectColumn.Aliased(UidText(expressionAlias))
+                    : ViewSelectColumn.Unnamed();
+
+            default:
+                return ViewSelectColumn.Unnamed();
+        }
+    }
+
+    // fullColumnName : uid (dottedId dottedId?)? — the last segment is the column, anything
+    // before it qualifies it (table, or database and table).
+    private static ViewSelectColumn MapFullColumnName(MariaDBParser.FullColumnNameContext fullColumnName)
+    {
+        var dottedIds = fullColumnName.dottedId();
+
+        if (fullColumnName.uid() is not { } uid)
+        {
+            return ViewSelectColumn.Unnamed();
+        }
+
+        var first = UidText(uid);
+
+        if (dottedIds.Length == 0)
+        {
+            return ViewSelectColumn.Named(first);
+        }
+
+        // `table.column` — the qualifier is the leading uid.
+        // `db.table.column` — the qualifier is the table, the middle segment.
+        var segments = dottedIds.Select(DottedIdText).ToList();
+
+        return ViewSelectColumn.Named(
+            segments[^1],
+            segments.Count == 1 ? first : segments[^2]);
+    }
+
+    private static IEnumerable<QualifiedName> MapSourceTables(ParserRuleContext query)
+    {
+        var fromClause = query.GetRuleContext<MariaDBParser.FromClauseContext>(0);
+
+        if (fromClause?.tableSources() is not { } tableSources)
+        {
+            yield break;
+        }
+
+        foreach (var tableSource in tableSources.tableSource())
+        {
+            // Only a plain table reference names a table Squill can look up; a subquery or
+            // a nested source does not.
+            foreach (var atom in Descendants<MariaDBParser.AtomTableItemContext>(tableSource))
+            {
+                yield return MapQualifiedName(atom.tableName().fullId());
+            }
+        }
+    }
+
+    // The first querySpecification (or querySpecificationNointo) in a possibly parenthesized
+    // or UNION-ed query. A set operation takes its column names from the first branch, which
+    // is how both engines name them.
+    private static ParserRuleContext? FirstQuerySpecification(IParseTree node)
+    {
+        switch (node)
+        {
+            case MariaDBParser.QuerySpecificationContext query:
+                return query;
+
+            case MariaDBParser.QuerySpecificationNointoContext queryNointo:
+                return queryNointo;
+        }
+
+        for (var i = 0; i < node.ChildCount; i++)
+        {
+            if (FirstQuerySpecification(node.GetChild(i)) is { } found)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<T> Descendants<T>(IParseTree node) where T : ParserRuleContext
+    {
+        if (node is T match)
+        {
+            yield return match;
+        }
+
+        for (var i = 0; i < node.ChildCount; i++)
+        {
+            foreach (var found in Descendants<T>(node.GetChild(i)))
+            {
+                yield return found;
+            }
+        }
+    }
+
+    // A dottedId is written ".name" (or ".`name`"); strip the leading dot before unquoting.
+    private static string DottedIdText(MariaDBParser.DottedIdContext dottedId)
+        => TrimIdentifier(dottedId.GetText().TrimStart('.'));
 
     // ---- Shared helpers ----
 

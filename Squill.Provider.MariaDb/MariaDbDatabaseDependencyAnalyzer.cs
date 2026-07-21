@@ -24,9 +24,11 @@ public class MariaDbDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
 
     public string? GetExtensionVersion(Element extension) => null;
 
-    // A procedure's definition is replaced wholesale rather than altered facet by facet.
+    // A procedure's definition is replaced wholesale rather than altered facet by facet. A
+    // view is here too; both are scripted as DROP + CREATE, since CREATE OR REPLACE is
+    // MariaDB-only syntax and this provider targets MySQL as well.
     public bool IsReplaceableElementType(string type)
-        => type == MariaDbElementTypes.SqlProcedure;
+        => type is MariaDbElementTypes.SqlProcedure or MariaDbElementTypes.SqlView;
 
     public bool DropCausesDataLoss(string type)
         => type == MariaDbElementTypes.SqlTable;
@@ -39,11 +41,17 @@ public class MariaDbDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
     public string? GetElementSchema(Element element) => null;
 
     // MariaDB has no schema/extension objects that must precede tables, so every element
-    // sorts to the same create order — except a procedure, whose body may reference any
-    // table. Its body is not parsed for dependencies, so creating procedures last is what
-    // makes a procedure that reads or writes a table in the same deploy work.
-    public int GetCreateOrder(string type)
-        => type == MariaDbElementTypes.SqlProcedure ? 1 : 0;
+    // sorts to the same create order — except a view and a procedure, which reference
+    // tables. Neither is parsed for dependencies beyond its source tables, so this ordering
+    // is what makes a view or procedure that reads a table in the same deploy work.
+    // A view selects from tables, so it follows them; a procedure body may query either, so
+    // it comes last.
+    public int GetCreateOrder(string type) => type switch
+    {
+        MariaDbElementTypes.SqlView => 1,
+        MariaDbElementTypes.SqlProcedure => 2,
+        _ => 0,
+    };
 
     // MariaDB has no extension version to normalize, so the source is compared as-is.
     public IEnumerable<CreateDependency> GetCreateDependencies(Element element, Model model)

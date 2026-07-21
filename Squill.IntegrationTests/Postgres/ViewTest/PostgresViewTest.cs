@@ -23,8 +23,8 @@ public class PostgresViewTest : PostgresIntegrationTestBase
         workspace.Files.Add(new EmbeddedResourceFile(
             "Squill.IntegrationTests.Postgres.ViewTest.Views.sql", FileKind.Compile));
 
-        var model = await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
-            .ExtractModelAsync(TestContext.Current.CancellationToken);
+        var model = (await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
+            .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
         AssertViews(model);
 
@@ -156,8 +156,8 @@ public class PostgresViewTest : PostgresIntegrationTestBase
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
 
-        return await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
-            .ExtractModelAsync(TestContext.Current.CancellationToken);
+        return (await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
+            .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
     }
 
     private static IEnumerable<string?> ColumnNames(Element view)

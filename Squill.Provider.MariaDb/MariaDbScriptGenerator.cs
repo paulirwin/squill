@@ -77,6 +77,11 @@ public class MariaDbScriptGenerator
             return GenerateCreateProcedureScript(createDelta.Element);
         }
 
+        if (createDelta.Element.Type == MariaDbElementTypes.SqlView)
+        {
+            return GenerateCreateViewScript(createDelta.Element);
+        }
+
         throw new NotImplementedException(
             $"Creating an element of type {createDelta.Element.Type} is not supported.");
     }
@@ -298,6 +303,14 @@ public class MariaDbScriptGenerator
             return DropProcedureStatement(source) + GenerateCreateProcedureScript(source);
         }
 
+        // A view whose column list changed is dropped and recreated. CREATE OR REPLACE VIEW
+        // is MariaDB-only (MySQL has no such form), so the portable spelling for both
+        // engines is DROP ... IF EXISTS followed by CREATE.
+        if (source.Type == MariaDbElementTypes.SqlView)
+        {
+            return DropViewStatement(source) + GenerateCreateViewScript(source);
+        }
+
         if (source.Type != MariaDbElementTypes.SqlIndex)
         {
             throw new NotImplementedException(
@@ -347,9 +360,61 @@ public class MariaDbScriptGenerator
             // — no argument signature is needed, unlike PostgreSQL.
             MariaDbElementTypes.SqlProcedure => DropProcedureStatement(element),
 
+            MariaDbElementTypes.SqlView => DropViewStatement(element),
+
             _ => throw new NotImplementedException(
                 $"Dropping an element of type {element.Type} is not supported."),
         };
+    }
+
+    // Scripts a view, naming its columns explicitly so the deployed view exposes exactly
+    // the shape the model records. CREATE OR REPLACE is not used: it is MariaDB-only syntax
+    // and this generator targets MySQL too, so a changed view is scripted as DROP + CREATE.
+    private static string GenerateCreateViewScript(Element view)
+    {
+        var definition = view.GetRequiredProperty<string>(MariaDbPropertyNames.Definition);
+
+        if (view.Name is not string name)
+        {
+            throw new ArgumentException("Cannot create a view without a name");
+        }
+
+        var sb = new StringBuilder();
+
+        sb.Append("CREATE VIEW ").Append(SqlName.Parse(name).Sql);
+
+        var columns = ViewColumnNames(view).ToList();
+
+        if (columns.Count > 0)
+        {
+            sb.Append(" (")
+                .Append(string.Join(", ", columns.Select(i => SqlName.Object(i).Sql)))
+                .Append(')');
+        }
+
+        sb.AppendLine(" AS").Append(definition).AppendLine(";");
+
+        return sb.ToString();
+    }
+
+    // A view's column names, taken from the trailing segment of each column element's
+    // (view-qualified) name.
+    private static IEnumerable<string> ViewColumnNames(Element view)
+        => view.GetRelationship(MariaDbRelationshipNames.Columns)
+            ?.Entries.OfType<Element>()
+            .Select(i => i.Name is { } columnName
+                ? SqlName.Parse(columnName).UnqualifiedName
+                : throw new ArgumentException("A view column must have a name"))
+           ?? [];
+
+    private static string DropViewStatement(Element view)
+    {
+        if (view.Name is not string name)
+        {
+            throw new ArgumentException("Cannot drop a view without a name");
+        }
+
+        return $"DROP VIEW IF EXISTS {SqlName.Parse(name).Sql};{Environment.NewLine}";
     }
 
     private static string DropProcedureStatement(Element procedure)

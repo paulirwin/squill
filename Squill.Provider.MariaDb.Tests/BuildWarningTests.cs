@@ -22,7 +22,7 @@ public class BuildWarningTests
     }
 
     [Fact]
-    public async Task CreateView_WarnsAndStillBuilds()
+    public async Task CreateView_IsModeledWithoutWarning()
     {
         var builder = BuilderFor(
             ("Book.sql", "CREATE TABLE book (id INT PRIMARY KEY, title VARCHAR(50));"),
@@ -30,13 +30,12 @@ public class BuildWarningTests
 
         var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
 
-        // The table still builds; only the view is missing.
+        // A view is a modeled object as of issue #42, so it reaches the DACPAC and no
+        // longer warns that it will be dropped from the build.
         Assert.Contains(result.Model.Elements, e => e.Type == MariaDbElementTypes.SqlTable);
+        Assert.Contains(result.Model.Elements, e => e.Type == MariaDbElementTypes.SqlView);
 
-        var warning = Assert.Single(result.Warnings);
-        Assert.Equal("SQ1002", warning.Code);
-        Assert.Equal("View.sql", warning.SourceFile);
-        Assert.Contains("CREATE VIEW", warning.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(result.Warnings);
     }
 
     [Fact]

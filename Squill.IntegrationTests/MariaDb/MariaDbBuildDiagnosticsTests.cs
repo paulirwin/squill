@@ -179,20 +179,19 @@ CREATE TABLE pfx_child
     }
 
     [Fact]
-    public async Task CreateView_WarnsAtBuildButTheRestStillDeploys()
+    public async Task CreateView_IsModeledAndDeploys()
     {
         const string bookSql = "CREATE TABLE warn_book (id INT PRIMARY KEY, title VARCHAR(50));";
         const string viewSql = "CREATE VIEW v_warn_book AS SELECT id FROM warn_book;";
 
         var result = await BuildAsync(("Book.sql", bookSql), ("View.sql", viewSql));
 
-        // The view is valid SQL the engine accepts — it is simply not modeled, so it would
-        // vanish from the DACPAC. That is what the warning exists to say.
-        var warning = Assert.Single(result.Warnings);
-        Assert.Equal("SQ1002", warning.Code);
+        // A view is a modeled object as of issue #42: it reaches the DACPAC, so it no longer
+        // warns that it would vanish from the build.
+        Assert.Empty(result.Warnings);
 
         Assert.Contains(result.Model.Elements, e => e.Type == MariaDbElementTypes.SqlTable);
-        Assert.DoesNotContain(result.Model.Elements, e => e.Name == "v_warn_book");
+        Assert.Contains(result.Model.Elements, e => e.Name == "v_warn_book");
 
         await InDatabaseAsync(async connection =>
         {
