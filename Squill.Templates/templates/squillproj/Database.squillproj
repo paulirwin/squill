@@ -1,0 +1,16 @@
+<Project Sdk="Squill.Sdk/SDK_VERSION">
+
+  <PropertyGroup>
+    <!-- Selects the provider (SQL dialect/parser) the DACPAC is built for, and is recorded
+         in the DACPAC so `squill deploy` targets the right engine. Supported values:
+         Postgresql (default), MariaDb, or MySql. -->
+    <SquillProviderName>PROVIDER_NAME</SquillProviderName>
+    <!--#if (HasTargetVersion)-->
+    <!-- The minimum target engine major version this DACPAC targets (like SSDT's target
+         platform). Recorded in the DACPAC and enforced on `squill deploy`: deploying to an
+         older server fails. Remove for no version constraint. -->
+    <SquillTargetVersion>TARGET_VERSION</SquillTargetVersion>
+    <!--#endif-->
+  </PropertyGroup>
+
+</Project>
