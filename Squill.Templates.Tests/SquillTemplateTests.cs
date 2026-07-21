@@ -39,12 +39,20 @@ public class SquillTemplateTests
         Assert.True(File.Exists(Path.Combine(outDir, "Tables", "ExampleTable.sql")),
             "The template should scaffold an example table.");
 
+        // The scaffolded example table ships fully commented out, so it must not contribute a
+        // table; the build still succeeds with only comments present.
+        var exampleSql = await File.ReadAllTextAsync(
+            Path.Combine(outDir, "Tables", "ExampleTable.sql"), TestContext.Current.CancellationToken);
+        Assert.DoesNotContain("CREATE TABLE", exampleSql.Replace("-- CREATE TABLE", string.Empty));
+
         var projText = await File.ReadAllTextAsync(projPath, TestContext.Current.CancellationToken);
         Assert.Contains("<SquillProviderName>Postgresql</SquillProviderName>", projText);
         // No target version requested → no SquillTargetVersion element.
         Assert.DoesNotContain("SquillTargetVersion", projText);
 
-        var (metadata, model) = await BuildAndDeserialize(repoRoot, outDir, projPath, "MyDb");
+        // Add a real table (as a user would) and confirm the generated project builds it.
+        var (metadata, model) = await BuildAndDeserialize(repoRoot, outDir, projPath, "MyDb",
+            "CREATE TABLE widget (id integer NOT NULL PRIMARY KEY, label varchar(50) NOT NULL);");
         Assert.Equal("MyDb", metadata.Name);
         Assert.Equal("Postgresql", metadata.ProviderName);
         Assert.Contains(model.Elements, e => e.Type == PostgresElementTypes.SqlTable);
@@ -68,7 +76,8 @@ public class SquillTemplateTests
         Assert.Contains("<SquillProviderName>MariaDb</SquillProviderName>", projText);
         Assert.Contains("<SquillTargetVersion>11</SquillTargetVersion>", projText);
 
-        var (metadata, model) = await BuildAndDeserialize(repoRoot, outDir, projPath, "ShopDb");
+        var (metadata, model) = await BuildAndDeserialize(repoRoot, outDir, projPath, "ShopDb",
+            "CREATE TABLE widget (id int NOT NULL AUTO_INCREMENT PRIMARY KEY, label varchar(50) NOT NULL);");
         Assert.Equal("MariaDb", metadata.ProviderName);
         Assert.Equal(11, metadata.TargetMajorVersion);
         Assert.Contains(model.Elements, e => e.Type == MariaDbElementTypes.SqlTable);
@@ -90,18 +99,24 @@ public class SquillTemplateTests
         var projText = await File.ReadAllTextAsync(projPath, TestContext.Current.CancellationToken);
         Assert.Contains("<SquillProviderName>MySql</SquillProviderName>", projText);
 
-        var (metadata, model) = await BuildAndDeserialize(repoRoot, outDir, projPath, "CatalogDb");
+        var (metadata, model) = await BuildAndDeserialize(repoRoot, outDir, projPath, "CatalogDb",
+            "CREATE TABLE widget (id int NOT NULL AUTO_INCREMENT PRIMARY KEY, label varchar(50) NOT NULL);");
         // MySql routes to the MariaDB provider (which serves both engines): the recorded
         // provider name is the configured MySql, and the model carries a MariaDb-typed table.
         Assert.Equal("MySql", metadata.ProviderName);
         Assert.Contains(model.Elements, e => e.Type == MariaDbElementTypes.SqlTable);
     }
 
-    // Build the scaffolded project against the local, uninstalled SDK (hermetic) and read
-    // back the produced DACPAC.
+    // Add a table to the scaffolded project, build it against the local, uninstalled SDK
+    // (hermetic), and read back the produced DACPAC.
     private static async Task<(ModelMetadata Metadata, Squill.Core.Model Model)> BuildAndDeserialize(
-        string repoRoot, string outDir, string projPath, string dacName)
+        string repoRoot, string outDir, string projPath, string dacName, string tableSql)
     {
+        // The scaffolded example table is commented out, so add a real table the way a user
+        // would before building — the default item glob picks up any .sql under the project.
+        await File.WriteAllTextAsync(
+            Path.Combine(outDir, "Tables", "Widget.sql"), tableSql, TestContext.Current.CancellationToken);
+
         // The DACPAC reader resolves its schema provider by reflecting over loaded assemblies.
         // .NET loads them lazily, and const references are inlined (they don't load the
         // declaring assembly), so force both provider assemblies to load via a runtime type
