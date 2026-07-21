@@ -41,7 +41,7 @@ CREATE TABLE Foo
 
             var result = task.Execute();
 
-            Assert.True(result, $"Task should succeed. Errors: {string.Join("; ", engine.Errors)}");
+            Assert.True(result, $"Task should succeed. Errors: {string.Join("; ", engine.Errors.Select(e => e.Message))}");
             Assert.Empty(engine.Errors);
             Assert.True(File.Exists(outputPath), "DACPAC should be written to the output path.");
 
@@ -189,13 +189,14 @@ CREATE TABLE Foo
     }
 
     [Fact]
-    public void Execute_WithInvalidSql_FailsWithLoggedError()
+    public void Execute_WithInvalidSql_LogsErrorWithFileLineAndColumn()
     {
         var tempDir = Directory.CreateTempSubdirectory("squill-buildtask-test");
         try
         {
             var sqlPath = Path.Combine(tempDir.FullName, "Bad.sql");
-            File.WriteAllText(sqlPath, "this is not valid sql;");
+            // The syntax error is on line 2 so the test proves real positions flow through.
+            File.WriteAllText(sqlPath, "CREATE TABLE foo (id integer PRIMARY KEY);\nCREATE bogus;\n");
 
             var engine = new StubBuildEngine();
             var task = new BuildDacpacTask
@@ -208,7 +209,11 @@ CREATE TABLE Foo
             var result = task.Execute();
 
             Assert.False(result, "Task should fail for invalid SQL.");
-            Assert.NotEmpty(engine.Errors);
+            var error = Assert.Single(engine.Errors);
+            Assert.Equal(sqlPath, error.File);
+            Assert.Equal(2, error.LineNumber);
+            Assert.True(error.ColumnNumber >= 1, "Column should be 1-based.");
+            Assert.Equal("SQ0001", error.Code);
         }
         finally
         {
@@ -216,14 +221,88 @@ CREATE TABLE Foo
         }
     }
 
-    // Minimal IBuildEngine that records logged errors so tests can assert on them.
+    [Fact]
+    public void Execute_WithUnresolvedForeignKey_LogsErrorWithSourcePosition()
+    {
+        var tempDir = Directory.CreateTempSubdirectory("squill-buildtask-test");
+        try
+        {
+            var sqlPath = Path.Combine(tempDir.FullName, "Book.sql");
+            File.WriteAllText(sqlPath, """
+CREATE TABLE book
+(
+    id integer PRIMARY KEY,
+    author_id integer REFERENCES author (id)
+);
+""");
+
+            var engine = new StubBuildEngine();
+            var task = new BuildDacpacTask
+            {
+                BuildEngine = engine,
+                SourceFiles = [new TaskItem(sqlPath)],
+                OutputPath = Path.Combine(tempDir.FullName, "bin", "Book.dacpac"),
+            };
+
+            Assert.False(task.Execute(), "Task should fail for an unresolved foreign key reference.");
+
+            var error = Assert.Single(engine.Errors);
+            Assert.Equal(sqlPath, error.File);
+            Assert.Equal(4, error.LineNumber);
+            Assert.Equal("SQ0002", error.Code);
+            Assert.Contains("author", error.Message);
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Execute_WithMultipleUnresolvedForeignKeys_LogsEachError()
+    {
+        var tempDir = Directory.CreateTempSubdirectory("squill-buildtask-test");
+        try
+        {
+            var bookPath = Path.Combine(tempDir.FullName, "Book.sql");
+            File.WriteAllText(bookPath,
+                "CREATE TABLE book (id integer PRIMARY KEY, author_id integer REFERENCES author (id));");
+
+            var reviewPath = Path.Combine(tempDir.FullName, "Review.sql");
+            File.WriteAllText(reviewPath,
+                "CREATE TABLE review (id integer PRIMARY KEY, reviewer_id integer REFERENCES reviewer (id));");
+
+            var engine = new StubBuildEngine();
+            var task = new BuildDacpacTask
+            {
+                BuildEngine = engine,
+                SourceFiles = [new TaskItem(bookPath), new TaskItem(reviewPath)],
+                OutputPath = Path.Combine(tempDir.FullName, "bin", "Book.dacpac"),
+            };
+
+            Assert.False(task.Execute());
+
+            Assert.Equal(2, engine.Errors.Count);
+            Assert.Contains(engine.Errors, e => e.File == bookPath);
+            Assert.Contains(engine.Errors, e => e.File == reviewPath);
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
+    // Minimal IBuildEngine that records logged errors/warnings so tests can assert on
+    // them — including the file/line/column metadata MSBuild diagnostics carry.
     private sealed class StubBuildEngine : IBuildEngine
     {
-        public List<string> Errors { get; } = [];
+        public List<BuildErrorEventArgs> Errors { get; } = [];
 
-        public void LogErrorEvent(BuildErrorEventArgs e) => Errors.Add(e.Message ?? string.Empty);
+        public List<BuildWarningEventArgs> Warnings { get; } = [];
 
-        public void LogWarningEvent(BuildWarningEventArgs e) { }
+        public void LogErrorEvent(BuildErrorEventArgs e) => Errors.Add(e);
+
+        public void LogWarningEvent(BuildWarningEventArgs e) => Warnings.Add(e);
 
         public void LogMessageEvent(BuildMessageEventArgs e) { }
 

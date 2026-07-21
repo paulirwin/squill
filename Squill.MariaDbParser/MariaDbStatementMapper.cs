@@ -38,7 +38,7 @@ internal static class MariaDbStatementMapper
         }
 
         var name = MapQualifiedName(columnCreate.tableName().fullId());
-        var statement = new CreateTableStatement(name);
+        var statement = At(new CreateTableStatement(name), columnCreate);
 
         foreach (var definition in columnCreate.createDefinitions().createDefinition())
         {
@@ -102,7 +102,7 @@ internal static class MariaDbStatementMapper
                 return new DefaultColumnConstraint(defaultConstraint.defaultValue().GetText());
 
             case MariaDBParser.ReferenceColumnConstraintContext reference:
-                return MapInlineForeignKey(reference.referenceDefinition());
+                return At(MapInlineForeignKey(reference.referenceDefinition()), reference);
 
             // COMMENT, COLLATE, VISIBLE, CHECK, generated columns, ON UPDATE, … are
             // recognized but not modeled.
@@ -138,7 +138,7 @@ internal static class MariaDbStatementMapper
             {
                 var name = ConstraintName(pk.CONSTRAINT() != null, pk.uid());
                 var columns = MapIndexColumnNames(pk.indexColumnNames()).Select(c => c.Column).ToList();
-                return Wrap(name, new PrimaryKeyTableConstraint(columns));
+                return Wrap(name, At(new PrimaryKeyTableConstraint(columns), pk));
             }
 
             case MariaDBParser.UniqueKeyTableConstraintContext unique:
@@ -147,7 +147,7 @@ internal static class MariaDbStatementMapper
                 var columns = MapIndexColumnNames(unique.indexColumnNames()).Select(c => c.Column).ToList();
                 // The index name (if any) is the uid that is NOT the constraint name.
                 var indexName = IndexNameFromUids(unique.CONSTRAINT() != null, unique.uid());
-                return Wrap(name, new UniqueKeyTableConstraint(indexName, columns));
+                return Wrap(name, At(new UniqueKeyTableConstraint(indexName, columns), unique));
             }
 
             case MariaDBParser.ForeignKeyTableConstraintContext fk:
@@ -161,8 +161,8 @@ internal static class MariaDbStatementMapper
                     : new List<Identifier>();
                 var (onDelete, onUpdate) = MapReferenceActions(reference.referenceAction());
 
-                return Wrap(name, new ForeignKeyTableConstraint(
-                    columns, referencedTable, referencedColumns, onDelete, onUpdate));
+                return Wrap(name, At(new ForeignKeyTableConstraint(
+                    columns, referencedTable, referencedColumns, onDelete, onUpdate), fk));
             }
 
             // CHECK and anything else is recognized but not modeled.
@@ -172,7 +172,19 @@ internal static class MariaDbStatementMapper
     }
 
     private static ITableElement Wrap(string? name, TableConstraint constraint)
-        => name is null ? constraint : new NamedTableConstraint(name, constraint);
+        => name is null
+            ? constraint
+            : new NamedTableConstraint(name, constraint) { Line = constraint.Line, Column = constraint.Column };
+
+    // Stamps a node with the 1-based line/column where its source context starts, so later
+    // phases (model building, reference validation) can report diagnostics that point back
+    // into the source file (issue #53).
+    private static T At<T>(T node, ParserRuleContext context) where T : SyntaxNode
+    {
+        node.Line = context.Start.Line;
+        node.Column = context.Start.Column + 1;
+        return node;
+    }
 
     // The explicit CONSTRAINT name, if the constraint was written `CONSTRAINT <uid> ...`.
     // In the grammar the first uid after CONSTRAINT is the constraint name.
@@ -208,11 +220,11 @@ internal static class MariaDbStatementMapper
         var name = UidText(createIndex.uid());
         var onTable = MapQualifiedName(createIndex.tableName().fullId());
 
-        var statement = new CreateIndexStatement(name, onTable)
+        var statement = At(new CreateIndexStatement(name, onTable)
         {
             Unique = createIndex.UNIQUE() != null,
             IndexMethod = MapIndexType(createIndex.indexType()),
-        };
+        }, createIndex);
 
         foreach (var column in MapIndexColumnNames(createIndex.indexColumnNames()))
         {

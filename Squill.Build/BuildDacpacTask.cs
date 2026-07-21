@@ -87,6 +87,22 @@ public class BuildDacpacTask : Microsoft.Build.Utilities.Task
 
             return true;
         }
+        catch (SqlSourceException ex)
+        {
+            LogSourceError(ex);
+            return false;
+        }
+        catch (AggregateException ex) when (ex.InnerExceptions.All(i => i is SqlSourceException))
+        {
+            // The builders aggregate multiple source errors (e.g. several unresolved
+            // foreign keys) so a build reports them all, each at its own position.
+            foreach (var inner in ex.InnerExceptions.Cast<SqlSourceException>())
+            {
+                LogSourceError(inner);
+            }
+
+            return false;
+        }
         catch (Exception ex)
         {
             // LogErrorFromException reports the message through MSBuild so the build
@@ -95,6 +111,20 @@ public class BuildDacpacTask : Microsoft.Build.Utilities.Task
             return false;
         }
     }
+
+    // Reports a source-anchored error as a regular MSBuild diagnostic with file/line/column
+    // metadata, so the build fails and the IDE can navigate to the offending SQL (issue #53).
+    private void LogSourceError(SqlSourceException ex)
+        => Log.LogError(
+            subcategory: null,
+            errorCode: ex.Code,
+            helpKeyword: null,
+            file: ex.SourceFile,
+            lineNumber: ex.Line ?? 0,
+            columnNumber: ex.Column ?? 0,
+            endLineNumber: 0,
+            endColumnNumber: 0,
+            message: ex.Message);
 
     /// <summary>
     /// Parses the <see cref="TargetVersion"/> MSBuild property (a string, possibly empty or a

@@ -25,36 +25,185 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
     public async Task<Model> ExtractModelAsync(CancellationToken cancellationToken = default)
     {
         var model = new Model();
+        var declaredTables = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var foreignKeyReferences = new List<ForeignKeyReference>();
 
         foreach (var file in _workspace.Files.Where(i => i.Kind == FileKind.Compile))
         {
-            await ProcessFile(file, model, cancellationToken);
+            await ProcessFile(file, model, declaredTables, foreignKeyReferences, cancellationToken);
         }
+
+        // Validated after every file so declaration order (within and across files) does
+        // not matter, just like it doesn't for the deployed schema.
+        ValidateForeignKeyReferences(declaredTables, foreignKeyReferences);
 
         return model;
     }
 
-    private async Task ProcessFile(IFile file, Model model, CancellationToken cancellationToken)
+    private async Task ProcessFile(IFile file,
+        Model model,
+        Dictionary<string, HashSet<string>> declaredTables,
+        List<ForeignKeyReference> foreignKeyReferences,
+        CancellationToken cancellationToken)
     {
         var text = await file.ReadAllTextAsync(cancellationToken);
 
-        var root = _parser.Parse(text);
+        Root root;
+        try
+        {
+            root = _parser.Parse(text);
+        }
+        catch (MariaDbParseException ex)
+        {
+            throw new SqlSourceException(ex.Message, file.Name, ex.Line, ex.Column, innerException: ex);
+        }
 
         foreach (var statement in root.Statements)
         {
-            switch (statement)
+            try
             {
-                case CreateTableStatement createTable:
-                    foreach (var element in MakeCreateTableElements(createTable))
-                    {
-                        model.Elements.Add(element);
-                    }
-                    break;
+                switch (statement)
+                {
+                    case CreateTableStatement createTable:
+                        RegisterDeclaredTable(createTable, declaredTables);
+                        CollectForeignKeyReferences(file, createTable, foreignKeyReferences);
 
-                case CreateIndexStatement createIndex:
-                    model.Elements.Add(MakeCreateIndexElement(createIndex));
-                    break;
+                        foreach (var element in MakeCreateTableElements(createTable))
+                        {
+                            model.Elements.Add(element);
+                        }
+                        break;
+
+                    case CreateIndexStatement createIndex:
+                        model.Elements.Add(MakeCreateIndexElement(createIndex));
+                        break;
+                }
             }
+            catch (Exception ex) when (ex is NotImplementedException or NotSupportedException
+                or InvalidOperationException)
+            {
+                // Attach the source file and the statement's position so the host can
+                // report the failure as a diagnostic pointing at the offending statement.
+                throw new SqlSourceException(
+                    ex.Message, file.Name, statement.Line, statement.Column, innerException: ex);
+            }
+        }
+    }
+
+    // A foreign key's referenced table/columns, remembered with its source position so an
+    // unresolved reference can be reported as a diagnostic pointing at the FK in source.
+    private sealed record ForeignKeyReference(
+        string SourceFile,
+        int? Line,
+        int? Column,
+        string ReferencingTable,
+        string ReferencedTable,
+        IReadOnlyList<string> ReferencedColumns);
+
+    private static void RegisterDeclaredTable(CreateTableStatement createTable,
+        Dictionary<string, HashSet<string>> declaredTables)
+    {
+        var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var columnDefinition in createTable.Elements.OfType<ColumnDefinition>())
+        {
+            columns.Add(columnDefinition.Name.Name);
+        }
+
+        declaredTables[createTable.Name.Name] = columns;
+    }
+
+    // Gathers every foreign key reference (table-level and inline column-level) in a
+    // CREATE TABLE, with the constraint's source position, for post-build validation.
+    private static void CollectForeignKeyReferences(IFile file,
+        CreateTableStatement createTable,
+        List<ForeignKeyReference> foreignKeyReferences)
+    {
+        foreach (var tableConstraint in createTable.Elements.OfType<TableConstraint>())
+        {
+            var constraint = tableConstraint is NamedTableConstraint named
+                ? named.Constraint
+                : tableConstraint;
+
+            if (constraint is ForeignKeyTableConstraint fk)
+            {
+                foreignKeyReferences.Add(new ForeignKeyReference(
+                    file.Name,
+                    constraint.Line ?? createTable.Line,
+                    constraint.Column ?? createTable.Column,
+                    createTable.Name.Name,
+                    fk.ReferencedTable.Name,
+                    fk.ReferencedColumns.Select(c => c.Name).ToList()));
+            }
+        }
+
+        foreach (var columnDefinition in createTable.Elements.OfType<ColumnDefinition>())
+        {
+            foreach (var columnConstraint in columnDefinition.Constraints)
+            {
+                var constraint = columnConstraint is NamedColumnConstraint named
+                    ? named.Constraint
+                    : columnConstraint;
+
+                if (constraint is ForeignKeyColumnConstraint fk)
+                {
+                    foreignKeyReferences.Add(new ForeignKeyReference(
+                        file.Name,
+                        constraint.Line ?? createTable.Line,
+                        constraint.Column ?? createTable.Column,
+                        createTable.Name.Name,
+                        fk.ReferencedTable.Name,
+                        fk.ReferencedColumn is { } referencedColumn
+                            ? new[] { referencedColumn.Name }
+                            : Array.Empty<string>()));
+                }
+            }
+        }
+    }
+
+    // A foreign key must reference a table (and columns) declared somewhere in the
+    // project — like SSDT, an unresolved reference is a build error, reported at the
+    // constraint's source position. Every unresolved reference is reported, not just the
+    // first, so a build surfaces them all at once.
+    private static void ValidateForeignKeyReferences(
+        Dictionary<string, HashSet<string>> declaredTables,
+        List<ForeignKeyReference> foreignKeyReferences)
+    {
+        var errors = new List<SqlSourceException>();
+
+        foreach (var reference in foreignKeyReferences)
+        {
+            if (!declaredTables.TryGetValue(reference.ReferencedTable, out var columns))
+            {
+                errors.Add(new SqlSourceException(
+                    $"Foreign key on table '{reference.ReferencingTable}' references table "
+                    + $"'{reference.ReferencedTable}', which is not defined in the project.",
+                    reference.SourceFile, reference.Line, reference.Column,
+                    SqlSourceException.UnresolvedReference));
+
+                continue;
+            }
+
+            foreach (var column in reference.ReferencedColumns)
+            {
+                if (!columns.Contains(column))
+                {
+                    errors.Add(new SqlSourceException(
+                        $"Foreign key on table '{reference.ReferencingTable}' references column "
+                        + $"'{reference.ReferencedTable}.{column}', which is not defined in the project.",
+                        reference.SourceFile, reference.Line, reference.Column,
+                        SqlSourceException.UnresolvedReference));
+                }
+            }
+        }
+
+        if (errors.Count == 1)
+        {
+            throw errors[0];
+        }
+
+        if (errors.Count > 1)
+        {
+            throw new AggregateException(errors);
         }
     }
 

@@ -18,59 +18,239 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
     public async Task<Model> ExtractModelAsync(CancellationToken cancellationToken = default)
     {
         var model = new Model();
+        var declaredTables = new Dictionary<(string Schema, string Table), HashSet<string>>();
+        var foreignKeyReferences = new List<ForeignKeyReference>();
 
         foreach (var file in _workspace.Files.Where(i => i.Kind == FileKind.Compile))
         {
-            await ProcessFile(file, model, cancellationToken);
+            await ProcessFile(file, model, declaredTables, foreignKeyReferences, cancellationToken);
         }
+
+        // Validated after every file so declaration order (within and across files) does
+        // not matter, just like it doesn't for the deployed schema.
+        ValidateForeignKeyReferences(declaredTables, foreignKeyReferences);
 
         return model;
     }
 
-    private async Task ProcessFile(IFile file, Model model, CancellationToken cancellationToken)
+    private async Task ProcessFile(IFile file,
+        Model model,
+        Dictionary<(string Schema, string Table), HashSet<string>> declaredTables,
+        List<ForeignKeyReference> foreignKeyReferences,
+        CancellationToken cancellationToken)
     {
         var text = await file.ReadAllTextAsync(cancellationToken);
 
-        var root = _postgresParser.Parse(text);
+        Root root;
+        try
+        {
+            root = _postgresParser.Parse(text);
+        }
+        catch (PostgresParseException ex)
+        {
+            throw new SqlSourceException(ex.Message, file.Name, ex.Line, ex.Column, innerException: ex);
+        }
 
         foreach (var statement in root.Statements)
         {
-            if (statement is CreateTableStatement createTableStatement)
+            try
             {
-                foreach (var element in MakeCreateTableElements(createTableStatement))
-                {
-                    model.Elements.Add(element);
-                }
+                ProcessStatement(statement, model, file, declaredTables, foreignKeyReferences);
             }
-            else if (statement is CreateIndexStatement createIndexStatement)
+            catch (Exception ex) when (ex is NotImplementedException or NotSupportedException
+                or InvalidOperationException or PostgresParseException)
             {
-                var element = MakeCreateIndexElement(createIndexStatement);
+                // Attach the source file and the statement's position so the host can
+                // report the failure as a diagnostic pointing at the offending statement.
+                throw new SqlSourceException(
+                    ex.Message, file.Name, statement.Line, statement.Column, innerException: ex);
+            }
+        }
+    }
 
+    private static void ProcessStatement(Statement statement,
+        Model model,
+        IFile file,
+        Dictionary<(string Schema, string Table), HashSet<string>> declaredTables,
+        List<ForeignKeyReference> foreignKeyReferences)
+    {
+        if (statement is CreateTableStatement createTableStatement)
+        {
+            RegisterDeclaredTable(createTableStatement, declaredTables);
+            CollectForeignKeyReferences(file, createTableStatement, foreignKeyReferences);
+
+            foreach (var element in MakeCreateTableElements(createTableStatement))
+            {
                 model.Elements.Add(element);
             }
-            else if (statement is CreateExtensionStatement createExtensionStatement)
-            {
-                var element = MakeCreateExtensionElement(createExtensionStatement);
+        }
+        else if (statement is CreateIndexStatement createIndexStatement)
+        {
+            var element = MakeCreateIndexElement(createIndexStatement);
 
-                model.Elements.Add(element);
-            }
-            else if (statement is CreateSchemaStatement createSchemaStatement)
+            model.Elements.Add(element);
+        }
+        else if (statement is CreateExtensionStatement createExtensionStatement)
+        {
+            var element = MakeCreateExtensionElement(createExtensionStatement);
+
+            model.Elements.Add(element);
+        }
+        else if (statement is CreateSchemaStatement createSchemaStatement)
+        {
+            // 'public' exists in every database by default and is not a declared
+            // object, so a CREATE SCHEMA public is ignored — matching the DB-extraction
+            // builder, which never emits a SqlSchema for public. Otherwise the two
+            // models would never agree and a redeploy would never converge.
+            if (!string.Equals(createSchemaStatement.Name.Name, "public", StringComparison.Ordinal))
             {
-                // 'public' exists in every database by default and is not a declared
-                // object, so a CREATE SCHEMA public is ignored — matching the DB-extraction
-                // builder, which never emits a SqlSchema for public. Otherwise the two
-                // models would never agree and a redeploy would never converge.
-                if (!string.Equals(createSchemaStatement.Name.Name, "public", StringComparison.Ordinal))
+                model.Elements.Add(
+                    PostgresModelFactory.CreateSchema(SqlName.Object(createSchemaStatement.Name.Name)));
+            }
+        }
+        else
+        {
+            throw new NotImplementedException(
+                $"Statement type {statement.GetType()} to Element transformation not yet implemented");
+        }
+    }
+
+    // A foreign key's referenced table/columns, remembered with its source position so an
+    // unresolved reference can be reported as a diagnostic pointing at the FK in source.
+    private sealed record ForeignKeyReference(
+        string SourceFile,
+        int? Line,
+        int? Column,
+        string ReferencingTable,
+        string ReferencedSchema,
+        string ReferencedTable,
+        IReadOnlyList<string> ReferencedColumns);
+
+    // Postgres folds unquoted identifiers to lowercase while the parser preserves source
+    // casing, so declared-table lookups compare case-insensitively — this can miss a
+    // quoted-identifier case mismatch, but never produces a false error.
+    private static (string Schema, string Table) TableKey(string schema, string table)
+        => (schema.ToLowerInvariant(), table.ToLowerInvariant());
+
+    private static void RegisterDeclaredTable(CreateTableStatement createTableStatement,
+        Dictionary<(string Schema, string Table), HashSet<string>> declaredTables)
+    {
+        var (schema, tableName) = SplitSchema(createTableStatement.Name);
+
+        var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var columnDefinition in createTableStatement.Elements.OfType<ColumnDefinition>())
+        {
+            columns.Add(columnDefinition.Name.Name);
+        }
+
+        declaredTables[TableKey(schema, tableName.UnqualifiedName)] = columns;
+    }
+
+    // Gathers every foreign key reference (table-level and inline column-level) in a
+    // CREATE TABLE, with the constraint's source position, for post-build validation.
+    private static void CollectForeignKeyReferences(IFile file,
+        CreateTableStatement createTableStatement,
+        List<ForeignKeyReference> foreignKeyReferences)
+    {
+        var (_, tableName) = SplitSchema(createTableStatement.Name);
+
+        foreach (var tableConstraint in createTableStatement.Elements.OfType<TableConstraint>())
+        {
+            var constraint = tableConstraint is NamedTableConstraint named
+                ? named.Constraint
+                : tableConstraint;
+
+            if (constraint is ForeignKeyTableConstraint fk)
+            {
+                var (referencedSchema, referencedTable) = SplitSchema(fk.ReferencedTable);
+
+                foreignKeyReferences.Add(new ForeignKeyReference(
+                    file.Name,
+                    constraint.Line ?? createTableStatement.Line,
+                    constraint.Column ?? createTableStatement.Column,
+                    tableName.UnqualifiedName,
+                    referencedSchema,
+                    referencedTable.UnqualifiedName,
+                    fk.ReferencedColumns.Select(c => c.Name).ToList()));
+            }
+        }
+
+        foreach (var columnDefinition in createTableStatement.Elements.OfType<ColumnDefinition>())
+        {
+            foreach (var columnConstraint in columnDefinition.Constraints)
+            {
+                var constraint = columnConstraint is NamedColumnConstraint named
+                    ? named.Constraint
+                    : columnConstraint;
+
+                if (constraint is ForeignKeyColumnConstraint fk)
                 {
-                    model.Elements.Add(
-                        PostgresModelFactory.CreateSchema(SqlName.Object(createSchemaStatement.Name.Name)));
+                    var (referencedSchema, referencedTable) = SplitSchema(fk.ReferencedTable);
+
+                    foreignKeyReferences.Add(new ForeignKeyReference(
+                        file.Name,
+                        constraint.Line ?? createTableStatement.Line,
+                        constraint.Column ?? createTableStatement.Column,
+                        tableName.UnqualifiedName,
+                        referencedSchema,
+                        referencedTable.UnqualifiedName,
+                        fk.ReferencedColumn is { } referencedColumn
+                            ? new[] { referencedColumn.Name }
+                            : Array.Empty<string>()));
                 }
             }
-            else
+        }
+    }
+
+    // A foreign key must reference a table (and columns) declared somewhere in the
+    // project — like SSDT, an unresolved reference is a build error, reported at the
+    // constraint's source position. Every unresolved reference is reported, not just the
+    // first, so a build surfaces them all at once.
+    private static void ValidateForeignKeyReferences(
+        Dictionary<(string Schema, string Table), HashSet<string>> declaredTables,
+        List<ForeignKeyReference> foreignKeyReferences)
+    {
+        var errors = new List<SqlSourceException>();
+
+        foreach (var reference in foreignKeyReferences)
+        {
+            var display = reference.ReferencedSchema == "public"
+                ? reference.ReferencedTable
+                : $"{reference.ReferencedSchema}.{reference.ReferencedTable}";
+
+            if (!declaredTables.TryGetValue(
+                    TableKey(reference.ReferencedSchema, reference.ReferencedTable), out var columns))
             {
-                throw new NotImplementedException(
-                    $"Statement type {statement.GetType()} to Element transformation not yet implemented");
+                errors.Add(new SqlSourceException(
+                    $"Foreign key on table '{reference.ReferencingTable}' references table "
+                    + $"'{display}', which is not defined in the project.",
+                    reference.SourceFile, reference.Line, reference.Column,
+                    SqlSourceException.UnresolvedReference));
+
+                continue;
             }
+
+            foreach (var column in reference.ReferencedColumns)
+            {
+                if (!columns.Contains(column))
+                {
+                    errors.Add(new SqlSourceException(
+                        $"Foreign key on table '{reference.ReferencingTable}' references column "
+                        + $"'{display}.{column}', which is not defined in the project.",
+                        reference.SourceFile, reference.Line, reference.Column,
+                        SqlSourceException.UnresolvedReference));
+                }
+            }
+        }
+
+        if (errors.Count == 1)
+        {
+            throw errors[0];
+        }
+
+        if (errors.Count > 1)
+        {
+            throw new AggregateException(errors);
         }
     }
 

@@ -377,6 +377,12 @@ CREATE TABLE orders
     public async Task ExtractModel_TableLevelCompositeForeignKey()
     {
         const string sql = """
+CREATE TABLE orders
+(
+    id      integer NOT NULL,
+    line_no integer NOT NULL,
+    PRIMARY KEY (id, line_no)
+);
 CREATE TABLE order_lines
 (
     order_id integer NOT NULL,

@@ -11,8 +11,21 @@ public sealed class Root
     public IList<Statement> Statements { get; } = new List<Statement>();
 }
 
+/// <summary>
+/// Base type for nodes that record where they start in the source text, so later phases
+/// (model building, reference validation) can report diagnostics pointing at the source.
+/// </summary>
+public abstract class SyntaxNode
+{
+    /// <summary>The 1-based line in the source text where this node starts, or null when not recorded.</summary>
+    public int? Line { get; set; }
+
+    /// <summary>The 1-based column in the source text where this node starts, or null when not recorded.</summary>
+    public int? Column { get; set; }
+}
+
 /// <summary>Base type for a recognized top-level statement.</summary>
-public abstract class Statement;
+public abstract class Statement : SyntaxNode;
 
 /// <summary>An identifier segment, with its unquoted name.</summary>
 public sealed class Identifier(string name)
@@ -70,7 +83,7 @@ public sealed class DataType(string typeName)
 
 // ---- Column constraints ----
 
-public abstract class ColumnConstraint;
+public abstract class ColumnConstraint : SyntaxNode;
 
 /// <summary>A CONSTRAINT-named wrapper around another column constraint.</summary>
 public sealed class NamedColumnConstraint(string? name, ColumnConstraint constraint) : ColumnConstraint
@@ -115,7 +128,7 @@ public sealed class IgnoredColumnConstraint : ColumnConstraint;
 
 // ---- Table constraints ----
 
-public abstract class TableConstraint : ITableElement;
+public abstract class TableConstraint : SyntaxNode, ITableElement;
 
 public sealed class NamedTableConstraint(string? name, TableConstraint constraint) : TableConstraint
 {

@@ -84,6 +84,10 @@ public class MariaDbScriptGeneratorTests
     public async Task GenerateScript_ForeignKey_EmitsConstraintClause()
     {
         var sql = await ScriptAsync("""
+            CREATE TABLE customer
+            (
+                id int NOT NULL PRIMARY KEY
+            );
             CREATE TABLE orders
             (
                 id int NOT NULL PRIMARY KEY,
