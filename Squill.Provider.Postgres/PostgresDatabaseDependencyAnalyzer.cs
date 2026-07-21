@@ -47,7 +47,7 @@ public class PostgresDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
         _ => 2,
     };
 
-    public IEnumerable<Element> GetCreateDependencies(Element element, Model model)
+    public IEnumerable<CreateDependency> GetCreateDependencies(Element element, Model model)
     {
         // Only a table orders against other elements, and it does so through the foreign
         // keys defined on it — which are separate elements referencing it as their
@@ -85,7 +85,7 @@ public class PostgresDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
 
             if (ResolveTable(referenced.Name, model) is { } referencedTable)
             {
-                yield return referencedTable;
+                yield return new CreateDependency(referencedTable, foreignKey);
             }
         }
     }
