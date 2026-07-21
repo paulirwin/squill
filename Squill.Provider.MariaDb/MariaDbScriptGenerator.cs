@@ -72,6 +72,11 @@ public class MariaDbScriptGenerator
             return GenerateCreateIndexScript(createDelta.Element, IndexTableName(createDelta.Element));
         }
 
+        if (createDelta.Element.Type == MariaDbElementTypes.SqlProcedure)
+        {
+            return GenerateCreateProcedureScript(createDelta.Element);
+        }
+
         throw new NotImplementedException(
             $"Creating an element of type {createDelta.Element.Type} is not supported.");
     }
@@ -284,6 +289,15 @@ public class MariaDbScriptGenerator
     {
         var source = recreateDelta.SourceElement;
 
+        // A procedure whose definition changed is dropped and recreated. Unlike PostgreSQL
+        // there is no portable in-place redefinition: MySQL has no CREATE OR REPLACE
+        // PROCEDURE (it is MariaDB-only) and neither engine can ALTER a routine's body or
+        // parameters. DROP ... IF EXISTS keeps the pair idempotent.
+        if (source.Type == MariaDbElementTypes.SqlProcedure)
+        {
+            return DropProcedureStatement(source) + GenerateCreateProcedureScript(source);
+        }
+
         if (source.Type != MariaDbElementTypes.SqlIndex)
         {
             throw new NotImplementedException(
@@ -329,9 +343,63 @@ public class MariaDbScriptGenerator
             MariaDbElementTypes.SqlIndex =>
                 $"DROP INDEX {parsed.QuotedUnqualified} ON {IndexTableName(element)};{Environment.NewLine}",
 
+            // Neither engine allows overloading, so the name alone identifies the procedure
+            // — no argument signature is needed, unlike PostgreSQL.
+            MariaDbElementTypes.SqlProcedure => DropProcedureStatement(element),
+
             _ => throw new NotImplementedException(
                 $"Dropping an element of type {element.Type} is not supported."),
         };
+    }
+
+    private static string DropProcedureStatement(Element procedure)
+    {
+        if (procedure.Name is not string name)
+        {
+            throw new ArgumentException("Cannot drop a procedure without a name");
+        }
+
+        return $"DROP PROCEDURE IF EXISTS {SqlName.Parse(name).Sql};{Environment.NewLine}";
+    }
+
+    private static string GenerateCreateProcedureScript(Element procedure)
+    {
+        if (procedure.Name is not string name)
+        {
+            throw new ArgumentException("Cannot create a procedure without a name");
+        }
+
+        var arguments = procedure.GetRequiredProperty<string>(MariaDbPropertyNames.Arguments);
+        var body = procedure.GetRequiredProperty<string>(MariaDbPropertyNames.Body);
+
+        var sb = new StringBuilder();
+
+        sb.Append("CREATE PROCEDURE ").Append(SqlName.Parse(name).Sql)
+            .Append('(').Append(arguments).AppendLine(")");
+
+        // Only non-default characteristics are stored on the element, so each is written
+        // only when present — matching what the engines report for an unadorned procedure.
+        if (procedure.GetProperty<bool?>(MariaDbPropertyNames.IsDeterministic) == true)
+        {
+            sb.AppendLine("    DETERMINISTIC");
+        }
+
+        if (procedure.GetProperty<string>(MariaDbPropertyNames.SqlDataAccess) is { } dataAccess)
+        {
+            sb.Append("    ").AppendLine(dataAccess);
+        }
+
+        if (procedure.GetProperty<bool?>(MariaDbPropertyNames.IsSecurityInvoker) == true)
+        {
+            sb.AppendLine("    SQL SECURITY INVOKER");
+        }
+
+        // The body is emitted verbatim and the statement is not terminated with a semicolon:
+        // a BEGIN ... END body contains its own, and each delta is sent to the server as a
+        // single command, so no DELIMITER handling is needed.
+        sb.AppendLine(body);
+
+        return sb.ToString();
     }
 
     // ---- REBUILD ----

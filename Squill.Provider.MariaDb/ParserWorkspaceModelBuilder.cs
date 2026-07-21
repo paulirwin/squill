@@ -37,8 +37,45 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
         validator.ThrowIfInvalid();
 
         SortTablesByName(model);
+        MoveProceduresToEnd(model);
 
         return model;
+    }
+
+    /// <summary>
+    /// Moves procedures after every other element, ordered by name. The
+    /// database-extraction builder emits them last in that order (information_schema has no
+    /// notion of the order they were declared in) and the Merkle hash is order-sensitive, so
+    /// a parsed model must adopt the same order to hash-match an extracted one.
+    ///
+    /// This also has to run after <see cref="SortTablesByName"/>, which groups each table
+    /// with the elements that follow it — a procedure left in place would be treated as one
+    /// of the preceding table's dependents and dragged around by that table's name.
+    ///
+    /// Ordering procedures last matches the create order too, since a procedure body may
+    /// reference any table.
+    /// </summary>
+    private static void MoveProceduresToEnd(Model model)
+    {
+        var procedures = model.Elements
+            .Where(i => i.Type == MariaDbElementTypes.SqlProcedure)
+            .ToList();
+
+        if (procedures.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var procedure in procedures)
+        {
+            model.Elements.Remove(procedure);
+        }
+
+        // Ordinal, to match the database's byte-wise ordering of the same names.
+        foreach (var procedure in procedures.OrderBy(i => i.Name as string, StringComparer.Ordinal))
+        {
+            model.Elements.Add(procedure);
+        }
     }
 
     /// <summary>
@@ -124,6 +161,14 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
 
                         model.Elements.Add(MakeCreateIndexElement(createIndex));
                         break;
+
+                    case CreateProcedureStatement createProcedure:
+                        model.Elements.Add(MakeCreateProcedureElement(createProcedure));
+                        break;
+
+                    case CreateFunctionStatement:
+                        throw new NotSupportedException(
+                            "CREATE FUNCTION is not yet supported; only CREATE PROCEDURE is modeled");
                 }
             }
             catch (Exception ex) when (ex is NotImplementedException or NotSupportedException
@@ -604,6 +649,42 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
         return MariaDbModelFactory.CreateIndex(
             indexName, tableName, createIndex.Unique, indexMethod, columns);
     }
+
+    private static Element MakeCreateProcedureElement(CreateProcedureStatement createProcedure)
+    {
+        if (createProcedure.Body is not { } body)
+        {
+            throw new InvalidOperationException("A procedure must declare a body");
+        }
+
+        // The parameter type is normalized rather than stored as written, because the two
+        // engines report a routine parameter's type differently (MariaDB keeps an integer
+        // display width, MySQL does not). See MariaDbTypeNormalizer.
+        var parameters = createProcedure.Parameters.Select(i =>
+            new MariaDbModelFactory.ProcedureParameter(
+                RenderParameterMode(i.Mode),
+                i.Name.Name,
+                MariaDbTypeNormalizer.Normalize(
+                    i.DataType.TypeName, i.DataType.Modifiers, i.DataType.IsUnsigned)));
+
+        return MariaDbModelFactory.CreateProcedure(
+            // A procedure is not schema-scoped within a database, so a leading db qualifier
+            // is dropped exactly as it is for a table.
+            SqlName.Object(createProcedure.Name.Name),
+            body,
+            parameters,
+            createProcedure.IsDeterministic,
+            createProcedure.SqlDataAccess,
+            createProcedure.IsSecurityInvoker);
+    }
+
+    private static string RenderParameterMode(ParameterMode mode) => mode switch
+    {
+        ParameterMode.In => "IN",
+        ParameterMode.Out => "OUT",
+        ParameterMode.InOut => "INOUT",
+        _ => throw new NotSupportedException($"Parameter mode {mode} is not supported"),
+    };
 
     // Splits a (possibly db-qualified) table name into its bare table name. MariaDB objects
     // are not schema-scoped within a database, so a leading db qualifier is dropped: the

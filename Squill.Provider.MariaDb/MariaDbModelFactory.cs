@@ -169,4 +169,78 @@ public static class MariaDbModelFactory
 
         return element;
     }
+
+    /// <summary>The data-access clause both engines report when none is written.</summary>
+    public const string DefaultSqlDataAccess = "CONTAINS SQL";
+
+    /// <summary>
+    /// A procedure parameter as it appears in the routine's declaration.
+    /// </summary>
+    /// <param name="Mode">IN, OUT or INOUT, spelled as the engines write it.</param>
+    /// <param name="Name">The parameter name. Both engines always name a parameter.</param>
+    /// <param name="Type">
+    /// The engine-normalized type (e.g. <c>varchar(50)</c>, <c>int</c>), with any integer
+    /// display width discarded — see <see cref="MariaDbTypeNormalizer"/>.
+    /// </param>
+    public readonly record struct ProcedureParameter(
+        string Mode,
+        string Name,
+        string Type);
+
+    /// <summary>
+    /// Builds a stored procedure element.
+    ///
+    /// Unlike PostgreSQL, neither MariaDB nor MySQL allows routine overloading — a name
+    /// identifies at most one procedure in a database — so the element's name is the bare
+    /// routine name with no argument signature folded in.
+    ///
+    /// Only non-default facets are stored, so a procedure written without any
+    /// characteristic clause produces the same element shape as one extracted from a
+    /// database, which reports the defaults explicitly. Both engines default to
+    /// NOT DETERMINISTIC, CONTAINS SQL and SQL SECURITY DEFINER.
+    /// </summary>
+    public static Element CreateProcedure(
+        SqlName name,
+        string body,
+        IEnumerable<ProcedureParameter> parameters,
+        bool isDeterministic = false,
+        string? sqlDataAccess = null,
+        bool isSecurityInvoker = false)
+    {
+        var element = new Element(MariaDbElementTypes.SqlProcedure)
+        {
+            Name = name,
+            Properties =
+            {
+                new Property(MariaDbPropertyNames.Arguments, RenderParameters(parameters)),
+                new Property(MariaDbPropertyNames.Body, body),
+            },
+        };
+
+        if (isDeterministic)
+        {
+            element.Properties.Add(new Property(MariaDbPropertyNames.IsDeterministic, true));
+        }
+
+        if (sqlDataAccess is not null
+            && !string.Equals(sqlDataAccess, DefaultSqlDataAccess, StringComparison.Ordinal))
+        {
+            element.Properties.Add(new Property(MariaDbPropertyNames.SqlDataAccess, sqlDataAccess));
+        }
+
+        if (isSecurityInvoker)
+        {
+            element.Properties.Add(new Property(MariaDbPropertyNames.IsSecurityInvoker, true));
+        }
+
+        return element;
+    }
+
+    /// <summary>
+    /// Renders a procedure's parameter list as it is written in a CREATE PROCEDURE: mode
+    /// first (IN is always written), then name, then type. Both model builders render
+    /// through this, so a parsed parameter list compares equal to an extracted one.
+    /// </summary>
+    private static string RenderParameters(IEnumerable<ProcedureParameter> parameters)
+        => string.Join(", ", parameters.Select(i => $"{i.Mode} {i.Name} {i.Type}"));
 }
