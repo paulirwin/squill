@@ -7,7 +7,22 @@
     <Nullable>enable</Nullable>
     <Version>0.0.1</Version>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!-- Package this CLI as a .NET tool so it can be installed from the PATH via
+         `dotnet tool install` and run as `squill`. PackAsTool makes `dotnet pack`
+         emit a tool package; ToolCommandName is the command it exposes. -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>squill</ToolCommandName>
+    <PackageId>Squill</PackageId>
+    <Authors>Paul Irwin</Authors>
+    <Description>Declarative, cross-platform, database-independent SQL deployment tool inspired by SSDT/DACPAC, targeting PostgreSQL and MariaDB/MySQL. Provides `deploy` and `script` commands for applying a DACPAC to a target database.</Description>
+    <PackageTags>squill;dacpac;postgresql;mariadb;mysql;sql;deployment;ssdt;cli;dotnet-tool</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="System.CommandLine" Version="2.0.10" />
