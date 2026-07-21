@@ -4,15 +4,12 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <IsPackable>false</IsPackable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
-        <PackageReference Include="Testcontainers.PostgreSql" Version="4.13.0" />
-        <PackageReference Include="Testcontainers.MariaDb" Version="4.13.0" />
-        <PackageReference Include="Testcontainers.MySql" Version="4.13.0" />
         <PackageReference Include="xunit.v3" Version="3.2.2" />
         <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -25,16 +22,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Squill.Dacpac\Squill.Dacpac.csproj" />
-      <ProjectReference Include="..\Squill.Provider.Postgres\Squill.Provider.Postgres.csproj" />
       <ProjectReference Include="..\Squill.Provider.MariaDb\Squill.Provider.MariaDb.csproj" />
-      <ProjectReference Include="..\Squill\Squill.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <!-- All .sql test fixtures are embedded so tests can load them by resource name. -->
-      <None Remove="**\*.sql" />
-      <EmbeddedResource Include="**\*.sql" />
     </ItemGroup>
 
 </Project>

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <!--
+          CS0108: the generated parser exposes an EMPTY() token accessor on some
+          contexts (rules referencing the EMPTY keyword) which hides ANTLR's
+          inherited ParserRuleContext.EMPTY. This is benign and lives in generated
+          code we do not hand-edit, so suppress it rather than add the `new` keyword.
+        -->
+        <NoWarn>$(NoWarn);CS0108</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Antlr4.Runtime.Standard" Version="4.13.1" />
+    </ItemGroup>
+
+</Project>

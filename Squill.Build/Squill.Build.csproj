@@ -23,7 +23,9 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\Squill.Dacpac\Squill.Dacpac.csproj" />
         <ProjectReference Include="..\Squill.Provider.Postgres\Squill.Provider.Postgres.csproj" />
+        <ProjectReference Include="..\Squill.Provider.MariaDb\Squill.Provider.MariaDb.csproj" />
     </ItemGroup>
 
 </Project>

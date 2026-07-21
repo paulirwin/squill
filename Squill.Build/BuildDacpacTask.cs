@@ -1,6 +1,7 @@
 using Microsoft.Build.Framework;
-using Microsoft.Build.Utilities;
+using Squill.Core;
 using Squill.Dacpac;
+using Squill.Provider.MariaDb;
 using Squill.Provider.Postgres;
 
 namespace Squill.Build;
@@ -9,10 +10,16 @@ namespace Squill.Build;
 /// MSBuild task that builds a DACPAC from a set of declarative SQL source files.
 /// It is invoked by the <c>Squill.Sdk</c> targets when a <c>.squillproj</c> is built,
 /// producing <c>&lt;OutputPath&gt;&lt;DacpacFileName&gt;</c> — mirroring how SSDT emits
-/// a DACPAC into <c>bin\</c>.
+/// a DACPAC into <c>bin\</c>. The provider named by <see cref="ProviderName"/> selects the
+/// parser used to build the model (PostgreSQL, or MariaDB/MySQL).
 /// </summary>
 public class BuildDacpacTask : Microsoft.Build.Utilities.Task
 {
+    // The providers this task can build for. The one used is chosen from ProviderName.
+    private static readonly SquillProviderRegistry ProviderRegistry = new SquillProviderRegistry()
+        .Register(new PostgresSquillProvider())
+        .Register(new MariaDbSquillProvider());
+
     /// <summary>The declarative SQL files to compile into the model.</summary>
     [Required]
     public ITaskItem[] SourceFiles { get; set; } = [];
@@ -21,7 +28,10 @@ public class BuildDacpacTask : Microsoft.Build.Utilities.Task
     [Required]
     public string OutputPath { get; set; } = string.Empty;
 
-    /// <summary>The database provider name recorded in the DACPAC's Origin.xml.</summary>
+    /// <summary>
+    /// The database provider the model is built for and recorded in the DACPAC's Origin.xml:
+    /// <c>Postgresql</c> (default), or <c>MariaDb</c> / <c>MySql</c>.
+    /// </summary>
     public string ProviderName { get; set; } = "Postgresql";
 
     /// <summary>The data-tier application name recorded in DacMetadata.xml.</summary>
@@ -44,7 +54,15 @@ public class BuildDacpacTask : Microsoft.Build.Utilities.Task
                 Log.LogWarning("Squill: no SQL source files were provided; the DACPAC will be empty.");
             }
 
-            var workspace = DacpacBuilder.CreateWorkspace(sourcePaths);
+            // Resolve the provider named by the project (ProviderName) so its parser builds
+            // the model; an unknown name fails the build with a clear diagnostic.
+            var provider = ProviderRegistry.Resolve(ProviderName);
+
+            var workspace = new Workspace();
+            foreach (var path in sourcePaths)
+            {
+                workspace.Files.Add(new FileSystemFile(path, FileKind.Compile));
+            }
 
             var metadata = new ModelMetadata
             {
@@ -55,10 +73,7 @@ public class BuildDacpacTask : Microsoft.Build.Utilities.Task
 
             // MSBuild tasks are synchronous; block on the async build. There is no
             // synchronization context in the MSBuild host, so this cannot deadlock.
-            DacpacBuilder
-                .BuildToFileAsync(workspace, metadata, OutputPath)
-                .GetAwaiter()
-                .GetResult();
+            BuildAsync(provider, workspace, metadata, OutputPath).GetAwaiter().GetResult();
 
             Log.LogMessage(MessageImportance.High, $"Squill: wrote DACPAC to {OutputPath}");
 
@@ -71,5 +86,20 @@ public class BuildDacpacTask : Microsoft.Build.Utilities.Task
             Log.LogErrorFromException(ex, showStackTrace: true);
             return false;
         }
+    }
+
+    private static async Task BuildAsync(
+        ISquillProvider provider, Workspace workspace, ModelMetadata metadata, string outputPath)
+    {
+        var model = await provider.BuildModelAsync(workspace);
+
+        var directory = Path.GetDirectoryName(outputPath);
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        await using var stream = File.Create(outputPath);
+        await DacpacSerializer.Serialize(metadata, model, stream);
     }
 }
