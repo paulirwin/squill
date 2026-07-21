@@ -259,6 +259,11 @@ CREATE INDEX idx_title ON film (title);
     public async Task ExtractModel_UniqueIndexWithMethodDirectionAndNullOrderTest()
     {
         const string sql = """
+CREATE TABLE users
+(
+    id integer PRIMARY KEY,
+    email varchar(200) NOT NULL
+);
 CREATE UNIQUE INDEX idx_email ON users USING btree (email DESC NULLS LAST);
 """;
 
@@ -270,8 +275,7 @@ CREATE UNIQUE INDEX idx_email ON users USING btree (email DESC NULLS LAST);
 
         var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
 
-        var index = Assert.Single(model.Elements);
-        Assert.Equal(PostgresElementTypes.SqlIndex, index.Type);
+        var index = Assert.Single(model.Elements, e => e.Type == PostgresElementTypes.SqlIndex);
         Assert.Equal("idx_email", index.Name);
         Assert.Equal(true, index.GetProperty<bool?>(PostgresPropertyNames.IsUnique));
         Assert.Equal("btree", index.GetProperty<string>(PostgresPropertyNames.IndexMethod));

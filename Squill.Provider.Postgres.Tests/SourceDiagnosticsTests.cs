@@ -151,6 +151,133 @@ CREATE TABLE employee
     }
 
     [Fact]
+    public async Task Index_OnUndeclaredTable_Errors()
+    {
+        var builder = BuilderFor(("Index.sql", "CREATE INDEX ix_missing ON nope (id);"));
+
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(
+            () => builder.ExtractModelAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal("Index.sql", ex.SourceFile);
+        Assert.Equal(1, ex.Line);
+        Assert.Equal("SQ0002", ex.Code);
+        Assert.Contains("nope", ex.Message);
+    }
+
+    [Fact]
+    public async Task Index_OnUndeclaredColumn_Errors()
+    {
+        var builder = BuilderFor(
+            ("Foo.sql", "CREATE TABLE foo (id integer PRIMARY KEY);"),
+            ("Index.sql", "CREATE INDEX ix_foo ON foo (nope);"));
+
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(
+            () => builder.ExtractModelAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal("Index.sql", ex.SourceFile);
+        Assert.Equal("SQ0002", ex.Code);
+        Assert.Contains("foo.nope", ex.Message);
+    }
+
+    [Fact]
+    public async Task Index_OnTableInAnotherFile_Builds()
+    {
+        var builder = BuilderFor(
+            ("Index.sql", "CREATE INDEX ix_foo_name ON foo (name);"),
+            ("Foo.sql", "CREATE TABLE foo (id integer PRIMARY KEY, name varchar(50) NOT NULL);"));
+
+        var model = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains(model.Elements, e => e.Type == PostgresElementTypes.SqlIndex);
+    }
+
+    [Fact]
+    public async Task PrimaryKey_OnMissingColumn_Errors()
+    {
+        const string sql = """
+CREATE TABLE orders
+(
+    id integer NOT NULL,
+    PRIMARY KEY (id, nope)
+);
+""";
+        var builder = BuilderFor(("Orders.sql", sql));
+
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(
+            () => builder.ExtractModelAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal("Orders.sql", ex.SourceFile);
+        Assert.Equal(4, ex.Line);
+        Assert.Equal("SQ0002", ex.Code);
+        Assert.Contains("orders.nope", ex.Message);
+    }
+
+    [Fact]
+    public async Task ForeignKey_LocalColumnMissing_Errors()
+    {
+        var builder = BuilderFor(
+            ("Author.sql", "CREATE TABLE author (id integer PRIMARY KEY);"),
+            ("Book.sql", """
+CREATE TABLE book
+(
+    id integer PRIMARY KEY,
+    author_id integer,
+    FOREIGN KEY (typo_id) REFERENCES author (id)
+);
+"""));
+
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(
+            () => builder.ExtractModelAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal("Book.sql", ex.SourceFile);
+        Assert.Equal(5, ex.Line);
+        Assert.Equal("SQ0002", ex.Code);
+        Assert.Contains("book.typo_id", ex.Message);
+    }
+
+    [Fact]
+    public async Task ForeignKey_ColumnCountMismatch_Errors()
+    {
+        const string sql = """
+CREATE TABLE orders
+(
+    id integer NOT NULL,
+    line_no integer NOT NULL,
+    PRIMARY KEY (id, line_no)
+);
+CREATE TABLE order_lines
+(
+    order_id integer NOT NULL,
+    line_no integer NOT NULL,
+    FOREIGN KEY (order_id, line_no) REFERENCES orders (id)
+);
+""";
+        var builder = BuilderFor(("Orders.sql", sql));
+
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(
+            () => builder.ExtractModelAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal("Orders.sql", ex.SourceFile);
+        Assert.Equal(11, ex.Line);
+        Assert.Equal("SQ0004", ex.Code);
+    }
+
+    [Fact]
+    public async Task Table_InUndeclaredSchema_Errors()
+    {
+        var builder = BuilderFor(
+            ("Author.sql", "CREATE TABLE staging.author (id integer PRIMARY KEY);"));
+
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(
+            () => builder.ExtractModelAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal("Author.sql", ex.SourceFile);
+        Assert.Equal(1, ex.Line);
+        Assert.Equal("SQ0002", ex.Code);
+        Assert.Contains("staging", ex.Message);
+    }
+
+    [Fact]
     public async Task MultipleUnresolvedForeignKeys_ReportsAll()
     {
         var builder = BuilderFor(
