@@ -905,6 +905,7 @@ CREATE TABLE widgets
         // Postgres accepts CONSTRAINT <name> DEFAULT <expr> but silently discards the name
         // (it is not stored, unlike SQL Server), so it could never round-trip. Reject it at
         // build time with a message that says so, rather than model a name that vanishes.
+        // The builder wraps the rejection in a SqlSourceException carrying the source file.
         const string sql = """
 CREATE TABLE widgets
 (
@@ -913,7 +914,7 @@ CREATE TABLE widgets
 );
 """;
 
-        var ex = await Assert.ThrowsAsync<NotSupportedException>(() => BuildModelAsync(sql));
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(() => BuildModelAsync(sql));
 
         Assert.Contains("named", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("default", ex.Message, StringComparison.OrdinalIgnoreCase);

@@ -25,7 +25,7 @@ public partial class PostgresVisitor
             throw new NotImplementedException("OF and PARTITION OF not yet supported for CREATE TABLE statements");
         }
 
-        var createTable = new CreateTableStatement(qualifiedName);
+        var createTable = At(new CreateTableStatement(qualifiedName), context);
 
         if (opttableelementlist.tableelementlist() is { } tableelementlist)
         {

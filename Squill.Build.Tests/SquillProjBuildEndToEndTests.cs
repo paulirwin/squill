@@ -180,6 +180,51 @@ public class SquillProjBuildEndToEndTests
         }
     }
 
+    // A syntax error in a .sql file must surface as a regular MSBuild error with
+    // file/line/column metadata (issue #53) — rendered as `Bad.sql(2,x): error SQ0001: ...`
+    // in build output — and fail the build.
+    [Fact]
+    public async Task DotnetBuild_WithSyntaxError_FailsWithSourceDiagnostic()
+    {
+        var repoRoot = FindRepoRoot();
+
+        var taskDll = Path.Combine(repoRoot, "Squill.Build", "bin", "Debug", "net10.0", "Squill.Build.dll");
+        Assert.True(File.Exists(taskDll),
+            $"Squill.Build must be built before this test; expected {taskDll}. Run 'dotnet build Squill.Build'.");
+
+        var tempDir = Directory.CreateTempSubdirectory("squill-e2e-error");
+        try
+        {
+            var sdkDir = Path.Combine(repoRoot, "Squill.Sdk", "Sdk");
+            var projContent = $"""
+<Project>
+  <Import Project="{Path.Combine(sdkDir, "Sdk.props")}" />
+  <Import Project="{Path.Combine(sdkDir, "Sdk.targets")}" />
+</Project>
+""";
+            await File.WriteAllTextAsync(
+                Path.Combine(tempDir.FullName, "TestDb.squillproj"),
+                projContent,
+                TestContext.Current.CancellationToken);
+
+            await File.WriteAllTextAsync(
+                Path.Combine(tempDir.FullName, "Bad.sql"),
+                "CREATE TABLE widget (id integer PRIMARY KEY);\nCREATE bogus;\n",
+                TestContext.Current.CancellationToken);
+
+            var (exitCode, output) = await RunDotnetBuild(tempDir.FullName, "TestDb.squillproj");
+
+            Assert.NotEqual(0, exitCode);
+            // MSBuild renders a file-anchored diagnostic as `<file>(<line>,<col>): error <code>:`.
+            Assert.Contains("Bad.sql(2,", output);
+            Assert.Contains("error SQ0001", output);
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
     private static async Task<(int ExitCode, string Output)> RunDotnetBuild(string workingDir, string project)
     {
         var psi = new ProcessStartInfo("dotnet")

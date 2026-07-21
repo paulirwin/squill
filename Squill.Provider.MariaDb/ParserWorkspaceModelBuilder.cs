@@ -25,35 +25,248 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
     public async Task<Model> ExtractModelAsync(CancellationToken cancellationToken = default)
     {
         var model = new Model();
+        var validator = new SourceValidator();
 
         foreach (var file in _workspace.Files.Where(i => i.Kind == FileKind.Compile))
         {
-            await ProcessFile(file, model, cancellationToken);
+            await ProcessFile(file, model, validator, cancellationToken);
         }
+
+        // Validated after every file so declaration order (within and across files) does
+        // not matter, just like it doesn't for the deployed schema.
+        validator.ThrowIfInvalid();
 
         return model;
     }
 
-    private async Task ProcessFile(IFile file, Model model, CancellationToken cancellationToken)
+    private async Task ProcessFile(IFile file,
+        Model model,
+        SourceValidator validator,
+        CancellationToken cancellationToken)
     {
         var text = await file.ReadAllTextAsync(cancellationToken);
 
-        var root = _parser.Parse(text);
+        Root root;
+        try
+        {
+            root = _parser.Parse(text);
+        }
+        catch (MariaDbParseException ex)
+        {
+            throw new SqlSourceException(ex.Message, file.Name, ex.Line, ex.Column, innerException: ex);
+        }
 
         foreach (var statement in root.Statements)
         {
-            switch (statement)
+            try
             {
-                case CreateTableStatement createTable:
-                    foreach (var element in MakeCreateTableElements(createTable))
-                    {
-                        model.Elements.Add(element);
-                    }
-                    break;
+                switch (statement)
+                {
+                    case CreateTableStatement createTable:
+                        validator.AddCreateTable(file, createTable);
 
-                case CreateIndexStatement createIndex:
-                    model.Elements.Add(MakeCreateIndexElement(createIndex));
-                    break;
+                        foreach (var element in MakeCreateTableElements(createTable))
+                        {
+                            model.Elements.Add(element);
+                        }
+                        break;
+
+                    case CreateIndexStatement createIndex:
+                        validator.AddCreateIndex(file, createIndex);
+
+                        model.Elements.Add(MakeCreateIndexElement(createIndex));
+                        break;
+                }
+            }
+            catch (Exception ex) when (ex is NotImplementedException or NotSupportedException
+                or InvalidOperationException)
+            {
+                // Attach the source file and the statement's position so the host can
+                // report the failure as a diagnostic pointing at the offending statement.
+                throw new SqlSourceException(
+                    ex.Message, file.Name, statement.Line, statement.Column, innerException: ex);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Validates that everything the source references is defined in the project — like
+    /// SSDT, an unresolved reference is a build error reported at the referencing
+    /// construct's source position. Own-table checks (constraint columns, FK shape) are
+    /// made as statements are added; cross-object checks (referenced tables/columns) are
+    /// deferred to <see cref="ThrowIfInvalid"/> so declaration order, within and across
+    /// files, does not matter. Every error is reported, not just the first. MariaDB has
+    /// no schema objects (a database is the schema), so tables are keyed by bare name.
+    /// </summary>
+    private sealed class SourceValidator
+    {
+        private readonly Dictionary<string, HashSet<string>> _declaredTables =
+            new(StringComparer.OrdinalIgnoreCase);
+        private readonly List<TableReference> _tableReferences = [];
+        private readonly List<SqlSourceException> _errors = [];
+
+        // A deferred reference to a table (and optionally columns on it) that must be
+        // declared somewhere in the project, with the source position to report against.
+        private sealed record TableReference(
+            string SourceFile,
+            int? Line,
+            int? Column,
+            string Subject,
+            string Table,
+            IReadOnlyList<string> Columns);
+
+        public void AddCreateTable(IFile file, CreateTableStatement createTable)
+        {
+            var table = createTable.Name.Name;
+
+            var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var columnDefinition in createTable.Elements.OfType<ColumnDefinition>())
+            {
+                columns.Add(columnDefinition.Name.Name);
+            }
+
+            _declaredTables[table] = columns;
+
+            foreach (var tableConstraint in createTable.Elements.OfType<TableConstraint>())
+            {
+                var constraint = tableConstraint is NamedTableConstraint named
+                    ? named.Constraint
+                    : tableConstraint;
+
+                var line = constraint.Line ?? createTable.Line;
+                var column = constraint.Column ?? createTable.Column;
+
+                switch (constraint)
+                {
+                    case PrimaryKeyTableConstraint pk:
+                        CheckOwnColumns(file, line, column,
+                            $"Primary key on table '{table}'", table, columns,
+                            pk.Columns.Select(c => c.Name));
+                        break;
+
+                    case UniqueKeyTableConstraint unique:
+                        CheckOwnColumns(file, line, column,
+                            $"Unique constraint on table '{table}'", table, columns,
+                            unique.Columns.Select(c => c.Name));
+                        break;
+
+                    case IndexTableConstraint index:
+                        CheckOwnColumns(file, line, column,
+                            $"Index on table '{table}'", table, columns,
+                            index.Columns.Select(c => c.Column.Name));
+                        break;
+
+                    case ForeignKeyTableConstraint fk:
+                        CheckOwnColumns(file, line, column,
+                            $"Foreign key on table '{table}'", table, columns,
+                            fk.Columns.Select(c => c.Name));
+
+                        if (fk.ReferencedColumns.Count > 0 && fk.ReferencedColumns.Count != fk.Columns.Count)
+                        {
+                            _errors.Add(new SqlSourceException(
+                                $"Foreign key on table '{table}' has {fk.Columns.Count} referencing "
+                                + $"column(s) but {fk.ReferencedColumns.Count} referenced column(s).",
+                                file.Name, line, column, SqlSourceException.InvalidConstraint));
+                        }
+
+                        _tableReferences.Add(new TableReference(
+                            file.Name, line, column,
+                            $"Foreign key on table '{table}'",
+                            fk.ReferencedTable.Name,
+                            fk.ReferencedColumns.Select(c => c.Name).ToList()));
+                        break;
+                }
+            }
+
+            foreach (var columnDefinition in createTable.Elements.OfType<ColumnDefinition>())
+            {
+                foreach (var columnConstraint in columnDefinition.Constraints)
+                {
+                    var constraint = columnConstraint is NamedColumnConstraint named
+                        ? named.Constraint
+                        : columnConstraint;
+
+                    if (constraint is ForeignKeyColumnConstraint fk)
+                    {
+                        _tableReferences.Add(new TableReference(
+                            file.Name,
+                            constraint.Line ?? createTable.Line,
+                            constraint.Column ?? createTable.Column,
+                            $"Foreign key on table '{table}'",
+                            fk.ReferencedTable.Name,
+                            fk.ReferencedColumn is { } referencedColumn
+                                ? new[] { referencedColumn.Name }
+                                : Array.Empty<string>()));
+                    }
+                }
+            }
+        }
+
+        public void AddCreateIndex(IFile file, CreateIndexStatement createIndex)
+        {
+            _tableReferences.Add(new TableReference(
+                file.Name, createIndex.Line, createIndex.Column,
+                createIndex.Name is { } name ? $"Index '{name}'" : "Index",
+                createIndex.OnTable.Name,
+                createIndex.Columns.Select(c => c.Column.Name).ToList()));
+        }
+
+        public void ThrowIfInvalid()
+        {
+            foreach (var reference in _tableReferences)
+            {
+                if (!_declaredTables.TryGetValue(reference.Table, out var columns))
+                {
+                    _errors.Add(new SqlSourceException(
+                        $"{reference.Subject} references table '{reference.Table}', "
+                        + "which is not defined in the project.",
+                        reference.SourceFile, reference.Line, reference.Column,
+                        SqlSourceException.UnresolvedReference));
+
+                    continue;
+                }
+
+                foreach (var column in reference.Columns)
+                {
+                    if (!columns.Contains(column))
+                    {
+                        _errors.Add(new SqlSourceException(
+                            $"{reference.Subject} references column '{reference.Table}.{column}', "
+                            + "which is not defined in the project.",
+                            reference.SourceFile, reference.Line, reference.Column,
+                            SqlSourceException.UnresolvedReference));
+                    }
+                }
+            }
+
+            if (_errors.Count == 1)
+            {
+                throw _errors[0];
+            }
+
+            if (_errors.Count > 1)
+            {
+                throw new AggregateException(_errors);
+            }
+        }
+
+        private void CheckOwnColumns(IFile file,
+            int? line,
+            int? column,
+            string subject,
+            string table,
+            HashSet<string> declaredColumns,
+            IEnumerable<string> columnNames)
+        {
+            foreach (var name in columnNames)
+            {
+                if (!declaredColumns.Contains(name))
+                {
+                    _errors.Add(new SqlSourceException(
+                        $"{subject} references column '{table}.{name}', "
+                        + "which is not defined on the table.",
+                        file.Name, line, column, SqlSourceException.UnresolvedReference));
+                }
             }
         }
     }

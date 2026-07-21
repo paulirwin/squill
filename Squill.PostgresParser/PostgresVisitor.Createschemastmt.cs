@@ -36,6 +36,6 @@ public partial class PostgresVisitor
 
         var ifNotExists = context.EXISTS() is not null;
 
-        return new CreateSchemaStatement(name, ifNotExists);
+        return At(new CreateSchemaStatement(name, ifNotExists), context);
     }
 }

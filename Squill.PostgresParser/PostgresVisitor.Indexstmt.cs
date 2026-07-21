@@ -59,7 +59,7 @@ public partial class PostgresVisitor
             throw new PostgresParseException("Unable to parse relation expression for index");
         }
 
-        var createIndex = new CreateIndexStatement(name, onRelation, unique, concurrently, ifNotExists, usingMethod);
+        var createIndex = At(new CreateIndexStatement(name, onRelation, unique, concurrently, ifNotExists, usingMethod), context);
 
         if (VisitIndex_params(context.index_params()) is not SyntaxList<IndexElement> elements)
         {

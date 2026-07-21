@@ -157,6 +157,10 @@ public class WorkspaceModelBuilderTests
     public async Task ExtractModel_TableLevelForeignKey_PredictsIbfkName()
     {
         const string sql = """
+            CREATE TABLE customer
+            (
+                id int NOT NULL PRIMARY KEY
+            );
             CREATE TABLE orders
             (
                 id int NOT NULL PRIMARY KEY,
@@ -180,6 +184,10 @@ public class WorkspaceModelBuilderTests
     public async Task ExtractModel_UnnamedForeignKey_UsesIbfkConvention()
     {
         const string sql = """
+            CREATE TABLE customer
+            (
+                id int NOT NULL PRIMARY KEY
+            );
             CREATE TABLE orders
             (
                 id int NOT NULL PRIMARY KEY,

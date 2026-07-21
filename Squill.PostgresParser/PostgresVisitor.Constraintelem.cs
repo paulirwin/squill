@@ -13,7 +13,7 @@ public partial class PostgresVisitor
                 throw new PostgresParseException("Unable to parse CHECK constraint expression");
             }
 
-            return new CheckTableConstraint(checkExpression);
+            return At(new CheckTableConstraint(checkExpression), context);
         }
 
         if (context.PRIMARY() is not null && context.KEY() is not null)
@@ -25,7 +25,7 @@ public partial class PostgresVisitor
                 throw new NotImplementedException("PRIMARY KEY USING INDEX form not yet supported");
             }
 
-            return new PrimaryKeyTableConstraint(ParseColumnList(columnlist));
+            return At(new PrimaryKeyTableConstraint(ParseColumnList(columnlist)), context);
         }
 
         if (context.FOREIGN() is not null && context.KEY() is not null)
@@ -44,12 +44,12 @@ public partial class PostgresVisitor
 
             var (onDelete, onUpdate) = ParseKeyActions(context.key_actions());
 
-            return new ForeignKeyTableConstraint(
+            return At(new ForeignKeyTableConstraint(
                 columns,
                 referencedTable,
                 referencedColumns,
                 onDelete,
-                onUpdate);
+                onUpdate), context);
         }
 
         throw new NotImplementedException("Table constraint type not yet implemented");

@@ -13,7 +13,7 @@ public partial class PostgresVisitor
             throw new PostgresParseException("Unable to parse extension name");
         }
 
-        var statement = new CreateExtensionStatement(name, ifNotExists);
+        var statement = At(new CreateExtensionStatement(name, ifNotExists), context);
 
         foreach (var optItem in context.create_extension_opt_list().create_extension_opt_item())
         {

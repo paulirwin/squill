@@ -8,13 +8,13 @@ public partial class PostgresVisitor
     {
         if (context.NULL_P() is not null)
         {
-            return new NullableColumnConstraint(context.GetText(), context.NOT() is null);
+            return At(new NullableColumnConstraint(context.GetText(), context.NOT() is null), context);
         }
 
         if (context.PRIMARY() is not null && context.KEY() is not null)
         {
             // TODO: support opt_definition and optconsttablespace
-            return new PrimaryKeyColumnConstraint(context.GetText());
+            return At(new PrimaryKeyColumnConstraint(context.GetText()), context);
         }
 
         if (context.DEFAULT() is not null)
@@ -24,7 +24,7 @@ public partial class PostgresVisitor
                 throw new PostgresParseException("Expected an Expression for DEFAULT constraint");
             }
 
-            return new DefaultColumnConstraint(context.GetText(), expression);
+            return At(new DefaultColumnConstraint(context.GetText(), expression), context);
         }
 
         if (context.REFERENCES() is not null)
@@ -46,12 +46,12 @@ public partial class PostgresVisitor
 
             var (onDelete, onUpdate) = ParseKeyActions(context.key_actions());
 
-            return new ForeignKeyColumnConstraint(
+            return At(new ForeignKeyColumnConstraint(
                 context.GetText(),
                 referencedTable,
                 referencedColumns.Count == 1 ? referencedColumns[0] : null,
                 onDelete,
-                onUpdate);
+                onUpdate), context);
         }
 
         if (context.GENERATED() is not null && context.IDENTITY_P() is not null)
@@ -110,8 +110,8 @@ public partial class PostgresVisitor
                 }
             }
 
-            return new IdentityColumnConstraint(context.GetText(), always,
-                startValue, increment, minValue, maxValue, cacheSize, cycle);
+            return At(new IdentityColumnConstraint(context.GetText(), always,
+                startValue, increment, minValue, maxValue, cacheSize, cycle), context);
         }
 
         // TODO: support UNIQUE, CHECK, and GENERATED ... AS (expr) STORED

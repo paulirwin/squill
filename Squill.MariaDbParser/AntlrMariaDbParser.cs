@@ -1,5 +1,4 @@
 using Antlr4.Runtime;
-using Antlr4.Runtime.Misc;
 using Squill.MariaDbParser.Syntax;
 
 namespace Squill.MariaDbParser;
@@ -16,20 +15,27 @@ public class AntlrMariaDbParser : IMariaDbParser
         var input = new AntlrInputStream(text);
         var lexer = new MariaDBLexer(input);
         var tokenStream = new CommonTokenStream(lexer);
-        var parser = new MariaDBParser(tokenStream)
-        {
-            ErrorHandler = new BailErrorStrategy(),
-        };
+        var parser = new MariaDBParser(tokenStream);
 
-        MariaDBParser.RootContext rootContext;
+        // ANTLR's default listeners print errors to the console; collect them instead so a
+        // syntax error surfaces as a MariaDbParseException carrying the error's 1-based
+        // line/column, which hosts (e.g. the MSBuild task) report as source diagnostics.
+        var errors = new SyntaxErrorCollectingListener();
+        lexer.RemoveErrorListeners();
+        lexer.AddErrorListener(errors);
+        parser.RemoveErrorListeners();
+        parser.AddErrorListener(errors);
 
-        try
+        var rootContext = parser.root();
+
+        if (errors.Errors.Count > 0)
         {
-            rootContext = parser.root();
-        }
-        catch (ParseCanceledException ex)
-        {
-            throw new MariaDbParseException("Failed to parse MariaDB SQL.", ex);
+            // Report the first error: with recovery a single mistake often cascades, so
+            // later entries are usually noise. The mapper must not run over a tree with
+            // error nodes — it would fail on the missing pieces with worse messages.
+            var (message, line, column) = errors.Errors[0];
+
+            throw new MariaDbParseException($"Syntax error: {message}", line, column);
         }
 
         var root = new Root();
