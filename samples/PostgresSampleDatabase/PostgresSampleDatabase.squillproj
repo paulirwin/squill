@@ -20,6 +20,10 @@
 
   <PropertyGroup>
     <SquillProviderName>Postgresql</SquillProviderName>
+    <!-- The minimum PostgreSQL major version this DACPAC targets (like SSDT's target
+         platform). Recorded in the DACPAC and enforced on `squill deploy`: deploying to
+         an older server fails. Omit for no version constraint. -->
+    <SquillTargetVersion>16</SquillTargetVersion>
   </PropertyGroup>
 
   <Import Project="..\..\Squill.Sdk\Sdk\Sdk.targets" />

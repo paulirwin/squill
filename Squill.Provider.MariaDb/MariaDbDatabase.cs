@@ -44,6 +44,65 @@ public class MariaDbDatabase : IDatabase
         await _connection.OpenAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// The major version of the connected server (e.g. <c>11</c> for MariaDB, <c>8</c> for
+    /// MySQL), used to enforce the DACPAC's recorded target version at deploy time. Parsed from
+    /// the driver's server-version string, whose MariaDB form carries a <c>-MariaDB</c> suffix
+    /// (e.g. <c>11.4.2-MariaDB</c>) and whose MySQL form does not (e.g. <c>8.0.36</c>).
+    /// </summary>
+    public int GetServerMajorVersion()
+    {
+        if (_connection == null)
+        {
+            throw new InvalidOperationException("Connect to the database before running a script.");
+        }
+
+        return ParseMajorVersion(_connection.ServerVersion);
+    }
+
+    // MariaDB 10.0+ prepends this fixed "replication version" to its reported server version
+    // (e.g. "5.5.5-10.11.18-MariaDB") so legacy MySQL clients don't reject it. The real version
+    // follows the prefix, so it must be stripped before parsing the major.
+    private const string MariaDbLegacyVersionPrefix = "5.5.5-";
+
+    /// <summary>
+    /// Extracts the major version from a MySqlConnector server-version string. MySQL reports a
+    /// bare dotted version (e.g. <c>8.0.36</c>); MariaDB reports a <c>-MariaDB</c>-suffixed
+    /// version, and MariaDB 10+ additionally prepends the fixed legacy prefix <c>5.5.5-</c>
+    /// (e.g. <c>5.5.5-10.11.18-MariaDB</c>), which is stripped first. The leading run of digits
+    /// of the remaining string is the major.
+    /// </summary>
+    public static int ParseMajorVersion(string serverVersion)
+    {
+        var version = serverVersion.StartsWith(MariaDbLegacyVersionPrefix, StringComparison.Ordinal)
+            ? serverVersion[MariaDbLegacyVersionPrefix.Length..]
+            : serverVersion;
+
+        var length = 0;
+        foreach (var c in version)
+        {
+            if (!char.IsAsciiDigit(c))
+            {
+                break;
+            }
+
+            length++;
+        }
+
+        if (length == 0
+            || !int.TryParse(
+                version.AsSpan(0, length),
+                System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var major))
+        {
+            throw new InvalidOperationException(
+                $"Could not parse a major version from the server version string '{serverVersion}'.");
+        }
+
+        return major;
+    }
+
     public async Task RunScriptAsync(string sql,
         IReadOnlyList<IDatabaseParameter>? parameters = null,
         CancellationToken cancellationToken = default)

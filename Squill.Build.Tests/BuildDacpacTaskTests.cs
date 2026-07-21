@@ -61,6 +61,98 @@ CREATE TABLE Foo
     }
 
     [Fact]
+    public async Task Execute_RecordsTargetVersionInDacpac()
+    {
+        var tempDir = Directory.CreateTempSubdirectory("squill-buildtask-test");
+        try
+        {
+            var sqlPath = Path.Combine(tempDir.FullName, "Foo.sql");
+            await File.WriteAllTextAsync(sqlPath, SampleSchema, TestContext.Current.CancellationToken);
+
+            var outputPath = Path.Combine(tempDir.FullName, "bin", "Sample.dacpac");
+            var task = new BuildDacpacTask
+            {
+                BuildEngine = new StubBuildEngine(),
+                SourceFiles = [new TaskItem(sqlPath)],
+                OutputPath = outputPath,
+                ProviderName = "Postgresql",
+                // A dotted value keeps only the major component.
+                TargetVersion = "16.2",
+            };
+
+            Assert.True(task.Execute());
+
+            await using var stream = File.OpenRead(outputPath);
+            var (metadata, _) =
+                await DacpacSerializer.Deserialize(stream, TestContext.Current.CancellationToken);
+
+            Assert.Equal(16, metadata.TargetMajorVersion);
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Execute_WithoutTargetVersion_LeavesItUnconstrained()
+    {
+        var tempDir = Directory.CreateTempSubdirectory("squill-buildtask-test");
+        try
+        {
+            var sqlPath = Path.Combine(tempDir.FullName, "Foo.sql");
+            await File.WriteAllTextAsync(sqlPath, SampleSchema, TestContext.Current.CancellationToken);
+
+            var outputPath = Path.Combine(tempDir.FullName, "bin", "Sample.dacpac");
+            var task = new BuildDacpacTask
+            {
+                BuildEngine = new StubBuildEngine(),
+                SourceFiles = [new TaskItem(sqlPath)],
+                OutputPath = outputPath,
+            };
+
+            Assert.True(task.Execute());
+
+            await using var stream = File.OpenRead(outputPath);
+            var (metadata, _) =
+                await DacpacSerializer.Deserialize(stream, TestContext.Current.CancellationToken);
+
+            Assert.Null(metadata.TargetMajorVersion);
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Execute_WithNonNumericTargetVersion_FailsWithLoggedError()
+    {
+        var tempDir = Directory.CreateTempSubdirectory("squill-buildtask-test");
+        try
+        {
+            var sqlPath = Path.Combine(tempDir.FullName, "Foo.sql");
+            File.WriteAllText(sqlPath, SampleSchema);
+
+            var engine = new StubBuildEngine();
+            var task = new BuildDacpacTask
+            {
+                BuildEngine = engine,
+                SourceFiles = [new TaskItem(sqlPath)],
+                OutputPath = Path.Combine(tempDir.FullName, "bin", "Sample.dacpac"),
+                TargetVersion = "not-a-version",
+            };
+
+            Assert.False(task.Execute(), "Task should fail for an invalid target version.");
+            Assert.NotEmpty(engine.Errors);
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task Execute_BuildsSameModelAsDacpacBuilder()
     {
         var tempDir = Directory.CreateTempSubdirectory("squill-buildtask-test");

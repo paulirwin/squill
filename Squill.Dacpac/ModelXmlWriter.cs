@@ -13,7 +13,7 @@ namespace Squill.Dacpac;
 /// </summary>
 internal static class ModelXmlWriter
 {
-    public static void Write(Model model, Stream stream)
+    public static void Write(Model model, ModelMetadata metadata, Stream stream)
     {
         var settings = new XmlWriterSettings
         {
@@ -28,6 +28,18 @@ internal static class ModelXmlWriter
         writer.WriteStartElement("DataSchemaModel", DacpacConstants.SerializationNamespace);
         writer.WriteAttributeString("FileFormatVersion", DacpacConstants.FileFormatVersion);
         writer.WriteAttributeString("SchemaVersion", DacpacConstants.SchemaVersion);
+
+        // DspName records the target platform, exactly where SSDT records it — on the
+        // DataSchemaModel root — as the fully-qualified name of the matching schema-provider
+        // type. Because model.xml is checksummed in Origin.xml, this stamp is tamper-evident.
+        // An unconstrained DACPAC (no target version) writes no DspName. An unsupported target
+        // version has no type and fails the build here rather than producing a bad stamp.
+        if (metadata.TargetMajorVersion is { } majorVersion)
+        {
+            var schemaProvider = DatabaseSchemaProviderRegistry.Resolve(
+                metadata.ProviderName, majorVersion);
+            writer.WriteAttributeString("DspName", schemaProvider.DspName);
+        }
 
         writer.WriteStartElement("Model");
 

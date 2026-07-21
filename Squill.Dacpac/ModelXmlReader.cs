@@ -14,7 +14,7 @@ namespace Squill.Dacpac;
 /// </summary>
 internal static class ModelXmlReader
 {
-    public static Model Read(Stream stream)
+    public static Model Read(Stream stream, ModelMetadata? metadata = null)
     {
         var document = XDocument.Load(stream);
         var root = document.Root
@@ -22,6 +22,15 @@ internal static class ModelXmlReader
 
         var ns = root.Name.Namespace;
         var model = new Model();
+
+        // The DspName on the root names the target-platform schema-provider type (SSDT-style).
+        // Resolve it back to a supported provider and apply its major version onto the metadata
+        // so the deploy side can enforce it. An unsupported/unknown DspName throws here.
+        if (metadata is not null && (string?)root.Attribute("DspName") is { } dspName)
+        {
+            var schemaProvider = DatabaseSchemaProviderRegistry.ResolveByDspName(dspName);
+            metadata.TargetMajorVersion = schemaProvider.MajorVersion;
+        }
 
         var modelElement = root.Element(ns + "Model");
         if (modelElement is null)

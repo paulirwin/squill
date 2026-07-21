@@ -37,7 +37,8 @@
                      OutputPath="$(SquillDacpacPath)"
                      ProviderName="$(SquillProviderName)"
                      DacName="$(SquillDacName)"
-                     DacVersion="$(SquillDacVersion)" />
+                     DacVersion="$(SquillDacVersion)"
+                     TargetVersion="$(SquillTargetVersion)" />
 
     <ItemGroup>
       <FileWrites Include="$(SquillDacpacPath)" />

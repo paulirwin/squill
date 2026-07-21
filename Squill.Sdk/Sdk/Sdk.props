@@ -18,6 +18,11 @@
          Supported: Postgresql (default), or MariaDb / MySql. -->
     <SquillProviderName Condition="'$(SquillProviderName)' == ''">Postgresql</SquillProviderName>
 
+    <!-- The minimum target engine major version the DACPAC is built for (like SSDT's target
+         platform), e.g. 16 for PostgreSQL or 11 for MariaDB/MySQL. Recorded in the DACPAC and
+         enforced on `squill deploy`: deploying to an older server fails. Empty = no constraint. -->
+    <SquillTargetVersion Condition="'$(SquillTargetVersion)' == ''"></SquillTargetVersion>
+
     <!-- Standard bin/obj layout so `dotnet build` drops the .dacpac in bin\ like SSDT. -->
     <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
     <!-- Trailing slashes are OS-agnostic here: MSBuild normalizes '/' on Windows, and
