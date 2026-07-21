@@ -29,11 +29,17 @@ internal static class ModelXmlWriter
         writer.WriteAttributeString("FileFormatVersion", DacpacConstants.FileFormatVersion);
         writer.WriteAttributeString("SchemaVersion", DacpacConstants.SchemaVersion);
 
-        // DspName records the provider and target engine major version, exactly where SSDT
-        // records its target platform — on the DataSchemaModel root. Because model.xml is
-        // checksummed in Origin.xml, this target-version stamp is tamper-evident.
-        writer.WriteAttributeString(
-            "DspName", DspName.Build(metadata.ProviderName, metadata.TargetMajorVersion));
+        // DspName records the target platform, exactly where SSDT records it — on the
+        // DataSchemaModel root — as the fully-qualified name of the matching schema-provider
+        // type. Because model.xml is checksummed in Origin.xml, this stamp is tamper-evident.
+        // An unconstrained DACPAC (no target version) writes no DspName. An unsupported target
+        // version has no type and fails the build here rather than producing a bad stamp.
+        if (metadata.TargetMajorVersion is { } majorVersion)
+        {
+            var schemaProvider = DatabaseSchemaProviderRegistry.Resolve(
+                metadata.ProviderName, majorVersion);
+            writer.WriteAttributeString("DspName", schemaProvider.DspName);
+        }
 
         writer.WriteStartElement("Model");
 

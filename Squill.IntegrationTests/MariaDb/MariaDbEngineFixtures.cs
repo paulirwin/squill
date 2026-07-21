@@ -18,6 +18,18 @@ public abstract class MariaDbLikeFixture : IAsyncLifetime
     /// <summary>The friendly engine name, used in test display names.</summary>
     public abstract string EngineName { get; }
 
+    /// <summary>
+    /// The provider name recorded in a DACPAC targeting this engine (<c>MariaDb</c> or
+    /// <c>MySql</c>), which selects the engine's schema-provider types.
+    /// </summary>
+    public abstract string ProviderName { get; }
+
+    /// <summary>
+    /// The lowest supported major version for this engine (see its schema-provider types); any
+    /// current test container satisfies it, so a DACPAC targeting it deploys normally.
+    /// </summary>
+    public abstract int LowestSupportedMajor { get; }
+
     /// <summary>Builds (but does not start) the engine's container.</summary>
     protected abstract IDatabaseContainer BuildContainer();
 
@@ -47,6 +59,11 @@ public sealed class MariaDbFixture : MariaDbLikeFixture
 {
     public override string EngineName => "MariaDB";
 
+    public override string ProviderName => "MariaDb";
+
+    // Oldest supported MariaDB major (see MariaDb*DatabaseSchemaProvider).
+    public override int LowestSupportedMajor => 10;
+
     // Squill's deploy path creates and drops databases and reads information_schema, so the
     // test connection must be the root account — the default per-database user the container
     // provisions cannot CREATE DATABASE. WithUsername("root") makes GetConnectionString()
@@ -61,6 +78,11 @@ public sealed class MariaDbFixture : MariaDbLikeFixture
 public sealed class MySqlFixture : MariaDbLikeFixture
 {
     public override string EngineName => "MySQL";
+
+    public override string ProviderName => "MySql";
+
+    // Oldest supported MySQL major (see MySql*DatabaseSchemaProvider).
+    public override int LowestSupportedMajor => 8;
 
     protected override IDatabaseContainer BuildContainer() =>
         new MySqlBuilder(new DockerImage("mysql:latest"))

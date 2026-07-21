@@ -18,7 +18,7 @@ public class TargetVersionSerializationTests
     }
 
     [Fact]
-    public async Task Serialize_WritesDspNameOnModelRoot()
+    public async Task Serialize_WritesSchemaProviderTypeNameAsDspName()
     {
         var metadata = new ModelMetadata { ProviderName = "Postgresql", TargetMajorVersion = 16 };
 
@@ -33,8 +33,38 @@ public class TargetVersionSerializationTests
         var doc = System.Xml.Linq.XDocument.Load(modelStream);
         var dspName = (string?)doc.Root!.Attribute("DspName");
 
+        // The DspName is the fully-qualified name of the real schema-provider type.
         Assert.Equal(
-            "Squill.Data.Tools.Schema.Postgresql.Postgresql16DatabaseSchemaProvider", dspName);
+            "Squill.Provider.Postgres.Postgresql16DatabaseSchemaProvider", dspName);
+    }
+
+    [Fact]
+    public async Task Serialize_WithoutTargetVersion_WritesNoDspName()
+    {
+        var metadata = new ModelMetadata { ProviderName = "Postgresql" };
+
+        await using var stream = new MemoryStream();
+        await DacpacSerializer.Serialize(metadata, SampleModel(), stream, TestContext.Current.CancellationToken);
+
+        stream.Position = 0;
+        using var zip = new ZipArchive(stream, ZipArchiveMode.Read);
+        var modelEntry = Assert.Single(zip.Entries, e => e.Name == "model.xml");
+
+        await using var modelStream = modelEntry.Open();
+        var doc = System.Xml.Linq.XDocument.Load(modelStream);
+
+        Assert.Null(doc.Root!.Attribute("DspName"));
+    }
+
+    [Fact]
+    public async Task Serialize_WithUnsupportedVersion_Throws()
+    {
+        var metadata = new ModelMetadata { ProviderName = "Postgresql", TargetMajorVersion = 999 };
+
+        await using var stream = new MemoryStream();
+
+        await Assert.ThrowsAsync<UnsupportedTargetVersionException>(() =>
+            DacpacSerializer.Serialize(metadata, SampleModel(), stream, TestContext.Current.CancellationToken));
     }
 
     [Fact]

@@ -1,0 +1,34 @@
+namespace Squill.Dacpac;
+
+/// <summary>
+/// A database schema provider identifying the target engine and major version a DACPAC is
+/// built for, mirroring SSDT's <c>DatabaseSchemaProvider</c> types (e.g.
+/// <c>Sql160DatabaseSchemaProvider</c>). Each supported major version of each engine is a
+/// concrete, reflection-discoverable subclass in that engine's provider assembly, named
+/// <c>&lt;Provider&gt;&lt;MajorVersion&gt;DatabaseSchemaProvider</c> (e.g.
+/// <c>Postgresql16DatabaseSchemaProvider</c>). The <see cref="DspName"/> recorded on the
+/// <c>model.xml</c> root is the subclass's fully-qualified type name, so it lines up with the
+/// real type and can be resolved back by <see cref="DatabaseSchemaProviderRegistry"/>.
+/// </summary>
+public abstract class DatabaseSchemaProvider
+{
+    /// <summary>
+    /// The provider name recorded in the DACPAC metadata (e.g. <c>Postgresql</c>, <c>MariaDb</c>,
+    /// <c>MySql</c>). Matches the value <see cref="SquillProviderRegistry"/> resolves on.
+    /// </summary>
+    public abstract string ProviderName { get; }
+
+    /// <summary>The target engine major version this provider represents (e.g. <c>16</c>).</summary>
+    public abstract int MajorVersion { get; }
+
+    /// <summary>
+    /// The DSP name written to the <c>DataSchemaModel</c> root of <c>model.xml</c> — the
+    /// concrete type's fully-qualified name (e.g.
+    /// <c>Squill.Provider.Postgres.Postgresql16DatabaseSchemaProvider</c>). Using the real type
+    /// name means the value is a live reference to a type that exists, discoverable by
+    /// reflection, rather than a string that must be parsed.
+    /// </summary>
+    public string DspName => GetType().FullName
+        ?? throw new InvalidOperationException(
+            $"Schema provider type {GetType().Name} has no full name.");
+}

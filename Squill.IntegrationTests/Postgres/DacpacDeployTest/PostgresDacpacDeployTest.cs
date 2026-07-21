@@ -238,48 +238,9 @@ public class PostgresDacpacDeployTest : PostgresIntegrationTestBase
         }
     }
 
-    // A DACPAC targeting a version far newer than any real server must fail to deploy
-    // (issue #39), before any schema is touched — mirroring SSDT's target-platform check.
-    [Fact]
-    public async Task Deploy_FailsWhenTargetVersionExceedsServer()
-    {
-        var ct = TestContext.Current.CancellationToken;
-
-        var tempDir = Directory.CreateTempSubdirectory("squill-deploy-version-integration");
-        try
-        {
-            var dacpacPath = await BuildDacpacAsync(tempDir.FullName, ct, targetMajorVersion: 999);
-
-            IDatabaseProvider provider = new PostgresDatabaseProvider(ConnectionString);
-            var targetDbName = $"squill_deploy_{Guid.NewGuid():n}";
-            var createdDb = await provider.CreateDatabaseAsync(targetDbName, ct);
-
-            try
-            {
-                var ex = await Assert.ThrowsAsync<TargetVersionMismatchException>(() =>
-                    DacpacDeployer.DeployFromFileAsync(
-                        dacpacPath, ConnectionString, targetDbName, dryRun: false,
-                        cancellationToken: ct));
-
-                Assert.Equal(999, ex.RequiredMajorVersion);
-                Assert.Equal("PostgreSQL", ex.EngineName);
-
-                // The check runs before any DDL, so the target must be untouched.
-                var untouched = await provider
-                    .CreateDatabaseModelBuilder(createdDb)
-                    .ExtractModelAsync(ct);
-                Assert.DoesNotContain(untouched.Elements, e => e.Type == PostgresElementTypes.SqlTable);
-            }
-            finally
-            {
-                await createdDb.DropAsync(ct);
-            }
-        }
-        finally
-        {
-            tempDir.Delete(recursive: true);
-        }
-    }
+    // The oldest supported PostgreSQL major (see the Postgresql*DatabaseSchemaProvider types).
+    // Any current test container satisfies it, so a DACPAC targeting it deploys normally.
+    private const int LowestSupportedMajor = 14;
 
     // A DACPAC targeting a version the server satisfies deploys normally (issue #39).
     [Fact]
@@ -290,8 +251,8 @@ public class PostgresDacpacDeployTest : PostgresIntegrationTestBase
         var tempDir = Directory.CreateTempSubdirectory("squill-deploy-version-ok-integration");
         try
         {
-            // Any supported Postgres server is major version >= 1.
-            var dacpacPath = await BuildDacpacAsync(tempDir.FullName, ct, targetMajorVersion: 1);
+            var dacpacPath = await BuildDacpacAsync(
+                tempDir.FullName, ct, targetMajorVersion: LowestSupportedMajor);
 
             IDatabaseProvider provider = new PostgresDatabaseProvider(ConnectionString);
             var targetDbName = $"squill_deploy_{Guid.NewGuid():n}";
@@ -358,5 +319,76 @@ public class PostgresDacpacDeployTest : PostgresIntegrationTestBase
     private sealed class CollectingProgress(List<string> messages) : IProgress<string>
     {
         public void Report(string value) => messages.Add(value);
+    }
+}
+
+/// <summary>
+/// The deploy-time target-version mismatch (issue #39), exercised against a server pinned to
+/// an older supported PostgreSQL (14) while the DACPAC targets the newest supported major (18).
+/// Pinning makes the mismatch deterministic rather than depending on what <c>postgres:latest</c>
+/// happens to be.
+/// </summary>
+public class PostgresDeployVersionMismatchTest : PostgresIntegrationTestBase
+{
+    // An older supported major (has a Postgresql14DatabaseSchemaProvider type).
+    protected override string DockerImageName => "postgres:14";
+
+    // The newest supported major (has a Postgresql18DatabaseSchemaProvider type).
+    private const int NewestSupportedMajor = 18;
+
+    [Fact]
+    public async Task Deploy_FailsWhenTargetVersionExceedsServer()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var tempDir = Directory.CreateTempSubdirectory("squill-deploy-version-mismatch");
+        try
+        {
+            var schema = await new EmbeddedResourceFile(
+                    "Squill.IntegrationTests.Postgres.DacpacDeployTest.Schema.sql", FileKind.Compile)
+                .ReadAllTextAsync(ct);
+            var sqlPath = Path.Combine(tempDir.FullName, "Schema.sql");
+            await File.WriteAllTextAsync(sqlPath, schema, ct);
+
+            var dacpacPath = Path.Combine(tempDir.FullName, "bin", "TestDb.dacpac");
+            var workspace = DacpacBuilder.CreateWorkspace([sqlPath]);
+            var metadata = new ModelMetadata
+            {
+                ProviderName = "Postgresql",
+                Name = "TestDb",
+                TargetMajorVersion = NewestSupportedMajor,
+            };
+            await DacpacBuilder.BuildToFileAsync(workspace, metadata, dacpacPath, ct);
+
+            IDatabaseProvider provider = new PostgresDatabaseProvider(ConnectionString);
+            var targetDbName = $"squill_deploy_{Guid.NewGuid():n}";
+            var createdDb = await provider.CreateDatabaseAsync(targetDbName, ct);
+
+            try
+            {
+                var ex = await Assert.ThrowsAsync<TargetVersionMismatchException>(() =>
+                    DacpacDeployer.DeployFromFileAsync(
+                        dacpacPath, ConnectionString, targetDbName, dryRun: false,
+                        cancellationToken: ct));
+
+                Assert.Equal(NewestSupportedMajor, ex.RequiredMajorVersion);
+                Assert.Equal(14, ex.ActualMajorVersion);
+                Assert.Equal("PostgreSQL", ex.EngineName);
+
+                // The check runs before any DDL, so the target must be untouched.
+                var untouched = await provider
+                    .CreateDatabaseModelBuilder(createdDb)
+                    .ExtractModelAsync(ct);
+                Assert.DoesNotContain(untouched.Elements, e => e.Type == PostgresElementTypes.SqlTable);
+            }
+            finally
+            {
+                await createdDb.DropAsync(ct);
+            }
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
     }
 }

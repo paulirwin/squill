@@ -60,17 +60,26 @@ public class MariaDbDatabase : IDatabase
         return ParseMajorVersion(_connection.ServerVersion);
     }
 
+    // MariaDB 10.0+ prepends this fixed "replication version" to its reported server version
+    // (e.g. "5.5.5-10.11.18-MariaDB") so legacy MySQL clients don't reject it. The real version
+    // follows the prefix, so it must be stripped before parsing the major.
+    private const string MariaDbLegacyVersionPrefix = "5.5.5-";
+
     /// <summary>
-    /// Extracts the major version from a MySqlConnector server-version string. The string
-    /// starts with a dotted numeric version, optionally followed by a suffix like
-    /// <c>-MariaDB</c> (MariaDB) or nothing (MySQL); the leading run of digits is the major.
+    /// Extracts the major version from a MySqlConnector server-version string. MySQL reports a
+    /// bare dotted version (e.g. <c>8.0.36</c>); MariaDB reports a <c>-MariaDB</c>-suffixed
+    /// version, and MariaDB 10+ additionally prepends the fixed legacy prefix <c>5.5.5-</c>
+    /// (e.g. <c>5.5.5-10.11.18-MariaDB</c>), which is stripped first. The leading run of digits
+    /// of the remaining string is the major.
     /// </summary>
     public static int ParseMajorVersion(string serverVersion)
     {
-        var digits = 0;
-        var length = 0;
+        var version = serverVersion.StartsWith(MariaDbLegacyVersionPrefix, StringComparison.Ordinal)
+            ? serverVersion[MariaDbLegacyVersionPrefix.Length..]
+            : serverVersion;
 
-        foreach (var c in serverVersion)
+        var length = 0;
+        foreach (var c in version)
         {
             if (!char.IsAsciiDigit(c))
             {
@@ -82,16 +91,16 @@ public class MariaDbDatabase : IDatabase
 
         if (length == 0
             || !int.TryParse(
-                serverVersion.AsSpan(0, length),
+                version.AsSpan(0, length),
                 System.Globalization.NumberStyles.None,
                 System.Globalization.CultureInfo.InvariantCulture,
-                out digits))
+                out var major))
         {
             throw new InvalidOperationException(
                 $"Could not parse a major version from the server version string '{serverVersion}'.");
         }
 
-        return digits;
+        return major;
     }
 
     public async Task RunScriptAsync(string sql,

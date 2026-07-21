@@ -28,6 +28,10 @@
 
     <ItemGroup>
       <ProjectReference Include="..\Squill.Dacpac\Squill.Dacpac.csproj" />
+      <!-- The provider assemblies define the DatabaseSchemaProvider types the serializer
+           discovers by reflection; reference them so those types are loaded in tests. -->
+      <ProjectReference Include="..\Squill.Provider.Postgres\Squill.Provider.Postgres.csproj" />
+      <ProjectReference Include="..\Squill.Provider.MariaDb\Squill.Provider.MariaDb.csproj" />
     </ItemGroup>
 
 </Project>

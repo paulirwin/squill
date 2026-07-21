@@ -13,6 +13,13 @@ public class MariaDbVersionParseTests
     [InlineData("8.0.36", 8)]
     [InlineData("5.7.44-log", 5)]
     [InlineData("11", 11)]
+    // MariaDB 10+ prepends the fixed legacy "5.5.5-" replication-version prefix; the real
+    // major follows it and must not be read as 5.
+    [InlineData("5.5.5-10.11.18-MariaDB", 10)]
+    [InlineData("5.5.5-11.4.2-MariaDB", 11)]
+    [InlineData("5.5.5-12.0.1-MariaDB", 12)]
+    // A genuine MySQL 5.5.x (no MariaDB prefix) is still major 5.
+    [InlineData("5.5.62", 5)]
     public void ParseMajorVersion_ReturnsLeadingMajor(string serverVersion, int expected)
     {
         Assert.Equal(expected, MariaDbDatabase.ParseMajorVersion(serverVersion));
