@@ -10,8 +10,11 @@
   <Project Path="Squill.Dacpac.Tests/Squill.Dacpac.Tests.csproj" />
   <Project Path="Squill.Dacpac/Squill.Dacpac.csproj" />
   <Project Path="Squill.IntegrationTests/Squill.IntegrationTests.csproj" />
+  <Project Path="Squill.MariaDbParser/Squill.MariaDbParser.csproj" />
   <Project Path="Squill.PostgresParser.Tests/Squill.PostgresParser.Tests.csproj" />
   <Project Path="Squill.PostgresParser/Squill.PostgresParser.csproj" />
+  <Project Path="Squill.Provider.MariaDb.Tests/Squill.Provider.MariaDb.Tests.csproj" />
+  <Project Path="Squill.Provider.MariaDb/Squill.Provider.MariaDb.csproj" />
   <Project Path="Squill.Provider.Postgres.Tests/Squill.Provider.Postgres.Tests.csproj" />
   <Project Path="Squill.Provider.Postgres/Squill.Provider.Postgres.csproj" />
   <Project Path="Squill.Sdk/Squill.Sdk.csproj" />
