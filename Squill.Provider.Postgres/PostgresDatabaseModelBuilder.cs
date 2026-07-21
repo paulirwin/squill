@@ -50,17 +50,28 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
                 var element = PostgresModelFactory.CreateTable(SqlName.Object(name), schema);
 
-                model.Elements.Add(element);
                 tables.Add(new TableRef(element, schema, name));
             }
         }
 
+        // Emit each table immediately followed by its dependents (primary key, indexes,
+        // foreign keys), so the element order matches the parser-based builder, which yields
+        // a table and its dependents together. The Merkle hash is order-sensitive, so the
+        // two builders must agree on ordering for a parsed model to hash-match an extracted
+        // one — adding every table first and the dependents afterwards diverges as soon as
+        // there is more than one table (issue #65).
         foreach (var table in tables)
         {
+            model.Elements.Add(table.Element);
+
             await ExtractColumnsAsync(table, cancellationToken);
             await ExtractPrimaryKeyAsync(model, table, cancellationToken);
-            await ExtractIndexesAsync(model, table, cancellationToken);
+
+            // Foreign keys precede indexes, matching the parser: a table's constraints are
+            // written in its CREATE TABLE, while a standalone index comes from a separate
+            // CREATE INDEX statement that follows it.
             await ExtractForeignKeysAsync(model, table, cancellationToken);
+            await ExtractIndexesAsync(model, table, cancellationToken);
         }
 
         // Procedures come last: a procedure body may reference any table in the model, so
