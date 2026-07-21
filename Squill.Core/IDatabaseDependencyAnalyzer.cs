@@ -64,6 +64,22 @@ public interface IDatabaseDependencyAnalyzer
     IList<Element>? GetDependentElements(Element sourceElement, Model model);
 
     /// <summary>
+    /// The elements that <paramref name="element"/> must be created after — for a table,
+    /// the tables its foreign keys reference — each paired with the constraint that
+    /// created the requirement. Type rank alone cannot express this: two tables share a
+    /// rank, so nothing would stop a referencing table being created before its target.
+    /// Returns an empty sequence when there is nothing to order against.
+    ///
+    /// The constraint is returned alongside the dependency so a circular reference can be
+    /// broken by deferring that one constraint (see <see cref="AddConstraintDelta"/>).
+    ///
+    /// How a reference is stored (and how a name resolves across schemas) is
+    /// database-specific, so resolving it lives behind the provider. An element may
+    /// legitimately depend on itself (a self-referencing table); callers must tolerate it.
+    /// </summary>
+    IEnumerable<CreateDependency> GetCreateDependencies(Element element, Model model);
+
+    /// <summary>
     /// Returns a copy of <paramref name="source"/> adjusted for comparison against its
     /// matching <paramref name="target"/> in the database, or <paramref name="source"/>
     /// itself when no adjustment is needed. This lets a provider neutralize a facet that

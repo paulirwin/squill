@@ -87,7 +87,7 @@ public class SchemaCompare
             AddDropDeltas(comparison, analyzer, source, target);
         }
 
-        OrderDeltas(comparison, analyzer);
+        OrderDeltas(comparison, analyzer, source);
 
         // Record any data-loss reasons on the comparison so a caller can surface them
         // (e.g. on a dry run). Enforcement — throwing PossibleDataLossException when
@@ -223,7 +223,8 @@ public class SchemaCompare
     // before the tables in it, an extension before a table using it), then in-place changes,
     // then drops in the reverse of the create order (a table before the schema that holds
     // it). A stable ordering preserves the existing relative order within each rank.
-    private static void OrderDeltas(SchemaComparison comparison, IDatabaseDependencyAnalyzer analyzer)
+    private static void OrderDeltas(
+        SchemaComparison comparison, IDatabaseDependencyAnalyzer analyzer, Model source)
     {
         // Phase groups: creates (0) run before alters/rebuilds (1) before drops (2).
         static int Phase(SchemaDelta delta) => delta switch
@@ -249,12 +250,157 @@ public class SchemaCompare
             .Select(x => x.delta)
             .ToList();
 
+        // Rank alone can't order two elements of the same type, so a table whose foreign
+        // key references another table may still precede it. Sort each create rank
+        // topologically to fix that, leaving the ranks themselves (and every other phase)
+        // where they are. A circular reference cannot be ordered at all, so the constraint
+        // closing the cycle is pulled out here to be added after every table exists.
+        var deferred = new List<AddConstraintDelta>();
+
+        ordered = SortCreatesByDependency(ordered, analyzer, source, Phase, Rank, deferred);
+
+        // Deferred constraints go after all creates but before alters and drops, so the
+        // tables they join are guaranteed to exist by the time they run.
+        if (deferred.Count > 0)
+        {
+            var afterCreates = ordered.FindLastIndex(i => Phase(i) == 0) + 1;
+
+            ordered.InsertRange(afterCreates, deferred);
+        }
+
         comparison.Deltas.Clear();
 
         foreach (var delta in ordered)
         {
             comparison.Deltas.Add(delta);
         }
+    }
+
+    // Reorders the creates within each rank so an element follows everything it depends on
+    // (a table follows the tables its foreign keys reference). Only same-rank creates are
+    // permuted: the rank ordering already encodes coarse dependencies (schema before table)
+    // and must not be disturbed.
+    private static List<SchemaDelta> SortCreatesByDependency(
+        List<SchemaDelta> ordered,
+        IDatabaseDependencyAnalyzer analyzer,
+        Model source,
+        Func<SchemaDelta, int> phase,
+        Func<SchemaDelta, int> rank,
+        List<AddConstraintDelta> deferred)
+    {
+        var result = new List<SchemaDelta>(ordered.Count);
+        var position = 0;
+
+        while (position < ordered.Count)
+        {
+            var delta = ordered[position];
+
+            if (phase(delta) != 0)
+            {
+                result.Add(delta);
+                position++;
+                continue;
+            }
+
+            // Take the whole run of creates sharing this rank and sort it as one group.
+            var currentRank = rank(delta);
+            var group = new List<CreateDelta>();
+
+            while (position < ordered.Count
+                   && ordered[position] is CreateDelta create
+                   && phase(ordered[position]) == 0
+                   && rank(ordered[position]) == currentRank)
+            {
+                group.Add(create);
+                position++;
+            }
+
+            result.AddRange(TopologicalSort(group, analyzer, source, deferred));
+        }
+
+        return result;
+    }
+
+    // Depth-first topological sort, preserving the input order wherever dependencies allow
+    // so the result stays stable and predictable.
+    //
+    // When a cycle is found (two tables referencing each other), the constraint that closes
+    // it is deferred: it is removed from its table's inline definition and collected into
+    // <paramref name="deferred"/> so the caller can add it with ALTER TABLE once every
+    // table exists. No create order could satisfy a cycle, so breaking one edge is the only
+    // way to deploy it at all.
+    //
+    // A self-reference is a cycle of one but needs no deferral — a table may reference
+    // itself in the same CREATE — so it is skipped rather than broken.
+    private static List<CreateDelta> TopologicalSort(
+        List<CreateDelta> group,
+        IDatabaseDependencyAnalyzer analyzer,
+        Model source,
+        List<AddConstraintDelta> deferred)
+    {
+        if (group.Count < 2)
+        {
+            return group;
+        }
+
+        // Only elements in this group can be ordered against each other; a dependency on
+        // something already created (or in another rank) needs no edge.
+        var byElement = new Dictionary<Element, CreateDelta>();
+
+        foreach (var create in group)
+        {
+            byElement.TryAdd(create.Element, create);
+        }
+
+        var sorted = new List<CreateDelta>(group.Count);
+
+        // null = unvisited, false = in progress (revisiting one means a cycle), true = done.
+        var state = new Dictionary<CreateDelta, bool>();
+
+        void Visit(CreateDelta create)
+        {
+            if (state.ContainsKey(create))
+            {
+                return;
+            }
+
+            state[create] = false;
+
+            foreach (var (dependsOn, constraint) in analyzer.GetCreateDependencies(create.Element, source))
+            {
+                // Skip a self-reference and anything outside this group.
+                if (!byElement.TryGetValue(dependsOn, out var dependencyCreate)
+                    || ReferenceEquals(dependencyCreate, create))
+                {
+                    continue;
+                }
+
+                // The dependency is still in progress further up this path, so following it
+                // would close a cycle. Defer the constraint that forms this edge instead,
+                // which lets both tables be created and the constraint added afterwards.
+                if (state.TryGetValue(dependencyCreate, out var finished) && !finished)
+                {
+                    if (constraint is not null && create.DependentElements.Remove(constraint))
+                    {
+                        deferred.Add(new AddConstraintDelta(constraint, create.Element));
+                    }
+
+                    continue;
+                }
+
+                Visit(dependencyCreate);
+            }
+
+            state[create] = true;
+            sorted.Add(create);
+        }
+
+        foreach (var create in group)
+        {
+            Visit(create);
+        }
+
+        return sorted;
     }
 
     // Whether two elements denote the same database object: same type, same name, and —

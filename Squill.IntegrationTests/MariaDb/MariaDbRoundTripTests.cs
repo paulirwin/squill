@@ -49,7 +49,9 @@ public abstract class MariaDbRoundTripTests
                 HashUtility.HashesEqual(model.Hash, newModel.Hash),
                 $"[{Fixture.EngineName}] Parsed and extracted model hashes do not match.");
 
-            return model;
+            // The model as extracted from the database, so a caller's extra assertions are
+            // made against what was actually deployed rather than against the source.
+            return newModel;
         }
         finally
         {
@@ -189,6 +191,42 @@ public abstract class MariaDbRoundTripTests
             );
             """, TestContext.Current.CancellationToken);
     }
+
+    // Two tables referencing each other: no create order satisfies both constraints, so the
+    // one closing the cycle is added with ALTER TABLE once both tables exist.
+    [Fact]
+    public async Task CircularForeignKeys_RoundTrip()
+    {
+        var model = await AssertRoundTripAsync("""
+            CREATE TABLE husband
+            (
+                id      int NOT NULL PRIMARY KEY,
+                wife_id int NULL,
+                CONSTRAINT fk_husband_wife FOREIGN KEY (wife_id) REFERENCES wife (id)
+            );
+            CREATE TABLE wife
+            (
+                id         int NOT NULL PRIMARY KEY,
+                husband_id int NULL,
+                CONSTRAINT fk_wife_husband FOREIGN KEY (husband_id) REFERENCES husband (id)
+            );
+            """, TestContext.Current.CancellationToken);
+
+        // Both directions must survive: deferring one constraint must not lose it, and each
+        // must point at the table the source declared.
+        var foreignKeys = model.Elements
+            .Where(i => i.Type == MariaDbElementTypes.SqlForeignKeyConstraint)
+            .ToList();
+
+        Assert.Equal(2, foreignKeys.Count);
+
+        Assert.Contains(foreignKeys, i => ReferencedTable(i) == "wife");
+        Assert.Contains(foreignKeys, i => ReferencedTable(i) == "husband");
+    }
+
+    private static string? ReferencedTable(Element foreignKey)
+        => foreignKey.GetRelationship(MariaDbRelationshipNames.ForeignTable)
+            ?.Entries.OfType<Reference>().FirstOrDefault()?.Name;
 }
 
 // ---- Per-engine bindings: each scenario runs once against MariaDB and once against MySQL. ----

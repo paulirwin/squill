@@ -33,9 +33,29 @@ public class MariaDbScriptGenerator
             RebuildTableDelta rebuild => GenerateRebuildScript(rebuild),
             DropDelta drop => GenerateDropScript(drop),
             RecreateDelta recreate => GenerateRecreateScript(recreate),
+            AddConstraintDelta addConstraint => GenerateAddConstraintScript(addConstraint),
             _ => throw new NotImplementedException(
                 $"Scripting a delta of type {delta.GetType().Name} is not supported."),
         };
+    }
+
+    // Adds a constraint that was held back from its table's CREATE to break a circular
+    // foreign key dependency. By the time this runs, every table in the cycle exists.
+    private static string GenerateAddConstraintScript(AddConstraintDelta delta)
+    {
+        if (delta.Constraint.Type != MariaDbElementTypes.SqlForeignKeyConstraint)
+        {
+            throw new NotImplementedException(
+                $"Adding a constraint of type {delta.Constraint.Type} is not supported.");
+        }
+
+        if (delta.DefiningTable.Name is not string tableName)
+        {
+            throw new ArgumentException("Cannot add a constraint to a table without a name");
+        }
+
+        return $"ALTER TABLE {SqlName.Parse(tableName).Sql} ADD {GetForeignKeyClause(delta.Constraint)};"
+            + Environment.NewLine;
     }
 
     // ---- CREATE ----
