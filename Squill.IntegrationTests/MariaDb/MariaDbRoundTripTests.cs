@@ -47,7 +47,9 @@ public abstract class MariaDbRoundTripTests
 
             Assert.True(
                 HashUtility.HashesEqual(model.Hash, newModel.Hash),
-                $"[{Fixture.EngineName}] Parsed and extracted model hashes do not match.");
+                $"[{Fixture.EngineName}] Parsed and extracted model hashes do not match.\n"
+                + $"Parsed:    {Describe(model)}\n"
+                + $"Extracted: {Describe(newModel)}");
 
             // The model as extracted from the database, so a caller's extra assertions are
             // made against what was actually deployed rather than against the source.
@@ -223,6 +225,81 @@ public abstract class MariaDbRoundTripTests
         Assert.Contains(foreignKeys, i => ReferencedTable(i) == "wife");
         Assert.Contains(foreignKeys, i => ReferencedTable(i) == "husband");
     }
+
+    // The parser yields each table immediately followed by its own dependents, so the
+    // extraction builder must too — grouping every table ahead of every dependent diverges
+    // as soon as there is more than one table, and the Merkle hash is order-sensitive.
+    // This is the MariaDB counterpart of the Postgres regression in issue #65; the MariaDB
+    // builder already interleaves, and these tests keep it that way.
+    [Fact]
+    public async Task TwoTablesWithPrimaryKeys_RoundTrip()
+    {
+        await AssertRoundTripAsync("""
+            CREATE TABLE zebra (id int NOT NULL PRIMARY KEY);
+            CREATE TABLE apple (id int NOT NULL PRIMARY KEY);
+            """, TestContext.Current.CancellationToken);
+    }
+
+    // Indexes and foreign keys are dependents too, so a table's own must stay with it — and
+    // in the order the parser emits them.
+    [Fact]
+    public async Task MultipleTablesWithIndexesAndForeignKeys_RoundTrip()
+    {
+        await AssertRoundTripAsync("""
+            CREATE TABLE author
+            (
+                author_id int NOT NULL PRIMARY KEY,
+                name      varchar(200) NOT NULL
+            );
+            CREATE TABLE book
+            (
+                book_id   int NOT NULL PRIMARY KEY,
+                author_id int NOT NULL,
+                title     varchar(400) NOT NULL,
+                CONSTRAINT fk_book_author FOREIGN KEY (author_id) REFERENCES author (author_id)
+            );
+            CREATE INDEX ix_book_title ON book (title);
+            """, TestContext.Current.CancellationToken);
+    }
+
+    // A table carrying a unique constraint (an inline index) and a foreign key at once, so
+    // the relative order of the two dependent kinds is pinned rather than left to whichever
+    // combination the other tests happen to cover.
+    [Fact]
+    public async Task TableWithBothUniqueConstraintAndForeignKey_RoundTrips()
+    {
+        await AssertRoundTripAsync("""
+            CREATE TABLE customer
+            (
+                id int NOT NULL PRIMARY KEY
+            );
+            CREATE TABLE account
+            (
+                id          int NOT NULL PRIMARY KEY,
+                customer_id int NOT NULL,
+                email       varchar(255) NOT NULL,
+                CONSTRAINT uq_account_email UNIQUE (email),
+                CONSTRAINT fk_account_customer FOREIGN KEY (customer_id) REFERENCES customer (id)
+            );
+            """, TestContext.Current.CancellationToken);
+    }
+
+    // Declared in reverse-alphabetical order, so a builder that sorted tables by name would
+    // disagree with the parser, which keeps declaration order.
+    [Fact]
+    public async Task TablesDeclaredOutOfAlphabeticalOrder_RoundTrip()
+    {
+        await AssertRoundTripAsync("""
+            CREATE TABLE zulu (id int NOT NULL PRIMARY KEY);
+            CREATE TABLE yankee (id int NOT NULL PRIMARY KEY);
+            CREATE TABLE xray (id int NOT NULL PRIMARY KEY);
+            """, TestContext.Current.CancellationToken);
+    }
+
+    // Element type and name in order, so an ordering mismatch reports what actually differs
+    // rather than just "hashes do not match".
+    private static string Describe(Model model)
+        => string.Join(" | ", model.Elements.Select(i => $"{i.Type}:{i.Name}"));
 
     private static string? ReferencedTable(Element foreignKey)
         => foreignKey.GetRelationship(MariaDbRelationshipNames.ForeignTable)

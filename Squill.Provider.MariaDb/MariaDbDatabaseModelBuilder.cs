@@ -59,8 +59,12 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
 
             await ExtractColumnsAsync(table, cancellationToken);
             await ExtractPrimaryKeyAsync(model, table, cancellationToken);
-            await ExtractIndexesAsync(model, table, cancellationToken);
+
+            // Foreign keys precede indexes, matching the parser: a table's constraints are
+            // written in its CREATE TABLE, while a standalone index comes from a separate
+            // CREATE INDEX statement that follows it.
             await ExtractForeignKeysAsync(model, table, cancellationToken);
+            await ExtractIndexesAsync(model, table, cancellationToken);
         }
 
         return model;
