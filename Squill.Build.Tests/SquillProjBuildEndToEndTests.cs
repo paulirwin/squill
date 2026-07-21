@@ -126,6 +126,60 @@ public class SquillProjBuildEndToEndTests
         }
     }
 
+    // Setting SquillTargetVersion in the project flows through the SDK pipeline (props →
+    // targets task param → task → DACPAC), so the built DACPAC records the target major
+    // version (issue #39).
+    [Fact]
+    public async Task DotnetBuild_WithSquillTargetVersion_RecordsItInDacpac()
+    {
+        var repoRoot = FindRepoRoot();
+
+        var taskDll = Path.Combine(repoRoot, "Squill.Build", "bin", "Debug", "net10.0", "Squill.Build.dll");
+        Assert.True(File.Exists(taskDll),
+            $"Squill.Build must be built before this test; expected {taskDll}. Run 'dotnet build Squill.Build'.");
+
+        var tempDir = Directory.CreateTempSubdirectory("squill-e2e-version");
+        try
+        {
+            var sdkDir = Path.Combine(repoRoot, "Squill.Sdk", "Sdk");
+            var projContent = $"""
+<Project>
+  <Import Project="{Path.Combine(sdkDir, "Sdk.props")}" />
+  <PropertyGroup>
+    <SquillTargetVersion>16</SquillTargetVersion>
+  </PropertyGroup>
+  <Import Project="{Path.Combine(sdkDir, "Sdk.targets")}" />
+</Project>
+""";
+            await File.WriteAllTextAsync(
+                Path.Combine(tempDir.FullName, "TestDb.squillproj"),
+                projContent,
+                TestContext.Current.CancellationToken);
+
+            await File.WriteAllTextAsync(
+                Path.Combine(tempDir.FullName, "Widget.sql"),
+                "CREATE TABLE widget (id integer PRIMARY KEY, label varchar(50) NOT NULL);",
+                TestContext.Current.CancellationToken);
+
+            var (exitCode, output) = await RunDotnetBuild(tempDir.FullName, "TestDb.squillproj");
+
+            Assert.True(exitCode == 0, $"dotnet build should succeed. Output:\n{output}");
+
+            var dacpacPath = Path.Combine(tempDir.FullName, "bin", "Debug", "TestDb.dacpac");
+            Assert.True(File.Exists(dacpacPath), $"DACPAC should be produced at {dacpacPath}. Output:\n{output}");
+
+            await using var stream = File.OpenRead(dacpacPath);
+            var (metadata, _) =
+                await DacpacSerializer.Deserialize(stream, TestContext.Current.CancellationToken);
+
+            Assert.Equal(16, metadata.TargetMajorVersion);
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
     private static async Task<(int ExitCode, string Output)> RunDotnetBuild(string workingDir, string project)
     {
         var psi = new ProcessStartInfo("dotnet")

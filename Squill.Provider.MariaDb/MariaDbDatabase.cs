@@ -44,6 +44,56 @@ public class MariaDbDatabase : IDatabase
         await _connection.OpenAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// The major version of the connected server (e.g. <c>11</c> for MariaDB, <c>8</c> for
+    /// MySQL), used to enforce the DACPAC's recorded target version at deploy time. Parsed from
+    /// the driver's server-version string, whose MariaDB form carries a <c>-MariaDB</c> suffix
+    /// (e.g. <c>11.4.2-MariaDB</c>) and whose MySQL form does not (e.g. <c>8.0.36</c>).
+    /// </summary>
+    public int GetServerMajorVersion()
+    {
+        if (_connection == null)
+        {
+            throw new InvalidOperationException("Connect to the database before running a script.");
+        }
+
+        return ParseMajorVersion(_connection.ServerVersion);
+    }
+
+    /// <summary>
+    /// Extracts the major version from a MySqlConnector server-version string. The string
+    /// starts with a dotted numeric version, optionally followed by a suffix like
+    /// <c>-MariaDB</c> (MariaDB) or nothing (MySQL); the leading run of digits is the major.
+    /// </summary>
+    public static int ParseMajorVersion(string serverVersion)
+    {
+        var digits = 0;
+        var length = 0;
+
+        foreach (var c in serverVersion)
+        {
+            if (!char.IsAsciiDigit(c))
+            {
+                break;
+            }
+
+            length++;
+        }
+
+        if (length == 0
+            || !int.TryParse(
+                serverVersion.AsSpan(0, length),
+                System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out digits))
+        {
+            throw new InvalidOperationException(
+                $"Could not parse a major version from the server version string '{serverVersion}'.");
+        }
+
+        return digits;
+    }
+
     public async Task RunScriptAsync(string sql,
         IReadOnlyList<IDatabaseParameter>? parameters = null,
         CancellationToken cancellationToken = default)

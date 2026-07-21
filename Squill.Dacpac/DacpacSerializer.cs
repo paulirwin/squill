@@ -27,7 +27,7 @@ public static class DacpacSerializer
         byte[] modelBytes;
         using (var modelBuffer = new MemoryStream())
         {
-            ModelXmlWriter.Write(model, modelBuffer);
+            ModelXmlWriter.Write(model, metadata, modelBuffer);
             modelBytes = modelBuffer.ToArray();
         }
 
@@ -86,7 +86,7 @@ public static class DacpacSerializer
         }
 
         using var modelStream = new MemoryStream(modelBytes, writable: false);
-        var model = ModelXmlReader.Read(modelStream);
+        var model = ModelXmlReader.Read(modelStream, metadata);
 
         return Task.FromResult((metadata, model));
     }

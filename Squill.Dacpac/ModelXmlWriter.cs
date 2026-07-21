@@ -13,7 +13,7 @@ namespace Squill.Dacpac;
 /// </summary>
 internal static class ModelXmlWriter
 {
-    public static void Write(Model model, Stream stream)
+    public static void Write(Model model, ModelMetadata metadata, Stream stream)
     {
         var settings = new XmlWriterSettings
         {
@@ -28,6 +28,12 @@ internal static class ModelXmlWriter
         writer.WriteStartElement("DataSchemaModel", DacpacConstants.SerializationNamespace);
         writer.WriteAttributeString("FileFormatVersion", DacpacConstants.FileFormatVersion);
         writer.WriteAttributeString("SchemaVersion", DacpacConstants.SchemaVersion);
+
+        // DspName records the provider and target engine major version, exactly where SSDT
+        // records its target platform — on the DataSchemaModel root. Because model.xml is
+        // checksummed in Origin.xml, this target-version stamp is tamper-evident.
+        writer.WriteAttributeString(
+            "DspName", DspName.Build(metadata.ProviderName, metadata.TargetMajorVersion));
 
         writer.WriteStartElement("Model");
 

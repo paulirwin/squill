@@ -58,7 +58,7 @@ public static class DacpacDeployer
         CancellationToken cancellationToken = default)
     {
         progress?.Report("Reading DACPAC...");
-        var (_, sourceModel) = await DacpacSerializer.Deserialize(dacpacStream, cancellationToken);
+        var (metadata, sourceModel) = await DacpacSerializer.Deserialize(dacpacStream, cancellationToken);
 
         var databaseName = targetDatabaseName ?? ResolveDatabaseName(connectionString);
 
@@ -68,6 +68,11 @@ public static class DacpacDeployer
 
         progress?.Report($"Connecting to database '{databaseName}'...");
         await targetDb.ConnectAsync(cancellationToken);
+
+        // Enforce the DACPAC's recorded target platform before doing any work: fail if the
+        // server predates the version the DACPAC was built for (SSDT-style), so we never
+        // deploy a newer-targeted package to an older engine.
+        EnforceTargetVersion(metadata, targetDb.GetServerMajorVersion(), progress);
 
         progress?.Report("Extracting current schema from target database...");
         var modelBuilder = provider.CreateDatabaseModelBuilder(targetDb);
@@ -116,6 +121,33 @@ public static class DacpacDeployer
         }
 
         return new DeployResult(script, WasExecuted: true);
+    }
+
+    /// <summary>
+    /// Throws <see cref="TargetVersionMismatchException"/> when the DACPAC records a target
+    /// major version newer than the connected server. A DACPAC with no recorded target version
+    /// (<c>null</c>) is unconstrained and always allowed. The engine name in the message
+    /// follows the DACPAC's provider name so a MySQL DACPAC says "MySQL", not "MariaDB".
+    /// </summary>
+    private static void EnforceTargetVersion(
+        ModelMetadata metadata, int serverMajorVersion, IProgress<string>? progress)
+    {
+        if (metadata.TargetMajorVersion is not { } required)
+        {
+            return;
+        }
+
+        var engineName = string.Equals(metadata.ProviderName, "MySql", StringComparison.OrdinalIgnoreCase)
+            ? "MySQL"
+            : "MariaDB";
+
+        if (serverMajorVersion < required)
+        {
+            throw new TargetVersionMismatchException(required, serverMajorVersion, engineName);
+        }
+
+        progress?.Report(
+            $"Target server is {engineName} {serverMajorVersion}; DACPAC targets {required}+ (OK).");
     }
 
     private static string DescribeDelta(SchemaDelta delta)

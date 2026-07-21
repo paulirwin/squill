@@ -39,7 +39,22 @@ public class PostgresDatabase : IDatabase
         await _connection.OpenAsync(cancellationToken);
     }
 
-    public async Task RunScriptAsync(string sql, 
+    /// <summary>
+    /// The major version of the connected PostgreSQL server (e.g. <c>16</c>), used to enforce
+    /// the DACPAC's recorded target version at deploy time. Npgsql exposes the server version
+    /// as a parsed <see cref="Version"/> once connected, so no query is needed.
+    /// </summary>
+    public int GetServerMajorVersion()
+    {
+        if (_connection == null)
+        {
+            throw new InvalidOperationException("Thou shalt connect first!");
+        }
+
+        return _connection.PostgreSqlVersion.Major;
+    }
+
+    public async Task RunScriptAsync(string sql,
         IReadOnlyList<IDatabaseParameter>? parameters = null,
         CancellationToken cancellationToken = default)
     {

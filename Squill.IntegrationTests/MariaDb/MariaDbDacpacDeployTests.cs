@@ -29,13 +29,20 @@ public abstract class MariaDbDacpacDeployTests
         );
         """;
 
-    private async Task<string> BuildDacpacAsync(string directory, CancellationToken ct)
+    private async Task<string> BuildDacpacAsync(
+        string directory, CancellationToken ct, int? targetMajorVersion = null)
     {
         var sqlPath = Path.Combine(directory, "schema.sql");
         await File.WriteAllTextAsync(sqlPath, SchemaSql, ct);
 
         var workspace = DacpacBuilder.CreateWorkspace(new[] { sqlPath });
-        var metadata = new ModelMetadata { Name = "TestDb", Version = "1.0.0.0", ProviderName = "MariaDb" };
+        var metadata = new ModelMetadata
+        {
+            Name = "TestDb",
+            Version = "1.0.0.0",
+            ProviderName = "MariaDb",
+            TargetMajorVersion = targetMajorVersion,
+        };
 
         var dacpacPath = Path.Combine(directory, "TestDb.dacpac");
         await DacpacBuilder.BuildToFileAsync(workspace, metadata, dacpacPath, ct);
@@ -123,6 +130,88 @@ public abstract class MariaDbDacpacDeployTests
                     .ExtractModelAsync(ct);
 
                 Assert.DoesNotContain(deployedModel.Elements, e => e.Type == MariaDbElementTypes.SqlTable);
+            }
+            finally
+            {
+                await createdDb.DropAsync(ct);
+            }
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
+    // A DACPAC targeting a version far newer than any real server must fail to deploy
+    // (issue #39), before any schema is touched — mirroring SSDT's target-platform check.
+    [Fact]
+    public async Task Deploy_FailsWhenTargetVersionExceedsServer()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var tempDir = Directory.CreateTempSubdirectory("squill-mariadb-version");
+
+        try
+        {
+            var dacpacPath = await BuildDacpacAsync(tempDir.FullName, ct, targetMajorVersion: 999);
+
+            IDatabaseProvider provider = new MariaDbDatabaseProvider(Fixture.ConnectionString);
+            var targetDbName = $"squill_deploy_{Guid.NewGuid():n}";
+            var createdDb = await provider.CreateDatabaseAsync(targetDbName, ct);
+
+            try
+            {
+                var ex = await Assert.ThrowsAsync<TargetVersionMismatchException>(() =>
+                    DacpacDeployer.DeployFromFileAsync(
+                        dacpacPath, Fixture.ConnectionString, targetDbName, dryRun: false,
+                        cancellationToken: ct));
+
+                Assert.Equal(999, ex.RequiredMajorVersion);
+
+                // The check runs before any DDL, so the target must be untouched.
+                var untouched = await provider
+                    .CreateDatabaseModelBuilder(createdDb)
+                    .ExtractModelAsync(ct);
+                Assert.DoesNotContain(untouched.Elements, e => e.Type == MariaDbElementTypes.SqlTable);
+            }
+            finally
+            {
+                await createdDb.DropAsync(ct);
+            }
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
+    // A DACPAC targeting a version the server satisfies deploys normally (issue #39).
+    [Fact]
+    public async Task Deploy_SucceedsWhenServerMeetsTargetVersion()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var tempDir = Directory.CreateTempSubdirectory("squill-mariadb-version-ok");
+
+        try
+        {
+            // Any supported MariaDB/MySQL server is major version >= 1.
+            var dacpacPath = await BuildDacpacAsync(tempDir.FullName, ct, targetMajorVersion: 1);
+
+            IDatabaseProvider provider = new MariaDbDatabaseProvider(Fixture.ConnectionString);
+            var targetDbName = $"squill_deploy_{Guid.NewGuid():n}";
+            var createdDb = await provider.CreateDatabaseAsync(targetDbName, ct);
+
+            try
+            {
+                var result = await DacpacDeployer.DeployFromFileAsync(
+                    dacpacPath, Fixture.ConnectionString, targetDbName, dryRun: false,
+                    cancellationToken: ct);
+
+                Assert.True(result.WasExecuted);
+
+                var deployedModel = await provider
+                    .CreateDatabaseModelBuilder(createdDb)
+                    .ExtractModelAsync(ct);
+                Assert.Contains(deployedModel.Elements, e => e.Type == MariaDbElementTypes.SqlTable);
             }
             finally
             {

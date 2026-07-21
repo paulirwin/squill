@@ -238,7 +238,91 @@ public class PostgresDacpacDeployTest : PostgresIntegrationTestBase
         }
     }
 
-    private static async Task<string> BuildDacpacAsync(string dir, CancellationToken ct)
+    // A DACPAC targeting a version far newer than any real server must fail to deploy
+    // (issue #39), before any schema is touched — mirroring SSDT's target-platform check.
+    [Fact]
+    public async Task Deploy_FailsWhenTargetVersionExceedsServer()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var tempDir = Directory.CreateTempSubdirectory("squill-deploy-version-integration");
+        try
+        {
+            var dacpacPath = await BuildDacpacAsync(tempDir.FullName, ct, targetMajorVersion: 999);
+
+            IDatabaseProvider provider = new PostgresDatabaseProvider(ConnectionString);
+            var targetDbName = $"squill_deploy_{Guid.NewGuid():n}";
+            var createdDb = await provider.CreateDatabaseAsync(targetDbName, ct);
+
+            try
+            {
+                var ex = await Assert.ThrowsAsync<TargetVersionMismatchException>(() =>
+                    DacpacDeployer.DeployFromFileAsync(
+                        dacpacPath, ConnectionString, targetDbName, dryRun: false,
+                        cancellationToken: ct));
+
+                Assert.Equal(999, ex.RequiredMajorVersion);
+                Assert.Equal("PostgreSQL", ex.EngineName);
+
+                // The check runs before any DDL, so the target must be untouched.
+                var untouched = await provider
+                    .CreateDatabaseModelBuilder(createdDb)
+                    .ExtractModelAsync(ct);
+                Assert.DoesNotContain(untouched.Elements, e => e.Type == PostgresElementTypes.SqlTable);
+            }
+            finally
+            {
+                await createdDb.DropAsync(ct);
+            }
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
+    // A DACPAC targeting a version the server satisfies deploys normally (issue #39).
+    [Fact]
+    public async Task Deploy_SucceedsWhenServerMeetsTargetVersion()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var tempDir = Directory.CreateTempSubdirectory("squill-deploy-version-ok-integration");
+        try
+        {
+            // Any supported Postgres server is major version >= 1.
+            var dacpacPath = await BuildDacpacAsync(tempDir.FullName, ct, targetMajorVersion: 1);
+
+            IDatabaseProvider provider = new PostgresDatabaseProvider(ConnectionString);
+            var targetDbName = $"squill_deploy_{Guid.NewGuid():n}";
+            var createdDb = await provider.CreateDatabaseAsync(targetDbName, ct);
+
+            try
+            {
+                var result = await DacpacDeployer.DeployFromFileAsync(
+                    dacpacPath, ConnectionString, targetDbName, dryRun: false,
+                    cancellationToken: ct);
+
+                Assert.True(result.WasExecuted);
+
+                var deployedModel = await provider
+                    .CreateDatabaseModelBuilder(createdDb)
+                    .ExtractModelAsync(ct);
+                Assert.Contains(deployedModel.Elements, e => e.Type == PostgresElementTypes.SqlTable);
+            }
+            finally
+            {
+                await createdDb.DropAsync(ct);
+            }
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
+    private static async Task<string> BuildDacpacAsync(
+        string dir, CancellationToken ct, int? targetMajorVersion = null)
     {
         var schema = await new EmbeddedResourceFile(
                 "Squill.IntegrationTests.Postgres.DacpacDeployTest.Schema.sql", FileKind.Compile)
@@ -249,7 +333,12 @@ public class PostgresDacpacDeployTest : PostgresIntegrationTestBase
 
         var dacpacPath = Path.Combine(dir, "bin", "TestDb.dacpac");
         var workspace = DacpacBuilder.CreateWorkspace([sqlPath]);
-        var metadata = new ModelMetadata { ProviderName = "Postgresql", Name = "TestDb" };
+        var metadata = new ModelMetadata
+        {
+            ProviderName = "Postgresql",
+            Name = "TestDb",
+            TargetMajorVersion = targetMajorVersion,
+        };
         await DacpacBuilder.BuildToFileAsync(workspace, metadata, dacpacPath, ct);
 
         return dacpacPath;

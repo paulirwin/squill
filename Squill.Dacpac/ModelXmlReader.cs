@@ -14,7 +14,7 @@ namespace Squill.Dacpac;
 /// </summary>
 internal static class ModelXmlReader
 {
-    public static Model Read(Stream stream)
+    public static Model Read(Stream stream, ModelMetadata? metadata = null)
     {
         var document = XDocument.Load(stream);
         var root = document.Root
@@ -22,6 +22,14 @@ internal static class ModelXmlReader
 
         var ns = root.Name.Namespace;
         var model = new Model();
+
+        // The DspName on the root records the target engine major version (SSDT-style).
+        // Apply it onto the metadata so the deploy side can enforce it.
+        if (metadata is not null
+            && DspName.TryParse((string?)root.Attribute("DspName"), out _, out var targetMajorVersion))
+        {
+            metadata.TargetMajorVersion = targetMajorVersion;
+        }
 
         var modelElement = root.Element(ns + "Model");
         if (modelElement is null)
