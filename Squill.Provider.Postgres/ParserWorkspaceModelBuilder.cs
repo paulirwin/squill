@@ -96,9 +96,15 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
         var primaryKeyColumns = new List<PostgresModelFactory.IndexedColumn>();
         var foreignKeys = new List<ForeignKeySpec>();
 
-        AddTableColumnsRelationship(tableElement, tableName, createTableStatement, primaryKeyColumns, foreignKeys);
+        var inlinePkName = AddTableColumnsRelationship(
+            tableElement, tableName, createTableStatement, primaryKeyColumns, foreignKeys);
 
-        var explicitPkName = CollectTableLevelConstraints(createTableStatement, tableName, primaryKeyColumns, foreignKeys);
+        var tableLevelPkName = CollectTableLevelConstraints(
+            createTableStatement, tableName, primaryKeyColumns, foreignKeys);
+
+        // A named PK can be written inline on its column (CONSTRAINT pk_x PRIMARY KEY) or as
+        // a table-level clause; at most one applies, so either source is the explicit name.
+        var explicitPkName = inlinePkName ?? tableLevelPkName;
 
         yield return tableElement;
 
@@ -180,12 +186,16 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
         return explicitPkName;
     }
 
-    private static void AddTableColumnsRelationship(Element sqlTableElement,
+    // Returns the explicit name of a single-column inline PRIMARY KEY constraint
+    // (CONSTRAINT pk_x PRIMARY KEY on a column), or null if the PK is unnamed or table-level.
+    private static string? AddTableColumnsRelationship(Element sqlTableElement,
         SqlName tableName,
         CreateTableStatement createTableStatement,
         List<PostgresModelFactory.IndexedColumn> primaryKeyColumns,
         List<ForeignKeySpec> foreignKeys)
     {
+        string? inlinePkName = null;
+
         var columns = new Relationship(PostgresRelationshipNames.Columns);
         sqlTableElement.Relationships.Add(columns);
 
@@ -222,6 +232,13 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                 else if (constraint is PrimaryKeyColumnConstraint)
                 {
                     primaryKeyColumns.Add(new PostgresModelFactory.IndexedColumn(columnName));
+
+                    // A CONSTRAINT <name> PRIMARY KEY on the column names the PK; carry it
+                    // so it survives scripting rather than being replaced by <table>_pkey.
+                    if (explicitName != null)
+                    {
+                        inlinePkName = explicitName;
+                    }
 
                     // PKs are not nullable
                     isNullable = false;
@@ -412,6 +429,8 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
             
             columns.Add(element);
         }
+
+        return inlinePkName;
     }
 
     private static Element MakeCreateIndexElement(CreateIndexStatement createIndexStatement)

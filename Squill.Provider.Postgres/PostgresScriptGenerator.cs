@@ -264,6 +264,39 @@ public class PostgresScriptGenerator
         }
     }
 
+    // Postgres truncates identifiers at 63 bytes (NAMEDATALEN - 1). The suffix appended to
+    // rename an object aside during a rebuild.
+    private const string RebuildAsideSuffix = "__squill_rebuild_old";
+    private const int MaxIdentifierBytes = 63;
+
+    // A rename-aside name for a rebuilt object, derived from its bare name and guaranteed to
+    // stay within Postgres's 63-byte identifier limit. When the base name plus the suffix
+    // fits, it is used verbatim. Otherwise the base is truncated and a short deterministic
+    // hash of the full base is folded in, so two long names that share a truncated prefix
+    // still get distinct aside names rather than silently colliding after truncation.
+    public static string RebuildAsideName(string baseName)
+    {
+        var candidate = baseName + RebuildAsideSuffix;
+
+        if (Encoding.UTF8.GetByteCount(candidate) <= MaxIdentifierBytes)
+        {
+            return candidate;
+        }
+
+        // 8 hex chars of a stable hash disambiguate names that truncate to the same prefix.
+        var hash = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(baseName)))[..8];
+
+        // Reserve room for "_" + hash + suffix, then take as many leading bytes of the base
+        // as fit. Base names here are ASCII identifiers, so byte length equals char length;
+        // clamp defensively in case of a multi-byte name.
+        var reserved = 1 + hash.Length + RebuildAsideSuffix.Length;
+        var keep = Math.Max(0, MaxIdentifierBytes - reserved);
+        var truncatedBase = baseName.Length > keep ? baseName[..keep] : baseName;
+
+        return $"{truncatedBase}_{hash}{RebuildAsideSuffix}";
+    }
+
     // Rebuilds a table that can't be altered in place: rename the existing table aside,
     // create the table with its desired shape, copy the data for the columns common to
     // both, then drop the renamed original. Wrapped in a transaction so a failure leaves
@@ -278,8 +311,9 @@ public class PostgresScriptGenerator
         var sourceName = SqlName.Parse(tableName);
         var quotedTableName = sourceName.Sql;
 
-        // A collision-resistant temporary name in the same schema for the old table.
-        var oldName = sourceName.Sibling($"{sourceName.UnqualifiedName}__squill_rebuild_old");
+        // A collision-resistant temporary name in the same schema for the old table, kept
+        // within Postgres's 63-byte identifier limit so it is not silently truncated.
+        var oldName = sourceName.Sibling(RebuildAsideName(sourceName.UnqualifiedName));
         var quotedOldName = oldName.Sql;
 
         // Columns common to the desired table and the current one, in desired order — the
@@ -303,6 +337,11 @@ public class PostgresScriptGenerator
 
         sb.AppendLine("BEGIN;");
         sb.AppendLine();
+
+        // Drop foreign keys on other tables that reference this one before renaming/dropping
+        // it, otherwise DROP TABLE on the renamed-aside original fails. They are recreated
+        // after the rebuild, still inside this transaction.
+        AppendInboundForeignKeyDrops(sb, rebuildDelta.InboundForeignKeys);
 
         // Move the existing table aside so the new one can take its name.
         sb.Append("ALTER TABLE ").Append(quotedTableName)
@@ -357,6 +396,11 @@ public class PostgresScriptGenerator
         sb.Append("DROP TABLE ").Append(quotedOldName).AppendLine(";");
         sb.AppendLine();
 
+        // Recreate the inbound FKs dropped above, now that the rebuilt table (with its key)
+        // exists again. Their referenced key columns are preserved by the rebuild, so the
+        // same definition is valid.
+        AppendInboundForeignKeyRecreates(sb, rebuildDelta.InboundForeignKeys);
+
         // Copying identity values verbatim (OVERRIDING SYSTEM VALUE) does not advance the
         // new column's identity sequence, which still starts at 1 — so the next generated
         // value would collide with a copied row. Advance each identity sequence past the
@@ -386,6 +430,62 @@ public class PostgresScriptGenerator
         return sb.ToString();
     }
 
+    // ALTER TABLE <defining> DROP CONSTRAINT <fk>; for each inbound FK, so the referenced
+    // table can be dropped during the rebuild.
+    private static void AppendInboundForeignKeyDrops(StringBuilder sb, IList<Element> inboundForeignKeys)
+    {
+        if (inboundForeignKeys.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var fk in inboundForeignKeys)
+        {
+            var (definingTable, fkName) = InboundForeignKeyNames(fk);
+
+            sb.Append("ALTER TABLE ").Append(definingTable)
+                .Append(" DROP CONSTRAINT ").Append(fkName).AppendLine(";");
+        }
+
+        sb.AppendLine();
+    }
+
+    // ALTER TABLE <defining> ADD <fk-clause>; for each inbound FK, recreating it after the
+    // rebuild.
+    private static void AppendInboundForeignKeyRecreates(StringBuilder sb, IList<Element> inboundForeignKeys)
+    {
+        if (inboundForeignKeys.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var fk in inboundForeignKeys)
+        {
+            var (definingTable, _) = InboundForeignKeyNames(fk);
+
+            sb.Append("ALTER TABLE ").Append(definingTable)
+                .Append(" ADD ").Append(GetForeignKeyClause(fk)).AppendLine(";");
+        }
+
+        sb.AppendLine();
+    }
+
+    // The (quoted defining-table name, quoted constraint name) for an inbound FK, used to
+    // drop and recreate it around a rebuild.
+    private static (string DefiningTable, string ConstraintName) InboundForeignKeyNames(Element fk)
+    {
+        if (fk.Name is not string fkName)
+        {
+            throw new ArgumentException("Foreign keys must have names");
+        }
+
+        var definingTableRef = fk.GetRelationship(PostgresRelationshipNames.DefiningTable)
+            ?.Entries.OfType<Reference>().SingleOrDefault()
+            ?? throw new InvalidOperationException($"Foreign key {fkName} has no defining table");
+
+        return (QualifiedForeignTable(definingTableRef.Name), SqlName.Parse(fkName).QuotedUnqualified);
+    }
+
     // Renames the renamed-aside old table's constraints and indexes out of the way so the
     // recreated table can reuse their canonical names. PK and FK constraints are renamed
     // with ALTER TABLE ... RENAME CONSTRAINT (which also renames a PK's backing index);
@@ -403,7 +503,7 @@ public class PostgresScriptGenerator
             }
 
             var parsed = SqlName.Parse(name);
-            var asideName = $"{parsed.UnqualifiedName}__squill_rebuild_old";
+            var asideName = RebuildAsideName(parsed.UnqualifiedName);
 
             switch (dependent.Type)
             {
@@ -587,6 +687,18 @@ public class PostgresScriptGenerator
 
         var pkColumns = pk == null ? new List<string>() : GetPrimaryKeyColumns(pk);
 
+        // A single-column PK is written inline (col ... PRIMARY KEY) only when it has the
+        // default <table>_pkey name; a differently-named single-column PK is emitted as a
+        // table-level CONSTRAINT clause below so its name survives (an inline PRIMARY KEY
+        // has no place for a name). A composite PK is always table-level.
+        var pkHasDefaultName = pk?.Name is string rawPkName
+            && string.Equals(
+                SqlName.Parse(rawPkName).UnqualifiedName,
+                $"{SqlName.UnqualifiedOf(tableName)}_pkey",
+                StringComparison.Ordinal);
+
+        var pkIsInline = pkColumns.Count == 1 && pkHasDefaultName;
+
         foreach (var columnRelationship in table.Relationships.Where(i => i.Name == PostgresRelationshipNames.Columns))
         {
             foreach (var column in columnRelationship.Entries.OfType<Element>().Where(i => i.Type == PostgresElementTypes.SqlSimpleColumn))
@@ -603,7 +715,7 @@ public class PostgresScriptGenerator
                 var text = $"\"{SqlName.UnqualifiedOf(columnName)}\" {columnType}";
 
                 var isIdentity = column.GetProperty<bool?>(PostgresPropertyNames.IsIdentity) == true;
-                var isSingleColumnPk = pkColumns.Count == 1 && pkColumns[0].Equals(columnName);
+                var isSingleColumnPk = pkIsInline && pkColumns[0].Equals(columnName);
 
                 if (isIdentity)
                 {
@@ -617,11 +729,10 @@ public class PostgresScriptGenerator
                         : " GENERATED BY DEFAULT AS IDENTITY";
                 }
 
-                // A single-column PK is written inline; a composite PK is emitted as a
-                // table-level clause below.
+                // An unnamed single-column PK is written inline; a composite or named PK is
+                // emitted as a table-level clause below.
                 if (isSingleColumnPk)
                 {
-                    // TODO: support named PK constraints
                     text += " PRIMARY KEY";
                 }
                 else if (!isIdentity)
@@ -637,13 +748,14 @@ public class PostgresScriptGenerator
             }
         }
 
-        if (pkColumns.Count > 1)
+        if (pkColumns.Count > 0 && !pkIsInline)
         {
             var pkColumnList = string.Join(", ", pkColumns.Select(c => $"\"{SqlName.UnqualifiedOf(c)}\""));
 
-            // A composite PK is a table-level clause. Emit the constraint name so an
-            // explicitly named PK (CONSTRAINT pk_x PRIMARY KEY (...)) keeps its name in
-            // the database rather than getting the Postgres-generated <table>_pkey.
+            // A composite PK, or a single-column PK with an explicit (non-default) name, is
+            // a table-level clause. Emit the constraint name so an explicitly named PK
+            // (CONSTRAINT pk_x PRIMARY KEY (...)) keeps its name in the database rather than
+            // getting the Postgres-generated <table>_pkey.
             columnText.Add($"CONSTRAINT {SqlName.Parse(pk!.Name!).QuotedUnqualified} PRIMARY KEY ({pkColumnList})");
         }
 

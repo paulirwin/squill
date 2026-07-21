@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Squill.Core;
 using Squill.PostgresParser;
 
@@ -42,6 +43,54 @@ public class PostgresTableAlterTests
         workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
 
         return await new ParserWorkspaceModelBuilder(workspace, parser).ExtractModelAsync();
+    }
+
+    [Fact]
+    public void DiffTable_HashDiffersButColumnsIdentical_ThrowsClearDiagnostic()
+    {
+        // The over-broad rebuild fallback: if a table's hash differs but every column is
+        // identical, there is no column change an ALTER can express and no data motion is
+        // warranted. Rather than silently rewrite the whole table, refuse loudly. This
+        // branch is effectively unreachable through normal diffing (a real column change
+        // shows up as a column diff; a dependent index/PK/FK change doesn't touch the
+        // table's hash), so the guard is a "should not happen" safety net.
+        var source = BuildTableElementWithMarker("film", markerProperty: true);
+        var target = BuildTableElementWithMarker("film", markerProperty: false);
+
+        // Sanity: the two table elements have identical columns but different hashes.
+        Assert.False(HashUtility.HashesEqual(source.Hash, target.Hash));
+
+        var analyzer = new PostgresTableDiffAnalyzer();
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            analyzer.DiffTable(source, target, new Model(), new Model(), allowTableRebuild: true));
+
+        Assert.Contains("film", ex.Message);
+        Assert.Contains("no column change", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // A table element with one column, optionally carrying a marker property so two such
+    // tables have identical columns but different element hashes.
+    private static Element BuildTableElementWithMarker(string tableName, bool markerProperty)
+    {
+        var table = PostgresModelFactory.CreateTable(SqlName.Object(tableName), "public");
+
+        var column = new Element(PostgresElementTypes.SqlSimpleColumn)
+        {
+            Name = SqlName.Object(tableName).Child("id"),
+        };
+
+        table.Relationships.Add(
+            new Relationship(PostgresRelationshipNames.Columns) { Entries = { column } });
+
+        if (markerProperty)
+        {
+            // A property the table diff never inspects, so columns stay identical while the
+            // element hash differs — exercising the fallback guard.
+            table.Properties.Add(new Property("SquillTestMarker", true));
+        }
+
+        return table;
     }
 
     [Fact]
@@ -241,6 +290,71 @@ CREATE TABLE film
     }
 
     [Fact]
+    public async Task Rebuild_LongTableName_KeepsAsideNameWithinIdentifierLimit()
+    {
+        // A 60-char table name plus the rename-aside suffix would exceed Postgres's 63-byte
+        // identifier limit and get silently truncated (risking a collision). The aside name
+        // must stay within the limit.
+        var longName = new string('a', 60);
+
+        var target = $$"""
+CREATE TABLE {{longName}}
+(
+    id    integer PRIMARY KEY,
+    title varchar(255) NOT NULL
+);
+""";
+        // Insert a column mid-table to force a rebuild.
+        var source = $$"""
+CREATE TABLE {{longName}}
+(
+    id       integer PRIMARY KEY,
+    subtitle varchar(255) NULL,
+    title    varchar(255) NOT NULL
+);
+""";
+
+        var comparison = await CompareAsync(source, target);
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        // Every rename-aside identifier (the ones this guard controls) must be at most 63
+        // bytes so Postgres does not silently truncate it. Match the aside suffix.
+        var asideNames = Regex.Matches(sql, "\"([^\"]*__squill_rebuild_old)\"")
+            .Select(m => m.Groups[1].Value)
+            .ToList();
+
+        Assert.NotEmpty(asideNames);
+
+        foreach (var asideName in asideNames)
+        {
+            Assert.True(
+                System.Text.Encoding.UTF8.GetByteCount(asideName) <= 63,
+                $"Aside identifier '{asideName}' exceeds the 63-byte limit.");
+        }
+
+        // The naive base + suffix would exceed the limit, so it must not appear verbatim.
+        Assert.DoesNotContain($"\"{longName}__squill_rebuild_old\"", sql);
+    }
+
+    [Fact]
+    public void RebuildAsideName_ShortName_UsesSuffixVerbatim()
+    {
+        Assert.Equal("film__squill_rebuild_old", PostgresScriptGenerator.RebuildAsideName("film"));
+    }
+
+    [Fact]
+    public void RebuildAsideName_LongNames_StayWithinLimitAndStayDistinct()
+    {
+        var a = PostgresScriptGenerator.RebuildAsideName(new string('a', 60));
+        var b = PostgresScriptGenerator.RebuildAsideName(new string('a', 59) + "b");
+
+        Assert.True(System.Text.Encoding.UTF8.GetByteCount(a) <= 63);
+        Assert.True(System.Text.Encoding.UTF8.GetByteCount(b) <= 63);
+        // Two distinct long names that share a truncated prefix must not collide.
+        Assert.NotEqual(a, b);
+    }
+
+    [Fact]
     public async Task InsertColumnBetweenExisting_WhenRebuildDisallowed_Throws()
     {
         const string target = """
@@ -390,11 +504,12 @@ CREATE TABLE widgets
     }
 
     [Fact]
-    public async Task Rebuild_WithInboundForeignKey_IsRefused()
+    public async Task Rebuild_WithInboundForeignKey_DropsAndRecreatesTheReferencingFk()
     {
         // customer is referenced by orders; rebuilding customer (by inserting a column
         // mid-table) can't drop the renamed-aside table while orders' FK points at it, so
-        // the diff refuses rather than emit a script that fails mid-transaction.
+        // the referencing FK is dropped before the rebuild and recreated after, inside the
+        // same transaction.
         const string target = """
 CREATE TABLE customer
 (
@@ -423,10 +538,30 @@ CREATE TABLE orders
 );
 """;
 
-        var ex = await Assert.ThrowsAsync<TableRebuildNotSupportedException>(
-            () => CompareAsync(source, target));
+        var comparison = await CompareAsync(source, target);
 
-        Assert.Equal("customer", ex.TableName);
+        var rebuild = Assert.Single(comparison.Deltas.OfType<RebuildTableDelta>());
+        Assert.Equal("customer", rebuild.SourceElement.Name);
+
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        // The referencing FK on orders is dropped before the rebuild and re-added after.
+        Assert.Contains("ALTER TABLE \"orders\" DROP CONSTRAINT \"orders_customer_id_fkey\";", sql);
+        Assert.Contains("ALTER TABLE \"orders\" ADD CONSTRAINT \"orders_customer_id_fkey\" FOREIGN KEY (\"customer_id\") REFERENCES \"customer\" (\"customer_id\")", sql);
+
+        // The drop must precede the rebuild's rename, and the recreate must follow the drop
+        // of the old table — all within the single BEGIN/COMMIT.
+        var dropFkIndex = sql.IndexOf("DROP CONSTRAINT", StringComparison.Ordinal);
+        var renameIndex = sql.IndexOf("RENAME TO", StringComparison.Ordinal);
+        var addFkIndex = sql.IndexOf("ADD CONSTRAINT", StringComparison.Ordinal);
+        var dropOldTableIndex = sql.IndexOf("DROP TABLE", StringComparison.Ordinal);
+
+        Assert.True(dropFkIndex < renameIndex, "FK must be dropped before the rename-aside");
+        Assert.True(dropOldTableIndex < addFkIndex, "FK must be re-added after the old table is dropped");
+        Assert.True(
+            sql.IndexOf("BEGIN;", StringComparison.Ordinal) < dropFkIndex
+                && addFkIndex < sql.LastIndexOf("COMMIT;", StringComparison.Ordinal),
+            "FK reconciliation must happen inside the rebuild transaction");
     }
 
     [Fact]

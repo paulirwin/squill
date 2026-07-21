@@ -253,6 +253,48 @@ CREATE TABLE enrollment
     }
 
     [Fact]
+    public async Task GenerateScript_NamedSingleColumnPrimaryKey_EmitsConstraintName()
+    {
+        // A single-column PK named with CONSTRAINT must keep that name. It is emitted as a
+        // table-level clause (CONSTRAINT name PRIMARY KEY (col)) since an inline PRIMARY KEY
+        // has no place for a name.
+        var comparison = await CompareToEmptyAsync("""
+CREATE TABLE film
+(
+    film_id integer CONSTRAINT pk_film PRIMARY KEY,
+    title   varchar(255) NOT NULL
+);
+""");
+
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        Assert.Contains("CONSTRAINT \"pk_film\" PRIMARY KEY (\"film_id\")", sql);
+        // The name must not be silently replaced by the Postgres-generated <table>_pkey.
+        Assert.DoesNotContain("film_pkey", sql);
+        // And the inline column must not carry a bare PRIMARY KEY (which would be unnamed).
+        Assert.DoesNotContain("integer PRIMARY KEY", sql);
+    }
+
+    [Fact]
+    public async Task GenerateScript_UnnamedSingleColumnPrimaryKey_StaysInline()
+    {
+        // An unnamed single-column PK keeps the clean inline form (no redundant
+        // table-level CONSTRAINT <table>_pkey clause).
+        var comparison = await CompareToEmptyAsync("""
+CREATE TABLE film
+(
+    film_id integer PRIMARY KEY,
+    title   varchar(255) NOT NULL
+);
+""");
+
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        Assert.Contains("\"film_id\" integer PRIMARY KEY", sql);
+        Assert.DoesNotContain("CONSTRAINT", sql);
+    }
+
+    [Fact]
     public async Task GenerateScript_UniqueIndexWithMethodAndDirection()
     {
         var comparison = await CompareToEmptyAsync("""
