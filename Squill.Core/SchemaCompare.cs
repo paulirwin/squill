@@ -87,7 +87,7 @@ public class SchemaCompare
             AddDropDeltas(comparison, analyzer, source, target);
         }
 
-        OrderDeltas(comparison, analyzer);
+        OrderDeltas(comparison, analyzer, source);
 
         // Record any data-loss reasons on the comparison so a caller can surface them
         // (e.g. on a dry run). Enforcement — throwing PossibleDataLossException when
@@ -223,7 +223,8 @@ public class SchemaCompare
     // before the tables in it, an extension before a table using it), then in-place changes,
     // then drops in the reverse of the create order (a table before the schema that holds
     // it). A stable ordering preserves the existing relative order within each rank.
-    private static void OrderDeltas(SchemaComparison comparison, IDatabaseDependencyAnalyzer analyzer)
+    private static void OrderDeltas(
+        SchemaComparison comparison, IDatabaseDependencyAnalyzer analyzer, Model source)
     {
         // Phase groups: creates (0) run before alters/rebuilds (1) before drops (2).
         static int Phase(SchemaDelta delta) => delta switch
@@ -249,12 +250,123 @@ public class SchemaCompare
             .Select(x => x.delta)
             .ToList();
 
+        // Rank alone can't order two elements of the same type, so a table whose foreign
+        // key references another table may still precede it. Sort each create rank
+        // topologically to fix that, leaving the ranks themselves (and every other phase)
+        // where they are.
+        ordered = SortCreatesByDependency(ordered, analyzer, source, Phase, Rank);
+
         comparison.Deltas.Clear();
 
         foreach (var delta in ordered)
         {
             comparison.Deltas.Add(delta);
         }
+    }
+
+    // Reorders the creates within each rank so an element follows everything it depends on
+    // (a table follows the tables its foreign keys reference). Only same-rank creates are
+    // permuted: the rank ordering already encodes coarse dependencies (schema before table)
+    // and must not be disturbed.
+    private static List<SchemaDelta> SortCreatesByDependency(
+        List<SchemaDelta> ordered,
+        IDatabaseDependencyAnalyzer analyzer,
+        Model source,
+        Func<SchemaDelta, int> phase,
+        Func<SchemaDelta, int> rank)
+    {
+        var result = new List<SchemaDelta>(ordered.Count);
+        var position = 0;
+
+        while (position < ordered.Count)
+        {
+            var delta = ordered[position];
+
+            if (phase(delta) != 0)
+            {
+                result.Add(delta);
+                position++;
+                continue;
+            }
+
+            // Take the whole run of creates sharing this rank and sort it as one group.
+            var currentRank = rank(delta);
+            var group = new List<CreateDelta>();
+
+            while (position < ordered.Count
+                   && ordered[position] is CreateDelta create
+                   && phase(ordered[position]) == 0
+                   && rank(ordered[position]) == currentRank)
+            {
+                group.Add(create);
+                position++;
+            }
+
+            result.AddRange(TopologicalSort(group, analyzer, source));
+        }
+
+        return result;
+    }
+
+    // Depth-first topological sort, preserving the input order wherever dependencies allow
+    // so the result stays stable and predictable.
+    //
+    // A dependency cycle (two tables referencing each other) cannot be ordered, and neither
+    // can a self-reference. Rather than fail, the element is emitted anyway: the resulting
+    // script may need the FK added separately, but that is strictly better than refusing to
+    // deploy or silently dropping a table.
+    private static List<CreateDelta> TopologicalSort(
+        List<CreateDelta> group, IDatabaseDependencyAnalyzer analyzer, Model source)
+    {
+        if (group.Count < 2)
+        {
+            return group;
+        }
+
+        // Only elements in this group can be ordered against each other; a dependency on
+        // something already created (or in another rank) needs no edge.
+        var byElement = new Dictionary<Element, CreateDelta>();
+
+        foreach (var create in group)
+        {
+            byElement.TryAdd(create.Element, create);
+        }
+
+        var sorted = new List<CreateDelta>(group.Count);
+        var state = new Dictionary<CreateDelta, bool>();
+
+        void Visit(CreateDelta create)
+        {
+            // true = finished, false = in progress (revisiting one means a cycle).
+            if (state.TryGetValue(create, out var finished))
+            {
+                return;
+            }
+
+            state[create] = false;
+
+            foreach (var dependency in analyzer.GetCreateDependencies(create.Element, source))
+            {
+                // Skip a self-reference and anything outside this group.
+                if (!byElement.TryGetValue(dependency, out var dependencyCreate)
+                    || ReferenceEquals(dependencyCreate, create))
+                {
+                    continue;
+                }
+
+                Visit(dependencyCreate);
+            }
+
+            state[create] = true;
+            sorted.Add(create);
+        }
+
+        foreach (var create in group)
+        {
+            Visit(create);
+        }
+
+        return sorted;
     }
 
     // Whether two elements denote the same database object: same type, same name, and —

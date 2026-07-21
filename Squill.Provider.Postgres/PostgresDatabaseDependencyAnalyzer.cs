@@ -47,6 +47,82 @@ public class PostgresDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
         _ => 2,
     };
 
+    public IEnumerable<Element> GetCreateDependencies(Element element, Model model)
+    {
+        // Only a table orders against other elements, and it does so through the foreign
+        // keys defined on it — which are separate elements referencing it as their
+        // defining table.
+        if (element.Type != PostgresElementTypes.SqlTable || element.Name is not string tableName)
+        {
+            yield break;
+        }
+
+        var schema = GetElementSchema(element) ?? "public";
+
+        foreach (var foreignKey in model.Elements.Where(i =>
+                     i.Type == PostgresElementTypes.SqlForeignKeyConstraint))
+        {
+            // The FK belongs to this table only if its defining table matches by name and
+            // schema — two same-named tables in different schemas each have their own.
+            if (foreignKey.GetRelationship(PostgresRelationshipNames.DefiningTable)
+                    ?.GetReference(tableName) is null)
+            {
+                continue;
+            }
+
+            if (!string.Equals(GetForeignKeySchema(foreignKey, model, tableName), schema, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var referenced = foreignKey.GetRelationship(PostgresRelationshipNames.ForeignTable)
+                ?.Entries.OfType<Reference>().FirstOrDefault();
+
+            if (referenced is null)
+            {
+                continue;
+            }
+
+            if (ResolveTable(referenced.Name, model) is { } referencedTable)
+            {
+                yield return referencedTable;
+            }
+        }
+    }
+
+    // The schema of the table an FK is defined on. The FK carries no schema of its own, so
+    // it is taken from the table it names — unambiguous unless two same-named tables exist
+    // in different schemas, in which case the FK can't be attributed by name alone and the
+    // table's own schema is assumed (matching GetDependentElements' handling).
+    private static string GetForeignKeySchema(Element foreignKey, Model model, string tableName)
+    {
+        var candidates = model.Elements
+            .Where(i => i.Type == PostgresElementTypes.SqlTable
+                && string.Equals(i.Name, tableName, StringComparison.Ordinal))
+            .ToList();
+
+        return candidates.Count == 1
+            ? PostgresModelFactory.GetSchema(candidates[0]) ?? "public"
+            : PostgresModelFactory.GetSchema(foreignKey) ?? "public";
+    }
+
+    // Resolves a foreign key's referenced-table name to its table element. The name is
+    // bare for a table in the public schema and schema-qualified otherwise (see the model
+    // builders' NormalizeReferencedTable), so both forms must be handled.
+    private static Element? ResolveTable(string referencedName, Model model)
+    {
+        var segments = referencedName.Split('.');
+
+        var (schema, bareName) = segments.Length > 1
+            ? (segments[0], segments[^1])
+            : ("public", segments[0]);
+
+        return model.Elements.FirstOrDefault(i =>
+            i.Type == PostgresElementTypes.SqlTable
+            && string.Equals(i.Name, bareName, StringComparison.Ordinal)
+            && string.Equals(PostgresModelFactory.GetSchema(i) ?? "public", schema, StringComparison.Ordinal));
+    }
+
     public Element NormalizeForComparison(Element source, Element target)
     {
         // Only extensions need normalization, and only when the source pins no version:

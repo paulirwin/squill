@@ -39,6 +39,43 @@ public class MariaDbDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
     public int GetCreateOrder(string type) => 0;
 
     // MariaDB has no extension version to normalize, so the source is compared as-is.
+    public IEnumerable<Element> GetCreateDependencies(Element element, Model model)
+    {
+        // A table must follow the tables its foreign keys reference. MariaDB has no
+        // schemas within a database, so a referenced table resolves by bare name.
+        if (element.Type != MariaDbElementTypes.SqlTable || element.Name is not string tableName)
+        {
+            yield break;
+        }
+
+        foreach (var foreignKey in model.Elements.Where(i =>
+                     i.Type == MariaDbElementTypes.SqlForeignKeyConstraint))
+        {
+            if (foreignKey.GetRelationship(MariaDbRelationshipNames.DefiningTable)
+                    ?.GetReference(tableName) is null)
+            {
+                continue;
+            }
+
+            var referenced = foreignKey.GetRelationship(MariaDbRelationshipNames.ForeignTable)
+                ?.Entries.OfType<Reference>().FirstOrDefault();
+
+            if (referenced is null)
+            {
+                continue;
+            }
+
+            var referencedTable = model.Elements.FirstOrDefault(i =>
+                i.Type == MariaDbElementTypes.SqlTable
+                && string.Equals(i.Name, referenced.Name, StringComparison.Ordinal));
+
+            if (referencedTable is not null)
+            {
+                yield return referencedTable;
+            }
+        }
+    }
+
     public Element NormalizeForComparison(Element source, Element target) => source;
 
     public IList<Element>? GetDependentElements(Element sourceElement, Model model)
