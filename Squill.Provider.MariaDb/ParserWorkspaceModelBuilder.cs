@@ -36,7 +36,55 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
         // not matter, just like it doesn't for the deployed schema.
         validator.ThrowIfInvalid();
 
+        SortTablesByName(model);
+
         return model;
+    }
+
+    /// <summary>
+    /// Orders tables by name, keeping each table's dependents (primary key, indexes,
+    /// foreign keys) immediately after it.
+    ///
+    /// The database-extraction builder reads tables with ORDER BY TABLE_NAME, because
+    /// information_schema has no notion of the order they were declared in. The Merkle hash
+    /// is order-sensitive, so a parsed model has to adopt the same order or it would only
+    /// hash-match when the source happened to be written alphabetically.
+    /// </summary>
+    private static void SortTablesByName(Model model)
+    {
+        // Group each table with the dependents that follow it, so a group moves as a unit.
+        var groups = new List<(string Name, List<Element> Elements)>();
+
+        foreach (var element in model.Elements)
+        {
+            if (element.Type == MariaDbElementTypes.SqlTable)
+            {
+                groups.Add((element.Name as string ?? string.Empty, [element]));
+            }
+            else if (groups.Count > 0)
+            {
+                groups[^1].Elements.Add(element);
+            }
+            else
+            {
+                // An element before any table has nothing to attach to; leave it in place
+                // by giving it its own group that sorts first.
+                groups.Add((string.Empty, [element]));
+            }
+        }
+
+        // Ordinal, to match the database's byte-wise ordering of the same names.
+        var ordered = groups
+            .OrderBy(i => i.Name, StringComparer.Ordinal)
+            .SelectMany(i => i.Elements)
+            .ToList();
+
+        model.Elements.Clear();
+
+        foreach (var element in ordered)
+        {
+            model.Elements.Add(element);
+        }
     }
 
     private async Task ProcessFile(IFile file,
@@ -303,20 +351,12 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
                 tableName.Sibling("PRIMARY"), tableName, primaryKeyColumns);
         }
 
-        // UNIQUE constraints/indexes become unique SqlIndex elements. MariaDB names a unique
-        // index after its first column (uniquified with _2, _3, … on collision); with only
-        // the common single-unique case in scope, use the first column's name.
-        foreach (var (explicitName, columns) in uniqueIndexes)
-        {
-            var indexName = explicitName ?? columns[0];
-
-            var indexedColumns = columns.Select(c =>
-                new MariaDbModelFactory.IndexedColumn(tableName.Child(c), IsAscending: true));
-
-            yield return MariaDbModelFactory.CreateIndex(
-                tableName.Sibling(indexName), tableName, isUnique: true, indexMethod: "BTREE", indexedColumns);
-        }
-
+        // Foreign keys precede indexes, matching the database-extraction builder. A
+        // standalone CREATE INDEX is a separate statement processed after the whole table,
+        // so emitting a table's own indexes first would put them either side of the foreign
+        // keys depending on how the index was declared — and the two builders would only
+        // agree for one of the two spellings.
+        //
         // MariaDB (InnoDB) names an unnamed foreign key <table>_ibfk_N, numbered in
         // declaration order starting at 1.
         var ibfkOrdinal = 1;
@@ -333,6 +373,20 @@ public class ParserWorkspaceModelBuilder : IDatabaseModelBuilder
             }
 
             yield return MakeForeignKeyElement(tableName, fkName, foreignKey);
+        }
+
+        // UNIQUE constraints/indexes become unique SqlIndex elements. MariaDB names a unique
+        // index after its first column (uniquified with _2, _3, … on collision); with only
+        // the common single-unique case in scope, use the first column's name.
+        foreach (var (explicitName, columns) in uniqueIndexes)
+        {
+            var indexName = explicitName ?? columns[0];
+
+            var indexedColumns = columns.Select(c =>
+                new MariaDbModelFactory.IndexedColumn(tableName.Child(c), IsAscending: true));
+
+            yield return MariaDbModelFactory.CreateIndex(
+                tableName.Sibling(indexName), tableName, isUnique: true, indexMethod: "BTREE", indexedColumns);
         }
     }
 
