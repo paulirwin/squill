@@ -232,6 +232,14 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             // table's columns, and that table may be declared later.
             views.Add(new PendingView(file, createViewStatement));
         }
+        else if (statement is CreateEnumTypeStatement createEnumTypeStatement)
+        {
+            model.Elements.Add(MakeCreateEnumTypeElement(createEnumTypeStatement));
+        }
+        else if (statement is CreateDomainStatement createDomainStatement)
+        {
+            model.Elements.Add(MakeCreateDomainElement(createDomainStatement));
+        }
         else if (statement is CreateFunctionStatement)
         {
             throw new NotImplementedException(
@@ -290,6 +298,15 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     warnings.Add(new SqlSourceDiagnostic(
                         $"DEFAULT on column '{table}.{columnDefinition.Name.Name}' is not a "
                         + "constant literal and is not modeled; it will not be deployed or compared.",
+                        file.Name,
+                        constraint.Line ?? createTableStatement.Line,
+                        constraint.Column ?? createTableStatement.Column));
+                }
+                else if (constraint is CheckColumnConstraint)
+                {
+                    warnings.Add(new SqlSourceDiagnostic(
+                        $"CHECK constraint on column '{table}.{columnDefinition.Name.Name}' is "
+                        + "not modeled and will not be deployed or compared.",
                         file.Name,
                         constraint.Line ?? createTableStatement.Line,
                         constraint.Column ?? createTableStatement.Column));
@@ -1102,6 +1119,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         fk.OnDelete ?? ReferentialAction.NoAction,
                         fk.OnUpdate ?? ReferentialAction.NoAction));
                 }
+                else if (constraint is CheckColumnConstraint)
+                {
+                    // An inline column CHECK is not modeled yet (issue #61), like a
+                    // table-level CHECK — a warning is emitted in AddUnmodeledTableWarnings.
+                    // It is skipped here rather than throwing so the table still builds.
+                }
                 else
                 {
                     throw new NotImplementedException(
@@ -1411,6 +1434,66 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         var extensionName = SqlName.Object(createExtensionStatement.Name.Name);
 
         return PostgresModelFactory.CreateExtension(extensionName, createExtensionStatement.Version);
+    }
+
+    // An enum type (issue #75) is a standalone declared object; its labels are carried in
+    // declaration order. The name is split into schema + bare name the same way a table is,
+    // so an unqualified type lands in "public" and hash-matches an extracted model.
+    private static Element MakeCreateEnumTypeElement(CreateEnumTypeStatement createEnumTypeStatement)
+    {
+        var (schema, name) = SplitSchema(createEnumTypeStatement.Name);
+
+        return PostgresModelFactory.CreateEnumType(name, schema, createEnumTypeStatement.Labels);
+    }
+
+    // In a domain CHECK, VALUE is the keyword for the value being checked, so it is rendered
+    // bare rather than double-quoted.
+    private static readonly HashSet<string> DomainCheckBareIdentifiers = new(StringComparer.Ordinal)
+    {
+        "VALUE",
+    };
+
+    // A domain (issue #75) is a standalone declared object: a base type plus an optional
+    // CHECK. The base type reuses the column type-specifier shape; the CHECK expression is
+    // rendered to canonical text. Any other constraint (NOT NULL, etc.) is not modeled yet.
+    private static Element MakeCreateDomainElement(CreateDomainStatement createDomainStatement)
+    {
+        var (schema, name) = SplitSchema(createDomainStatement.Name);
+
+        var typeSpecifier = BuildTypeSpecifier(createDomainStatement.DataType);
+
+        string? checkExpression = null;
+
+        foreach (var domainConstraint in createDomainStatement.Constraints)
+        {
+            var constraint = domainConstraint is NamedColumnConstraint named
+                ? named.Constraint
+                : domainConstraint;
+
+            if (constraint is CheckColumnConstraint check)
+            {
+                if (checkExpression is not null)
+                {
+                    throw new NotImplementedException(
+                        $"Domain '{name.UnqualifiedName}' has more than one CHECK constraint, "
+                        + "which is not yet supported.");
+                }
+
+                // VALUE is the domain keyword for the value being checked; it must be
+                // rendered bare, not double-quoted (a quoted "VALUE" is read as a column).
+                checkExpression = ExpressionSqlRenderer.Render(
+                    check.Expression, DomainCheckBareIdentifiers);
+            }
+            else
+            {
+                // NOT NULL and other domain constraints are not modeled yet (they still parse).
+                throw new NotImplementedException(
+                    $"Domain constraint type {constraint.GetType()} is not yet supported; "
+                    + "only CHECK is modeled.");
+            }
+        }
+
+        return PostgresModelFactory.CreateDomain(name, schema, typeSpecifier, checkExpression);
     }
 
     // Renders index storage parameters (the WITH clause) to a canonical

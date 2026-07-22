@@ -1,0 +1,101 @@
+using Squill.Core;
+using Squill.PostgresParser;
+
+namespace Squill.Provider.Postgres.Tests;
+
+/// <summary>
+/// Model-builder tests for <c>CREATE TYPE ... AS ENUM</c> and <c>CREATE DOMAIN</c> (issue #75):
+/// the parsed statements produce the right <c>SqlEnumType</c>/<c>SqlDomain</c> elements, and a
+/// table whose column is typed as one still builds.
+/// </summary>
+public class CreateTypeModelTests
+{
+    private static async Task<Model> BuildModelAsync(string sql)
+    {
+        var workspace = new Workspace();
+        workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
+
+        return (await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
+            .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
+    }
+
+    [Fact]
+    public async Task EnumType_IsModeledWithOrderedLabels()
+    {
+        var model = await BuildModelAsync(
+            "CREATE TYPE mpaa_rating AS ENUM ('G', 'PG', 'PG-13', 'R', 'NC-17');");
+
+        var enumType = Assert.Single(model.Elements, i => i.Type == PostgresElementTypes.SqlEnumType);
+
+        Assert.Equal("mpaa_rating", enumType.Name);
+        Assert.Equal("public", PostgresModelFactory.GetSchema(enumType));
+        Assert.Equal(["G", "PG", "PG-13", "R", "NC-17"], PostgresModelFactory.GetEnumLabels(enumType));
+    }
+
+    [Fact]
+    public async Task Domain_IsModeledWithBaseTypeAndCheck()
+    {
+        var model = await BuildModelAsync(
+            "CREATE DOMAIN year AS integer CONSTRAINT year_check CHECK (VALUE >= 1901 AND VALUE <= 2155);");
+
+        var domain = Assert.Single(model.Elements, i => i.Type == PostgresElementTypes.SqlDomain);
+
+        Assert.Equal("year", domain.Name);
+        Assert.Equal("public", PostgresModelFactory.GetSchema(domain));
+
+        var check = domain.GetProperty<string>(PostgresPropertyNames.CheckExpression);
+        Assert.NotNull(check);
+        Assert.Contains("1901", check);
+        Assert.Contains("2155", check);
+    }
+
+    [Fact]
+    public async Task Domain_WithNoConstraint_IsModeledWithoutCheck()
+    {
+        var model = await BuildModelAsync("CREATE DOMAIN us_postal_code AS text;");
+
+        var domain = Assert.Single(model.Elements, i => i.Type == PostgresElementTypes.SqlDomain);
+
+        Assert.Equal("us_postal_code", domain.Name);
+        Assert.Null(domain.GetProperty<string>(PostgresPropertyNames.CheckExpression));
+    }
+
+    [Fact]
+    public async Task Table_ColumnTypedAsEnumAndDomain_Builds()
+    {
+        // The central Pagila shape: a table whose columns are typed as a user-defined enum
+        // and a domain. This is the build the issue targets.
+        var model = await BuildModelAsync("""
+            CREATE TYPE mpaa_rating AS ENUM ('G', 'PG', 'PG-13', 'R', 'NC-17');
+            CREATE DOMAIN year AS integer CONSTRAINT year_check CHECK (VALUE >= 1901 AND VALUE <= 2155);
+            CREATE TABLE film (
+                film_id integer PRIMARY KEY,
+                rating mpaa_rating,
+                release_year year
+            );
+            """);
+
+        Assert.Single(model.Elements, i => i.Type == PostgresElementTypes.SqlEnumType);
+        Assert.Single(model.Elements, i => i.Type == PostgresElementTypes.SqlDomain);
+
+        var table = Assert.Single(model.Elements, i => i.Type == PostgresElementTypes.SqlTable);
+        var columns = table.GetRelationship(PostgresRelationshipNames.Columns)!
+            .Entries.OfType<Element>().ToList();
+
+        Assert.Equal(["film.film_id", "film.rating", "film.release_year"], columns.Select(c => c.Name));
+    }
+
+    [Fact]
+    public async Task SchemaQualifiedEnum_CarriesItsSchema()
+    {
+        var model = await BuildModelAsync("""
+            CREATE SCHEMA inventory;
+            CREATE TYPE inventory.status AS ENUM ('active', 'retired');
+            """);
+
+        var enumType = Assert.Single(model.Elements, i => i.Type == PostgresElementTypes.SqlEnumType);
+
+        Assert.Equal("status", enumType.Name);
+        Assert.Equal("inventory", PostgresModelFactory.GetSchema(enumType));
+    }
+}

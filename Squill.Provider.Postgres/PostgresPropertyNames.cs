@@ -48,4 +48,9 @@ public static class PostgresPropertyNames
     // view's modeled identity is its name and column list instead — see
     // PostgresModelFactory.CreateView and PostgresDatabaseDependencyAnalyzer.NormalizeForComparison.
     public const string Definition = nameof(Definition);
+    // User-defined types (issue #75). An enum type carries its labels in declaration order
+    // (their significant sort order) as an ordered list. A domain carries the canonical text
+    // of its CHECK constraint expression (or null when it has none).
+    public const string Labels = nameof(Labels);
+    public const string CheckExpression = nameof(CheckExpression);
 }

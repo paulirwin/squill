@@ -197,6 +197,107 @@ public static class PostgresModelFactory
     }
 
     /// <summary>
+    /// Builds an enum-type element (issue #75) — <c>CREATE TYPE name AS ENUM (...)</c>. An enum
+    /// is a top-level, standalone, declared object. Its labels are stored in declaration order
+    /// (their significant sort order) as a canonical comma-joined, single-quoted string, so the
+    /// property hashes stably and the same text is available for scripting.
+    /// </summary>
+    public static Element CreateEnumType(SqlName name, string schema, IReadOnlyList<string> labels)
+    {
+        var element = new Element(PostgresElementTypes.SqlEnumType)
+        {
+            Name = name,
+            Relationships =
+            {
+                new Relationship(PostgresRelationshipNames.Schema)
+                {
+                    new Reference(schema) { ExternalSource = "BuiltIns" },
+                },
+            },
+        };
+
+        element.Properties.Add(new Property(PostgresPropertyNames.Labels, RenderEnumLabels(labels)));
+
+        return element;
+    }
+
+    /// <summary>
+    /// Reads an enum type's labels, in order, from its <see cref="PostgresPropertyNames.Labels"/>
+    /// property. Centralized here so the model builders and the script generator agree.
+    /// </summary>
+    public static IReadOnlyList<string> GetEnumLabels(Element element)
+    {
+        var rendered = element.GetProperty<string>(PostgresPropertyNames.Labels);
+
+        return rendered is null ? [] : ParseEnumLabels(rendered);
+    }
+
+    // 'G', 'PG-13'  ->  the canonical stored form. A single-quote in a label is doubled per
+    // PostgreSQL's string-literal escaping.
+    private static string RenderEnumLabels(IEnumerable<string> labels)
+        => string.Join(", ", labels.Select(l => $"'{l.Replace("'", "''")}'"));
+
+    private static IReadOnlyList<string> ParseEnumLabels(string rendered)
+    {
+        var result = new List<string>();
+
+        foreach (var part in rendered.Split(", "))
+        {
+            var trimmed = part.Trim();
+
+            if (trimmed.Length >= 2 && trimmed[0] == '\'' && trimmed[^1] == '\'')
+            {
+                result.Add(trimmed[1..^1].Replace("''", "'"));
+            }
+            else
+            {
+                result.Add(trimmed);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Builds a domain element (issue #75) — <c>CREATE DOMAIN name AS &lt;type&gt; [CHECK ...]</c>.
+    /// A domain is a top-level, standalone, declared object. Its base type is carried as a
+    /// <see cref="PostgresRelationshipNames.TypeSpecifier"/> relationship (the same shape a column
+    /// uses) and its CHECK expression, if any, as a canonical text property.
+    /// </summary>
+    public static Element CreateDomain(SqlName name, string schema, Element typeSpecifier,
+        string? checkExpression)
+    {
+        var element = new Element(PostgresElementTypes.SqlDomain)
+        {
+            Name = name,
+            Relationships =
+            {
+                new Relationship(PostgresRelationshipNames.Schema)
+                {
+                    new Reference(schema) { ExternalSource = "BuiltIns" },
+                },
+                new Relationship(PostgresRelationshipNames.TypeSpecifier) { typeSpecifier },
+            },
+        };
+
+        if (checkExpression is not null)
+        {
+            // The CHECK expression is carried for scripting only and does not take part in
+            // comparison: PostgreSQL rewrites the predicate it is given (e.g. adds
+            // parentheses, so `VALUE >= 1901 AND VALUE <= 2155` comes back as
+            // `((VALUE >= 1901) AND (VALUE <= 2155))`), so a declared expression can never
+            // hash-match one extracted from pg_get_constraintdef. A domain's modeled
+            // identity is its name and base type instead — mirroring how a view's query is
+            // handled (see Property.ParticipatesInIdentity).
+            element.Properties.Add(
+                new Property(PostgresPropertyNames.CheckExpression, checkExpression,
+                    participatesInIdentity: false));
+        }
+
+        return element;
+    }
+
+    /// <summary>
     /// A procedure parameter as it appears in the routine's declaration: its mode, optional
     /// name, the type exactly as written, and any DEFAULT expression. This is what the
     /// procedure is scripted from; identity comes from the normalized argument types.

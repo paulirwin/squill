@@ -15,4 +15,8 @@ public static class PostgresElementTypes
     public const string SqlProcedure = nameof(SqlProcedure);
     public const string SqlView = nameof(SqlView);
     public const string SqlViewColumn = nameof(SqlViewColumn);
+    // User-defined types (issue #75): a CREATE TYPE ... AS ENUM and a CREATE DOMAIN. Both are
+    // top-level, standalone, declared objects a column's type may reference.
+    public const string SqlEnumType = nameof(SqlEnumType);
+    public const string SqlDomain = nameof(SqlDomain);
 }

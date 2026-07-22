@@ -135,6 +135,14 @@ public class PostgresScriptGenerator
             PostgresElementTypes.SqlView =>
                 $"DROP VIEW IF EXISTS {SchemaQualified(element, parsed)};{Environment.NewLine}",
 
+            // A user-defined type / domain is dropped with RESTRICT (the default) so a drop
+            // fails loudly if a column still uses it, rather than silently cascading.
+            PostgresElementTypes.SqlEnumType =>
+                $"DROP TYPE IF EXISTS {SchemaQualified(element, parsed)};{Environment.NewLine}",
+
+            PostgresElementTypes.SqlDomain =>
+                $"DROP DOMAIN IF EXISTS {SchemaQualified(element, parsed)};{Environment.NewLine}",
+
             _ => throw new NotImplementedException(
                 $"Dropping an element of type {element.Type} is not supported."),
         };
@@ -790,6 +798,16 @@ public class PostgresScriptGenerator
             return GenerateCreateViewScript(createDelta.Element);
         }
 
+        if (createDelta.Element.Type == PostgresElementTypes.SqlEnumType)
+        {
+            return GenerateCreateEnumTypeScript(createDelta.Element);
+        }
+
+        if (createDelta.Element.Type == PostgresElementTypes.SqlDomain)
+        {
+            return GenerateCreateDomainScript(createDelta.Element);
+        }
+
         throw new NotImplementedException();
     }
 
@@ -901,6 +919,51 @@ public class PostgresScriptGenerator
         // Squill models a schema as a declared object, so it is created explicitly. IF NOT
         // EXISTS keeps publish idempotent for a schema that may already be present.
         return $"CREATE SCHEMA IF NOT EXISTS {SqlName.Parse(schemaName).QuotedUnqualified};{Environment.NewLine}";
+    }
+
+    // CREATE TYPE name AS ENUM ('a', 'b', ...) — issue #75. PostgreSQL has no IF NOT EXISTS
+    // for CREATE TYPE, so the type is created plainly; ordering (via the dependency analyzer)
+    // ensures it precedes the tables that use it.
+    private static string GenerateCreateEnumTypeScript(Element enumType)
+    {
+        if (enumType.Name is not string name)
+        {
+            throw new ArgumentException("Enum types must have names");
+        }
+
+        var qualifiedName = SchemaQualified(enumType, SqlName.Parse(name));
+        var labels = PostgresModelFactory.GetEnumLabels(enumType);
+        var labelList = string.Join(", ", labels.Select(l => $"'{l.Replace("'", "''")}'"));
+
+        return $"CREATE TYPE {qualifiedName} AS ENUM ({labelList});{Environment.NewLine}";
+    }
+
+    // CREATE DOMAIN name AS <base type> [CONSTRAINT ... CHECK (...)] — issue #75.
+    private string GenerateCreateDomainScript(Element domain)
+    {
+        if (domain.Name is not string name)
+        {
+            throw new ArgumentException("Domains must have names");
+        }
+
+        var qualifiedName = SchemaQualified(domain, SqlName.Parse(name));
+
+        // A domain carries its base type as a TypeSpecifier relationship, the same shape a
+        // column uses, so the column type renderer applies directly.
+        var baseType = GetTypeStringForColumn(domain);
+
+        var sb = new StringBuilder();
+        sb.Append("CREATE DOMAIN ").Append(qualifiedName).Append(" AS ").Append(baseType);
+
+        var check = domain.GetProperty<string>(PostgresPropertyNames.CheckExpression);
+        if (check is not null)
+        {
+            sb.Append(" CHECK (").Append(check).Append(')');
+        }
+
+        sb.Append(';').Append(Environment.NewLine);
+
+        return sb.ToString();
     }
 
     private string GenerateCreateTableScript(Element table, IList<Element> dependentElements)
