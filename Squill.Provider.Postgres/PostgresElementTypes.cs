@@ -19,4 +19,7 @@ public static class PostgresElementTypes
     // top-level, standalone, declared objects a column's type may reference.
     public const string SqlEnumType = nameof(SqlEnumType);
     public const string SqlDomain = nameof(SqlDomain);
+    // A CREATE FUNCTION (issue #81). Like a procedure, but with a return type and
+    // volatility/strictness; both live in pg_proc, distinguished by prokind.
+    public const string SqlFunction = nameof(SqlFunction);
 }

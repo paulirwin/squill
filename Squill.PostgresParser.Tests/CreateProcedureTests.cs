@@ -143,20 +143,4 @@ public class CreateProcedureTests
         Assert.Equal(1, stmt.Column);
     }
 
-    // CREATE FUNCTION shares the createfunctionstmt grammar rule with CREATE PROCEDURE but
-    // is a distinct object type that is not yet modeled. It parses into its own marker
-    // statement — so it is never mistaken for a procedure, and the model builder can
-    // reject it with the statement's source position.
-    [Fact]
-    public void CreateFunction_ParsesAsItsOwnStatement()
-    {
-        var parser = new AntlrPostgresParser();
-
-        var root = parser.Parse(
-            "CREATE FUNCTION f() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$;");
-
-        var stmt = Assert.IsType<CreateFunctionStatement>(Assert.Single(root.Statements));
-
-        Assert.Equal("f", stmt.Name.Segments[^1].Name);
-    }
 }

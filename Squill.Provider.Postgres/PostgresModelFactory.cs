@@ -366,6 +366,76 @@ public static class PostgresModelFactory
     }
 
     /// <summary>
+    /// Builds a function element (issue #81).
+    ///
+    /// Like <see cref="CreateProcedure"/>, overloads are kept distinct by folding the
+    /// argument signature into the Name (<c>schema.name(type,type)</c>), and the arguments,
+    /// language and body are stored for scripting. A function additionally carries its return
+    /// type (<paramref name="returnType"/>, the canonical name pg_proc reports) and whether it
+    /// is set-returning. Volatility and strictness are stored only when they differ from the
+    /// PostgreSQL defaults (VOLATILE, CALLED ON NULL INPUT), so a parsed model whose source
+    /// omits them hash-matches one extracted from the database.
+    /// </summary>
+    public static Element CreateFunction(
+        string schema,
+        string routineName,
+        string argumentTypes,
+        string returnType,
+        bool returnsSet,
+        string language,
+        string body,
+        IEnumerable<ProcedureParameter> parameters,
+        string? volatility = null,
+        bool isStrict = false,
+        bool isSecurityDefiner = false)
+    {
+        var element = new Element(PostgresElementTypes.SqlFunction)
+        {
+            Name = SqlName.Object(schema, $"{routineName}({argumentTypes})"),
+            Relationships =
+            {
+                new Relationship(PostgresRelationshipNames.Schema)
+                {
+                    new Reference(schema) { ExternalSource = "BuiltIns" }
+                }
+            },
+            Properties =
+            {
+                new Property(PostgresPropertyNames.RoutineName, routineName),
+                new Property(PostgresPropertyNames.ArgumentTypes, argumentTypes),
+                new Property(PostgresPropertyNames.Arguments, RenderParameters(parameters)),
+                new Property(PostgresPropertyNames.ReturnType, returnType),
+                new Property(PostgresPropertyNames.Language, language),
+                new Property(PostgresPropertyNames.Body, body),
+            },
+        };
+
+        // Only the non-default facets are stored so a parsed model matches the extracted one.
+        if (returnsSet)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.ReturnsSet, true));
+        }
+
+        // VOLATILE is the PostgreSQL default, so it is stored as an absent property.
+        if (volatility is not null && !string.Equals(volatility, "VOLATILE", StringComparison.Ordinal))
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.Volatility, volatility));
+        }
+
+        if (isStrict)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.IsStrict, true));
+        }
+
+        if (isSecurityDefiner)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.IsSecurityDefiner, true));
+        }
+
+        return element;
+    }
+
+    /// <summary>
     /// Builds a view element (issue #42).
     ///
     /// A view's identity is its name and its ordered column list — the two facets

@@ -128,7 +128,11 @@ public class PostgresScriptGenerator
             // A procedure is identified by its argument types as well as its name, so the
             // signature must be given for PostgreSQL to know which overload to drop.
             PostgresElementTypes.SqlProcedure =>
-                $"DROP PROCEDURE IF EXISTS {ProcedureSignature(element)};{Environment.NewLine}",
+                $"DROP PROCEDURE IF EXISTS {RoutineSignature(element)};{Environment.NewLine}",
+
+            // A function, like a procedure, is identified by its argument signature.
+            PostgresElementTypes.SqlFunction =>
+                $"DROP FUNCTION IF EXISTS {RoutineSignature(element)};{Environment.NewLine}",
 
             // A view is dropped with RESTRICT (the default), so a view another object still
             // depends on fails loudly rather than silently cascading the drop.
@@ -148,13 +152,14 @@ public class PostgresScriptGenerator
         };
     }
 
-    // Renders a procedure's schema-qualified name followed by its argument types, which is
-    // how PostgreSQL identifies one overload among several (e.g. public."p"(integer,text)).
-    private static string ProcedureSignature(Element procedure)
+    // Renders a routine's (procedure or function) schema-qualified name followed by its
+    // argument types, which is how PostgreSQL identifies one overload among several (e.g.
+    // public."p"(integer,text)).
+    private static string RoutineSignature(Element routine)
     {
-        var routineName = procedure.GetRequiredProperty<string>(PostgresPropertyNames.RoutineName);
-        var argumentTypes = procedure.GetRequiredProperty<string>(PostgresPropertyNames.ArgumentTypes);
-        var schema = GetSchema(procedure);
+        var routineName = routine.GetRequiredProperty<string>(PostgresPropertyNames.RoutineName);
+        var argumentTypes = routine.GetRequiredProperty<string>(PostgresPropertyNames.ArgumentTypes);
+        var schema = GetSchema(routine);
 
         var qualified = schema is null or "public"
             ? SqlName.Object(routineName).QuotedUnqualified
@@ -177,6 +182,13 @@ public class PostgresScriptGenerator
         if (source.Type == PostgresElementTypes.SqlProcedure)
         {
             return GenerateCreateProcedureScript(source);
+        }
+
+        // A function is likewise redefined in place with CREATE OR REPLACE FUNCTION; its
+        // signature is part of its identity so a changed signature is a different element.
+        if (source.Type == PostgresElementTypes.SqlFunction)
+        {
+            return GenerateCreateFunctionScript(source);
         }
 
         // A view whose column list changed cannot be replaced in place: PostgreSQL only
@@ -793,6 +805,11 @@ public class PostgresScriptGenerator
             return GenerateCreateProcedureScript(createDelta.Element);
         }
 
+        if (createDelta.Element.Type == PostgresElementTypes.SqlFunction)
+        {
+            return GenerateCreateFunctionScript(createDelta.Element);
+        }
+
         if (createDelta.Element.Type == PostgresElementTypes.SqlView)
         {
             return GenerateCreateViewScript(createDelta.Element);
@@ -883,6 +900,58 @@ public class PostgresScriptGenerator
         sb.Append("    LANGUAGE ").Append(SqlName.Object(language).QuotedUnqualified);
 
         if (procedure.GetProperty<bool?>(PostgresPropertyNames.IsSecurityDefiner) == true)
+        {
+            sb.AppendLine().Append("    SECURITY DEFINER");
+        }
+
+        sb.AppendLine().Append("AS ").Append(DollarQuote(body)).AppendLine(";");
+
+        return sb.ToString();
+    }
+
+    private static string GenerateCreateFunctionScript(Element function)
+    {
+        var routineName = function.GetRequiredProperty<string>(PostgresPropertyNames.RoutineName);
+        var arguments = function.GetRequiredProperty<string>(PostgresPropertyNames.Arguments);
+        var returnType = function.GetRequiredProperty<string>(PostgresPropertyNames.ReturnType);
+        var language = function.GetRequiredProperty<string>(PostgresPropertyNames.Language);
+        var body = function.GetRequiredProperty<string>(PostgresPropertyNames.Body);
+        var schema = GetSchema(function);
+
+        var qualified = schema is null or "public"
+            ? SqlName.Object(routineName).QuotedUnqualified
+            : SqlName.Object(schema, routineName).Sql;
+
+        var returnsSet = function.GetProperty<bool?>(PostgresPropertyNames.ReturnsSet) == true;
+
+        var sb = new StringBuilder();
+
+        // OR REPLACE makes publish idempotent and updates an existing function's body in
+        // place while the signature is unchanged (a changed signature is a different
+        // function, surfaced as a separate create/drop).
+        sb.Append("CREATE OR REPLACE FUNCTION ").Append(qualified)
+            .Append('(').Append(arguments).AppendLine(")");
+        sb.Append("    RETURNS ");
+        if (returnsSet)
+        {
+            sb.Append("SETOF ");
+        }
+        sb.AppendLine(returnType);
+        sb.Append("    LANGUAGE ").Append(SqlName.Object(language).QuotedUnqualified);
+
+        // Volatility is stored only when it is not the VOLATILE default; strictness only
+        // when STRICT. Both go on their own indented lines like SECURITY DEFINER.
+        if (function.GetProperty<string>(PostgresPropertyNames.Volatility) is { } volatility)
+        {
+            sb.AppendLine().Append("    ").Append(volatility);
+        }
+
+        if (function.GetProperty<bool?>(PostgresPropertyNames.IsStrict) == true)
+        {
+            sb.AppendLine().Append("    STRICT");
+        }
+
+        if (function.GetProperty<bool?>(PostgresPropertyNames.IsSecurityDefiner) == true)
         {
             sb.AppendLine().Append("    SECURITY DEFINER");
         }

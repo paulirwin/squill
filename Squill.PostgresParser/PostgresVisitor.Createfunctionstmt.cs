@@ -9,16 +9,13 @@ public partial class PostgresVisitor
     //     (RETURNS (func_return | TABLE OPEN_PAREN table_func_column_list CLOSE_PAREN))?
     //     createfunc_opt_list
     //
-    // FUNCTION and PROCEDURE share this rule. Only PROCEDURE is modeled; a function is a
-    // distinct object type (it has a return type, and can be referenced from expressions
-    // and indexes) and is rejected rather than silently treated as a procedure.
+    // FUNCTION and PROCEDURE share this rule. They differ in that a function has a RETURNS
+    // clause and volatility/strictness attributes; both are parsed here.
     public override SyntaxNode VisitCreatefunctionstmt(PostgreSQLParser.CreatefunctionstmtContext context)
     {
-        // A function is parsed into a marker statement rather than rejected here, so the
-        // model builder can report it with its source position (see CreateFunctionStatement).
         if (context.PROCEDURE() is null)
         {
-            return At(new CreateFunctionStatement(ParseFunctionName(context.func_name())), context);
+            return VisitCreateFunction(context);
         }
 
         var name = ParseFunctionName(context.func_name());
@@ -47,6 +44,173 @@ public partial class PostgresVisitor
         }
 
         return statement;
+    }
+
+    private CreateFunctionStatement VisitCreateFunction(PostgreSQLParser.CreatefunctionstmtContext context)
+    {
+        var name = ParseFunctionName(context.func_name());
+
+        var statement = At(new CreateFunctionStatement(name, context.opt_or_replace()?.REPLACE() is not null),
+            context);
+
+        foreach (var parameter in ParseParameters(context.func_args_with_defaults()))
+        {
+            statement.Parameters.Add(parameter);
+        }
+
+        ParseFunctionReturn(statement, context);
+        ApplyFunctionOptions(statement, context.createfunc_opt_list());
+
+        if (statement.Language is null)
+        {
+            throw new NotImplementedException(
+                "A function without a LANGUAGE clause is not supported");
+        }
+
+        if (statement.Body is null)
+        {
+            throw new NotImplementedException(
+                "A function without an AS body is not supported; "
+                + "linked C-language functions are not modeled");
+        }
+
+        return statement;
+    }
+
+    // RETURNS (func_return | TABLE OPEN_PAREN table_func_column_list CLOSE_PAREN)
+    // func_return : func_type ; func_type : typename | ... %TYPE.  A `RETURNS SETOF x` carries
+    // its SETOF token on the typename itself (typename : SETOF? simpletypename ...).
+    private void ParseFunctionReturn(CreateFunctionStatement statement,
+        PostgreSQLParser.CreatefunctionstmtContext context)
+    {
+        if (context.RETURNS() is null)
+        {
+            // A function with no RETURNS is unusual (only OUT parameters define the result);
+            // not supported yet.
+            throw new NotImplementedException(
+                "A function without a RETURNS clause is not yet supported");
+        }
+
+        if (context.TABLE() is not null)
+        {
+            throw new NotImplementedException(
+                "RETURNS TABLE(...) is not yet supported");
+        }
+
+        if (context.func_return()?.func_type() is not { } funcType)
+        {
+            throw new PostgresParseException("Unable to parse function return type");
+        }
+
+        if (funcType.typename() is not { } typename)
+        {
+            throw new NotImplementedException(
+                "A %TYPE function return type is not yet supported");
+        }
+
+        if (VisitTypename(typename) is not DataType returnType)
+        {
+            throw new PostgresParseException("Unable to parse function return type");
+        }
+
+        statement.ReturnType = returnType;
+        statement.ReturnsSet = typename.SETOF() is not null;
+    }
+
+    private void ApplyFunctionOptions(CreateFunctionStatement statement,
+        PostgreSQLParser.Createfunc_opt_listContext context)
+    {
+        foreach (var option in context.createfunc_opt_item())
+        {
+            if (option.LANGUAGE() is not null)
+            {
+                statement.Language = GetNonReservedWordOrSconstText(option.nonreservedword_or_sconst());
+                continue;
+            }
+
+            if (option.func_as() is { } funcAs)
+            {
+                if (funcAs.sconst().Length > 1)
+                {
+                    throw new NotImplementedException(
+                        "A linked C-language function (AS 'obj_file', 'link_symbol') is not supported");
+                }
+
+                statement.Body = GetRoutineBodyText(funcAs.sconst(0));
+                continue;
+            }
+
+            if (option.common_func_opt_item() is { } commonOption)
+            {
+                ApplyFunctionCommonOption(statement, commonOption);
+                continue;
+            }
+
+            if (option.WINDOW() is not null)
+            {
+                throw new NotImplementedException("WINDOW functions are not yet supported");
+            }
+
+            if (option.TRANSFORM() is not null)
+            {
+                throw new NotImplementedException(
+                    "TRANSFORM on CREATE FUNCTION is not yet supported");
+            }
+        }
+    }
+
+    // Unlike a procedure, a function's volatility (IMMUTABLE/STABLE/VOLATILE) and strictness
+    // (STRICT / RETURNS NULL ON NULL INPUT vs CALLED ON NULL INPUT) are meaningful and modeled.
+    private static void ApplyFunctionCommonOption(CreateFunctionStatement statement,
+        PostgreSQLParser.Common_func_opt_itemContext context)
+    {
+        if (context.SECURITY() is not null)
+        {
+            statement.SecurityDefiner = context.DEFINER() is not null;
+            return;
+        }
+
+        if (context.IMMUTABLE() is not null)
+        {
+            statement.Volatility = FunctionVolatility.Immutable;
+            return;
+        }
+
+        if (context.STABLE() is not null)
+        {
+            statement.Volatility = FunctionVolatility.Stable;
+            return;
+        }
+
+        if (context.VOLATILE() is not null)
+        {
+            statement.Volatility = FunctionVolatility.Volatile;
+            return;
+        }
+
+        // STRICT and RETURNS NULL ON NULL INPUT are synonyms; CALLED ON NULL INPUT is the
+        // default (non-strict).
+        if (context.STRICT_P() is not null
+            || (context.RETURNS() is not null && context.NULL_P() is not null))
+        {
+            statement.Strict = true;
+            return;
+        }
+
+        if (context.CALLED() is not null)
+        {
+            statement.Strict = false;
+            return;
+        }
+
+        // LEAKPROOF, COST, ROWS, SUPPORT, PARALLEL are accepted but not modeled (they are
+        // planner hints that do not change the function's result). A SET clause does affect
+        // execution and is not yet supported.
+        if (context.functionsetresetclause() is not null)
+        {
+            throw new NotImplementedException(
+                "A SET clause on CREATE FUNCTION is not yet supported");
+        }
     }
 
     private IEnumerable<RoutineParameter> ParseParameters(

@@ -89,8 +89,11 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         // order must match the one the parser-based builder produces.
         await ExtractViewsAsync(model, cancellationToken);
 
-        // Procedures come last: a procedure body may reference any table in the model, so
-        // on publish its CREATE must run after the tables it reads or writes exist.
+        // Functions then procedures come last: a routine body may reference any table, so on
+        // publish its CREATE must run after the tables it reads or writes exist. Functions
+        // are extracted before procedures, matching the parser builder's MoveRoutinesToEnd,
+        // so a parsed model hash-matches an extracted one (the Merkle hash is order-sensitive).
+        await ExtractFunctionsAsync(model, cancellationToken);
         await ExtractProceduresAsync(model, cancellationToken);
 
         return model;
@@ -359,6 +362,105 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
     // Column names are joined with a record separator, which cannot occur in an identifier.
     private const char ViewColumnSeparator = '';
+
+    private async Task ExtractFunctionsAsync(Model model, CancellationToken cancellationToken = default)
+    {
+        // prokind = 'f' selects plain functions (as opposed to procedures 'p', aggregates 'a'
+        // and window functions 'w'). Mirrors ExtractProceduresAsync, adding the return type
+        // (format_type(prorettype)), set-returning flag (proretset), volatility (provolatile:
+        // i=IMMUTABLE, s=STABLE, v=VOLATILE) and strictness (proisstrict). Extension-owned
+        // functions are skipped as for procedures.
+        const string sql =
+            """
+            WITH routine AS (
+                SELECT p.oid,
+                       n.nspname AS schema_name,
+                       p.proname AS routine_name,
+                       l.lanname AS language_name,
+                       p.prosrc AS body,
+                       p.prosecdef AS is_security_definer,
+                       p.proretset AS returns_set,
+                       format_type(p.prorettype, NULL) AS return_type,
+                       CASE p.provolatile WHEN 'i' THEN 'IMMUTABLE'
+                                          WHEN 's' THEN 'STABLE'
+                                          ELSE 'VOLATILE' END AS volatility,
+                       p.proisstrict AS is_strict,
+                       COALESCE(
+                           p.proallargtypes,
+                           ARRAY(SELECT t FROM unnest(p.proargtypes) t)) AS all_arg_types,
+                       p.proargmodes AS arg_modes,
+                       p.proargnames AS arg_names,
+                       p.proargtypes AS identity_arg_types
+                FROM pg_proc p
+                JOIN pg_namespace n ON n.oid = p.pronamespace
+                JOIN pg_language l ON l.oid = p.prolang
+                WHERE p.prokind = 'f'
+                  AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+                  AND NOT EXISTS (
+                      SELECT 1 FROM pg_depend d
+                      WHERE d.objid = p.oid AND d.deptype = 'e')
+            )
+            SELECT * FROM (
+            SELECT r.schema_name,
+                   r.routine_name,
+                   r.language_name,
+                   r.body,
+                   r.is_security_definer,
+                   r.returns_set,
+                   r.return_type,
+                   r.volatility,
+                   r.is_strict,
+                   COALESCE((
+                       SELECT string_agg(format_type(t, NULL), ',' ORDER BY o)
+                       FROM unnest(r.identity_arg_types) WITH ORDINALITY AS a(t, o)), '')
+                       AS argument_types,
+                   COALESCE((
+                       SELECT string_agg(
+                           CASE COALESCE(r.arg_modes[i], 'i')
+                               WHEN 'i' THEN 'IN'
+                               WHEN 'o' THEN 'OUT'
+                               WHEN 'b' THEN 'INOUT'
+                               WHEN 'v' THEN 'VARIADIC'
+                               WHEN 't' THEN 'TABLE'
+                           END
+                           || chr(31) || COALESCE(r.arg_names[i], '')
+                           || chr(31) || format_type(r.all_arg_types[i], NULL),
+                           chr(30) ORDER BY i)
+                       FROM generate_subscripts(r.all_arg_types, 1) i), '')
+                       AS arguments
+            FROM routine r
+            ) p
+            ORDER BY p.schema_name COLLATE "C",
+                     p.routine_name COLLATE "C",
+                     p.argument_types COLLATE "C";
+            """;
+
+        var functions = new List<Element>();
+
+        await using (var reader = await _database.RunScriptReaderAsync(sql, cancellationToken: cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                functions.Add(PostgresModelFactory.CreateFunction(
+                    reader.GetString("schema_name"),
+                    reader.GetString("routine_name"),
+                    reader.GetString("argument_types"),
+                    reader.GetString("return_type"),
+                    reader.GetBoolean("returns_set"),
+                    reader.GetString("language_name"),
+                    reader.GetString("body"),
+                    ParseArguments(reader.GetString("arguments")),
+                    reader.GetString("volatility"),
+                    reader.GetBoolean("is_strict"),
+                    reader.GetBoolean("is_security_definer")));
+            }
+        }
+
+        foreach (var function in functions)
+        {
+            model.Elements.Add(function);
+        }
+    }
 
     private async Task ExtractProceduresAsync(Model model, CancellationToken cancellationToken = default)
     {
