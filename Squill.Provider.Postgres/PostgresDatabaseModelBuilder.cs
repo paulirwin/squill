@@ -763,6 +763,15 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                     maxLength = modifier;
                 }
             }
+            // An array column reports data_type = 'ARRAY'; format_type() renders the
+            // canonical array notation (e.g. "text[]"), which is exactly the name the
+            // parser builder emits (element canonical name + "[]"). information_schema
+            // reports NULL character_maximum_length / numeric_precision for arrays, so no
+            // Length/Precision/Scale property is emitted on either side (issue #76).
+            else if (dataType == "ARRAY")
+            {
+                dataType = reader.GetString("formatted_type");
+            }
 
             var typeElement = new Element(PostgresElementTypes.SqlTypeSpecifier)
             {

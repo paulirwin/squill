@@ -1135,128 +1135,145 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 element.Properties.Add(new Property(PostgresPropertyNames.DefaultValue, defaultValue));
             }
 
-            if (columnDefinition.DataType is BuiltInDataType builtInDataType)
+            element.Relationships.Add(new Relationship(PostgresRelationshipNames.TypeSpecifier)
             {
-                var typeSpec = new Element(PostgresElementTypes.SqlTypeSpecifier)
-                {
-                    Relationships =
-                    {
-                        new Relationship(PostgresRelationshipNames.Type)
-                        {
-                            new Reference(builtInDataType.Type.CanonicalName())
-                            {
-                                ExternalSource = "BuiltIns",
-                            }
-                        }
-                    }
-                };
+                BuildTypeSpecifier(columnDefinition.DataType)
+            });
 
-                // A type with no modifiers gets no length/precision properties. For a
-                // bare varchar this mirrors the DB builder, where an unbounded
-                // character varying reports character_maximum_length = NULL — so both
-                // sides agree and the model hashes match (issue #6).
-                if (builtInDataType.Modifiers.Count == 1)
-                {
-                    if (builtInDataType.Type is PostgresBuiltInDataType.Varchar or PostgresBuiltInDataType.Char)
-                    {
-                        if (builtInDataType.Modifiers[0] is not LiteralExpression { Value: long length})
-                        {
-                            throw new InvalidOperationException("Unexpected length modifier for varchar or character type");
-                        }
-
-                        // Store as int to match the DB-extraction builder and the script
-                        // generator, which both use int for the Length property.
-                        typeSpec.Properties.Add(new Property(PostgresPropertyNames.Length, (int)length));
-                    }
-                    else
-                    {
-                        throw new NotImplementedException(
-                            $"Modifiers for built-in data type {builtInDataType.Type} not yet implemented");
-                    }
-                }
-                else if (builtInDataType.Modifiers.Count > 1)
-                {
-                    if (builtInDataType.Type == PostgresBuiltInDataType.Decimal)
-                    {
-                        if (builtInDataType.Modifiers.Count != 2)
-                        {
-                            throw new InvalidOperationException("Expected only 2 modifiers for numeric/decimal type");
-                        }
-
-                        if (builtInDataType.Modifiers[0] is not LiteralExpression { Value: long precision }
-                            || builtInDataType.Modifiers[1] is not LiteralExpression { Value: long scale })
-                        {
-                            throw new InvalidOperationException(
-                                "Either precision or scale modifier for numeric/decimal type was not an integer");
-                        }
-                        
-                        typeSpec.Properties.Add(new Property(PostgresPropertyNames.Precision, precision));
-                        typeSpec.Properties.Add(new Property(PostgresPropertyNames.Scale, scale));
-                    }
-                    else
-                    {
-                        throw new NotImplementedException($"More than 1 modifier not yet implemented for built-in type {builtInDataType.Type}");
-                    }
-                }
-                
-                element.Relationships.Add(new Relationship(PostgresRelationshipNames.TypeSpecifier)
-                {
-                    typeSpec
-                });
-            }
-            else if (columnDefinition.DataType is UnresolvedDataType unresolvedDataType)
-            {
-                // A custom type (e.g. pgvector's `vector`) is not a built-in. Its type
-                // name is carried verbatim so it hash-matches the DB builder, which reads
-                // the same name from pg_type (udt_name). A single integer modifier — the
-                // dimension in vector(3) — is stored as Length, mirroring how the DB
-                // builder reports it from atttypmod.
-                var typeSpec = new Element(PostgresElementTypes.SqlTypeSpecifier)
-                {
-                    Relationships =
-                    {
-                        new Relationship(PostgresRelationshipNames.Type)
-                        {
-                            new Reference(unresolvedDataType.TypeName)
-                            {
-                                ExternalSource = "BuiltIns",
-                            }
-                        }
-                    }
-                };
-
-                if (unresolvedDataType.Modifiers.Count == 1)
-                {
-                    if (unresolvedDataType.Modifiers[0] is not LiteralExpression { Value: long dimension })
-                    {
-                        throw new NotImplementedException(
-                            $"Non-integer modifier for custom type {unresolvedDataType.TypeName} not yet implemented");
-                    }
-
-                    typeSpec.Properties.Add(new Property(PostgresPropertyNames.Length, (int)dimension));
-                }
-                else if (unresolvedDataType.Modifiers.Count > 1)
-                {
-                    throw new NotImplementedException(
-                        $"More than one modifier not yet implemented for custom type {unresolvedDataType.TypeName}");
-                }
-
-                element.Relationships.Add(new Relationship(PostgresRelationshipNames.TypeSpecifier)
-                {
-                    typeSpec
-                });
-            }
-            else
-            {
-                throw new NotImplementedException(
-                    $"Data meta-type {columnDefinition.DataType.GetType()} to relationship mapping not implemented");
-            }
-            
             columns.Add(element);
         }
 
         return inlinePkName;
     }
+
+    // Builds the SqlTypeSpecifier element for a column's data type. The type reference
+    // name is the canonical PostgreSQL type name (matching what the DB builder reads back
+    // via format_type()/udt_name), and any length/precision/scale modifiers are attached
+    // as properties so a parsed model hash-matches one extracted from a real database.
+    private static Element BuildTypeSpecifier(DataType dataType)
+    {
+        // An array type declares as its element type's name with `[]` appended (the
+        // PostgreSQL array notation). PostgreSQL "ignores any supplied array size limits"
+        // and "does not enforce the declared number of dimensions" — the size/dimensions
+        // are "simply documentation" (see the arrays docs) — so the model carries no
+        // size, and format_type() renders the same "<element>[]" on the DB side (#76).
+        if (dataType is ArrayDataType arrayDataType)
+        {
+            return MakeTypeSpecifierElement(CanonicalTypeName(arrayDataType.ElementType) + "[]");
+        }
+
+        if (dataType is BuiltInDataType builtInDataType)
+        {
+            var typeSpec = MakeTypeSpecifierElement(builtInDataType.Type.CanonicalName());
+
+            // A type with no modifiers gets no length/precision properties. For a
+            // bare varchar this mirrors the DB builder, where an unbounded
+            // character varying reports character_maximum_length = NULL — so both
+            // sides agree and the model hashes match (issue #6).
+            if (builtInDataType.Modifiers.Count == 1)
+            {
+                if (builtInDataType.Type is PostgresBuiltInDataType.Varchar or PostgresBuiltInDataType.Char)
+                {
+                    if (builtInDataType.Modifiers[0] is not LiteralExpression { Value: long length })
+                    {
+                        throw new InvalidOperationException("Unexpected length modifier for varchar or character type");
+                    }
+
+                    // Store as int to match the DB-extraction builder and the script
+                    // generator, which both use int for the Length property.
+                    typeSpec.Properties.Add(new Property(PostgresPropertyNames.Length, (int)length));
+                }
+                else
+                {
+                    throw new NotImplementedException(
+                        $"Modifiers for built-in data type {builtInDataType.Type} not yet implemented");
+                }
+            }
+            else if (builtInDataType.Modifiers.Count > 1)
+            {
+                if (builtInDataType.Type == PostgresBuiltInDataType.Decimal)
+                {
+                    if (builtInDataType.Modifiers.Count != 2)
+                    {
+                        throw new InvalidOperationException("Expected only 2 modifiers for numeric/decimal type");
+                    }
+
+                    if (builtInDataType.Modifiers[0] is not LiteralExpression { Value: long precision }
+                        || builtInDataType.Modifiers[1] is not LiteralExpression { Value: long scale })
+                    {
+                        throw new InvalidOperationException(
+                            "Either precision or scale modifier for numeric/decimal type was not an integer");
+                    }
+
+                    typeSpec.Properties.Add(new Property(PostgresPropertyNames.Precision, precision));
+                    typeSpec.Properties.Add(new Property(PostgresPropertyNames.Scale, scale));
+                }
+                else
+                {
+                    throw new NotImplementedException($"More than 1 modifier not yet implemented for built-in type {builtInDataType.Type}");
+                }
+            }
+
+            return typeSpec;
+        }
+
+        if (dataType is UnresolvedDataType unresolvedDataType)
+        {
+            // A custom type (e.g. pgvector's `vector`) is not a built-in. Its type
+            // name is carried verbatim so it hash-matches the DB builder, which reads
+            // the same name from pg_type (udt_name). A single integer modifier — the
+            // dimension in vector(3) — is stored as Length, mirroring how the DB
+            // builder reports it from atttypmod.
+            var typeSpec = MakeTypeSpecifierElement(unresolvedDataType.TypeName);
+
+            if (unresolvedDataType.Modifiers.Count == 1)
+            {
+                if (unresolvedDataType.Modifiers[0] is not LiteralExpression { Value: long dimension })
+                {
+                    throw new NotImplementedException(
+                        $"Non-integer modifier for custom type {unresolvedDataType.TypeName} not yet implemented");
+                }
+
+                typeSpec.Properties.Add(new Property(PostgresPropertyNames.Length, (int)dimension));
+            }
+            else if (unresolvedDataType.Modifiers.Count > 1)
+            {
+                throw new NotImplementedException(
+                    $"More than one modifier not yet implemented for custom type {unresolvedDataType.TypeName}");
+            }
+
+            return typeSpec;
+        }
+
+        throw new NotImplementedException(
+            $"Data meta-type {dataType.GetType()} to relationship mapping not implemented");
+    }
+
+    // The canonical PostgreSQL name for a data type, used as an array's element-type name.
+    private static string CanonicalTypeName(DataType dataType) => dataType switch
+    {
+        BuiltInDataType builtIn => builtIn.Type.CanonicalName(),
+        UnresolvedDataType unresolved => unresolved.TypeName,
+        ArrayDataType array => CanonicalTypeName(array.ElementType) + "[]",
+        _ => throw new NotImplementedException(
+            $"Canonical name for data meta-type {dataType.GetType()} not implemented"),
+    };
+
+    // A SqlTypeSpecifier element wrapping a single Type reference by canonical name.
+    private static Element MakeTypeSpecifierElement(string typeName) =>
+        new(PostgresElementTypes.SqlTypeSpecifier)
+        {
+            Relationships =
+            {
+                new Relationship(PostgresRelationshipNames.Type)
+                {
+                    new Reference(typeName)
+                    {
+                        ExternalSource = "BuiltIns",
+                    }
+                }
+            }
+        };
 
     // Emits the identity sequence-option properties (issue #13) in a fixed order —
     // StartValue, Increment, MinValue, MaxValue, CacheSize, IsCycling — omitting any

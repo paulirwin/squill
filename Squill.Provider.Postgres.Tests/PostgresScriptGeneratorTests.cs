@@ -107,6 +107,25 @@ CREATE TABLE prices
     }
 
     [Fact]
+    public async Task GenerateScript_ArrayColumn_ScriptsWithBrackets()
+    {
+        var comparison = await CompareToEmptyAsync("""
+CREATE TABLE films
+(
+    special_features text[]
+);
+""");
+
+        var generator = new PostgresScriptGenerator();
+
+        var sql = generator.GenerateScript(comparison);
+
+        // An array column must script with its `[]` bracket notation — appending `[]`
+        // to the element type name is how PostgreSQL declares an array (issue #76).
+        Assert.Contains("text[]", sql);
+    }
+
+    [Fact]
     public async Task GenerateScript_CreateTableWithIndex()
     {
         var comparison = await CompareToEmptyAsync("""
