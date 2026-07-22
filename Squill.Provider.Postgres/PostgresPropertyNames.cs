@@ -61,4 +61,9 @@ public static class PostgresPropertyNames
     public const string ReturnsSet = nameof(ReturnsSet);
     public const string Volatility = nameof(Volatility);
     public const string IsStrict = nameof(IsStrict);
+    // Aggregates (issue #82). StateFunction is the state transition function name (SFUNC),
+    // schema-qualified as pg_proc reports it; StateType is the canonical accumulator type
+    // name (STYPE, as format_type reports it).
+    public const string StateFunction = nameof(StateFunction);
+    public const string StateType = nameof(StateType);
 }

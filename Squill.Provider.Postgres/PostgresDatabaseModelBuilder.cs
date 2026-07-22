@@ -96,6 +96,11 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         await ExtractFunctionsAsync(model, cancellationToken);
         await ExtractProceduresAsync(model, cancellationToken);
 
+        // Aggregates come last of all: one references a state function (SFUNC), so on publish
+        // its CREATE must run after that function's. This matches MoveRoutinesToEnd, which
+        // orders aggregates after functions and procedures (issue #82).
+        await ExtractAggregatesAsync(model, cancellationToken);
+
         return model;
     }
 
@@ -590,6 +595,68 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 parts[0],
                 string.IsNullOrEmpty(parts[1]) ? null : parts[1],
                 parts[2]);
+        }
+    }
+
+    private async Task ExtractAggregatesAsync(Model model, CancellationToken cancellationToken = default)
+    {
+        // prokind = 'a' selects aggregates. pg_aggregate holds the SFUNC (aggtransfn, an oid
+        // into pg_proc) and STYPE (aggtranstype, an oid into pg_type). The SFUNC is reported
+        // schema-qualified (namespace.name) to match the parser builder, which qualifies a
+        // bare SFUNC with the aggregate's schema. Input types come from the aggregate's own
+        // proargtypes; an extension-owned aggregate is skipped as for functions/procedures.
+        const string sql =
+            """
+            SELECT * FROM (
+            SELECT n.nspname AS schema_name,
+                   p.proname AS routine_name,
+                   sn.nspname || '.' || sp.proname AS state_function,
+                   format_type(a.aggtranstype, NULL) AS state_type,
+                   COALESCE((
+                       SELECT string_agg(format_type(t, NULL), ',' ORDER BY o)
+                       FROM unnest(p.proargtypes) WITH ORDINALITY AS at(t, o)), '')
+                       AS argument_types,
+                   COALESCE((
+                       SELECT string_agg(
+                           'IN' || chr(31) || '' || chr(31) || format_type(t, NULL),
+                           chr(30) ORDER BY o)
+                       FROM unnest(p.proargtypes) WITH ORDINALITY AS at(t, o)), '')
+                       AS arguments
+            FROM pg_aggregate a
+            JOIN pg_proc p ON p.oid = a.aggfnoid
+            JOIN pg_namespace n ON n.oid = p.pronamespace
+            JOIN pg_proc sp ON sp.oid = a.aggtransfn
+            JOIN pg_namespace sn ON sn.oid = sp.pronamespace
+            WHERE p.prokind = 'a'
+              AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+              AND NOT EXISTS (
+                  SELECT 1 FROM pg_depend d
+                  WHERE d.objid = p.oid AND d.deptype = 'e')
+            ) p
+            ORDER BY p.schema_name COLLATE "C",
+                     p.routine_name COLLATE "C",
+                     p.argument_types COLLATE "C";
+            """;
+
+        var aggregates = new List<Element>();
+
+        await using (var reader = await _database.RunScriptReaderAsync(sql, cancellationToken: cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                aggregates.Add(PostgresModelFactory.CreateAggregate(
+                    reader.GetString("schema_name"),
+                    reader.GetString("routine_name"),
+                    reader.GetString("argument_types"),
+                    reader.GetString("state_function"),
+                    reader.GetString("state_type"),
+                    ParseArguments(reader.GetString("arguments"))));
+            }
+        }
+
+        foreach (var aggregate in aggregates)
+        {
+            model.Elements.Add(aggregate);
         }
     }
 

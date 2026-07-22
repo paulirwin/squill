@@ -436,6 +436,46 @@ public static class PostgresModelFactory
     }
 
     /// <summary>
+    /// Builds an aggregate element (issue #82).
+    ///
+    /// Like a function, overloads are kept distinct by folding the input-type signature into
+    /// the Name (<c>schema.name(type,type)</c>), and the arguments are stored for scripting.
+    /// An aggregate additionally carries its state transition function
+    /// (<paramref name="stateFunction"/>, the SFUNC) and state type
+    /// (<paramref name="stateType"/>, the STYPE). The SFUNC name is schema-qualified as
+    /// pg_proc reports it and the STYPE is the canonical type name (format_type), so a parsed
+    /// model hash-matches one extracted from a live database.
+    /// </summary>
+    public static Element CreateAggregate(
+        string schema,
+        string routineName,
+        string argumentTypes,
+        string stateFunction,
+        string stateType,
+        IEnumerable<ProcedureParameter> parameters)
+    {
+        return new Element(PostgresElementTypes.SqlAggregate)
+        {
+            Name = SqlName.Object(schema, $"{routineName}({argumentTypes})"),
+            Relationships =
+            {
+                new Relationship(PostgresRelationshipNames.Schema)
+                {
+                    new Reference(schema) { ExternalSource = "BuiltIns" }
+                }
+            },
+            Properties =
+            {
+                new Property(PostgresPropertyNames.RoutineName, routineName),
+                new Property(PostgresPropertyNames.ArgumentTypes, argumentTypes),
+                new Property(PostgresPropertyNames.Arguments, RenderParameters(parameters)),
+                new Property(PostgresPropertyNames.StateFunction, stateFunction),
+                new Property(PostgresPropertyNames.StateType, stateType),
+            },
+        };
+    }
+
+    /// <summary>
     /// Builds a view element (issue #42).
     ///
     /// A view's identity is its name and its ordered column list — the two facets

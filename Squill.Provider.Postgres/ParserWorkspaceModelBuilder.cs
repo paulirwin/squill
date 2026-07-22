@@ -133,15 +133,17 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     /// extracted from a live database. Ordering them last also matches the create order,
     /// since a procedure body may reference any table.
     /// </summary>
-    // Functions and procedures are moved to the end of the model, functions before
-    // procedures — matching the DB-extraction builder, which extracts functions then
-    // procedures after everything else. The Merkle hash is order-sensitive, so the two
+    // Functions, procedures then aggregates are moved to the end of the model, in that
+    // order — matching the DB-extraction builder, which extracts them in the same order
+    // after everything else. Aggregates come last because they reference a state function,
+    // so the function must already exist. The Merkle hash is order-sensitive, so the two
     // builders must agree. Within each kind, ordinal ordering matches the database's
     // byte-wise (COLLATE "C") ordering of the same values.
     private static void MoveRoutinesToEnd(Model model)
     {
         MoveRoutineKindToEnd(model, PostgresElementTypes.SqlFunction);
         MoveRoutineKindToEnd(model, PostgresElementTypes.SqlProcedure);
+        MoveRoutineKindToEnd(model, PostgresElementTypes.SqlAggregate);
     }
 
     private static void MoveRoutineKindToEnd(Model model, string elementType)
@@ -260,6 +262,10 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             }
 
             model.Elements.Add(MakeCreateFunctionElement(createFunctionStatement));
+        }
+        else if (statement is CreateAggregateStatement createAggregateStatement)
+        {
+            model.Elements.Add(MakeCreateAggregateElement(createAggregateStatement));
         }
         else
         {
@@ -1848,6 +1854,52 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         FunctionVolatility.Volatile => "VOLATILE",
         _ => throw new NotImplementedException($"Volatility {volatility} is not supported"),
     };
+
+    private static Element MakeCreateAggregateElement(CreateAggregateStatement statement)
+    {
+        var (schema, name) = SplitSchema(statement.Name);
+
+        if (statement.StateFunction is not { } stateFunction)
+        {
+            throw new InvalidOperationException("An aggregate must declare an SFUNC");
+        }
+
+        if (statement.StateType is not { } stateType)
+        {
+            throw new InvalidOperationException("An aggregate must declare an STYPE");
+        }
+
+        // An aggregate parameter is always plain IN — there are no OUT/INOUT aggregate inputs
+        // — so the whole parameter list is the signature.
+        var parameters = statement.Parameters
+            .Select(parameter => new PostgresModelFactory.ProcedureParameter(
+                RenderParameterMode(parameter.Mode),
+                parameter.Name?.Name,
+                NormalizeArgumentType(parameter.DataType)))
+            .ToList();
+
+        var argumentTypes = string.Join(',', statement.Parameters
+            .Select(i => NormalizeArgumentType(i.DataType)));
+
+        // The SFUNC is stored schema-qualified so it matches what pg_proc reports back; a
+        // bare name is assumed to live in the same schema as the aggregate (Postgres resolves
+        // it against the search path, but the extracted form is always qualified).
+        var qualifiedStateFunction = stateFunction.Contains('.')
+            ? stateFunction
+            : $"{schema}.{stateFunction}";
+
+        // The STYPE is normalized the same way an argument type is, so it matches
+        // format_type(aggtranstype) the DB builder reads back.
+        var normalizedStateType = NormalizeArgumentType(stateType);
+
+        return PostgresModelFactory.CreateAggregate(
+            schema,
+            name.UnqualifiedName,
+            argumentTypes,
+            qualifiedStateFunction,
+            normalizedStateType,
+            parameters);
+    }
 
     private static string RenderParameterMode(ParameterMode mode) => mode switch
     {

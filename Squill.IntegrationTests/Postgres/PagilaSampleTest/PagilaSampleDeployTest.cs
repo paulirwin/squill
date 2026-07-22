@@ -23,12 +23,14 @@ namespace Squill.IntegrationTests.Postgres.PagilaSampleTest;
 /// Missing features (why <see cref="Deploy_PagilaSample_ProducesTheSampleSchema"/> is skipped):
 /// </para>
 /// <list type="bullet">
-///   <item><description><c>CREATE TYPE ... AS ENUM</c> — <c>mpaa_rating</c>, used by
-///     <c>film.rating</c> (the statement type is not modeled).</description></item>
-///   <item><description><c>CREATE DOMAIN</c> with a <c>CHECK</c> — <c>year</c>, used by
-///     <c>film.release_year</c> (domain constraints are "not yet implemented").</description></item>
-///   <item><description>PL/pgSQL and SQL functions, a user-defined aggregate, and triggers.</description></item>
+///   <item><description><c>CREATE TRIGGER</c> — the sample's per-table <c>last_updated</c>
+///     triggers and the full-text trigger are not modeled yet.</description></item>
 /// </list>
+/// <para>
+/// Already supported: <c>CREATE TYPE ... AS ENUM</c> (mpaa_rating) and <c>CREATE DOMAIN</c>
+/// with a CHECK (year) since #75/#80, PL/pgSQL and SQL functions since #81, the group_concat
+/// user-defined aggregate since #82, and tsvector + GiST full-text and array columns since #76.
+/// </para>
 /// </summary>
 public class PagilaSampleDeployTest : PostgresIntegrationTestBase
 {
@@ -63,11 +65,12 @@ public class PagilaSampleDeployTest : PostgresIntegrationTestBase
             var workspace = DacpacBuilder.CreateWorkspace([sqlPath]);
             var metadata = new ModelMetadata { ProviderName = "Postgresql", Name = "Pagila" };
 
-            // Building the full schema throws because the film table (and other objects) use
-            // features the provider does not model yet — enum/domain types and
-            // functions/aggregates/triggers. (tsvector columns + GiST indexes and array
-            // columns are now supported; see issue #76.) If this ever stops throwing, the
-            // remaining features have landed: remove the Skip on the deploy test below.
+            // Building the full schema throws because the schema still uses features the
+            // provider does not model yet — chiefly CREATE TRIGGER. (Enum/domain types are
+            // supported since #75/#80, functions since #81, the group_concat aggregate since
+            // #82, and tsvector + GiST full-text and array columns since #76.) If this ever
+            // stops throwing, the remaining features have landed: remove the Skip on the
+            // deploy test below.
             await Assert.ThrowsAnyAsync<Exception>(() =>
                 DacpacBuilder.BuildToFileAsync(workspace, metadata, dacpacPath, ct));
         }
@@ -83,11 +86,11 @@ public class PagilaSampleDeployTest : PostgresIntegrationTestBase
     /// supported; when they are, remove the Skip and this should deploy the full schema and the
     /// deployed model should match the DACPAC's.
     /// </summary>
-    [Fact(Skip = "The Pagila sample's central film table needs Postgres features the provider does "
-        + "not yet model: CREATE TYPE ... AS ENUM (mpaa_rating) and CREATE DOMAIN with CHECK (year). "
-        + "The schema also uses PL/pgSQL functions, an aggregate, and triggers. (tsvector + GiST "
-        + "full-text and array columns are now supported; see issue #76.) Remove Skip once these "
-        + "are supported (BuildFullSchema_IsNotYetSupported will start failing then).")]
+    [Fact(Skip = "The Pagila sample still needs Postgres features the provider does not yet model: "
+        + "chiefly CREATE TRIGGER. (Enum/domain types are supported since #75/#80, functions since "
+        + "#81, the group_concat aggregate since #82, and tsvector + GiST full-text and array "
+        + "columns since #76.) Remove Skip once these are supported "
+        + "(BuildFullSchema_IsNotYetSupported will start failing then).")]
     public async Task Deploy_PagilaSample_ProducesTheSampleSchema()
     {
         var ct = TestContext.Current.CancellationToken;
