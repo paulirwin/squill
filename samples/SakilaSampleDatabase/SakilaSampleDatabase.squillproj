@@ -1,0 +1,44 @@
+<Project>
+
+  <!--
+    The Sakila sample database — the classic MySQL DVD-rental schema — expressed
+    declaratively as a Squill project for MariaDB / MySQL. Building it produces
+    bin\<Configuration>\SakilaSampleDatabase.dacpac from the .sql files in this folder.
+
+    Unlike the smaller MariaDbSampleDatabase, this project is a deliberately
+    ambitious, real-world schema. It exercises the full surface a production
+    MariaDB/MySQL schema uses — AUTO_INCREMENT keys, foreign keys (including a
+    circular staff<->store reference), ENUM / SET / YEAR columns,
+    ON UPDATE CURRENT_TIMESTAMP, FULLTEXT indexes, views, stored procedures and
+    functions, and triggers — so it doubles as a broad end-to-end exercise of the
+    MariaDB provider. Some of those features are not yet supported by Squill; the
+    integration tests for this sample record exactly which (see
+    Squill.IntegrationTests/MariaDb/SakilaSampleTests).
+
+    Setting SquillProviderName to MariaDb selects the MariaDB provider and records it
+    in the DACPAC; the same provider also serves MySQL (set it to MySql instead).
+
+    Schema source: the BSD-licensed Sakila schema from https://github.com/jOOQ/sakila
+    (originally MySQL AB, BSD 3-Clause). See LICENSE.txt in this folder.
+
+    In a consuming repo you would reference the published SDK by name and version:
+
+        <Project Sdk="Squill.Sdk/0.0.1">
+        </Project>
+
+    Here in the Squill source tree we import the SDK from its source location by
+    relative path so the sample builds against the local, uninstalled SDK.
+  -->
+
+  <Import Project="..\..\Squill.Sdk\Sdk\Sdk.props" />
+
+  <PropertyGroup>
+    <SquillProviderName>MariaDb</SquillProviderName>
+    <!-- The minimum MariaDB/MySQL major version this DACPAC targets (like SSDT's target
+         platform). Recorded in the DACPAC and enforced on `squill deploy`. -->
+    <SquillTargetVersion>11</SquillTargetVersion>
+  </PropertyGroup>
+
+  <Import Project="..\..\Squill.Sdk\Sdk\Sdk.targets" />
+
+</Project>
