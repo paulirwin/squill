@@ -51,7 +51,7 @@ CREATE TABLE keep (id integer PRIMARY KEY);
 CREATE TABLE gone (id integer PRIMARY KEY);
 """;
 
-        var comparison = await CompareAsync(source, target, DeployOptions.Default);
+        var comparison = await CompareAsync(source, target, DeployOptions.CreateDefault());
 
         Assert.Empty(comparison.Deltas);
     }
@@ -151,7 +151,7 @@ CREATE TABLE film (film_id integer PRIMARY KEY, title varchar(255));
 """;
 
         var ex = await Assert.ThrowsAsync<PossibleDataLossException>(
-            () => CompareAsync(source, target, DeployOptions.Default));
+            () => CompareAsync(source, target, DeployOptions.CreateDefault()));
 
         Assert.Contains(ex.Reasons, r => r.Contains("notes"));
     }
@@ -186,7 +186,7 @@ CREATE TABLE film (film_id integer PRIMARY KEY, title varchar(255));
 CREATE TABLE film (film_id integer PRIMARY KEY, extra text, title varchar(255));
 """;
 
-        var comparison = await CompareAsync(source, target, DeployOptions.Default);
+        var comparison = await CompareAsync(source, target, DeployOptions.CreateDefault());
 
         var rebuild = Assert.IsType<RebuildTableDelta>(Assert.Single(comparison.Deltas));
         Assert.False(rebuild.DropsData);
@@ -206,7 +206,7 @@ CREATE TABLE film (film_id integer PRIMARY KEY, extra text, title varchar(255));
 """;
 
         var ex = await Assert.ThrowsAsync<PossibleDataLossException>(
-            () => CompareAsync(source, target, DeployOptions.Default));
+            () => CompareAsync(source, target, DeployOptions.CreateDefault()));
 
         Assert.Contains(ex.Reasons, r => r.Contains("drops one or more columns"));
     }
@@ -223,7 +223,7 @@ CREATE TABLE actor (actor_id integer PRIMARY KEY);
 CREATE TABLE film (film_id integer PRIMARY KEY);
 """;
 
-        var comparison = await CompareAsync(source, target, DeployOptions.Default);
+        var comparison = await CompareAsync(source, target, DeployOptions.CreateDefault());
 
         var create = Assert.IsType<CreateDelta>(Assert.Single(comparison.Deltas));
         Assert.Equal("actor", create.Element.Name);

@@ -10,7 +10,7 @@ public class SchemaCompare
     public static SchemaComparison Compare(
         IDatabaseProvider provider, Model source, Model target, DeployOptions? options = null)
     {
-        options ??= DeployOptions.Default;
+        options ??= DeployOptions.CreateDefault();
 
         var comparison = new SchemaComparison();
         var analyzer = provider.DependencyAnalyzer;

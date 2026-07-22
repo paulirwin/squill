@@ -13,7 +13,7 @@ public record DeployOptions
     /// when <c>false</c>, such a change throws <see cref="TableRebuildNotAllowedException"/>.
     /// (SSDT: "Allow table recreation".)
     /// </summary>
-    public bool AllowTableRebuild { get; init; } = true;
+    public bool AllowTableRebuild { get; set; } = true;
 
     /// <summary>
     /// Whether standalone objects present in the target database but absent from the
@@ -23,7 +23,7 @@ public record DeployOptions
     /// table that still exists — that is part of the table's ALTER.
     /// (SSDT: <c>DropObjectsNotInSource</c>.)
     /// </summary>
-    public bool DropObjectsNotInSource { get; init; }
+    public bool DropObjectsNotInSource { get; set; }
 
     /// <summary>
     /// Whether the deploy is blocked when a change would (or might) cause data loss —
@@ -32,8 +32,8 @@ public record DeployOptions
     /// found, <see cref="PossibleDataLossException"/> is thrown before any SQL runs.
     /// (SSDT: <c>BlockOnPossibleDataLoss</c>.)
     /// </summary>
-    public bool BlockOnPossibleDataLoss { get; init; } = true;
+    public bool BlockOnPossibleDataLoss { get; set; } = true;
 
     /// <summary>The default options: rebuild allowed, no object drops, data loss blocked.</summary>
-    public static DeployOptions Default { get; } = new();
+    public static DeployOptions CreateDefault() => new();
 }

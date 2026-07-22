@@ -80,7 +80,7 @@ public static class DacpacDeployer
 
         progress?.Report("Comparing schemas...");
 
-        var compareOptions = options ?? DeployOptions.Default;
+        var compareOptions = options ?? DeployOptions.CreateDefault();
         var comparison = SchemaCompare.Compare(
             provider, sourceModel, targetModel,
             compareOptions with { BlockOnPossibleDataLoss = false });
