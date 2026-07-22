@@ -37,6 +37,12 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         await ExtractSchemasAsync(model, cancellationToken);
         await ExtractExtensionsAsync(model, cancellationToken);
 
+        // Enum types and domains (issue #75) are user-defined types a column may be typed
+        // as, so they must precede the tables in the model — both for a hash-matching
+        // element order and so CREATE TYPE / CREATE DOMAIN run before the CREATE TABLE.
+        await ExtractEnumTypesAsync(model, cancellationToken);
+        await ExtractDomainsAsync(model, cancellationToken);
+
         var tables = new List<TableRef>();
 
         await using (var reader = await _database.RunScriptReaderAsync(sql, cancellationToken: cancellationToken))
@@ -147,6 +153,147 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 PostgresModelFactory.CreateExtension(SqlName.Object(extensionName), extensionVersion));
         }
     }
+
+    private async Task ExtractEnumTypesAsync(Model model, CancellationToken cancellationToken = default)
+    {
+        // Every enum type (pg_type.typtype = 'e') with its labels in significant sort order
+        // (pg_enum.enumsortorder). System schemas are excluded, and a type owned by an
+        // extension is skipped (created by CREATE EXTENSION, not declared in the project),
+        // mirroring how extensions' own objects are handled elsewhere. Ordered by schema then
+        // name (COLLATE "C" for byte-wise ordering) to match the parser builder's ordering.
+        const string sql =
+            """
+            SELECT n.nspname AS schema_name, t.typname AS type_name, e.enumlabel AS label
+            FROM pg_type t
+            JOIN pg_namespace n ON n.oid = t.typnamespace
+            JOIN pg_enum e ON e.enumtypid = t.oid
+            WHERE t.typtype = 'e'
+              AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+              AND NOT EXISTS (SELECT 1 FROM pg_depend d
+                              WHERE d.objid = t.oid AND d.deptype = 'e')
+            ORDER BY n.nspname COLLATE "C", t.typname COLLATE "C", e.enumsortorder;
+            """;
+
+        // Accumulate labels per (schema, type) preserving encounter order (the query is
+        // ordered by enumsortorder), then build one element per enum type.
+        var enums = new List<(string Schema, string Name, List<string> Labels)>();
+
+        await using (var reader = await _database.RunScriptReaderAsync(sql, cancellationToken: cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var schema = reader.GetString("schema_name");
+                var name = reader.GetString("type_name");
+                var label = reader.GetString("label");
+
+                var existing = enums.Count > 0 && enums[^1].Schema == schema && enums[^1].Name == name
+                    ? enums[^1]
+                    : default;
+
+                if (existing.Labels is not null)
+                {
+                    existing.Labels.Add(label);
+                }
+                else
+                {
+                    enums.Add((schema, name, new List<string> { label }));
+                }
+            }
+        }
+
+        foreach (var (schema, name, labels) in enums)
+        {
+            model.Elements.Add(PostgresModelFactory.CreateEnumType(SqlName.Object(name), schema, labels));
+        }
+    }
+
+    private async Task ExtractDomainsAsync(Model model, CancellationToken cancellationToken = default)
+    {
+        // Every domain (pg_type.typtype = 'd') with its base type rendered by format_type()
+        // and its CHECK constraint definition (pg_get_constraintdef). A domain may have no
+        // CHECK, so the constraint join is a LEFT JOIN. System schemas and extension-owned
+        // domains are excluded as for enums. The CHECK text is carried for scripting only
+        // (it does not participate in the hash — PostgreSQL rewrites the predicate).
+        const string sql =
+            """
+            SELECT n.nspname AS schema_name,
+                   t.typname AS domain_name,
+                   format_type(t.typbasetype, t.typtypmod) AS base_type,
+                   pg_get_constraintdef(c.oid) AS check_def
+            FROM pg_type t
+            JOIN pg_namespace n ON n.oid = t.typnamespace
+            LEFT JOIN pg_constraint c ON c.contypid = t.oid AND c.contype = 'c'
+            WHERE t.typtype = 'd'
+              AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+              AND NOT EXISTS (SELECT 1 FROM pg_depend d
+                              WHERE d.objid = t.oid AND d.deptype = 'e')
+            ORDER BY n.nspname COLLATE "C", t.typname COLLATE "C";
+            """;
+
+        var domains = new List<(string Schema, string Name, string BaseType, string? Check)>();
+
+        await using (var reader = await _database.RunScriptReaderAsync(sql, cancellationToken: cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var schema = reader.GetString("schema_name");
+                var name = reader.GetString("domain_name");
+                var baseType = reader.GetString("base_type");
+                var check = reader.IsDBNull(reader.GetOrdinal("check_def"))
+                    ? null
+                    : NormalizeCheckDefinition(reader.GetString("check_def"));
+
+                domains.Add((schema, name, baseType, check));
+            }
+        }
+
+        foreach (var (schema, name, baseType, check) in domains)
+        {
+            var typeSpecifier = MakeTypeSpecifierElement(baseType);
+
+            model.Elements.Add(
+                PostgresModelFactory.CreateDomain(SqlName.Object(name), schema, typeSpecifier, check));
+        }
+    }
+
+    // pg_get_constraintdef renders a domain CHECK as `CHECK (<predicate>)`; the model and the
+    // script generator carry just the predicate (the CREATE DOMAIN emitter adds the `CHECK (`
+    // wrapper), so strip the leading `CHECK ` keyword and the single wrapping parentheses
+    // pg_get_constraintdef always adds. e.g. `CHECK (((VALUE >= 1901) AND (VALUE <= 2155)))`
+    // becomes `((VALUE >= 1901) AND (VALUE <= 2155))`.
+    private static string NormalizeCheckDefinition(string constraintDef)
+    {
+        var text = constraintDef.Trim();
+
+        const string prefix = "CHECK ";
+        if (text.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            text = text[prefix.Length..].Trim();
+        }
+
+        // Remove exactly one balanced pair of outer parentheses (the wrapper), leaving any
+        // inner parenthesization the predicate itself carries.
+        if (text.Length >= 2 && text[0] == '(' && text[^1] == ')')
+        {
+            text = text[1..^1].Trim();
+        }
+
+        return text;
+    }
+
+    // A SqlTypeSpecifier element wrapping a single Type reference by canonical name — used for
+    // a domain's base type, mirroring the parser builder's MakeTypeSpecifierElement.
+    private static Element MakeTypeSpecifierElement(string typeName) =>
+        new(PostgresElementTypes.SqlTypeSpecifier)
+        {
+            Relationships =
+            {
+                new Relationship(PostgresRelationshipNames.Type)
+                {
+                    new Reference(typeName) { ExternalSource = "BuiltIns" },
+                },
+            },
+        };
 
     private async Task ExtractViewsAsync(Model model, CancellationToken cancellationToken = default)
     {

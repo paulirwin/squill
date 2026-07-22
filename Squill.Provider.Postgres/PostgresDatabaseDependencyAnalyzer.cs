@@ -35,10 +35,14 @@ public class PostgresDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
         // Tables and indexes carry their schema in a Schema relationship. Extensions and
         // schemas themselves are not schema-scoped (an extension is globally named per
         // database; a schema is the namespace), so they have no schema for identity.
+        // Enum types and domains are schema-scoped user-defined types (issue #75), so they
+        // carry their schema like a table does.
         if (element.Type is not (PostgresElementTypes.SqlTable
             or PostgresElementTypes.SqlIndex
             or PostgresElementTypes.SqlProcedure
-            or PostgresElementTypes.SqlView))
+            or PostgresElementTypes.SqlView
+            or PostgresElementTypes.SqlEnumType
+            or PostgresElementTypes.SqlDomain))
         {
             return null;
         }
@@ -53,6 +57,10 @@ public class PostgresDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
         // come after both.
         PostgresElementTypes.SqlSchema => 0,
         PostgresElementTypes.SqlExtension => 1,
+        // A user-defined type (enum) or domain must exist before the tables whose columns
+        // are typed as it — same rank as an extension: after the schema, before tables.
+        PostgresElementTypes.SqlEnumType => 1,
+        PostgresElementTypes.SqlDomain => 1,
         // A procedure body may reference any table, so it is created after them. Its body
         // is not parsed for dependencies, so this ordering is what makes a procedure that
         // reads or writes a table in the same deploy work.

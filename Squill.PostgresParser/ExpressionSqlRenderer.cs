@@ -14,19 +14,44 @@ namespace Squill.PostgresParser;
 /// </summary>
 public static class ExpressionSqlRenderer
 {
+    /// <summary>
+    /// Identifiers that must be rendered bare rather than double-quoted. Used for a domain
+    /// CHECK, where <c>VALUE</c> is a keyword standing for the value being checked — quoting
+    /// it (<c>"VALUE"</c>) turns it into a (nonexistent) column reference and Postgres
+    /// rejects it with "column \"VALUE\" does not exist".
+    /// </summary>
+    private static readonly HashSet<string> NoBareIdentifiers = new(StringComparer.Ordinal);
+
     public static string Render(Expression expression)
+        => Render(expression, NoBareIdentifiers);
+
+    /// <summary>
+    /// Renders an expression, leaving any identifier in <paramref name="bareIdentifiers"/>
+    /// unquoted (e.g. the domain <c>VALUE</c> keyword).
+    /// </summary>
+    public static string Render(Expression expression, IReadOnlySet<string> bareIdentifiers)
     {
         var sb = new StringBuilder();
-        Write(sb, expression);
+        Write(sb, expression, bareIdentifiers);
         return sb.ToString();
     }
 
     private static void Write(StringBuilder sb, Expression expression)
+        => Write(sb, expression, NoBareIdentifiers);
+
+    private static void Write(StringBuilder sb, Expression expression, IReadOnlySet<string> bareIdentifiers)
     {
         switch (expression)
         {
             case ColumnReferenceExpression columnReference:
-                sb.Append('"').Append(columnReference.Identifier.Name).Append('"');
+                if (bareIdentifiers.Contains(columnReference.Identifier.Name))
+                {
+                    sb.Append(columnReference.Identifier.Name);
+                }
+                else
+                {
+                    sb.Append('"').Append(columnReference.Identifier.Name).Append('"');
+                }
                 break;
 
             case LiteralExpression literal:
@@ -37,26 +62,26 @@ public static class ExpressionSqlRenderer
 
             case ParenthesizedExpression parenthesized:
                 sb.Append('(');
-                Write(sb, parenthesized.Expression);
+                Write(sb, parenthesized.Expression, bareIdentifiers);
                 sb.Append(')');
                 break;
 
             case UnaryExpression unary:
-                WriteUnary(sb, unary);
+                WriteUnary(sb, unary, bareIdentifiers);
                 break;
 
             case BinaryExpression binary:
-                Write(sb, binary.Left);
+                Write(sb, binary.Left, bareIdentifiers);
                 sb.Append(' ').Append(BinaryOperatorText(binary.Operator)).Append(' ');
-                Write(sb, binary.Right);
+                Write(sb, binary.Right, bareIdentifiers);
                 break;
 
             case FunctionApplicationExpression function:
-                WriteFunction(sb, function);
+                WriteFunction(sb, function, bareIdentifiers);
                 break;
 
             case TypecastExpression typecast:
-                Write(sb, typecast.Expression);
+                Write(sb, typecast.Expression, bareIdentifiers);
                 sb.Append("::").Append(typecast.DataType.TypeName);
                 break;
 
@@ -66,64 +91,65 @@ public static class ExpressionSqlRenderer
         }
     }
 
-    private static void WriteUnary(StringBuilder sb, UnaryExpression unary)
+    private static void WriteUnary(StringBuilder sb, UnaryExpression unary,
+        IReadOnlySet<string> bareIdentifiers)
     {
         switch (unary.Operator)
         {
             case PostgresBuiltInUnaryOperator.Not:
                 sb.Append("NOT ");
-                Write(sb, unary.Expression);
+                Write(sb, unary.Expression, bareIdentifiers);
                 break;
 
             case PostgresBuiltInUnaryOperator.Negate:
                 sb.Append('-');
-                Write(sb, unary.Expression);
+                Write(sb, unary.Expression, bareIdentifiers);
                 break;
 
             case PostgresBuiltInUnaryOperator.Plus:
                 sb.Append('+');
-                Write(sb, unary.Expression);
+                Write(sb, unary.Expression, bareIdentifiers);
                 break;
 
             case PostgresBuiltInUnaryOperator.IsNull:
             case PostgresBuiltInUnaryOperator.IsNullKeyword:
-                Write(sb, unary.Expression);
+                Write(sb, unary.Expression, bareIdentifiers);
                 sb.Append(" IS NULL");
                 break;
 
             case PostgresBuiltInUnaryOperator.NotNull:
             case PostgresBuiltInUnaryOperator.IsNotNull:
-                Write(sb, unary.Expression);
+                Write(sb, unary.Expression, bareIdentifiers);
                 sb.Append(" IS NOT NULL");
                 break;
 
             case PostgresBuiltInUnaryOperator.IsTrue:
-                Write(sb, unary.Expression);
+                Write(sb, unary.Expression, bareIdentifiers);
                 sb.Append(" IS TRUE");
                 break;
 
             case PostgresBuiltInUnaryOperator.IsNotTrue:
-                Write(sb, unary.Expression);
+                Write(sb, unary.Expression, bareIdentifiers);
                 sb.Append(" IS NOT TRUE");
                 break;
 
             case PostgresBuiltInUnaryOperator.IsFalse:
-                Write(sb, unary.Expression);
+                Write(sb, unary.Expression, bareIdentifiers);
                 sb.Append(" IS FALSE");
                 break;
 
             case PostgresBuiltInUnaryOperator.IsNotFalse:
-                Write(sb, unary.Expression);
+                Write(sb, unary.Expression, bareIdentifiers);
                 sb.Append(" IS NOT FALSE");
                 break;
 
             case PostgresBuiltInUnaryOperator.IsUnknown:
-                Write(sb, unary.Expression);
+                Write(sb, unary.Expression, bareIdentifiers);
                 sb.Append(" IS UNKNOWN");
                 break;
 
             case PostgresBuiltInUnaryOperator.IsNotUnknown:
-                Write(sb, unary.Expression);
+                Write(sb, unary.Expression, bareIdentifiers);
                 sb.Append(" IS NOT UNKNOWN");
                 break;
 
@@ -133,7 +159,8 @@ public static class ExpressionSqlRenderer
         }
     }
 
-    private static void WriteFunction(StringBuilder sb, FunctionApplicationExpression function)
+    private static void WriteFunction(StringBuilder sb, FunctionApplicationExpression function,
+        IReadOnlySet<string> bareIdentifiers)
     {
         sb.Append(function.Name).Append('(');
 
@@ -144,7 +171,7 @@ public static class ExpressionSqlRenderer
                 sb.Append(", ");
             }
 
-            Write(sb, function.Arguments[i].Expression);
+            Write(sb, function.Arguments[i].Expression, bareIdentifiers);
         }
 
         sb.Append(')');

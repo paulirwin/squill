@@ -114,7 +114,19 @@ public partial class PostgresVisitor
                 startValue, increment, minValue, maxValue, cacheSize, cycle), context);
         }
 
-        // TODO: support UNIQUE, CHECK, and GENERATED ... AS (expr) STORED
+        if (context.CHECK() is not null)
+        {
+            // CHECK OPEN_PAREN a_expr CLOSE_PAREN opt_no_inherit. Used by domain constraints
+            // (where the value is referred to as VALUE) and inline column CHECKs.
+            if (VisitA_expr(context.a_expr()) is not Expression checkExpression)
+            {
+                throw new PostgresParseException("Unable to parse CHECK constraint expression");
+            }
+
+            return At(new CheckColumnConstraint(context.GetText(), checkExpression), context);
+        }
+
+        // TODO: support UNIQUE and GENERATED ... AS (expr) STORED
         throw new NotImplementedException("Column constraint type not yet implemented");
     }
 
