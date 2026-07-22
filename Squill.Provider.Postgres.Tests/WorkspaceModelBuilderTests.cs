@@ -167,6 +167,81 @@ CREATE TABLE prices
     }
 
     [Fact]
+    public async Task ExtractModel_ArrayColumn_TypeNameHasBracketsAndNoProperties()
+    {
+        // An array column (e.g. `text[]`) must produce a type-specifier whose type
+        // reference is the canonical array name — the element type's canonical name with
+        // `[]` appended, matching PostgreSQL's format_type() (e.g. "text[]"). PostgreSQL
+        // ignores declared array sizes and dimension counts (they are "simply
+        // documentation"; see the arrays docs), so the model carries no size — the DB
+        // builder reports the same "text[]" via format_type(), so parser-vs-DB hashes
+        // agree (issue #76).
+        const string sql = """
+CREATE TABLE films
+(
+    special_features text[]
+);
+""";
+
+        var parser = new AntlrPostgresParser();
+        var workspace = new Workspace();
+        workspace.Files.Add(new InMemoryStringFile("Films.sql", FileKind.Compile, sql));
+
+        var model = (await new ParserWorkspaceModelBuilder(workspace, parser)
+            .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
+
+        var table = model.Elements.Single(i => i.Type == PostgresElementTypes.SqlTable);
+        var columns = table.Relationships.Single(r => r.Name == PostgresRelationshipNames.Columns);
+        var featuresCol = Assert.IsType<Element>(columns.Entries[0]);
+
+        var typeElem = Assert.IsType<Element>(
+            featuresCol.Relationships.Single(r => r.Name == PostgresRelationshipNames.TypeSpecifier).Entries[0]);
+
+        var typeRef = Assert.IsType<Reference>(
+            typeElem.Relationships.Single(r => r.Name == PostgresRelationshipNames.Type).Entries[0]);
+        Assert.Equal("text[]", typeRef.Name);
+        Assert.Equal("BuiltIns", typeRef.ExternalSource);
+
+        // No Length/Precision/Scale on an array — the size is not modeled.
+        Assert.Empty(typeElem.Properties);
+    }
+
+    [Fact]
+    public async Task ExtractModel_ArrayColumn_OfVarchar_UsesCanonicalElementName()
+    {
+        // An array of a type with its own canonical name (varchar -> "character varying")
+        // renders as "character varying[]", matching format_type(). A declared element
+        // length is not preserved: PostgreSQL's format_type() would render
+        // "character varying(10)[]", but the length lives on the element, so we only
+        // assert the base canonical array name here — the DB round-trip test covers the
+        // exact string agreement end-to-end.
+        const string sql = """
+CREATE TABLE tags
+(
+    labels varchar[]
+);
+""";
+
+        var parser = new AntlrPostgresParser();
+        var workspace = new Workspace();
+        workspace.Files.Add(new InMemoryStringFile("Tags.sql", FileKind.Compile, sql));
+
+        var model = (await new ParserWorkspaceModelBuilder(workspace, parser)
+            .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
+
+        var table = model.Elements.Single(i => i.Type == PostgresElementTypes.SqlTable);
+        var columns = table.Relationships.Single(r => r.Name == PostgresRelationshipNames.Columns);
+        var labelsCol = Assert.IsType<Element>(columns.Entries[0]);
+
+        var typeElem = Assert.IsType<Element>(
+            labelsCol.Relationships.Single(r => r.Name == PostgresRelationshipNames.TypeSpecifier).Entries[0]);
+
+        var typeRef = Assert.IsType<Reference>(
+            typeElem.Relationships.Single(r => r.Name == PostgresRelationshipNames.Type).Entries[0]);
+        Assert.Equal("character varying[]", typeRef.Name);
+    }
+
+    [Fact]
     public async Task ExtractModel_IdentityColumnTest()
     {
         const string sql = """
