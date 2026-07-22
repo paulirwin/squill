@@ -136,7 +136,7 @@ public static class DacpacDeployer
         // Compare without enforcing the data-loss block, so the script (and its data-loss
         // reasons) can be computed even for a dry run. The block is enforced below, only
         // for a real run — a dry run must still be able to preview a destructive script.
-        var compareOptions = options ?? DeployOptions.Default;
+        var compareOptions = options ?? DeployOptions.CreateDefault();
         var comparison = SchemaCompare.Compare(
             provider, sourceModel, targetModel,
             compareOptions with { BlockOnPossibleDataLoss = false });

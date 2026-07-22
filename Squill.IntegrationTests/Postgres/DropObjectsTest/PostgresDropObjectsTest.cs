@@ -21,7 +21,7 @@ CREATE TABLE gone (id integer PRIMARY KEY);
 """;
         const string after = "CREATE TABLE keep (id integer PRIMARY KEY);";
 
-        await RunAsync(before, after, DeployOptions.Default, async conn =>
+        await RunAsync(before, after, DeployOptions.CreateDefault(), async conn =>
         {
             // The default keeps objects not in the source, so 'gone' must still exist.
             Assert.True(await TableExistsAsync(conn, "gone"));

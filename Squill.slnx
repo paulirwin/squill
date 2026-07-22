@@ -4,6 +4,10 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
+  <Project Path="Squill.Aspire.AppHostDemo/Squill.Aspire.AppHostDemo.csproj" />
+  <Project Path="Squill.Aspire.Hosting.MariaDb/Squill.Aspire.Hosting.MariaDb.csproj" />
+  <Project Path="Squill.Aspire.Hosting.PostgreSQL/Squill.Aspire.Hosting.PostgreSQL.csproj" />
+  <Project Path="Squill.Aspire.Hosting/Squill.Aspire.Hosting.csproj" />
   <Project Path="Squill.Build.Tests/Squill.Build.Tests.csproj" />
   <Project Path="Squill.Build/Squill.Build.csproj" />
   <Project Path="Squill.Core/Squill.Core.csproj" />

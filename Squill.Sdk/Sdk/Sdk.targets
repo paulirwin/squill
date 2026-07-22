@@ -66,4 +66,21 @@
   <Target Name="VSTest" />
   <Target Name="Pack" />
 
+  <!-- The DACPAC is this project's "target": expose it as $(TargetPath) so tooling
+       that resolves a referenced project's output (e.g. an Aspire AppHost's
+       ProjectReference) finds the artifact instead of failing with MSB4057
+       ("target GetTargetPath does not exist"). GetTargetPath is the standard MSBuild
+       contract for that lookup; it returns the path via TargetOutputs without
+       requiring a build. -->
+  <PropertyGroup>
+    <TargetPath Condition="'$(TargetPath)' == ''">$(SquillDacpacPath)</TargetPath>
+    <TargetExt Condition="'$(TargetExt)' == ''">.dacpac</TargetExt>
+  </PropertyGroup>
+
+  <Target Name="GetTargetPath" Returns="@(TargetPathWithTargetPlatformMoniker)">
+    <ItemGroup>
+      <TargetPathWithTargetPlatformMoniker Include="$(TargetPath)" />
+    </ItemGroup>
+  </Target>
+
 </Project>

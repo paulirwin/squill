@@ -28,6 +28,21 @@ public static class DacpacProviderDispatch
 
         await using var stream = File.OpenRead(dacpacPath);
 
+        return await DeployFromFileAsync(provider, dacpacPath, connectionString, targetDatabaseName, dryRun, progress, options, cancellationToken);
+    }
+
+    public static async Task<DeployResult> DeployFromFileAsync(
+        ISquillProvider provider,
+        string dacpacPath,
+        string connectionString,
+        string? targetDatabaseName = null,
+        bool dryRun = false,
+        IProgress<string>? progress = null,
+        DeployOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        await using var stream = File.OpenRead(dacpacPath);
+
         return await provider.DeployAsync(
             stream, connectionString, targetDatabaseName, dryRun, progress, options,
             cancellationToken);

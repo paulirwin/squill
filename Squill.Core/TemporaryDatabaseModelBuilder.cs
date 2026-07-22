@@ -1,4 +1,4 @@
-﻿namespace Squill.Core;
+namespace Squill.Core;
 
 public class TemporaryDatabaseModelBuilder
 {
