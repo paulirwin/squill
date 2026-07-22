@@ -14,4 +14,7 @@ public static class PostgresRelationshipNames
     public const string ForeignKeyColumns = nameof(ForeignKeyColumns);
     public const string ForeignTable = nameof(ForeignTable);
     public const string ForeignColumns = nameof(ForeignColumns);
+    // A trigger's target table (issue #83). The trigger is created after this table, and its
+    // schema is taken from it (a trigger's name is scoped to its table, not a schema).
+    public const string TriggerTable = nameof(TriggerTable);
 }

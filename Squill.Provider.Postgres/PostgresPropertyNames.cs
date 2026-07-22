@@ -66,4 +66,13 @@ public static class PostgresPropertyNames
     // name (STYPE, as format_type reports it).
     public const string StateFunction = nameof(StateFunction);
     public const string StateType = nameof(StateType);
+    // Triggers (issue #83). Timing is "BEFORE"/"AFTER"/"INSTEAD OF"; Events is the OR'd event
+    // list rendered canonically (e.g. "INSERT OR UPDATE") in a fixed order; Level is
+    // "ROW"/"STATEMENT". TriggerFunction is the schema-qualified function name and
+    // FunctionArguments is the comma-joined literal argument list (empty when there are none).
+    public const string Timing = nameof(Timing);
+    public const string Events = nameof(Events);
+    public const string Level = nameof(Level);
+    public const string TriggerFunction = nameof(TriggerFunction);
+    public const string FunctionArguments = nameof(FunctionArguments);
 }

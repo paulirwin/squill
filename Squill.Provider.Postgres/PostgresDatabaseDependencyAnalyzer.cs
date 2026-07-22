@@ -46,7 +46,8 @@ public class PostgresDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
             or PostgresElementTypes.SqlEnumType
             or PostgresElementTypes.SqlDomain
             or PostgresElementTypes.SqlFunction
-            or PostgresElementTypes.SqlAggregate))
+            or PostgresElementTypes.SqlAggregate
+            or PostgresElementTypes.SqlTrigger))
         {
             return null;
         }
@@ -77,6 +78,9 @@ public class PostgresDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
         // An aggregate references its state function (SFUNC), so it must be created after
         // functions (issue #82). Rank 5 puts it after both tables and functions.
         PostgresElementTypes.SqlAggregate => 5,
+        // A trigger depends on both its table and the function it runs, so it is created after
+        // everything else, including functions and aggregates (issue #83).
+        PostgresElementTypes.SqlTrigger => 6,
         // A view selects from tables (and may select from another view), so it is created
         // after them and before procedures, whose bodies may in turn query a view.
         PostgresElementTypes.SqlView => 3,

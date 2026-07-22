@@ -151,6 +151,12 @@ public class PostgresScriptGenerator
             PostgresElementTypes.SqlDomain =>
                 $"DROP DOMAIN IF EXISTS {SchemaQualified(element, parsed)};{Environment.NewLine}",
 
+            // A trigger is dropped by name qualified with the table it is on (a trigger's name
+            // is unique per table, not per schema). IF EXISTS keeps it idempotent.
+            PostgresElementTypes.SqlTrigger =>
+                $"DROP TRIGGER IF EXISTS {TriggerName(element)} ON {TriggerTableQualified(element)};"
+                + Environment.NewLine,
+
             _ => throw new NotImplementedException(
                 $"Dropping an element of type {element.Type} is not supported."),
         };
@@ -834,6 +840,11 @@ public class PostgresScriptGenerator
             return GenerateCreateDomainScript(createDelta.Element);
         }
 
+        if (createDelta.Element.Type == PostgresElementTypes.SqlTrigger)
+        {
+            return GenerateCreateTriggerScript(createDelta.Element);
+        }
+
         throw new NotImplementedException();
     }
 
@@ -995,6 +1006,73 @@ public class PostgresScriptGenerator
         sb.AppendLine(");");
 
         return sb.ToString();
+    }
+
+    // Emits CREATE TRIGGER for a trigger element (issue #83). The trigger's behavior facets
+    // (timing/events/level) are stored canonically, so they are emitted verbatim; the function
+    // is stored schema-qualified and its literal arguments are re-quoted as string constants,
+    // which is how PostgreSQL records and reports them.
+    private static string GenerateCreateTriggerScript(Element trigger)
+    {
+        var name = trigger.GetRequiredProperty<string>(PostgresPropertyNames.RoutineName);
+        var timing = trigger.GetRequiredProperty<string>(PostgresPropertyNames.Timing);
+        var events = trigger.GetRequiredProperty<string>(PostgresPropertyNames.Events);
+        var level = trigger.GetRequiredProperty<string>(PostgresPropertyNames.Level);
+        var function = trigger.GetRequiredProperty<string>(PostgresPropertyNames.TriggerFunction);
+        var arguments = trigger.GetRequiredProperty<string>(PostgresPropertyNames.FunctionArguments);
+
+        var sb = new StringBuilder();
+
+        sb.Append("CREATE TRIGGER ").AppendLine(SqlName.Object(name).QuotedUnqualified);
+        sb.Append("    ").Append(timing).Append(' ').Append(events)
+            .Append(" ON ").AppendLine(TriggerTableQualified(trigger));
+        sb.Append("    FOR EACH ").AppendLine(level);
+        sb.Append("    EXECUTE FUNCTION ").Append(RenderQualifiedFunctionName(function))
+            .Append('(').Append(RenderTriggerArguments(arguments)).AppendLine(");");
+
+        return sb.ToString();
+    }
+
+    // The trigger name, quoted. Stored bare (its uniqueness is per-table), so no schema.
+    private static string TriggerName(Element trigger)
+        => SqlName.Object(trigger.GetRequiredProperty<string>(PostgresPropertyNames.RoutineName))
+            .QuotedUnqualified;
+
+    // The schema-qualified, quoted name of the table a trigger fires on.
+    private static string TriggerTableQualified(Element trigger)
+    {
+        var reference = trigger.GetRelationship(PostgresRelationshipNames.TriggerTable)
+            ?.Entries.OfType<Reference>().FirstOrDefault()
+            ?? throw new InvalidOperationException("A trigger element has no table relationship");
+
+        var schema = GetSchema(trigger);
+        var bareTable = reference.Name;
+
+        // The reference may already be schema-qualified (schema.table); take the last segment
+        // as the table and prefer the explicit schema on the reference when present.
+        var dot = bareTable.LastIndexOf('.');
+        if (dot >= 0)
+        {
+            return SqlName.Object(bareTable[..dot], bareTable[(dot + 1)..]).Sql;
+        }
+
+        return schema is null or "public"
+            ? SqlName.Object(bareTable).QuotedUnqualified
+            : SqlName.Object(schema, bareTable).Sql;
+    }
+
+    // Re-quotes a trigger function's comma-joined literal arguments as SQL string constants,
+    // the form PostgreSQL stores and reports. An empty string means no arguments.
+    private static string RenderTriggerArguments(string arguments)
+    {
+        if (string.IsNullOrEmpty(arguments))
+        {
+            return string.Empty;
+        }
+
+        return string.Join(", ", arguments
+            .Split(", ")
+            .Select(argument => $"'{argument.Replace("'", "''")}'"));
     }
 
     // Renders a possibly-schema-qualified function name (schema.name) for emission, quoting

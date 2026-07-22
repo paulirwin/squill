@@ -274,6 +274,7 @@ public static class DacpacDeployer
         PostgresElementTypes.SqlProcedure => "procedure",
         PostgresElementTypes.SqlFunction => "function",
         PostgresElementTypes.SqlAggregate => "aggregate",
+        PostgresElementTypes.SqlTrigger => "trigger",
         PostgresElementTypes.SqlEnumType => "type",
         PostgresElementTypes.SqlDomain => "domain",
         PostgresElementTypes.SqlPrimaryKeyConstraint => "primary key",
