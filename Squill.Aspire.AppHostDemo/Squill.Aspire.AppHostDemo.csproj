@@ -20,4 +20,23 @@
       <ProjectReference Include="..\Squill.Aspire.Hosting.PostgreSQL\Squill.Aspire.Hosting.PostgreSQL.csproj" IsAspireProjectResource="false" />
     </ItemGroup>
 
+    <!--
+      The referenced .squillproj samples build a DACPAC using an MSBuild task from
+      Squill.Build.dll, which their SDK loads via a relative Import invisible to the
+      project graph. The solution's <BuildDependency> orders Squill.Build first for the
+      solution build, but that ordering does not extend to this project's ProjectReference
+      edges: when the AppHost builds its referenced squillprojs, they can run before
+      Squill.Build exists and fail with MSB4062. A bare .squillproj cannot carry its own
+      ProjectReference ordering (it lacks the common build targets), so enforce it here —
+      the AppHost is a normal SDK project — by building Squill.Build before this project's
+      references are resolved and built. Guarded by Exists() so it is a no-op if the source
+      project is ever absent. -->
+    <Target Name="EnsureSquillBuildBeforeReferences"
+            BeforeTargets="ResolveProjectReferences"
+            Condition="Exists('..\Squill.Build\Squill.Build.csproj')">
+      <MSBuild Projects="..\Squill.Build\Squill.Build.csproj"
+               Targets="Build"
+               Properties="Configuration=$(Configuration)" />
+    </Target>
+
 </Project>
