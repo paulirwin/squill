@@ -168,6 +168,16 @@ public static class DacpacDeployer
             comparison.ThrowIfDataLoss();
         }
 
+        // Disable function-body validation for the deploy session. A function, view or trigger
+        // body may reference another function (or an aggregate) that is created later in the
+        // same deploy — Pagila's inventory_held_by_customer calls inventory_in_stock, for
+        // instance. Body dependencies are not parsed, so the create order cannot always place a
+        // callee before its caller; deferring body checks lets every object be created and
+        // relies on the fact that by the end of the deploy all referenced objects exist. This
+        // is exactly how pg_dump/pg_restore load an interdependent schema. It persists for the
+        // session because RunScriptAsync reuses one connection.
+        await targetDb.RunScriptAsync("SET check_function_bodies = off;", cancellationToken: cancellationToken);
+
         // The pre-deployment script runs before any schema change, and runs even when the
         // schema is already up to date: like SSDT, deploy scripts are part of every deploy,
         // not just ones that alter the schema (seeding an unchanged schema must still work).
