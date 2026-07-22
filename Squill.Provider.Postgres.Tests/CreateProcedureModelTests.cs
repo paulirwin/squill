@@ -185,16 +185,6 @@ public class CreateProcedureModelTests
     }
 
     [Fact]
-    public async Task CreateFunction_IsReportedAsASourceError()
-    {
-        var ex = await Assert.ThrowsAsync<SqlSourceException>(() => BuildModelAsync(
-            "CREATE FUNCTION f() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$;"));
-
-        Assert.Equal("Test.sql", ex.SourceFile);
-        Assert.Contains("CREATE FUNCTION", ex.Message);
-    }
-
-    [Fact]
     public async Task Procedure_BodyIsStoredVerbatim()
     {
         var procedure = await BuildProcedureAsync("""

@@ -189,6 +189,10 @@ public static class DacpacDeployer
     {
         MariaDbElementTypes.SqlTable => "table",
         MariaDbElementTypes.SqlIndex => "index",
+        MariaDbElementTypes.SqlView => "view",
+        MariaDbElementTypes.SqlProcedure => "procedure",
+        MariaDbElementTypes.SqlPrimaryKeyConstraint => "primary key",
+        MariaDbElementTypes.SqlForeignKeyConstraint => "foreign key",
         _ => elementType,
     };
 

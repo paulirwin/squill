@@ -39,7 +39,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         // build surfaces every problem rather than one per rebuild (issue #61).
         validator.ThrowIfInvalid();
 
-        MoveProceduresToEnd(model);
+        MoveRoutinesToEnd(model);
 
         return new BuildResult(model, warnings);
     }
@@ -133,29 +133,39 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     /// extracted from a live database. Ordering them last also matches the create order,
     /// since a procedure body may reference any table.
     /// </summary>
-    private static void MoveProceduresToEnd(Model model)
+    // Functions and procedures are moved to the end of the model, functions before
+    // procedures — matching the DB-extraction builder, which extracts functions then
+    // procedures after everything else. The Merkle hash is order-sensitive, so the two
+    // builders must agree. Within each kind, ordinal ordering matches the database's
+    // byte-wise (COLLATE "C") ordering of the same values.
+    private static void MoveRoutinesToEnd(Model model)
     {
-        var procedures = model.Elements
-            .Where(i => i.Type == PostgresElementTypes.SqlProcedure)
+        MoveRoutineKindToEnd(model, PostgresElementTypes.SqlFunction);
+        MoveRoutineKindToEnd(model, PostgresElementTypes.SqlProcedure);
+    }
+
+    private static void MoveRoutineKindToEnd(Model model, string elementType)
+    {
+        var routines = model.Elements
+            .Where(i => i.Type == elementType)
             .ToList();
 
-        if (procedures.Count == 0)
+        if (routines.Count == 0)
         {
             return;
         }
 
-        foreach (var procedure in procedures)
+        foreach (var routine in routines)
         {
-            model.Elements.Remove(procedure);
+            model.Elements.Remove(routine);
         }
 
-        // Ordinal, to match the database's byte-wise ordering of the same values.
-        foreach (var procedure in procedures
+        foreach (var routine in routines
                      .OrderBy(i => PostgresModelFactory.GetSchema(i), StringComparer.Ordinal)
                      .ThenBy(i => i.GetProperty<string>(PostgresPropertyNames.RoutineName), StringComparer.Ordinal)
                      .ThenBy(i => i.GetProperty<string>(PostgresPropertyNames.ArgumentTypes), StringComparer.Ordinal))
         {
-            model.Elements.Add(procedure);
+            model.Elements.Add(routine);
         }
     }
 
@@ -240,10 +250,16 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         {
             model.Elements.Add(MakeCreateDomainElement(createDomainStatement));
         }
-        else if (statement is CreateFunctionStatement)
+        else if (statement is CreateFunctionStatement createFunctionStatement)
         {
-            throw new NotImplementedException(
-                "CREATE FUNCTION is not yet supported; only CREATE PROCEDURE is modeled");
+            validator.AddCreateFunction(file, createFunctionStatement);
+
+            if (validator.IsDuplicateFunction(createFunctionStatement))
+            {
+                return;
+            }
+
+            model.Elements.Add(MakeCreateFunctionElement(createFunctionStatement));
         }
         else
         {
@@ -448,6 +464,50 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 _schemaReferences.Add(new SchemaReference(
                     file.Name, createProcedureStatement.Line, createProcedureStatement.Column,
                     $"Procedure '{schema}.{name.UnqualifiedName}'", schema));
+            }
+        }
+
+        /// <summary>
+        /// Whether this CREATE FUNCTION redefines one already declared with the same name
+        /// and argument types (issue #81).
+        /// </summary>
+        public bool IsDuplicateFunction(CreateFunctionStatement createFunctionStatement)
+            => _duplicateFunctions.Contains(createFunctionStatement);
+
+        private readonly HashSet<CreateFunctionStatement> _duplicateFunctions = [];
+
+        private readonly Dictionary<(string Schema, string Name, string Args), Origin> _functionOrigins = new();
+
+        public void AddCreateFunction(IFile file, CreateFunctionStatement createFunctionStatement)
+        {
+            var (schema, name) = SplitSchema(createFunctionStatement.Name);
+
+            var argumentTypes = string.Join(',', createFunctionStatement.Parameters
+                .Where(i => i.Mode is ParameterMode.In or ParameterMode.InOut or ParameterMode.Variadic)
+                .Select(i => NormalizeArgumentType(i.DataType)));
+
+            var functionKey = (schema.ToLowerInvariant(), name.UnqualifiedName.ToLowerInvariant(), argumentTypes);
+
+            if (_functionOrigins.TryGetValue(functionKey, out var existingFunction))
+            {
+                _errors.Add(new SqlSourceException(
+                    $"Function '{Display(schema, name.UnqualifiedName)}({argumentTypes})' is "
+                    + $"already defined in {DescribeOrigin(existingFunction)}.",
+                    file.Name, createFunctionStatement.Line, createFunctionStatement.Column,
+                    SqlSourceException.DuplicateDefinition));
+
+                _duplicateFunctions.Add(createFunctionStatement);
+            }
+            else
+            {
+                _functionOrigins[functionKey] = new Origin(file.Name, createFunctionStatement.Line);
+            }
+
+            if (!string.Equals(schema, "public", StringComparison.OrdinalIgnoreCase))
+            {
+                _schemaReferences.Add(new SchemaReference(
+                    file.Name, createFunctionStatement.Line, createFunctionStatement.Column,
+                    $"Function '{schema}.{name.UnqualifiedName}'", schema));
             }
         }
 
@@ -1722,6 +1782,72 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             parameters,
             statement.SecurityDefiner);
     }
+
+    private static Element MakeCreateFunctionElement(CreateFunctionStatement statement)
+    {
+        var (schema, name) = SplitSchema(statement.Name);
+
+        if (statement.Language is not { } language)
+        {
+            throw new InvalidOperationException("A function must declare a LANGUAGE");
+        }
+
+        if (statement.Body is not { } body)
+        {
+            throw new InvalidOperationException("A function must declare a body");
+        }
+
+        if (statement.ReturnType is not { } returnType)
+        {
+            throw new InvalidOperationException("A function must declare a RETURNS type");
+        }
+
+        // Parameter DEFAULTs are not modeled for the same reason as on a procedure: Postgres
+        // rewrites the expression when it stores it, so a parsed model could not hash-match
+        // an extracted one.
+        if (statement.Parameters.FirstOrDefault(i => i.DefaultExpression is not null) is { } withDefault)
+        {
+            throw new NotImplementedException(
+                $"A DEFAULT on function parameter '{withDefault.Name?.Name ?? "(unnamed)"}' "
+                + "is not yet supported");
+        }
+
+        var parameters = statement.Parameters
+            .Select(parameter => new PostgresModelFactory.ProcedureParameter(
+                RenderParameterMode(parameter.Mode),
+                parameter.Name?.Name,
+                NormalizeArgumentType(parameter.DataType)))
+            .ToList();
+
+        var argumentTypes = string.Join(',', statement.Parameters
+            .Where(i => i.Mode is ParameterMode.In or ParameterMode.InOut or ParameterMode.Variadic)
+            .Select(i => NormalizeArgumentType(i.DataType)));
+
+        // The return type is normalized the same way parameter types are, so it matches
+        // format_type(prorettype) the DB builder reads back.
+        var normalizedReturnType = NormalizeArgumentType(returnType);
+
+        return PostgresModelFactory.CreateFunction(
+            schema,
+            name.UnqualifiedName,
+            argumentTypes,
+            normalizedReturnType,
+            statement.ReturnsSet,
+            language,
+            body,
+            parameters,
+            statement.Volatility is { } volatility ? RenderVolatility(volatility) : null,
+            statement.Strict ?? false,
+            statement.SecurityDefiner);
+    }
+
+    private static string RenderVolatility(FunctionVolatility volatility) => volatility switch
+    {
+        FunctionVolatility.Immutable => "IMMUTABLE",
+        FunctionVolatility.Stable => "STABLE",
+        FunctionVolatility.Volatile => "VOLATILE",
+        _ => throw new NotImplementedException($"Volatility {volatility} is not supported"),
+    };
 
     private static string RenderParameterMode(ParameterMode mode) => mode switch
     {

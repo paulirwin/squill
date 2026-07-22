@@ -53,4 +53,12 @@ public static class PostgresPropertyNames
     // of its CHECK constraint expression (or null when it has none).
     public const string Labels = nameof(Labels);
     public const string CheckExpression = nameof(CheckExpression);
+    // Functions (issue #81). ReturnType is the canonical return type name (as pg_proc's
+    // format_type reports it); ReturnsSet is true for RETURNS SETOF. Volatility is one of
+    // "IMMUTABLE"/"STABLE"/"VOLATILE" (stored only when not the VOLATILE default); IsStrict
+    // is stored only when true (CALLED ON NULL INPUT is the default).
+    public const string ReturnType = nameof(ReturnType);
+    public const string ReturnsSet = nameof(ReturnsSet);
+    public const string Volatility = nameof(Volatility);
+    public const string IsStrict = nameof(IsStrict);
 }

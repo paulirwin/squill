@@ -22,7 +22,9 @@ public class PostgresDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
     // scripted as DROP + CREATE: PostgreSQL will not replace a view whose column list
     // changed, and a changed column list is the only thing that makes a view differ.
     public bool IsReplaceableElementType(string type)
-        => type is PostgresElementTypes.SqlProcedure or PostgresElementTypes.SqlView;
+        => type is PostgresElementTypes.SqlProcedure
+            or PostgresElementTypes.SqlView
+            or PostgresElementTypes.SqlFunction;
 
     public bool DropCausesDataLoss(string type)
         => type == PostgresElementTypes.SqlTable;
@@ -42,7 +44,8 @@ public class PostgresDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
             or PostgresElementTypes.SqlProcedure
             or PostgresElementTypes.SqlView
             or PostgresElementTypes.SqlEnumType
-            or PostgresElementTypes.SqlDomain))
+            or PostgresElementTypes.SqlDomain
+            or PostgresElementTypes.SqlFunction))
         {
             return null;
         }
@@ -65,6 +68,11 @@ public class PostgresDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
         // is not parsed for dependencies, so this ordering is what makes a procedure that
         // reads or writes a table in the same deploy work.
         PostgresElementTypes.SqlProcedure => 4,
+        // A function, like a procedure, may reference any table in its body, so it is
+        // created after tables (issue #81). Note: a view or another function that calls this
+        // function would need it created first; body dependencies are not parsed, so that
+        // cross-object ordering (function-before-view/aggregate) is a known follow-up.
+        PostgresElementTypes.SqlFunction => 4,
         // A view selects from tables (and may select from another view), so it is created
         // after them and before procedures, whose bodies may in turn query a view.
         PostgresElementTypes.SqlView => 3,

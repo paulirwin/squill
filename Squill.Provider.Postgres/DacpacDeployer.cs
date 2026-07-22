@@ -270,6 +270,15 @@ public static class DacpacDeployer
         PostgresElementTypes.SqlExtension => "extension",
         PostgresElementTypes.SqlIndex => "index",
         PostgresElementTypes.SqlSchema => "schema",
+        PostgresElementTypes.SqlView => "view",
+        PostgresElementTypes.SqlProcedure => "procedure",
+        PostgresElementTypes.SqlFunction => "function",
+        PostgresElementTypes.SqlEnumType => "type",
+        PostgresElementTypes.SqlDomain => "domain",
+        PostgresElementTypes.SqlPrimaryKeyConstraint => "primary key",
+        PostgresElementTypes.SqlForeignKeyConstraint => "foreign key",
+        // A type name that has no friendly label falls back to the raw type rather than
+        // guessing; every user-facing object type above is covered.
         _ => elementType,
     };
 

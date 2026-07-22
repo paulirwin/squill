@@ -71,10 +71,12 @@ public class MultiFileErrorReportingTests
     [Fact]
     public async Task MappingErrors_InMultipleStatements_AllReported()
     {
-        // Unsupported statements: first-one-wins would report only one of these.
+        // Unsupported constructs that parse but fail during model mapping: a function
+        // parameter DEFAULT is not modeled, so each is a mapping error, and first-one-wins
+        // would report only one of these.
         var builder = BuilderFor(
-            ("A.sql", "CREATE FUNCTION f() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$;"),
-            ("B.sql", "CREATE FUNCTION g() RETURNS integer LANGUAGE sql AS $$ SELECT 2 $$;"));
+            ("A.sql", "CREATE FUNCTION f(a integer DEFAULT 1) RETURNS integer LANGUAGE sql AS $$ SELECT a $$;"),
+            ("B.sql", "CREATE FUNCTION g(a integer DEFAULT 1) RETURNS integer LANGUAGE sql AS $$ SELECT a $$;"));
 
         var ex = await Assert.ThrowsAsync<AggregateException>(
             () => builder.ExtractModelAsync(TestContext.Current.CancellationToken));
@@ -87,8 +89,8 @@ public class MultiFileErrorReportingTests
     public async Task MappingErrors_InSameFile_BothReported()
     {
         const string sql = """
-CREATE FUNCTION f() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$;
-CREATE FUNCTION g() RETURNS integer LANGUAGE sql AS $$ SELECT 2 $$;
+CREATE FUNCTION f(a integer DEFAULT 1) RETURNS integer LANGUAGE sql AS $$ SELECT a $$;
+CREATE FUNCTION g(a integer DEFAULT 1) RETURNS integer LANGUAGE sql AS $$ SELECT a $$;
 """;
         var builder = BuilderFor(("A.sql", sql));
 
