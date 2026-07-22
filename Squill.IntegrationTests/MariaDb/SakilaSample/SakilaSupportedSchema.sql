@@ -1,3 +1,43 @@
+-- =============================================================================
+-- Test fixture: the Sakila (MariaDB / MySQL) sample schema.
+--
+-- Derived from the Sakila sample database for MySQL from the jOOQ Sakila repository
+-- (https://github.com/jOOQ/sakila). The MySQL Sakila schema was originally created
+-- by MySQL AB and is distributed under the BSD 3-Clause License below (its original
+-- header); the jOOQ repository redistributing it is itself under the BSD 2-Clause
+-- License. See samples/SakilaSampleDatabase/LICENSE.txt for both in full. The
+-- applicable terms for this schema are the MySQL AB BSD 3-Clause terms. Generated
+-- from the sample .sql files.
+--
+-- Sakila Sample Database Schema -- Version 0.8
+--
+-- Copyright (c) 2006, MySQL AB
+-- All rights reserved.
+--
+-- Redistribution and use in source and binary forms, with or without modification,
+-- are permitted provided that the following conditions are met:
+--
+--  * Redistributions of source code must retain the above copyright notice, this
+--    list of conditions and the following disclaimer.
+--  * Redistributions in binary form must reproduce the above copyright notice, this
+--    list of conditions and the following disclaimer in the documentation and/or
+--    other materials provided with the distribution.
+--  * Neither the name of MySQL AB nor the names of its contributors may be used to
+--    endorse or promote products derived from this software without specific prior
+--    written permission.
+--
+-- THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+-- ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+-- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+-- IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+-- INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+-- NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+-- PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+-- WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+-- ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+-- POSSIBILITY OF SUCH DAMAGE.
+-- =============================================================================
+
 -- The Sakila `country` lookup table, the top of the country -> city -> address location
 -- hierarchy. No foreign keys of its own; referenced by `city`.
 CREATE TABLE country
