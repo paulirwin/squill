@@ -134,6 +134,10 @@ public class PostgresScriptGenerator
             PostgresElementTypes.SqlFunction =>
                 $"DROP FUNCTION IF EXISTS {RoutineSignature(element)};{Environment.NewLine}",
 
+            // An aggregate is likewise identified by its name and input-type signature.
+            PostgresElementTypes.SqlAggregate =>
+                $"DROP AGGREGATE IF EXISTS {RoutineSignature(element)};{Environment.NewLine}",
+
             // A view is dropped with RESTRICT (the default), so a view another object still
             // depends on fails loudly rather than silently cascading the drop.
             PostgresElementTypes.SqlView =>
@@ -810,6 +814,11 @@ public class PostgresScriptGenerator
             return GenerateCreateFunctionScript(createDelta.Element);
         }
 
+        if (createDelta.Element.Type == PostgresElementTypes.SqlAggregate)
+        {
+            return GenerateCreateAggregateScript(createDelta.Element);
+        }
+
         if (createDelta.Element.Type == PostgresElementTypes.SqlView)
         {
             return GenerateCreateViewScript(createDelta.Element);
@@ -959,6 +968,44 @@ public class PostgresScriptGenerator
         sb.AppendLine().Append("AS ").Append(DollarQuote(body)).AppendLine(";");
 
         return sb.ToString();
+    }
+
+    // PostgreSQL has no CREATE OR REPLACE AGGREGATE, so an aggregate is always scripted as a
+    // plain CREATE. Its input types come from the argument signature and the mandatory
+    // SFUNC/STYPE items follow. The SFUNC is stored schema-qualified (schema.name); it is
+    // emitted verbatim so it resolves to the same function the model recorded.
+    private static string GenerateCreateAggregateScript(Element aggregate)
+    {
+        var routineName = aggregate.GetRequiredProperty<string>(PostgresPropertyNames.RoutineName);
+        var argumentTypes = aggregate.GetRequiredProperty<string>(PostgresPropertyNames.ArgumentTypes);
+        var stateFunction = aggregate.GetRequiredProperty<string>(PostgresPropertyNames.StateFunction);
+        var stateType = aggregate.GetRequiredProperty<string>(PostgresPropertyNames.StateType);
+        var schema = GetSchema(aggregate);
+
+        var qualified = schema is null or "public"
+            ? SqlName.Object(routineName).QuotedUnqualified
+            : SqlName.Object(schema, routineName).Sql;
+
+        var sb = new StringBuilder();
+
+        sb.Append("CREATE AGGREGATE ").Append(qualified)
+            .Append('(').Append(argumentTypes).AppendLine(") (");
+        sb.Append("    SFUNC = ").Append(RenderQualifiedFunctionName(stateFunction)).AppendLine(",");
+        sb.Append("    STYPE = ").AppendLine(stateType);
+        sb.AppendLine(");");
+
+        return sb.ToString();
+    }
+
+    // Renders a possibly-schema-qualified function name (schema.name) for emission, quoting
+    // each segment. A bare name is emitted quoted as-is.
+    private static string RenderQualifiedFunctionName(string name)
+    {
+        var dot = name.IndexOf('.');
+
+        return dot < 0
+            ? SqlName.Object(name).QuotedUnqualified
+            : SqlName.Object(name[..dot], name[(dot + 1)..]).Sql;
     }
 
     /// <summary>

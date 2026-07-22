@@ -22,4 +22,8 @@ public static class PostgresElementTypes
     // A CREATE FUNCTION (issue #81). Like a procedure, but with a return type and
     // volatility/strictness; both live in pg_proc, distinguished by prokind.
     public const string SqlFunction = nameof(SqlFunction);
+    // A CREATE AGGREGATE (issue #82). A user-defined aggregate function, recorded in
+    // pg_aggregate (with prokind = 'a' in pg_proc). It references a state transition
+    // function (SFUNC), so it must be created after that function.
+    public const string SqlAggregate = nameof(SqlAggregate);
 }
