@@ -8,68 +8,11 @@ namespace Squill.Provider.Postgres;
 /// Generates PostgreSQL DDL from schema deltas. This is pure model-to-SQL logic
 /// with no database dependency, so it can be unit-tested without a live server.
 /// </summary>
-public class PostgresScriptGenerator : IScriptGenerator
+public class PostgresScriptGenerator : ScriptGeneratorBase
 {
-    /// <summary>
-    /// Generates a single script covering every delta in the comparison, in order, with a
-    /// blank line between steps so the generated (or previewed) script is easier to read.
-    /// </summary>
-    public string GenerateScript(SchemaComparison comparison)
-    {
-        var sb = new StringBuilder();
-
-        foreach (var delta in comparison.Deltas)
-        {
-            sb.Append(GenerateScriptForDelta(delta));
-            sb.AppendLine();
-        }
-
-        return sb.ToString();
-    }
-
-    public string GenerateScriptForDelta(SchemaDelta delta)
-    {
-        if (delta is CreateDelta createDelta)
-        {
-            return GenerateCreateScript(createDelta);
-        }
-
-        if (delta is AlterDelta alterDelta)
-        {
-            return GenerateAlterScript(alterDelta);
-        }
-
-        if (delta is RebuildTableDelta rebuildDelta)
-        {
-            return GenerateRebuildScript(rebuildDelta);
-        }
-
-        if (delta is DropDelta dropDelta)
-        {
-            return GenerateDropScript(dropDelta);
-        }
-
-        if (delta is RecreateDelta recreateDelta)
-        {
-            return GenerateRecreateScript(recreateDelta);
-        }
-
-        if (delta is AlterExtensionVersionDelta alterExtensionDelta)
-        {
-            return GenerateAlterExtensionScript(alterExtensionDelta);
-        }
-
-        if (delta is AddConstraintDelta addConstraintDelta)
-        {
-            return GenerateAddConstraintScript(addConstraintDelta);
-        }
-
-        throw new NotImplementedException();
-    }
-
     // Adds a constraint that was held back from its table's CREATE to break a circular
     // foreign key dependency. By the time this runs, every table in the cycle exists.
-    private static string GenerateAddConstraintScript(AddConstraintDelta delta)
+    protected override string GenerateAddConstraintScript(AddConstraintDelta delta)
     {
         if (delta.Constraint.Type != PostgresElementTypes.SqlForeignKeyConstraint)
         {
@@ -89,7 +32,7 @@ public class PostgresScriptGenerator : IScriptGenerator
     }
 
     // Emits a DROP statement for a standalone object no longer present in the source.
-    private string GenerateDropScript(DropDelta dropDelta)
+    protected override string GenerateDropScript(DropDelta dropDelta)
     {
         var element = dropDelta.Element;
 
@@ -181,7 +124,7 @@ public class PostgresScriptGenerator : IScriptGenerator
     // Emits a drop-and-recreate for an object whose definition changed but can't be altered
     // in place — an index. DROP INDEX IF EXISTS keeps it idempotent, then the new shape is
     // created. The DROP must precede the CREATE (same name, different definition).
-    private string GenerateRecreateScript(RecreateDelta recreateDelta)
+    protected override string GenerateRecreateScript(RecreateDelta recreateDelta)
     {
         var source = recreateDelta.SourceElement;
 
@@ -283,7 +226,7 @@ public class PostgresScriptGenerator : IScriptGenerator
 
     // Emits ALTER TABLE ... ADD / DROP / ALTER COLUMN statements for an in-place table
     // alteration.
-    private string GenerateAlterScript(AlterDelta alterDelta)
+    protected override string GenerateAlterScript(AlterDelta alterDelta)
     {
         if (alterDelta.SourceElement.Name is not string tableName)
         {
@@ -413,7 +356,7 @@ public class PostgresScriptGenerator : IScriptGenerator
     // create the table with its desired shape, copy the data for the columns common to
     // both, then drop the renamed original. Wrapped in a transaction so a failure leaves
     // the original table untouched. This mirrors SSDT's table-rebuild data motion.
-    private string GenerateRebuildScript(RebuildTableDelta rebuildDelta)
+    protected override string GenerateRebuildScript(RebuildTableDelta rebuildDelta)
     {
         if (rebuildDelta.SourceElement.Name is not string tableName)
         {
@@ -431,9 +374,9 @@ public class PostgresScriptGenerator : IScriptGenerator
         // Columns common to the desired table and the current one, in desired order — the
         // data that carries across the rebuild. Pair each with its old (target) definition
         // so a type change can be cast during the copy.
-        var targetColumns = GetOrderedColumns(rebuildDelta.TargetElement)
+        var targetColumns = RelationshipHelpers.GetOrderedColumns(rebuildDelta.TargetElement)
             .ToDictionary(c => c.Name, c => c.Column);
-        var carriedColumns = GetOrderedColumns(rebuildDelta.SourceElement)
+        var carriedColumns = RelationshipHelpers.GetOrderedColumns(rebuildDelta.SourceElement)
             .Where(c => targetColumns.ContainsKey(c.Name))
             .ToList();
 
@@ -769,31 +712,8 @@ public class PostgresScriptGenerator : IScriptGenerator
             : parsed.QuotedUnqualified;
     }
 
-    private static IEnumerable<string> GetOrderedColumnNames(Element table)
-        => GetOrderedColumns(table).Select(c => c.Name);
 
-    // The table's columns in declaration order, as (canonical name, element) pairs.
-    private static IList<(string Name, Element Column)> GetOrderedColumns(Element table)
-    {
-        var columns = new List<(string, Element)>();
-
-        foreach (var columnRelationship in table.Relationships
-                     .Where(i => i.Name == PostgresRelationshipNames.Columns))
-        {
-            foreach (var column in columnRelationship.Entries.OfType<Element>()
-                         .Where(i => i.Type == PostgresElementTypes.SqlSimpleColumn))
-            {
-                if (column.Name is string name)
-                {
-                    columns.Add((name, column));
-                }
-            }
-        }
-
-        return columns;
-    }
-
-    private string GenerateCreateScript(CreateDelta createDelta)
+    protected override string GenerateCreateScript(CreateDelta createDelta)
     {
         if (createDelta.Element.Type == PostgresElementTypes.SqlTable)
         {
@@ -1404,7 +1324,7 @@ public class PostgresScriptGenerator : IScriptGenerator
     }
 
     // Updates an installed extension to the source-pinned version.
-    private static string GenerateAlterExtensionScript(AlterExtensionVersionDelta delta)
+    protected override string GenerateAlterExtensionScript(AlterExtensionVersionDelta delta)
     {
         if (delta.SourceElement.Name is not string extensionName)
         {
@@ -1428,7 +1348,7 @@ public class PostgresScriptGenerator : IScriptGenerator
             throw new ArgumentException("Foreign keys must have names");
         }
 
-        var columns = GetReferenceColumnNames(foreignKey, PostgresRelationshipNames.ForeignKeyColumns);
+        var columns = RelationshipHelpers.GetReferenceColumnNames(foreignKey, PostgresRelationshipNames.ForeignKeyColumns);
 
         if (columns.Count == 0)
         {
@@ -1443,7 +1363,7 @@ public class PostgresScriptGenerator : IScriptGenerator
             throw new InvalidOperationException($"Foreign key {fkName} has no referenced table");
         }
 
-        var foreignColumns = GetReferenceColumnNames(foreignKey, PostgresRelationshipNames.ForeignColumns);
+        var foreignColumns = RelationshipHelpers.GetReferenceColumnNames(foreignKey, PostgresRelationshipNames.ForeignColumns);
 
         var sb = new StringBuilder();
 
@@ -1471,23 +1391,6 @@ public class PostgresScriptGenerator : IScriptGenerator
         }
 
         return sb.ToString();
-    }
-
-    // References store table-qualified names (e.g. orders.customer_id); a constraint
-    // clause needs just the bare column identifiers, in order.
-    private static IList<string> GetReferenceColumnNames(Element element, string relationshipName)
-    {
-        var relationship = element.GetRelationship(relationshipName);
-
-        if (relationship == null)
-        {
-            return new List<string>();
-        }
-
-        return relationship.Entries
-            .OfType<Reference>()
-            .Select(r => SqlName.UnqualifiedOf(r.Name))
-            .ToList();
     }
 
     private static string RenderReferentialAction(string action)

@@ -36,8 +36,8 @@ public abstract class TableDiffAnalyzerBase : ITableDiffAnalyzer
         var tableName = sourceTable.Name
             ?? throw new ArgumentException("Tables must have names", nameof(sourceTable));
 
-        var sourceColumns = GetOrderedColumns(sourceTable);
-        var targetColumns = GetOrderedColumns(targetTable);
+        var sourceColumns = RelationshipHelpers.GetOrderedColumns(sourceTable);
+        var targetColumns = RelationshipHelpers.GetOrderedColumns(targetTable);
 
         // A change needs a rebuild when it can't be reproduced by appending/dropping at the
         // physical level: either a column common to both tables changed relative order, or a
@@ -182,8 +182,8 @@ public abstract class TableDiffAnalyzerBase : ITableDiffAnalyzer
         // The rebuild destroys data only if it drops a column the target still has — a rebuild
         // driven purely by reordering copies every row losslessly. This drives the data-loss
         // guard, so a lossless mid-table insert isn't blocked.
-        var sourceColumnNames = GetOrderedColumns(sourceTable).Select(c => c.Name).ToHashSet();
-        var dropsData = GetOrderedColumns(targetTable)
+        var sourceColumnNames = RelationshipHelpers.GetOrderedColumns(sourceTable).Select(c => c.Name).ToHashSet();
+        var dropsData = RelationshipHelpers.GetOrderedColumns(targetTable)
             .Any(c => !sourceColumnNames.Contains(c.Name));
 
         var delta = new RebuildTableDelta(sourceTable, targetTable, reason, dropsData);
@@ -238,27 +238,6 @@ public abstract class TableDiffAnalyzerBase : ITableDiffAnalyzer
         }
 
         return inbound;
-    }
-
-    // The table's columns in declaration order, as (canonical name, element) pairs.
-    private static IList<(string Name, Element Column)> GetOrderedColumns(Element table)
-    {
-        var columns = new List<(string, Element)>();
-
-        foreach (var columnRelationship in table.Relationships
-                     .Where(i => i.Name == SqlRelationshipNames.Columns))
-        {
-            foreach (var column in columnRelationship.Entries.OfType<Element>()
-                         .Where(i => i.Type == SqlElementTypes.SqlSimpleColumn))
-            {
-                if (column.Name is string name)
-                {
-                    columns.Add((name, column));
-                }
-            }
-        }
-
-        return columns;
     }
 
     // The last segment of a canonical (unquoted, dot-joined) name. Quote-independent, so it
