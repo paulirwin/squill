@@ -3,9 +3,9 @@ namespace Squill.MariaDbParser.Syntax;
 /// <summary>
 /// The focused MariaDB syntax tree Squill consumes. This models exactly the statements the
 /// provider maps to model elements — CREATE TABLE (columns, data types, PK/FK/unique/index
-/// constraints), CREATE INDEX, CREATE PROCEDURE and CREATE VIEW — rather than the full grammar.
-/// CREATE FUNCTION is parsed only so it can be reported as unsupported. Everything else in
-/// a script is ignored by the parser (see <see cref="AntlrMariaDbParser"/>).
+/// constraints), CREATE INDEX, CREATE PROCEDURE, CREATE FUNCTION, CREATE TRIGGER and CREATE
+/// VIEW — rather than the full grammar. Everything else in a script is ignored by the parser
+/// (see <see cref="AntlrMariaDbParser"/>).
 /// </summary>
 public sealed class Root
 {
@@ -408,6 +408,47 @@ public sealed class CreateFunctionStatement(QualifiedName name, DataType returnT
     /// Whether SQL SECURITY INVOKER was written. DEFINER is the default on both engines.
     /// </summary>
     public bool IsSecurityInvoker { get; set; }
+}
+
+// ---- CREATE TRIGGER ----
+
+/// <summary>
+/// A <c>CREATE [OR REPLACE] TRIGGER name {BEFORE|AFTER} {INSERT|UPDATE|DELETE} ON table
+/// FOR EACH ROW body</c> statement (issue #100). A trigger is a routine-like object bound to
+/// a table: it fires at a given <see cref="Timing"/> for a given <see cref="Event"/>, running
+/// its <see cref="Body"/> for each affected row.
+///
+/// The <see cref="Body"/> is held verbatim — exactly the characters it spans in the source —
+/// because both engines return it that way from <c>information_schema.TRIGGERS.ACTION_STATEMENT</c>.
+/// Keeping it byte-for-byte lets a model parsed from source hash-match one extracted from a
+/// live database without canonicalizing the body.
+/// </summary>
+public sealed class CreateTriggerStatement(
+    QualifiedName name,
+    string timing,
+    string @event,
+    QualifiedName table,
+    bool orReplace) : Statement
+{
+    public QualifiedName Name { get; } = name;
+
+    /// <summary>When the trigger fires: <c>BEFORE</c> or <c>AFTER</c> (upper-cased).</summary>
+    public string Timing { get; } = timing;
+
+    /// <summary>The event it fires on: <c>INSERT</c>, <c>UPDATE</c> or <c>DELETE</c> (upper-cased).</summary>
+    public string Event { get; } = @event;
+
+    /// <summary>The table the trigger is defined on.</summary>
+    public QualifiedName Table { get; } = table;
+
+    /// <summary>
+    /// Whether OR REPLACE was written (MariaDB-only syntax). This affects how the trigger is
+    /// created, not the desired schema state, so it does not participate in the model.
+    /// </summary>
+    public bool OrReplace { get; } = orReplace;
+
+    /// <summary>The trigger body, verbatim as written in the source.</summary>
+    public string? Body { get; set; }
 }
 
 /// <summary>

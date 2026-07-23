@@ -20,4 +20,5 @@ public static class MariaDbElementTypes
     public const string SqlFunction = nameof(SqlFunction);
     public const string SqlView = nameof(SqlView);
     public const string SqlViewColumn = nameof(SqlViewColumn);
+    public const string SqlTrigger = nameof(SqlTrigger);
 }

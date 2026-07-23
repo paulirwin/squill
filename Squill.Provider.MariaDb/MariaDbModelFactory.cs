@@ -286,6 +286,47 @@ public static class MariaDbModelFactory
     }
 
     /// <summary>
+    /// Builds a trigger element (issue #100).
+    ///
+    /// A trigger's identity is its name, the table it fires on, and its behavior: the
+    /// <paramref name="timing"/> (BEFORE/AFTER), the <paramref name="event"/>
+    /// (INSERT/UPDATE/DELETE) and the <paramref name="body"/> it runs. All of these round-trip
+    /// faithfully through <c>information_schema.TRIGGERS</c> (ACTION_TIMING, EVENT_MANIPULATION,
+    /// ACTION_STATEMENT), so a parsed model hash-matches one extracted from a live database.
+    ///
+    /// The name is folded as <c>table.trigger</c> so same-named triggers on different tables
+    /// stay distinct in the model and a trigger sorts alongside its table; the bare trigger
+    /// name is recovered from the trailing segment when scripting. The table it fires on is
+    /// carried as a relationship so the trigger follows its table on deploy.
+    /// </summary>
+    public static Element CreateTrigger(
+        SqlName table,
+        string triggerName,
+        string timing,
+        string @event,
+        string body)
+    {
+        return new Element(MariaDbElementTypes.SqlTrigger)
+        {
+            Name = table.Sibling($"{table.UnqualifiedName}.{triggerName}"),
+            Relationships =
+            {
+                new Relationship(MariaDbRelationshipNames.TriggerTable)
+                {
+                    new Reference(table)
+                },
+            },
+            Properties =
+            {
+                new Property(MariaDbPropertyNames.RoutineName, triggerName),
+                new Property(MariaDbPropertyNames.Timing, timing),
+                new Property(MariaDbPropertyNames.Event, @event),
+                new Property(MariaDbPropertyNames.Body, body),
+            },
+        };
+    }
+
+    /// <summary>
     /// Builds a view element (issue #42).
     ///
     /// A view's identity is its name and its ordered column list — the facets both engines

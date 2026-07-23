@@ -38,6 +38,11 @@ internal static class MariaDbStatementMapper
             return MapCreateFunction(createFunction);
         }
 
+        if (ddl.createTrigger() is { } createTrigger)
+        {
+            return MapCreateTrigger(createTrigger);
+        }
+
         // Any other DDL (ALTER, DROP, …) is not modeled. It becomes a marker
         // statement rather than being dropped, so the model builder can warn that it will
         // not reach the DACPAC instead of the construct silently vanishing (issue #61).
@@ -658,6 +663,30 @@ internal static class MariaDbStatementMapper
         statement.Body = createFunction.routineBody() is { } body
             ? SourceText(body)
             : SourceText(createFunction.returnStatement());
+
+        return statement;
+    }
+
+    // ---- CREATE TRIGGER ----
+
+    private static Statement MapCreateTrigger(MariaDBParser.CreateTriggerContext createTrigger)
+    {
+        // The grammar labels the trigger's own name `thisTrigger`, its timing (BEFORE/AFTER)
+        // `triggerTime`, and its event (INSERT/UPDATE/DELETE) `triggerEvent`. Both engines
+        // report timing and event upper-cased in information_schema.TRIGGERS, so the tokens
+        // are upper-cased here to match.
+        var statement = At(
+            new CreateTriggerStatement(
+                MapQualifiedName(createTrigger.thisTrigger),
+                createTrigger.triggerTime.Text.ToUpperInvariant(),
+                createTrigger.triggerEvent.Text.ToUpperInvariant(),
+                MapQualifiedName(createTrigger.tableName().fullId()),
+                createTrigger.orReplace() is not null),
+            createTrigger);
+
+        // The body — a BEGIN ... END block or a single statement — is held verbatim, exactly
+        // as ACTION_STATEMENT reports it, so a parsed model hash-matches an extracted one.
+        statement.Body = SourceText(createTrigger.routineBody());
 
         return statement;
     }

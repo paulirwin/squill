@@ -13,14 +13,14 @@ namespace Squill.IntegrationTests.MariaDb.SakilaSample;
 /// FULLTEXT index, six views, stored procedures, three stored functions, and triggers.
 ///
 /// <para>
-/// As of issue #74 (CREATE FUNCTION) the whole sample builds and deploys against a real MariaDB
-/// / MySQL container: the enum/set value lists are preserved in the generated DDL (issue #73) and
+/// As of issue #100 (CREATE TRIGGER) the whole sample builds and deploys against a real MariaDB
+/// / MySQL container: the enum/set value lists are preserved in the generated DDL (issue #73),
 /// the three stored functions (<c>get_customer_balance</c>, <c>inventory_in_stock</c>,
-/// <c>inventory_held_by_customer</c>) are now modeled alongside the procedures. Routines are
+/// <c>inventory_held_by_customer</c>) are modeled alongside the procedures (issue #74), and the
+/// three <c>film</c> triggers (<c>del_film</c>, <c>ins_film</c>, <c>upd_film</c>) that keep the
+/// FULLTEXT-indexed <c>film_text</c> copy in sync are modeled too. Routines and triggers are
 /// sequenced after the tables and views they read, so the deploy applies in one pass. The
-/// <c>CREATE TRIGGER</c> statements are parsed but not yet modeled (a build warning, not an
-/// error), so they are skipped on deploy — the deploy still succeeds, which is why the
-/// assertions below spot-check a table, view, function, and procedure but not a trigger.
+/// assertions below spot-check a table, enum column, view, function, procedure, and trigger.
 /// </para>
 ///
 /// <para>
@@ -136,6 +136,11 @@ public abstract class SakilaSampleDeployTests
                     + "WHERE ROUTINE_SCHEMA = @db AND ROUTINE_TYPE = 'PROCEDURE' "
                     + "AND ROUTINE_NAME = 'film_in_stock'",
                     "film_in_stock procedure", ct);
+                await AssertObjectExistsAsync(targetDbName,
+                    "SELECT COUNT(*) FROM information_schema.TRIGGERS "
+                    + "WHERE TRIGGER_SCHEMA = @db AND TRIGGER_NAME = 'ins_film' "
+                    + "AND EVENT_OBJECT_TABLE = 'film'",
+                    "ins_film trigger", ct);
             }
             finally
             {
