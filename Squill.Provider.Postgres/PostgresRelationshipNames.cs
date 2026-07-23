@@ -1,20 +1,13 @@
+using Squill.Core;
+
 namespace Squill.Provider.Postgres;
 
-public static class PostgresRelationshipNames
+/// <summary>
+/// The <see cref="Relationship"/> names for the Postgres provider. Inherits the shared
+/// <see cref="SqlRelationshipNames"/> vocabulary and adds the Postgres-only schema
+/// relationship (Postgres objects are schema-scoped).
+/// </summary>
+public sealed class PostgresRelationshipNames : SqlRelationshipNames
 {
-    // TODO.PI: move common ones to the Core assembly
-    public const string Columns = nameof(Columns);
-    public const string TypeSpecifier = nameof(TypeSpecifier);
-    public const string Type = nameof(Type);
     public const string Schema = nameof(Schema);
-    public const string ColumnSpecifications = nameof(ColumnSpecifications);
-    public const string DefiningTable = nameof(DefiningTable);
-    public const string Column = nameof(Column);
-    public const string IndexedObject = nameof(IndexedObject);
-    public const string ForeignKeyColumns = nameof(ForeignKeyColumns);
-    public const string ForeignTable = nameof(ForeignTable);
-    public const string ForeignColumns = nameof(ForeignColumns);
-    // A trigger's target table (issue #83). The trigger is created after this table, and its
-    // schema is taken from it (a trigger's name is scoped to its table, not a schema).
-    public const string TriggerTable = nameof(TriggerTable);
 }
