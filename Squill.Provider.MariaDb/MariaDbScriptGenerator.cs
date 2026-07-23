@@ -87,6 +87,11 @@ public class MariaDbScriptGenerator
             return GenerateCreateViewScript(createDelta.Element);
         }
 
+        if (createDelta.Element.Type == MariaDbElementTypes.SqlTrigger)
+        {
+            return GenerateCreateTriggerScript(createDelta.Element);
+        }
+
         throw new NotImplementedException(
             $"Creating an element of type {createDelta.Element.Type} is not supported.");
     }
@@ -323,6 +328,14 @@ public class MariaDbScriptGenerator
             return DropViewStatement(source) + GenerateCreateViewScript(source);
         }
 
+        // A trigger whose definition changed is dropped and recreated. Neither engine can
+        // ALTER a trigger, and CREATE OR REPLACE TRIGGER is MariaDB-only, so the portable
+        // spelling is DROP ... IF EXISTS followed by CREATE.
+        if (source.Type == MariaDbElementTypes.SqlTrigger)
+        {
+            return DropTriggerStatement(source) + GenerateCreateTriggerScript(source);
+        }
+
         if (source.Type != MariaDbElementTypes.SqlIndex)
         {
             throw new NotImplementedException(
@@ -375,6 +388,8 @@ public class MariaDbScriptGenerator
             MariaDbElementTypes.SqlFunction => DropFunctionStatement(element),
 
             MariaDbElementTypes.SqlView => DropViewStatement(element),
+
+            MariaDbElementTypes.SqlTrigger => DropTriggerStatement(element),
 
             _ => throw new NotImplementedException(
                 $"Dropping an element of type {element.Type} is not supported."),
@@ -429,6 +444,52 @@ public class MariaDbScriptGenerator
         }
 
         return $"DROP VIEW IF EXISTS {SqlName.Parse(name).Sql};{Environment.NewLine}";
+    }
+
+    // Scripts a trigger: CREATE TRIGGER `name` {BEFORE|AFTER} {INSERT|UPDATE|DELETE}
+    // ON `table` FOR EACH ROW <body>. The body — a BEGIN ... END block or a single statement —
+    // is emitted verbatim, exactly as ACTION_STATEMENT reports it. CREATE OR REPLACE is not
+    // used: it is MariaDB-only syntax and this generator targets MySQL too, so a changed
+    // trigger is scripted as DROP + CREATE.
+    private static string GenerateCreateTriggerScript(Element trigger)
+    {
+        var triggerName = trigger.GetRequiredProperty<string>(MariaDbPropertyNames.RoutineName);
+        var timing = trigger.GetRequiredProperty<string>(MariaDbPropertyNames.Timing);
+        var @event = trigger.GetRequiredProperty<string>(MariaDbPropertyNames.Event);
+        var body = trigger.GetRequiredProperty<string>(MariaDbPropertyNames.Body);
+
+        var sb = new StringBuilder();
+
+        sb.Append("CREATE TRIGGER ").Append(SqlName.Object(triggerName).Sql)
+            .Append(' ').Append(timing).Append(' ').Append(@event)
+            .Append(" ON ").Append(TriggerTableName(trigger))
+            .Append(" FOR EACH ROW").AppendLine();
+
+        // The body is emitted verbatim and the statement is not terminated with a semicolon:
+        // a BEGIN ... END body contains its own, and each delta is sent to the server as a
+        // single command, so no DELIMITER handling is needed.
+        sb.AppendLine(body);
+
+        return sb.ToString();
+    }
+
+    private static string DropTriggerStatement(Element trigger)
+    {
+        var triggerName = trigger.GetRequiredProperty<string>(MariaDbPropertyNames.RoutineName);
+
+        // A trigger name is unique within the database, so DROP TRIGGER names it alone — no
+        // table qualifier, which the syntax does not accept.
+        return $"DROP TRIGGER IF EXISTS {SqlName.Object(triggerName).Sql};{Environment.NewLine}";
+    }
+
+    // The quoted table name a trigger fires on, from its TriggerTable reference.
+    private static string TriggerTableName(Element trigger)
+    {
+        var reference = trigger.GetRelationship(MariaDbRelationshipNames.TriggerTable)
+            ?.Entries.OfType<Reference>().SingleOrDefault()
+            ?? throw new InvalidOperationException($"Trigger {trigger.Name} has no trigger-table reference");
+
+        return SqlName.Parse(reference.Name).Sql;
     }
 
     private static string DropProcedureStatement(Element procedure)

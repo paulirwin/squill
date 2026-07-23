@@ -41,6 +41,19 @@ public static class MariaDbPropertyNames
     // parsed model matches one extracted from either engine. See MariaDbTypeNormalizer.
     public const string ReturnType = nameof(ReturnType);
 
+    // Triggers (issue #100). A trigger fires at a Timing (BEFORE/AFTER) for an Event
+    // (INSERT/UPDATE/DELETE), running its Body verbatim — which is what both engines return
+    // from information_schema.TRIGGERS (ACTION_TIMING, EVENT_MANIPULATION, ACTION_STATEMENT),
+    // so a parsed model hash-matches one extracted from a live database. The name a trigger
+    // fires on is carried as a relationship (see MariaDbRelationshipNames.TriggerTable).
+    public const string Timing = nameof(Timing);
+    public const string Event = nameof(Event);
+
+    // The bare (unscoped) name of a trigger. The element Name folds in the table it fires on
+    // (table.trigger) to keep same-named triggers on different tables distinct; this recovers
+    // the trigger's own name for scripting CREATE/DROP TRIGGER.
+    public const string RoutineName = nameof(RoutineName);
+
     // Views (issue #42). A view's query is carried for scripting only and never takes part
     // in comparison: MariaDB and MySQL both rewrite the query when they store it — and not
     // even the same way as each other — so a declared body could never hash-match an

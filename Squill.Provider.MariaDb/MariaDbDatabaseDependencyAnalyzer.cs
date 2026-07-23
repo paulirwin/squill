@@ -25,12 +25,13 @@ public class MariaDbDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
     public string? GetExtensionVersion(Element extension) => null;
 
     // A procedure or function's definition is replaced wholesale rather than altered facet by
-    // facet. A view is here too; all are scripted as DROP + CREATE, since CREATE OR REPLACE is
-    // MariaDB-only syntax and this provider targets MySQL as well.
+    // facet. A view and a trigger are here too; all are scripted as DROP + CREATE, since
+    // CREATE OR REPLACE is MariaDB-only syntax and this provider targets MySQL as well.
     public bool IsReplaceableElementType(string type)
         => type is MariaDbElementTypes.SqlProcedure
             or MariaDbElementTypes.SqlFunction
-            or MariaDbElementTypes.SqlView;
+            or MariaDbElementTypes.SqlView
+            or MariaDbElementTypes.SqlTrigger;
 
     public bool DropCausesDataLoss(string type)
         => type == MariaDbElementTypes.SqlTable;
@@ -43,15 +44,17 @@ public class MariaDbDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
     public string? GetElementSchema(Element element) => null;
 
     // MariaDB has no schema/extension objects that must precede tables, so every element
-    // sorts to the same create order — except a view and a routine, which reference tables.
-    // None is parsed for dependencies beyond its source tables, so this ordering is what
-    // makes a view or routine that reads a table in the same deploy work. A view selects from
-    // tables, so it follows them; a procedure or function body may query either, so it comes
-    // last.
+    // sorts to the same create order — except a view, a routine, and a trigger, which
+    // reference tables. None is parsed for dependencies beyond its source/defining tables, so
+    // this ordering is what makes one that reads a table in the same deploy work. A view
+    // selects from tables, so it follows them; a procedure or function body may query either,
+    // so it comes next; a trigger fires on a table and its body may touch any table or view,
+    // so it comes last.
     public int GetCreateOrder(string type) => type switch
     {
         MariaDbElementTypes.SqlView => 1,
         MariaDbElementTypes.SqlProcedure or MariaDbElementTypes.SqlFunction => 2,
+        MariaDbElementTypes.SqlTrigger => 3,
         _ => 0,
     };
 

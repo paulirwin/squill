@@ -192,6 +192,7 @@ public static class DacpacDeployer
         MariaDbElementTypes.SqlView => "view",
         MariaDbElementTypes.SqlProcedure => "procedure",
         MariaDbElementTypes.SqlFunction => "function",
+        MariaDbElementTypes.SqlTrigger => "trigger",
         MariaDbElementTypes.SqlPrimaryKeyConstraint => "primary key",
         MariaDbElementTypes.SqlForeignKeyConstraint => "foreign key",
         _ => elementType,

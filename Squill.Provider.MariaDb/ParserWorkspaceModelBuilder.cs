@@ -50,6 +50,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         validator.ThrowIfInvalid();
 
         MoveRoutinesToEnd(model);
+        MoveTriggersToEnd(model);
 
         return new BuildResult(model, warnings);
     }
@@ -118,6 +119,42 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         foreach (var routine in routines.OrderBy(i => i.Name as string, StringComparer.Ordinal))
         {
             model.Elements.Add(routine);
+        }
+    }
+
+    /// <summary>
+    /// Moves triggers after every other element (including routines), ordered by their bare
+    /// trigger name. The database-extraction builder emits them last in that order
+    /// (information_schema orders by TRIGGER_NAME and has no notion of declaration order) and
+    /// the Merkle hash is order-sensitive, so a parsed model must adopt the same order to
+    /// hash-match an extracted one.
+    ///
+    /// This runs after <see cref="MoveRoutinesToEnd"/> so a trigger lands after the routines,
+    /// matching the extraction order (tables, views, routines, then triggers). It orders by
+    /// the trigger's own name — held in <see cref="MariaDbPropertyNames.RoutineName"/> — not
+    /// the element Name, which folds in the table (table.trigger) and would sort differently.
+    /// </summary>
+    private static void MoveTriggersToEnd(Model model)
+    {
+        var triggers = model.Elements
+            .Where(i => i.Type == MariaDbElementTypes.SqlTrigger)
+            .ToList();
+
+        if (triggers.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var trigger in triggers)
+        {
+            model.Elements.Remove(trigger);
+        }
+
+        // Ordinal, to match the database's byte-wise ordering of the same names.
+        foreach (var trigger in triggers.OrderBy(
+                     i => i.GetProperty<string>(MariaDbPropertyNames.RoutineName), StringComparer.Ordinal))
+        {
+            model.Elements.Add(trigger);
         }
     }
 
@@ -255,6 +292,17 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         model.Elements.Add(MakeCreateFunctionElement(createFunction));
                         break;
 
+                    case CreateTriggerStatement createTrigger:
+                        validator.AddCreateTrigger(file, createTrigger);
+
+                        if (validator.IsDuplicateTrigger(createTrigger))
+                        {
+                            break;
+                        }
+
+                        model.Elements.Add(MakeCreateTriggerElement(createTrigger));
+                        break;
+
                     // Recognized but not modeled (CREATE VIEW, ALTER, …). Not fatal — the
                     // rest of the project still builds — but the construct will not reach
                     // the DACPAC, so say so rather than dropping it silently.
@@ -359,6 +407,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         private readonly Dictionary<string, Origin> _tableOrigins = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Origin> _procedureOrigins = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Origin> _functionOrigins = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, Origin> _triggerOrigins = new(StringComparer.OrdinalIgnoreCase);
 
         // An index name only has to be unique within its table in MariaDB, unlike Postgres
         // where constraints and indexes share a per-schema namespace.
@@ -367,6 +416,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         private readonly HashSet<CreateTableStatement> _duplicateTables = [];
         private readonly HashSet<CreateProcedureStatement> _duplicateProcedures = [];
         private readonly HashSet<CreateFunctionStatement> _duplicateFunctions = [];
+        private readonly HashSet<CreateTriggerStatement> _duplicateTriggers = [];
 
         // The column sets made unique by a primary key or unique constraint/index on each
         // table; a foreign key's referenced columns must match one of these exactly.
@@ -452,6 +502,37 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             }
 
             _functionOrigins[name] = new Origin(file.Name, createFunction.Line);
+        }
+
+        public bool IsDuplicateTrigger(CreateTriggerStatement createTrigger)
+            => _duplicateTriggers.Contains(createTrigger);
+
+        public void AddCreateTrigger(IFile file, CreateTriggerStatement createTrigger)
+        {
+            // A trigger name is unique within the database (schema), regardless of the table
+            // it fires on — the same as a routine.
+            var name = createTrigger.Name.Name;
+
+            if (_triggerOrigins.TryGetValue(name, out var existing))
+            {
+                _errors.Add(new SqlSourceException(
+                    $"Trigger '{name}' is already defined in {DescribeOrigin(existing)}.",
+                    file.Name, createTrigger.Line, createTrigger.Column,
+                    SqlSourceException.DuplicateDefinition));
+
+                _duplicateTriggers.Add(createTrigger);
+
+                return;
+            }
+
+            _triggerOrigins[name] = new Origin(file.Name, createTrigger.Line);
+
+            // The table the trigger fires on must be declared in the project, so an unresolved
+            // one is reported like any other unresolved reference.
+            _tableReferences.Add(new TableReference(
+                file.Name, createTrigger.Line, createTrigger.Column,
+                $"Trigger '{name}'",
+                createTrigger.Table.Name, []));
         }
 
         // A deferred reference to a table (and optionally columns on it) that must be
@@ -1314,6 +1395,23 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             createFunction.IsDeterministic,
             createFunction.SqlDataAccess,
             createFunction.IsSecurityInvoker);
+    }
+
+    private static Element MakeCreateTriggerElement(CreateTriggerStatement createTrigger)
+    {
+        if (createTrigger.Body is not { } body)
+        {
+            throw new InvalidOperationException("A trigger must declare a body");
+        }
+
+        // A trigger is not schema-scoped within a database, so a leading db qualifier is
+        // dropped from both the trigger's name and its table, exactly as for a table.
+        return MariaDbModelFactory.CreateTrigger(
+            SqlName.Object(createTrigger.Table.Name),
+            createTrigger.Name.Name,
+            createTrigger.Timing,
+            createTrigger.Event,
+            body);
     }
 
     private static string RenderParameterMode(ParameterMode mode) => mode switch

@@ -72,10 +72,15 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
         // matches the order the parser-based builder produces.
         await ExtractViewsAsync(model, cancellationToken);
 
-        // Routines (procedures and functions) come last, matching the parser-based builder:
-        // a routine body may reference any table, so on publish its CREATE must run after the
-        // tables it uses. Procedures and functions are ordered together by name.
+        // Routines (procedures and functions) come after views, matching the parser-based
+        // builder: a routine body may reference any table, so on publish its CREATE must run
+        // after the tables it uses. Procedures and functions are ordered together by name.
         await ExtractRoutinesAsync(model, cancellationToken);
+
+        // Triggers come last, matching the parser-based builder: a trigger fires on a table
+        // and its body may touch any table or view, so its CREATE must run after everything
+        // else. Ordered by name so the two builders agree (the Merkle hash is order-sensitive).
+        await ExtractTriggersAsync(model, cancellationToken);
 
         return model;
     }
@@ -218,6 +223,45 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
                     routine.IsDeterministic,
                     routine.SqlDataAccess,
                     routine.IsSecurityInvoker));
+        }
+    }
+
+    private async Task ExtractTriggersAsync(Model model, CancellationToken cancellationToken = default)
+    {
+        // A trigger's identity is its name, the table it fires on (EVENT_OBJECT_TABLE), its
+        // timing (ACTION_TIMING = BEFORE/AFTER) and event (EVENT_MANIPULATION =
+        // INSERT/UPDATE/DELETE), and its body (ACTION_STATEMENT, returned verbatim by both
+        // engines). Ordered by name so the parser-based builder can adopt the same order — the
+        // catalog has no notion of declaration order and the Merkle hash is order-sensitive.
+        const string sql =
+            """
+            SELECT TRIGGER_NAME, EVENT_OBJECT_TABLE, ACTION_TIMING, EVENT_MANIPULATION,
+                   ACTION_STATEMENT
+            FROM information_schema.TRIGGERS
+            WHERE TRIGGER_SCHEMA = @db
+            ORDER BY TRIGGER_NAME;
+            """;
+
+        var dbParam = new[] { new DatabaseParameter<string>("@db", _database.Name) };
+
+        var triggers = new List<Element>();
+
+        await using (var reader = await _database.RunScriptReaderAsync(sql, dbParam, cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                triggers.Add(MariaDbModelFactory.CreateTrigger(
+                    SqlName.Object(reader.GetString("EVENT_OBJECT_TABLE")),
+                    reader.GetString("TRIGGER_NAME"),
+                    reader.GetString("ACTION_TIMING").ToUpperInvariant(),
+                    reader.GetString("EVENT_MANIPULATION").ToUpperInvariant(),
+                    reader.GetString("ACTION_STATEMENT")));
+            }
+        }
+
+        foreach (var trigger in triggers)
+        {
+            model.Elements.Add(trigger);
         }
     }
 

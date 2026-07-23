@@ -18,4 +18,8 @@ public static class MariaDbRelationshipNames
     public const string ForeignKeyColumns = nameof(ForeignKeyColumns);
     public const string ForeignTable = nameof(ForeignTable);
     public const string ForeignColumns = nameof(ForeignColumns);
+
+    // The table a trigger fires on (issue #100). A trigger's name is scoped to its table, so
+    // the reference keeps the deploy ordering (a trigger follows its table) and identity right.
+    public const string TriggerTable = nameof(TriggerTable);
 }
