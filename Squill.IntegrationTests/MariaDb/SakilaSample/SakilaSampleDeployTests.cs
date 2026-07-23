@@ -89,17 +89,13 @@ public abstract class SakilaSampleDeployTests
     }
 
     /// <summary>
-    /// The end-to-end deploy of the Sakila sample into a real MariaDB / MySQL database via the
-    /// exact code path <c>squill deploy</c> uses. Skipped until the ENUM/SET script-generation and
-    /// CREATE FUNCTION gaps (documented on the class) are closed; the <c>film</c> table's
-    /// <c>enum</c>/<c>set</c> columns currently generate invalid DDL. When they are fixed, remove
-    /// the Skip — this should deploy the schema and the deployed model should match the DACPAC's.
+    /// The end-to-end deploy of the Sakila sample (supported subset) into a real MariaDB / MySQL
+    /// database via the exact code path <c>squill deploy</c> uses. This deploys the <c>film</c>
+    /// table's <c>enum</c>/<c>set</c> columns, whose value list is now preserved in the generated
+    /// DDL (issue #73). The subset still excludes the three <c>CREATE FUNCTION</c> objects, which
+    /// are not yet modeled; switch to the full <c>SakilaSchema.sql</c> once they are.
     /// </summary>
-    [Fact(Skip = "Deploying Sakila needs two MariaDB-provider gaps closed: (1) ENUM/SET columns "
-        + "generate invalid DDL — the value list is dropped (film.rating -> 'enum NULL', "
-        + "film.special_features -> 'set NULL'); (2) CREATE FUNCTION is not modeled (only CREATE "
-        + "PROCEDURE), so the three Sakila functions cannot be included. Remove Skip once both are "
-        + "supported and switch the fixture to the full SakilaSchema.sql.")]
+    [Fact]
     public async Task Deploy_SakilaSample_ProducesTheSampleSchema()
     {
         var ct = TestContext.Current.CancellationToken;

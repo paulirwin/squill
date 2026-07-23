@@ -131,6 +131,37 @@ public class MariaDbScriptGeneratorTests
     }
 
     [Fact]
+    public async Task GenerateScript_EnumColumn_PreservesValueList()
+    {
+        var sql = await ScriptAsync("""
+            CREATE TABLE film
+            (
+                film_id int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                rating  enum('G','PG','PG-13','R','NC-17') DEFAULT 'G'
+            );
+            """);
+
+        Assert.Contains("`rating` enum('G','PG','PG-13','R','NC-17')", sql);
+        Assert.DoesNotContain("enum NULL", sql);
+    }
+
+    [Fact]
+    public async Task GenerateScript_SetColumn_PreservesValueList()
+    {
+        var sql = await ScriptAsync("""
+            CREATE TABLE film
+            (
+                special_features set('Trailers','Commentaries','Deleted Scenes','Behind the Scenes')
+            );
+            """);
+
+        Assert.Contains(
+            "`special_features` set('Trailers','Commentaries','Deleted Scenes','Behind the Scenes')",
+            sql);
+        Assert.DoesNotContain("set NULL", sql);
+    }
+
+    [Fact]
     public async Task GenerateScript_SeparatesStepsWithBlankLine()
     {
         var sql = await ScriptAsync("""

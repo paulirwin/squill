@@ -697,6 +697,18 @@ internal static class MariaDbStatementMapper
             result.Modifiers.Add(dimension);
         }
 
+        // enum(...) / set(...) carry a list of string-literal values rather than numeric
+        // modifiers. They are kept verbatim (quotes and all) so the exact type text can be
+        // reproduced when scripting the column.
+        if (dataType is MariaDBParser.CollectionDataTypeContext collection
+            && collection.collectionOptions() is { } options)
+        {
+            foreach (var option in options.collectionOption())
+            {
+                result.CollectionValues.Add(option.STRING_LITERAL().GetText());
+            }
+        }
+
         return result;
     }
 

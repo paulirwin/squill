@@ -750,6 +750,7 @@ public class MariaDbScriptGenerator
         var precision = typeElement.GetProperty<long?>(MariaDbPropertyNames.Precision);
         var scale = typeElement.GetProperty<long?>(MariaDbPropertyNames.Scale);
         var isUnsigned = typeElement.GetProperty<bool?>(MariaDbPropertyNames.IsUnsigned) == true;
+        var collectionValues = typeElement.GetProperty<string?>(MariaDbPropertyNames.CollectionValues);
 
         var typeName = typeReference.Name.ToLowerInvariant();
 
@@ -757,6 +758,7 @@ public class MariaDbScriptGenerator
         {
             "varchar" or "char" when maxLength != null => $"{typeName}({maxLength})",
             "decimal" or "numeric" when precision != null => $"{typeName}({precision}, {scale ?? 0})",
+            "enum" or "set" when collectionValues != null => $"{typeName}{collectionValues}",
             _ => typeName,
         };
 
