@@ -9,39 +9,11 @@ namespace Squill.Provider.MariaDb;
 /// with backticks, expresses an auto-numbered key column with <c>AUTO_INCREMENT</c>, and
 /// has no schema or extension objects.
 /// </summary>
-public class MariaDbScriptGenerator : IScriptGenerator
+public class MariaDbScriptGenerator : ScriptGeneratorBase
 {
-    public string GenerateScript(SchemaComparison comparison)
-    {
-        var sb = new StringBuilder();
-
-        foreach (var delta in comparison.Deltas)
-        {
-            sb.Append(GenerateScriptForDelta(delta));
-            sb.AppendLine();
-        }
-
-        return sb.ToString();
-    }
-
-    public string GenerateScriptForDelta(SchemaDelta delta)
-    {
-        return delta switch
-        {
-            CreateDelta create => GenerateCreateScript(create),
-            AlterDelta alter => GenerateAlterScript(alter),
-            RebuildTableDelta rebuild => GenerateRebuildScript(rebuild),
-            DropDelta drop => GenerateDropScript(drop),
-            RecreateDelta recreate => GenerateRecreateScript(recreate),
-            AddConstraintDelta addConstraint => GenerateAddConstraintScript(addConstraint),
-            _ => throw new NotImplementedException(
-                $"Scripting a delta of type {delta.GetType().Name} is not supported."),
-        };
-    }
-
     // Adds a constraint that was held back from its table's CREATE to break a circular
     // foreign key dependency. By the time this runs, every table in the cycle exists.
-    private static string GenerateAddConstraintScript(AddConstraintDelta delta)
+    protected override string GenerateAddConstraintScript(AddConstraintDelta delta)
     {
         if (delta.Constraint.Type != MariaDbElementTypes.SqlForeignKeyConstraint)
         {
@@ -60,7 +32,7 @@ public class MariaDbScriptGenerator : IScriptGenerator
 
     // ---- CREATE ----
 
-    private string GenerateCreateScript(CreateDelta createDelta)
+    protected override string GenerateCreateScript(CreateDelta createDelta)
     {
         if (createDelta.Element.Type == MariaDbElementTypes.SqlTable)
         {
@@ -113,9 +85,9 @@ public class MariaDbScriptGenerator : IScriptGenerator
         var lines = new List<string>();
 
         var pk = dependentElements.SingleOrDefault(i => i.Type == MariaDbElementTypes.SqlPrimaryKeyConstraint);
-        var pkColumns = pk == null ? new List<string>() : GetKeyColumns(pk);
+        var pkColumns = pk == null ? new List<string>() : RelationshipHelpers.GetKeyColumns(pk);
 
-        foreach (var column in GetOrderedColumns(table))
+        foreach (var column in RelationshipHelpers.GetOrderedColumns(table))
         {
             lines.Add(RenderColumnDefinition(column.Column));
         }
@@ -190,7 +162,7 @@ public class MariaDbScriptGenerator : IScriptGenerator
             throw new ArgumentException("Indexes must have names");
         }
 
-        var columns = GetKeyColumns(index);
+        var columns = RelationshipHelpers.GetKeyColumns(index);
         var columnList = string.Join(", ", columns.Select(c => $"`{SqlName.UnqualifiedOf(c)}`"));
 
         return $"UNIQUE KEY `{SqlName.Parse(indexName).UnqualifiedName}` ({columnList})";
@@ -210,7 +182,7 @@ public class MariaDbScriptGenerator : IScriptGenerator
 
         var columnText = new List<string>();
 
-        foreach (var columnSpec in GetColumnSpecifications(index))
+        foreach (var columnSpec in RelationshipHelpers.GetColumnSpecifications(index))
         {
             var columnReference = columnSpec.GetRelationship(MariaDbRelationshipNames.Column)
                 ?.Entries.OfType<Reference>().SingleOrDefault()
@@ -251,7 +223,7 @@ public class MariaDbScriptGenerator : IScriptGenerator
 
     // ---- ALTER ----
 
-    private string GenerateAlterScript(AlterDelta alterDelta)
+    protected override string GenerateAlterScript(AlterDelta alterDelta)
     {
         if (alterDelta.SourceElement.Name is not string tableName)
         {
@@ -300,7 +272,7 @@ public class MariaDbScriptGenerator : IScriptGenerator
 
     // ---- RECREATE (standalone index whose definition changed) ----
 
-    private string GenerateRecreateScript(RecreateDelta recreateDelta)
+    protected override string GenerateRecreateScript(RecreateDelta recreateDelta)
     {
         var source = recreateDelta.SourceElement;
 
@@ -362,7 +334,7 @@ public class MariaDbScriptGenerator : IScriptGenerator
 
     // ---- DROP ----
 
-    private string GenerateDropScript(DropDelta dropDelta)
+    protected override string GenerateDropScript(DropDelta dropDelta)
     {
         var element = dropDelta.Element;
 
@@ -641,7 +613,7 @@ public class MariaDbScriptGenerator : IScriptGenerator
     // MariaDB DDL is not transactional (each statement auto-commits), so unlike the Postgres
     // provider this is not wrapped in BEGIN/COMMIT; a failure mid-rebuild leaves the renamed
     // original in place under its aside name for manual recovery.
-    private string GenerateRebuildScript(RebuildTableDelta rebuildDelta)
+    protected override string GenerateRebuildScript(RebuildTableDelta rebuildDelta)
     {
         if (rebuildDelta.SourceElement.Name is not string tableName)
         {
@@ -654,9 +626,9 @@ public class MariaDbScriptGenerator : IScriptGenerator
         var oldName = sourceName.Sibling(RebuildAsideName(sourceName.UnqualifiedName));
         var quotedOldName = oldName.Sql;
 
-        var targetColumns = GetOrderedColumns(rebuildDelta.TargetElement)
+        var targetColumns = RelationshipHelpers.GetOrderedColumns(rebuildDelta.TargetElement)
             .ToDictionary(c => c.Name, c => c.Column);
-        var carriedColumns = GetOrderedColumns(rebuildDelta.SourceElement)
+        var carriedColumns = RelationshipHelpers.GetOrderedColumns(rebuildDelta.SourceElement)
             .Where(c => targetColumns.ContainsKey(c.Name))
             .ToList();
 
@@ -754,7 +726,7 @@ public class MariaDbScriptGenerator : IScriptGenerator
             throw new ArgumentException("Foreign keys must have names");
         }
 
-        var columns = GetReferenceColumnNames(foreignKey, MariaDbRelationshipNames.ForeignKeyColumns);
+        var columns = RelationshipHelpers.GetReferenceColumnNames(foreignKey, MariaDbRelationshipNames.ForeignKeyColumns);
 
         if (columns.Count == 0)
         {
@@ -765,7 +737,7 @@ public class MariaDbScriptGenerator : IScriptGenerator
             ?.Entries.OfType<Reference>().SingleOrDefault()
             ?? throw new InvalidOperationException($"Foreign key {fkName} has no referenced table");
 
-        var foreignColumns = GetReferenceColumnNames(foreignKey, MariaDbRelationshipNames.ForeignColumns);
+        var foreignColumns = RelationshipHelpers.GetReferenceColumnNames(foreignKey, MariaDbRelationshipNames.ForeignColumns);
 
         var sb = new StringBuilder();
 
@@ -795,20 +767,6 @@ public class MariaDbScriptGenerator : IScriptGenerator
         return sb.ToString();
     }
 
-    private static IList<string> GetReferenceColumnNames(Element element, string relationshipName)
-    {
-        var relationship = element.GetRelationship(relationshipName);
-
-        if (relationship == null)
-        {
-            return new List<string>();
-        }
-
-        return relationship.Entries
-            .OfType<Reference>()
-            .Select(r => SqlName.UnqualifiedOf(r.Name))
-            .ToList();
-    }
 
     private static string RenderReferentialAction(string action)
         => Enum.Parse<Squill.MariaDbParser.Syntax.ReferentialAction>(action) switch
@@ -833,50 +791,6 @@ public class MariaDbScriptGenerator : IScriptGenerator
         return SqlName.Parse(reference.Name).Sql;
     }
 
-    private static IEnumerable<Element> GetColumnSpecifications(Element indexOrKey)
-    {
-        var columnSpecs = indexOrKey.GetRelationship(MariaDbRelationshipNames.ColumnSpecifications)
-            ?? throw new InvalidOperationException($"{indexOrKey.Name} has no column specifications");
-
-        return columnSpecs.Entries.OfType<Element>()
-            .Where(i => i.Type == MariaDbElementTypes.SqlIndexedColumnSpecification);
-    }
-
-    private static IList<string> GetKeyColumns(Element indexOrKey)
-    {
-        var columns = new List<string>();
-
-        foreach (var spec in GetColumnSpecifications(indexOrKey))
-        {
-            var column = spec.GetRelationship(MariaDbRelationshipNames.Column)
-                ?.Entries.OfType<Reference>().SingleOrDefault()
-                ?? throw new InvalidOperationException("Key column specification has no column reference");
-
-            columns.Add(column.Name);
-        }
-
-        return columns;
-    }
-
-    private static IList<(string Name, Element Column)> GetOrderedColumns(Element table)
-    {
-        var columns = new List<(string, Element)>();
-
-        foreach (var columnRelationship in table.Relationships
-                     .Where(i => i.Name == MariaDbRelationshipNames.Columns))
-        {
-            foreach (var column in columnRelationship.Entries.OfType<Element>()
-                         .Where(i => i.Type == MariaDbElementTypes.SqlSimpleColumn))
-            {
-                if (column.Name is string name)
-                {
-                    columns.Add((name, column));
-                }
-            }
-        }
-
-        return columns;
-    }
 
     private string GetTypeStringForColumn(Element column)
     {
