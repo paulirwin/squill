@@ -9,7 +9,7 @@ namespace Squill.Provider.MariaDb;
 /// with backticks, expresses an auto-numbered key column with <c>AUTO_INCREMENT</c>, and
 /// has no schema or extension objects.
 /// </summary>
-public class MariaDbScriptGenerator
+public class MariaDbScriptGenerator : IScriptGenerator
 {
     public string GenerateScript(SchemaComparison comparison)
     {

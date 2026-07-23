@@ -5,52 +5,34 @@ using Squill.Dacpac;
 namespace Squill.Provider.Postgres;
 
 /// <summary>
-/// The result of a deploy: the SQL script that was generated from the diff, and
-/// whether it was actually executed against the target database. On a dry run the
-/// script is generated and returned but not run.
+/// The result of a deploy: the SQL script that was generated from the diff, and whether it was
+/// actually executed against the target database. On a dry run the script is generated and
+/// returned but not run.
 /// </summary>
 /// <param name="Script">
-/// The full SQL script generated from the diff between the DACPAC's model and the
-/// target database's current model. Empty when the target already matches the DACPAC.
+/// The full SQL script generated from the diff between the DACPAC's model and the target
+/// database's current model. Empty when the target already matches the DACPAC.
 /// </param>
 /// <param name="WasExecuted">
-/// <c>true</c> if the script was run against the target database; <c>false</c> on a
-/// dry run.
+/// <c>true</c> if the script was run against the target database; <c>false</c> on a dry run.
 /// </param>
 public readonly record struct DeployResult(string Script, bool WasExecuted);
 
 /// <summary>
-/// Deploys a Squill-built PostgreSQL DACPAC to a target database. This is the shared
-/// deploy path used by the console <c>deploy</c> verb (and, in future, other hosts),
-/// mirroring <see cref="DacpacBuilder"/> on the build side: deserialize the DACPAC to
-/// a model, extract the target database's current model, diff the two, and script and
-/// run the changes.
+/// Deploys a Squill-built PostgreSQL DACPAC to a target database. This is the shared deploy path
+/// used by the console <c>deploy</c> verb (and other hosts), mirroring <see cref="DacpacBuilder"/>
+/// on the build side. The deploy orchestration is provider-agnostic (see
+/// <see cref="DacpacDeployerBase"/>); this type binds the PostgreSQL hooks and preserves the
+/// provider's static entry points.
 /// </summary>
 public static class DacpacDeployer
 {
+    private static readonly Deployer Instance = new();
+
     /// <summary>
-    /// Deploys the DACPAC at <paramref name="dacpacPath"/> to the database named by
-    /// the connection string (or <paramref name="targetDatabaseName"/> when given).
+    /// Deploys the DACPAC at <paramref name="dacpacPath"/> to the database named by the
+    /// connection string (or <paramref name="targetDatabaseName"/> when given).
     /// </summary>
-    /// <param name="dacpacPath">Path to the <c>.dacpac</c> file to deploy.</param>
-    /// <param name="connectionString">Npgsql connection string for the target server.</param>
-    /// <param name="targetDatabaseName">
-    /// The database to deploy into. When <c>null</c>, the <c>Database</c> from
-    /// <paramref name="connectionString"/> is used.
-    /// </param>
-    /// <param name="dryRun">
-    /// When <c>true</c>, the diff is scripted and returned but not executed.
-    /// </param>
-    /// <param name="progress">
-    /// Optional sink for human-readable progress messages describing each step of the
-    /// deploy (e.g. "Creating table public.customer") as it happens. Pass <c>null</c>
-    /// for a silent deploy.
-    /// </param>
-    /// <param name="options">
-    /// Deployment options mirroring SSDT's <c>DacDeployOptions</c> — table-rebuild
-    /// permission, whether to drop objects not in the source, and whether to block on
-    /// possible data loss. Defaults to <see cref="DeployOptions.Default"/> when null.
-    /// </param>
     public static async Task<DeployResult> DeployFromFileAsync(
         string dacpacPath,
         string connectionString,
@@ -68,19 +50,17 @@ public static class DacpacDeployer
     }
 
     /// <summary>
-    /// Generates the deployment script that would bring the target database into the
-    /// schema described by the DACPAC at <paramref name="dacpacPath"/>, without executing
-    /// anything against the target. This backs the <c>squill script</c> verb (issue #21):
-    /// the target is only read (its current schema is extracted and diffed against the
-    /// DACPAC), so the connection needs no more than permission to view the schema.
+    /// Generates the deployment script that would bring the target database into the schema
+    /// described by the DACPAC at <paramref name="dacpacPath"/>, without executing anything
+    /// against the target. This backs the <c>squill script</c> verb (issue #21): the target is
+    /// only read, so the connection needs no more than permission to view the schema.
     /// </summary>
     /// <remarks>
-    /// This is the diff-and-script half of <see cref="DeployFromFileAsync"/> with the
-    /// execute half omitted. Data-loss changes are <em>included</em> in the returned
-    /// script (so the generated script is a faithful preview of what a deploy would run);
-    /// the <see cref="DeployOptions.BlockOnPossibleDataLoss"/> policy is a deploy-time
-    /// concern and is not enforced here. The returned <see cref="DeployResult.WasExecuted"/>
-    /// is always <c>false</c>.
+    /// This is the diff-and-script half of <see cref="DeployFromFileAsync"/> with the execute
+    /// half omitted. Data-loss changes are <em>included</em> in the returned script (so it is a
+    /// faithful preview of what a deploy would run); the
+    /// <see cref="DeployOptions.BlockOnPossibleDataLoss"/> policy is a deploy-time concern and is
+    /// not enforced here. The returned <see cref="DeployResult.WasExecuted"/> is always <c>false</c>.
     /// </remarks>
     public static async Task<DeployResult> ScriptFromFileAsync(
         string dacpacPath,
@@ -98,8 +78,8 @@ public static class DacpacDeployer
     }
 
     /// <summary>
-    /// Deploys the DACPAC read from <paramref name="dacpacStream"/> to the target
-    /// database. See <see cref="DeployFromFileAsync"/> for parameter semantics.
+    /// Deploys the DACPAC read from <paramref name="dacpacStream"/> to the target database. See
+    /// <see cref="DeployFromFileAsync"/> for parameter semantics.
     /// </summary>
     public static async Task<DeployResult> DeployAsync(
         Stream dacpacStream,
@@ -110,203 +90,68 @@ public static class DacpacDeployer
         DeployOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        progress?.Report("Reading DACPAC...");
-        var (metadata, sourceModel) = await DacpacSerializer.Deserialize(dacpacStream, cancellationToken);
+        var result = await Instance.RunAsync(
+            dacpacStream, connectionString, targetDatabaseName, dryRun, progress, options,
+            cancellationToken);
 
-        var databaseName = targetDatabaseName ?? ResolveDatabaseName(connectionString);
+        return new DeployResult(result.Script, result.WasExecuted);
+    }
 
-        IDatabaseProvider provider = new PostgresDatabaseProvider(connectionString);
+    // The PostgreSQL-specific deploy hooks. Instance-based so it can carry the base's
+    // orchestration; the static surface above adapts it back to the provider's DeployResult.
+    private sealed class Deployer : DacpacDeployerBase
+    {
+        public Task<Squill.Dacpac.DeployResult> RunAsync(
+            Stream dacpacStream,
+            string connectionString,
+            string? targetDatabaseName,
+            bool dryRun,
+            IProgress<string>? progress,
+            DeployOptions? options,
+            CancellationToken cancellationToken)
+            => DeployCoreAsync(
+                dacpacStream, connectionString, targetDatabaseName, dryRun, progress, options,
+                cancellationToken);
 
-        await using var targetDb = new PostgresDatabase(connectionString, databaseName);
+        protected override IDatabaseProvider CreateProvider(string connectionString)
+            => new PostgresDatabaseProvider(connectionString);
 
-        progress?.Report($"Connecting to database '{databaseName}'...");
-        await targetDb.ConnectAsync(cancellationToken);
+        protected override IDatabase CreateDatabase(string connectionString, string databaseName)
+            => new PostgresDatabase(connectionString, databaseName);
 
-        // Enforce the DACPAC's recorded target platform before doing any work: fail if the
-        // server predates the version the DACPAC was built for (SSDT-style), so we never
-        // deploy a newer-targeted package to an older engine.
-        EnforceTargetVersion(metadata, targetDb.GetServerMajorVersion(), progress);
+        protected override int GetServerMajorVersion(IDatabase database)
+            => ((PostgresDatabase)database).GetServerMajorVersion();
 
-        progress?.Report("Extracting current schema from target database...");
-        var modelBuilder = provider.CreateDatabaseModelBuilder(targetDb);
-        var targetModel = await modelBuilder.ExtractModelAsync(cancellationToken);
+        protected override IScriptGenerator CreateScriptGenerator()
+            => new PostgresScriptGenerator();
 
-        progress?.Report("Comparing schemas...");
+        protected override string GetEngineName(ModelMetadata metadata) => "PostgreSQL";
 
-        // Compare without enforcing the data-loss block, so the script (and its data-loss
-        // reasons) can be computed even for a dry run. The block is enforced below, only
-        // for a real run — a dry run must still be able to preview a destructive script.
-        var compareOptions = options ?? DeployOptions.CreateDefault();
-        var comparison = SchemaCompare.Compare(
-            provider, sourceModel, targetModel,
-            compareOptions with { BlockOnPossibleDataLoss = false });
-
-        var generator = new PostgresScriptGenerator();
-
-        // The full script is the schema diff bracketed by the DACPAC's deploy scripts, so
-        // `squill script` and a dry run preview exactly what a deploy would execute.
-        var script = DeploymentScripts.Compose(
-            metadata.PreDeployScript, generator.GenerateScript(comparison), metadata.PostDeployScript);
-
-        if (dryRun)
+        protected override string ResolveDatabaseName(string connectionString)
         {
-            // Surface the data-loss reasons so a dry run reveals what would be blocked.
-            if (comparison.CausesDataLoss)
+            var database = new NpgsqlConnectionStringBuilder(connectionString).Database;
+
+            if (string.IsNullOrEmpty(database))
             {
-                foreach (var reason in comparison.DataLossReasons)
-                {
-                    progress?.Report($"WARNING (would block without --allow-data-loss): {reason}");
-                }
+                throw new ArgumentException(
+                    "The connection string does not specify a Database and no target database "
+                    + "name was provided. Specify the target database via --target-database or "
+                    + "the connection string's Database keyword.",
+                    nameof(connectionString));
             }
 
-            return new DeployResult(script, WasExecuted: false);
-        }
-
-        // Enforce the block-on-possible-data-loss policy before executing anything.
-        if (compareOptions.BlockOnPossibleDataLoss)
-        {
-            comparison.ThrowIfDataLoss();
+            return database;
         }
 
         // Disable function-body validation for the deploy session. A function, view or trigger
-        // body may reference another function (or an aggregate) that is created later in the
-        // same deploy — Pagila's inventory_held_by_customer calls inventory_in_stock, for
-        // instance. Body dependencies are not parsed, so the create order cannot always place a
-        // callee before its caller; deferring body checks lets every object be created and
-        // relies on the fact that by the end of the deploy all referenced objects exist. This
-        // is exactly how pg_dump/pg_restore load an interdependent schema. It persists for the
-        // session because RunScriptAsync reuses one connection.
-        await targetDb.RunScriptAsync("SET check_function_bodies = off;", cancellationToken: cancellationToken);
-
-        // The pre-deployment script runs before any schema change, and runs even when the
-        // schema is already up to date: like SSDT, deploy scripts are part of every deploy,
-        // not just ones that alter the schema (seeding an unchanged schema must still work).
-        if (!string.IsNullOrWhiteSpace(metadata.PreDeployScript))
-        {
-            progress?.Report("Running pre-deployment script...");
-            await targetDb.RunScriptAsync(metadata.PreDeployScript, cancellationToken: cancellationToken);
-        }
-
-        if (comparison.Deltas.Count == 0)
-        {
-            progress?.Report("Target database schema already matches the DACPAC; no schema changes to apply.");
-        }
-
-        // Run the deltas one at a time (mirroring PostgresDatabase.PublishAsync) so each
-        // step can be reported to the progress sink as it is applied, rather than running
-        // one opaque batch.
-        foreach (var delta in comparison.Deltas)
-        {
-            progress?.Report(DescribeDelta(delta));
-
-            var sql = generator.GenerateScriptForDelta(delta);
-            await targetDb.RunScriptAsync(sql, cancellationToken: cancellationToken);
-        }
-
-        if (!string.IsNullOrWhiteSpace(metadata.PostDeployScript))
-        {
-            progress?.Report("Running post-deployment script...");
-            await targetDb.RunScriptAsync(metadata.PostDeployScript, cancellationToken: cancellationToken);
-        }
-
-        return new DeployResult(script, WasExecuted: true);
-    }
-
-    /// <summary>
-    /// Throws <see cref="TargetVersionMismatchException"/> when the DACPAC records a target
-    /// major version newer than the connected server. A DACPAC with no recorded target version
-    /// (<c>null</c>) is unconstrained and always allowed.
-    /// </summary>
-    private static void EnforceTargetVersion(
-        ModelMetadata metadata, int serverMajorVersion, IProgress<string>? progress)
-    {
-        if (metadata.TargetMajorVersion is not { } required)
-        {
-            return;
-        }
-
-        if (serverMajorVersion < required)
-        {
-            throw new TargetVersionMismatchException(required, serverMajorVersion, "PostgreSQL");
-        }
-
-        progress?.Report(
-            $"Target server is PostgreSQL {serverMajorVersion}; DACPAC targets {required}+ (OK).");
-    }
-
-    /// <summary>
-    /// A short, human-readable description of what applying <paramref name="delta"/>
-    /// will do, for progress reporting — e.g. "Creating table public.customer".
-    /// </summary>
-    private static string DescribeDelta(SchemaDelta delta)
-    {
-        if (delta is CreateDelta create)
-        {
-            var label = ElementTypeLabel(create.Element.Type);
-            var name = create.Element.Name ?? "(anonymous)";
-
-            return $"Creating {label} {name}";
-        }
-
-        if (delta is AlterDelta alter)
-        {
-            var label = ElementTypeLabel(alter.SourceElement.Type);
-            var name = alter.SourceElement.Name ?? "(anonymous)";
-
-            return $"Altering {label} {name}";
-        }
-
-        if (delta is RebuildTableDelta rebuild)
-        {
-            var name = rebuild.SourceElement.Name ?? "(anonymous)";
-
-            return $"Rebuilding table {name} ({rebuild.Reason})";
-        }
-
-        if (delta is DropDelta drop)
-        {
-            var label = ElementTypeLabel(drop.Element.Type);
-            var name = drop.Element.Name ?? "(anonymous)";
-
-            return $"Dropping {label} {name}";
-        }
-
-        return $"Applying {delta.GetType().Name}";
-    }
-
-    private static string ElementTypeLabel(string elementType) => elementType switch
-    {
-        PostgresElementTypes.SqlTable => "table",
-        PostgresElementTypes.SqlExtension => "extension",
-        PostgresElementTypes.SqlIndex => "index",
-        PostgresElementTypes.SqlSchema => "schema",
-        PostgresElementTypes.SqlView => "view",
-        PostgresElementTypes.SqlProcedure => "procedure",
-        PostgresElementTypes.SqlFunction => "function",
-        PostgresElementTypes.SqlAggregate => "aggregate",
-        PostgresElementTypes.SqlTrigger => "trigger",
-        PostgresElementTypes.SqlEnumType => "type",
-        PostgresElementTypes.SqlDomain => "domain",
-        PostgresElementTypes.SqlPrimaryKeyConstraint => "primary key",
-        PostgresElementTypes.SqlForeignKeyConstraint => "foreign key",
-        // A type name that has no friendly label falls back to the raw type rather than
-        // guessing; every user-facing object type above is covered.
-        _ => elementType,
-    };
-
-    private static string ResolveDatabaseName(string connectionString)
-    {
-        var database = new NpgsqlConnectionStringBuilder(connectionString).Database;
-
-        if (string.IsNullOrEmpty(database))
-        {
-            throw new ArgumentException(
-                "The connection string does not specify a Database and no target database "
-                + "name was provided. Specify the target database via --target-database or "
-                + "the connection string's Database keyword.",
-                nameof(connectionString));
-        }
-
-        return database;
+        // body may reference another function (or an aggregate) created later in the same deploy
+        // — Pagila's inventory_held_by_customer calls inventory_in_stock, for instance. Body
+        // dependencies are not parsed, so the create order cannot always place a callee before
+        // its caller; deferring body checks lets every object be created and relies on the fact
+        // that by the end of the deploy all referenced objects exist. This is exactly how
+        // pg_dump/pg_restore load an interdependent schema. It persists for the session because
+        // RunScriptAsync reuses one connection.
+        protected override Task PrepareSessionAsync(IDatabase database, CancellationToken cancellationToken)
+            => database.RunScriptAsync("SET check_function_bodies = off;", cancellationToken: cancellationToken);
     }
 }
