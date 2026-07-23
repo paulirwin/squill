@@ -17,16 +17,13 @@ namespace Squill.IntegrationTests.Postgres.DataTypeTest;
 public class PostgresDataTypeRoundTripTest : PostgresIntegrationTestBase
 {
     private async Task AssertColumnRoundTripsAsync(string columnType, CancellationToken cancellationToken)
-    {
-        var provider = new PostgresDatabaseProvider(ConnectionString);
-        var model = await WorkspaceModelBuilding.BuildModelAsync(
-            $"CREATE TABLE t (c {columnType});",
+        => await RoundTripHarness.AssertRoundTripAsync(
+            new PostgresDatabaseProvider(ConnectionString),
             ws => new ParserWorkspaceModelBuilder(ws, new AntlrPostgresParser()),
+            $"CREATE TABLE t (c {columnType});",
+            "postgres",
+            assertRedeployNoOp: true,
             cancellationToken);
-
-        await RoundTripHarness.AssertRoundTripAsync(
-            provider, model, "postgres", assertRedeployNoOp: true, cancellationToken: cancellationToken);
-    }
 
     // Numeric types: https://www.postgresql.org/docs/current/datatype-numeric.html
     [Theory]

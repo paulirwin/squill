@@ -20,16 +20,13 @@ public abstract class MariaDbDataTypeRoundTripTests
     protected abstract MariaDbLikeFixture Fixture { get; }
 
     private async Task AssertColumnRoundTripsAsync(string columnType, CancellationToken cancellationToken)
-    {
-        var provider = new MariaDbDatabaseProvider(Fixture.ConnectionString);
-        var model = await WorkspaceModelBuilding.BuildModelAsync(
-            $"CREATE TABLE t (c {columnType});",
+        => await RoundTripHarness.AssertRoundTripAsync(
+            new MariaDbDatabaseProvider(Fixture.ConnectionString),
             ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser()),
+            $"CREATE TABLE t (c {columnType});",
+            Fixture.EngineName,
+            assertRedeployNoOp: true,
             cancellationToken);
-
-        await RoundTripHarness.AssertRoundTripAsync(
-            provider, model, Fixture.EngineName, assertRedeployNoOp: true, cancellationToken: cancellationToken);
-    }
 
     // Integer types: https://mariadb.com/kb/en/integer-types/
     [Theory]
