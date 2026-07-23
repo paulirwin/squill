@@ -21,6 +21,11 @@ public static class MariaDbPropertyNames
     public const string IsAutoIncrement = nameof(IsAutoIncrement);
     public const string DefaultValue = nameof(DefaultValue);
 
+    // The parenthesized value list of an enum/set column, e.g. ('G','PG'). Stored verbatim
+    // so it can be reproduced when scripting, and read identically from both the parser and
+    // the DB extractor (information_schema.COLUMN_TYPE) so the two sides hash-match.
+    public const string CollectionValues = nameof(CollectionValues);
+
     // Stored procedures (issue #41). Body is the routine source held verbatim, which is
     // what both engines return from information_schema.ROUTINES.ROUTINE_DEFINITION.
     // Unlike PostgreSQL there is no Language (SQL is the only one) and no ArgumentTypes

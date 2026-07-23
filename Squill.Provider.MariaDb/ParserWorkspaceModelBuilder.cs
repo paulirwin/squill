@@ -1071,6 +1071,14 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             typeSpec.Properties.Add(new Property(MariaDbPropertyNames.IsUnsigned, true));
         }
 
+        // enum/set carry their value list. Store the parenthesized text verbatim, matching
+        // exactly what information_schema.COLUMN_TYPE reports so the two sides hash-match.
+        if (dataType.CollectionValues.Count > 0)
+        {
+            var values = $"({string.Join(",", dataType.CollectionValues)})";
+            typeSpec.Properties.Add(new Property(MariaDbPropertyNames.CollectionValues, values));
+        }
+
         return new Relationship(MariaDbRelationshipNames.TypeSpecifier) { typeSpec };
     }
 

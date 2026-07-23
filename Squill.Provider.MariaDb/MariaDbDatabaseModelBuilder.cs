@@ -309,7 +309,10 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
             var name = reader.GetString("COLUMN_NAME");
             var nullable = reader.GetString("IS_NULLABLE") == "YES";
             var dataType = reader.GetString("DATA_TYPE").ToLowerInvariant();
-            var columnType = reader.GetString("COLUMN_TYPE").ToLowerInvariant();
+            // The raw COLUMN_TYPE preserves the case of enum/set literals (e.g. 'PG-13');
+            // the lower-cased copy is used where case is irrelevant (type name, unsigned).
+            var rawColumnType = reader.GetString("COLUMN_TYPE");
+            var columnType = rawColumnType.ToLowerInvariant();
             // MariaDB and MySQL disagree on the CLR type of these information_schema numeric
             // columns (MariaDB returns ulong, MySQL long), so read them engine-agnostically.
             var maxLength = reader.GetNullableInt64("CHARACTER_MAXIMUM_LENGTH");
@@ -352,6 +355,19 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
                 typeElement.Properties.Add(new Property(MariaDbPropertyNames.IsUnsigned, true));
             }
 
+            // For enum/set, DATA_TYPE is the bare "enum"/"set" and COLUMN_TYPE carries the
+            // value list, e.g. "enum('g','pg')". Keep the parenthesized list so it matches
+            // what the parser records and can be reproduced when scripting the column.
+            if (dataType is "enum" or "set")
+            {
+                var open = rawColumnType.IndexOf('(');
+                if (open >= 0)
+                {
+                    typeElement.Properties.Add(new Property(
+                        MariaDbPropertyNames.CollectionValues, rawColumnType[open..]));
+                }
+            }
+
             var column = new Element(MariaDbElementTypes.SqlSimpleColumn)
             {
                 Name = tableSqlName.Child(name),
@@ -378,7 +394,11 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
                 ? null
                 : reader.GetString("COLUMN_DEFAULT");
 
-            if (MariaDbDefaultValue.FromDatabaseText(columnDefault, IsCharacterType(dataType)) is { } defaultValue)
+            // enum/set defaults are string literals too, and MySQL reports them unquoted (as
+            // it does for char/varchar), so they need the same re-quoting to match the parser.
+            var defaultIsStringLiteral = IsCharacterType(dataType) || dataType is "enum" or "set";
+
+            if (MariaDbDefaultValue.FromDatabaseText(columnDefault, defaultIsStringLiteral) is { } defaultValue)
             {
                 column.Properties.Add(new Property(MariaDbPropertyNames.DefaultValue, defaultValue));
             }

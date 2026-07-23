@@ -135,6 +135,22 @@ public abstract class MariaDbRoundTripTests
             """, TestContext.Current.CancellationToken);
     }
 
+    // enum/set columns carry a value list. The generated DDL must preserve it (issue #73),
+    // and the extractor must read it back from information_schema.COLUMN_TYPE in the same
+    // spelling, or the parsed and extracted models would not hash-match.
+    [Fact]
+    public async Task EnumAndSet_RoundTrip()
+    {
+        await AssertRoundTripAsync("""
+            CREATE TABLE film
+            (
+                film_id          int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                rating           enum('G','PG','PG-13','R','NC-17') DEFAULT 'G',
+                special_features set('Trailers','Commentaries','Deleted Scenes','Behind the Scenes')
+            );
+            """, TestContext.Current.CancellationToken);
+    }
+
     [Fact]
     public async Task MultiColumnTable_RoundTrips()
     {

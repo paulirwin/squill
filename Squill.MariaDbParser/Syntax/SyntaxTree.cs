@@ -78,6 +78,12 @@ public sealed class DataType(string typeName)
     /// <summary>Numeric modifiers, e.g. the 255 in varchar(255) or 10,2 in decimal(10,2).</summary>
     public IList<long> Modifiers { get; } = new List<long>();
 
+    /// <summary>
+    /// The value list of an <c>enum(...)</c> or <c>set(...)</c> type, each entry a
+    /// single-quoted literal exactly as written, e.g. <c>'G'</c>. Empty for other types.
+    /// </summary>
+    public IList<string> CollectionValues { get; } = new List<string>();
+
     /// <summary>Whether the type was declared UNSIGNED (numeric types only).</summary>
     public bool IsUnsigned { get; set; }
 }
