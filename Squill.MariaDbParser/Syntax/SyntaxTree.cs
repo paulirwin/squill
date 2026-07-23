@@ -363,14 +363,51 @@ public sealed class ViewSelectColumn
 // ---- CREATE FUNCTION ----
 
 /// <summary>
-/// A <c>CREATE FUNCTION</c> statement. Functions are not modeled yet, but one is parsed
-/// into this marker rather than dropped so the model builder can report it as a diagnostic
-/// anchored at the statement's source position, like any other unsupported construct,
-/// instead of silently producing an incomplete model.
+/// A <c>CREATE [OR REPLACE] FUNCTION name(params) RETURNS type [options] body</c> statement
+/// (issue #74). Mirrors <see cref="CreateProcedureStatement"/> — a stored function is a
+/// routine like a procedure, but takes only <c>IN</c> parameters and declares a return type.
+///
+/// The <see cref="Body"/> is held verbatim, for the same reason as a procedure's: both
+/// engines return <c>ROUTINE_DEFINITION</c> byte-for-byte, and it is the <c>RETURN ...</c>
+/// or <c>BEGIN ... END</c> that follows the <c>RETURNS</c> clause — the return type itself is
+/// carried separately in <see cref="ReturnType"/>, not in the body.
 /// </summary>
-public sealed class CreateFunctionStatement(QualifiedName name) : Statement
+public sealed class CreateFunctionStatement(QualifiedName name, DataType returnType, bool orReplace)
+    : Statement
 {
     public QualifiedName Name { get; } = name;
+
+    /// <summary>The declared return type (the type after <c>RETURNS</c>).</summary>
+    public DataType ReturnType { get; } = returnType;
+
+    /// <summary>
+    /// Whether OR REPLACE was written (MariaDB-only syntax). This affects how the function is
+    /// created, not the desired schema state, so it does not participate in the model.
+    /// </summary>
+    public bool OrReplace { get; } = orReplace;
+
+    /// <summary>The function's parameters. A function parameter is always <c>IN</c>.</summary>
+    public IList<RoutineParameter> Parameters { get; } = new List<RoutineParameter>();
+
+    /// <summary>The routine body, verbatim as written in the source.</summary>
+    public string? Body { get; set; }
+
+    /// <summary>
+    /// Whether DETERMINISTIC was written. NOT DETERMINISTIC is the default on both engines.
+    /// </summary>
+    public bool IsDeterministic { get; set; }
+
+    /// <summary>
+    /// The SQL data access clause as the catalog spells it (<c>CONTAINS SQL</c>,
+    /// <c>NO SQL</c>, <c>READS SQL DATA</c>, <c>MODIFIES SQL DATA</c>), or null when
+    /// unwritten — in which case both engines report <c>CONTAINS SQL</c>.
+    /// </summary>
+    public string? SqlDataAccess { get; set; }
+
+    /// <summary>
+    /// Whether SQL SECURITY INVOKER was written. DEFINER is the default on both engines.
+    /// </summary>
+    public bool IsSecurityInvoker { get; set; }
 }
 
 /// <summary>

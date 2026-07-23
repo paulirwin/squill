@@ -17,6 +17,7 @@ public static class MariaDbElementTypes
     public const string SqlIndex = nameof(SqlIndex);
     public const string SqlForeignKeyConstraint = nameof(SqlForeignKeyConstraint);
     public const string SqlProcedure = nameof(SqlProcedure);
+    public const string SqlFunction = nameof(SqlFunction);
     public const string SqlView = nameof(SqlView);
     public const string SqlViewColumn = nameof(SqlViewColumn);
 }

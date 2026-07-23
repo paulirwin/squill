@@ -1,3 +1,4 @@
+using MySqlConnector;
 using Squill.Core;
 using Squill.Dacpac;
 using Squill.Provider.MariaDb;
@@ -9,43 +10,37 @@ namespace Squill.IntegrationTests.MariaDb.SakilaSample;
 /// MariaDB / MySQL (see <c>samples/SakilaSampleDatabase</c>). The sample is a real, non-trivial
 /// production-style schema: 16 tables with AUTO_INCREMENT keys, foreign keys (including the
 /// circular staff&lt;-&gt;store pair), ENUM / SET / YEAR columns, ON UPDATE CURRENT_TIMESTAMP, a
-/// FULLTEXT index, seven views, stored procedures, and triggers.
+/// FULLTEXT index, six views, stored procedures, three stored functions, and triggers.
 ///
 /// <para>
-/// <see cref="BuildSample_SupportedSubset_ProducesADacpacModel"/> runs today: it builds the
-/// supported subset of the sample into a DACPAC (the same build path <c>squill</c>'s SDK uses)
-/// and asserts the resulting model. <see cref="Deploy_SakilaSample_ProducesTheSampleSchema"/> is
-/// the end-to-end deploy against a real MariaDB / MySQL container and is skipped until the gaps
-/// below are closed.
+/// As of issue #74 (CREATE FUNCTION) the whole sample builds and deploys against a real MariaDB
+/// / MySQL container: the enum/set value lists are preserved in the generated DDL (issue #73) and
+/// the three stored functions (<c>get_customer_balance</c>, <c>inventory_in_stock</c>,
+/// <c>inventory_held_by_customer</c>) are now modeled alongside the procedures. Routines are
+/// sequenced after the tables and views they read, so the deploy applies in one pass. The
+/// <c>CREATE TRIGGER</c> statements are parsed but not yet modeled (a build warning, not an
+/// error), so they are skipped on deploy — the deploy still succeeds, which is why the
+/// assertions below spot-check a table, view, function, and procedure but not a trigger.
 /// </para>
 ///
 /// <para>
-/// Known gaps this sample surfaces (why the deploy is skipped):
+/// This mirrors the Postgres <c>PagilaSampleDeployTest</c>: a DB-less
+/// <see cref="BuildFullSchema_ProducesADacpac"/> and an end-to-end
+/// <see cref="Deploy_SakilaSample_ProducesTheSampleSchema"/> that deploys the full schema and
+/// spot-checks a representative object from each feature area.
 /// </para>
-/// <list type="bullet">
-///   <item><description><b>ENUM / SET script generation</b>: the provider parses
-///     <c>enum(...)</c> / <c>set(...)</c> columns but the generated DDL drops the value list
-///     (it emits <c>enum NULL</c> / <c>set NULL</c>), which is invalid SQL. This blocks deploying
-///     the <c>film</c> table (<c>rating</c>, <c>special_features</c>).</description></item>
-///   <item><description><b><c>CREATE FUNCTION</c></b>: three Sakila stored functions
-///     (<c>get_customer_balance</c>, <c>inventory_in_stock</c>, <c>inventory_held_by_customer</c>)
-///     are not modeled — only <c>CREATE PROCEDURE</c> is. These are excluded from the supported
-///     subset.</description></item>
-/// </list>
 /// </summary>
 public abstract class SakilaSampleDeployTests
 {
     protected abstract MariaDbLikeFixture Fixture { get; }
 
-    // The Sakila schema restricted to what the MariaDB provider parses today: all tables, views,
-    // procedures, and triggers, but not the three CREATE FUNCTION objects.
-    private const string SupportedSchemaResource =
-        "Squill.IntegrationTests.MariaDb.SakilaSample.SakilaSupportedSchema.sql";
+    // The full Sakila schema: all tables, views, procedures, functions, and triggers.
+    private const string SchemaResource =
+        "Squill.IntegrationTests.MariaDb.SakilaSample.SakilaSchema.sql";
 
-    private async Task<string> BuildDacpacAsync(
-        string directory, string schemaResource, CancellationToken ct)
+    private async Task<string> BuildDacpacAsync(string directory, CancellationToken ct)
     {
-        var schema = await new EmbeddedResourceFile(schemaResource, FileKind.Compile)
+        var schema = await new EmbeddedResourceFile(SchemaResource, FileKind.Compile)
             .ReadAllTextAsync(ct);
 
         var sqlPath = Path.Combine(directory, "schema.sql");
@@ -66,19 +61,19 @@ public abstract class SakilaSampleDeployTests
     }
 
     /// <summary>
-    /// Builds the Sakila sample (supported subset) into a DACPAC. This proves the sample's
-    /// declarative SQL parses and serialises through the real build path — the part of the
-    /// pipeline that works today, ahead of the full build→deploy the deploy test is waiting on.
+    /// The full Sakila sample builds into a DACPAC — every feature it uses is now modeled. This
+    /// proves the sample's declarative SQL parses and serialises through the real build path
+    /// (the same path <c>squill</c>'s SDK uses). Needs no database.
     /// </summary>
     [Fact]
-    public async Task BuildSample_SupportedSubset_ProducesADacpac()
+    public async Task BuildFullSchema_ProducesADacpac()
     {
         var ct = TestContext.Current.CancellationToken;
         var tempDir = Directory.CreateTempSubdirectory("squill-sakila-build");
 
         try
         {
-            var dacpacPath = await BuildDacpacAsync(tempDir.FullName, SupportedSchemaResource, ct);
+            var dacpacPath = await BuildDacpacAsync(tempDir.FullName, ct);
 
             Assert.True(File.Exists(dacpacPath), "The build should have produced a .dacpac file.");
         }
@@ -89,11 +84,9 @@ public abstract class SakilaSampleDeployTests
     }
 
     /// <summary>
-    /// The end-to-end deploy of the Sakila sample (supported subset) into a real MariaDB / MySQL
-    /// database via the exact code path <c>squill deploy</c> uses. This deploys the <c>film</c>
-    /// table's <c>enum</c>/<c>set</c> columns, whose value list is now preserved in the generated
-    /// DDL (issue #73). The subset still excludes the three <c>CREATE FUNCTION</c> objects, which
-    /// are not yet modeled; switch to the full <c>SakilaSchema.sql</c> once they are.
+    /// The end-to-end deploy of the full Sakila sample into a real MariaDB / MySQL database via
+    /// the exact code path <c>squill deploy</c> uses: build the DACPAC, deploy it, and assert it
+    /// executed and created a representative object from each feature area.
     /// </summary>
     [Fact]
     public async Task Deploy_SakilaSample_ProducesTheSampleSchema()
@@ -103,7 +96,7 @@ public abstract class SakilaSampleDeployTests
 
         try
         {
-            var dacpacPath = await BuildDacpacAsync(tempDir.FullName, SupportedSchemaResource, ct);
+            var dacpacPath = await BuildDacpacAsync(tempDir.FullName, ct);
 
             IDatabaseProvider provider = new MariaDbDatabaseProvider(Fixture.ConnectionString);
             var targetDbName = $"squill_sakila_{Guid.NewGuid():n}";
@@ -115,8 +108,34 @@ public abstract class SakilaSampleDeployTests
                     dacpacPath, Fixture.ConnectionString, targetDbName, dryRun: false,
                     cancellationToken: ct);
 
-                // The goal is simply a successful full build → deploy against a real engine.
                 Assert.True(result.WasExecuted, $"[{Fixture.EngineName}] deploy should execute.");
+
+                // A representative object from each feature area exists, proving the deploy
+                // reached the end and created the harder-to-model objects — notably the film
+                // table's enum/set columns (#73) and the three stored functions (#74).
+                await AssertObjectExistsAsync(targetDbName,
+                    "SELECT COUNT(*) FROM information_schema.TABLES "
+                    + "WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'film'",
+                    "film table", ct);
+                await AssertObjectExistsAsync(targetDbName,
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    + "WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'film' AND COLUMN_NAME = 'rating' "
+                    + "AND DATA_TYPE = 'enum'",
+                    "film.rating enum column", ct);
+                await AssertObjectExistsAsync(targetDbName,
+                    "SELECT COUNT(*) FROM information_schema.VIEWS "
+                    + "WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'customer_list'",
+                    "customer_list view", ct);
+                await AssertObjectExistsAsync(targetDbName,
+                    "SELECT COUNT(*) FROM information_schema.ROUTINES "
+                    + "WHERE ROUTINE_SCHEMA = @db AND ROUTINE_TYPE = 'FUNCTION' "
+                    + "AND ROUTINE_NAME = 'get_customer_balance'",
+                    "get_customer_balance function", ct);
+                await AssertObjectExistsAsync(targetDbName,
+                    "SELECT COUNT(*) FROM information_schema.ROUTINES "
+                    + "WHERE ROUTINE_SCHEMA = @db AND ROUTINE_TYPE = 'PROCEDURE' "
+                    + "AND ROUTINE_NAME = 'film_in_stock'",
+                    "film_in_stock procedure", ct);
             }
             finally
             {
@@ -127,6 +146,24 @@ public abstract class SakilaSampleDeployTests
         {
             tempDir.Delete(recursive: true);
         }
+    }
+
+    // Runs a COUNT(*) existence query (parameterized on the target database name) and asserts
+    // it returned a positive count, i.e. the object was created by the deploy.
+    private async Task AssertObjectExistsAsync(
+        string databaseName, string countQuery, string what, CancellationToken ct)
+    {
+        await using var connection = new MySqlConnection(
+            new MySqlConnectionStringBuilder(Fixture.ConnectionString) { Database = databaseName }
+                .ConnectionString);
+        await connection.OpenAsync(ct);
+
+        await using var command = new MySqlCommand(countQuery, connection);
+        command.Parameters.AddWithValue("@db", databaseName);
+
+        var count = Convert.ToInt64(await command.ExecuteScalarAsync(ct));
+
+        Assert.True(count > 0, $"[{Fixture.EngineName}] expected {what} to exist after deploy.");
     }
 }
 

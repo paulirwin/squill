@@ -33,12 +33,9 @@ internal static class MariaDbStatementMapper
             return MapCreateView(createView);
         }
 
-        // A function is parsed into a marker statement rather than dropped, so the model
-        // builder can report it as unsupported at its source position.
         if (ddl.createFunction() is { } createFunction)
         {
-            return At(new CreateFunctionStatement(MapQualifiedName(createFunction.fullId())),
-                createFunction);
+            return MapCreateFunction(createFunction);
         }
 
         // Any other DDL (ALTER, DROP, …) is not modeled. It becomes a marker
@@ -616,10 +613,51 @@ internal static class MariaDbStatementMapper
 
         foreach (var option in createProcedure.routineOption())
         {
-            ApplyRoutineOption(statement, option);
+            ApplyRoutineOption(option,
+                deterministic => statement.IsDeterministic = deterministic,
+                dataAccess => statement.SqlDataAccess = dataAccess,
+                securityInvoker => statement.IsSecurityInvoker = securityInvoker);
         }
 
         statement.Body = SourceText(createProcedure.routineBody());
+
+        return statement;
+    }
+
+    private static Statement MapCreateFunction(MariaDBParser.CreateFunctionContext createFunction)
+    {
+        var statement = At(
+            new CreateFunctionStatement(
+                MapQualifiedName(createFunction.fullId()),
+                MapDataType(createFunction.dataType()),
+                createFunction.orReplace() is not null),
+            createFunction);
+
+        // A function parameter is always IN — the grammar's functionParameter rule carries no
+        // direction — so each is mapped with the default mode.
+        foreach (var parameter in createFunction.functionParameter())
+        {
+            statement.Parameters.Add(At(
+                new RoutineParameter(
+                    new Identifier(UidText(parameter.uid())),
+                    ParameterMode.In,
+                    MapDataType(parameter.dataType())),
+                parameter));
+        }
+
+        foreach (var option in createFunction.routineOption())
+        {
+            ApplyRoutineOption(option,
+                deterministic => statement.IsDeterministic = deterministic,
+                dataAccess => statement.SqlDataAccess = dataAccess,
+                securityInvoker => statement.IsSecurityInvoker = securityInvoker);
+        }
+
+        // A function body is either a routine body (BEGIN ... END) or a bare RETURN statement.
+        // Both engines report ROUTINE_DEFINITION as whichever was written, verbatim.
+        statement.Body = createFunction.routineBody() is { } body
+            ? SourceText(body)
+            : SourceText(createFunction.returnStatement());
 
         return statement;
     }
@@ -633,23 +671,27 @@ internal static class MariaDbStatementMapper
             _ => ParameterMode.In,
         };
 
+    // Applies a routine characteristic clause via setters, so both CREATE PROCEDURE and
+    // CREATE FUNCTION share the same option handling despite being distinct statement types.
     private static void ApplyRoutineOption(
-        CreateProcedureStatement statement,
-        MariaDBParser.RoutineOptionContext option)
+        MariaDBParser.RoutineOptionContext option,
+        Action<bool> setDeterministic,
+        Action<string> setSqlDataAccess,
+        Action<bool> setSecurityInvoker)
     {
         switch (option)
         {
             case MariaDBParser.RoutineBehaviorContext behavior:
                 // `NOT DETERMINISTIC` is the default; only a bare DETERMINISTIC sets it.
-                statement.IsDeterministic = behavior.NOT() is null;
+                setDeterministic(behavior.NOT() is null);
                 break;
 
             case MariaDBParser.RoutineDataContext data:
-                statement.SqlDataAccess = SqlDataAccessText(data);
+                setSqlDataAccess(SqlDataAccessText(data));
                 break;
 
             case MariaDBParser.RoutineSecurityContext security:
-                statement.IsSecurityInvoker = security.context?.Type == MariaDBParser.INVOKER;
+                setSecurityInvoker(security.context?.Type == MariaDBParser.INVOKER);
                 break;
 
             // A COMMENT or LANGUAGE SQL clause does not participate in the model: LANGUAGE

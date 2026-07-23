@@ -237,6 +237,55 @@ public static class MariaDbModelFactory
     }
 
     /// <summary>
+    /// Builds a stored function element (issue #74).
+    ///
+    /// A function mirrors a procedure — same body, parameter, and characteristic handling —
+    /// but declares a return type and takes only IN parameters. As with a procedure, neither
+    /// engine allows overloading, so the element's name is the bare function name. Only
+    /// non-default characteristics are stored so a parsed function has the same shape as one
+    /// extracted from a database, which reports the defaults (NOT DETERMINISTIC, CONTAINS SQL,
+    /// SQL SECURITY DEFINER) explicitly.
+    /// </summary>
+    public static Element CreateFunction(
+        SqlName name,
+        string returnType,
+        string body,
+        IEnumerable<ProcedureParameter> parameters,
+        bool isDeterministic = false,
+        string? sqlDataAccess = null,
+        bool isSecurityInvoker = false)
+    {
+        var element = new Element(MariaDbElementTypes.SqlFunction)
+        {
+            Name = name,
+            Properties =
+            {
+                new Property(MariaDbPropertyNames.Arguments, RenderParameters(parameters)),
+                new Property(MariaDbPropertyNames.ReturnType, returnType),
+                new Property(MariaDbPropertyNames.Body, body),
+            },
+        };
+
+        if (isDeterministic)
+        {
+            element.Properties.Add(new Property(MariaDbPropertyNames.IsDeterministic, true));
+        }
+
+        if (sqlDataAccess is not null
+            && !string.Equals(sqlDataAccess, DefaultSqlDataAccess, StringComparison.Ordinal))
+        {
+            element.Properties.Add(new Property(MariaDbPropertyNames.SqlDataAccess, sqlDataAccess));
+        }
+
+        if (isSecurityInvoker)
+        {
+            element.Properties.Add(new Property(MariaDbPropertyNames.IsSecurityInvoker, true));
+        }
+
+        return element;
+    }
+
+    /// <summary>
     /// Builds a view element (issue #42).
     ///
     /// A view's identity is its name and its ordered column list — the facets both engines
