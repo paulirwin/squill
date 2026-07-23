@@ -43,6 +43,15 @@
     <EnableDefaultSquillItems Condition="'$(EnableDefaultSquillItems)' == ''">true</EnableDefaultSquillItems>
   </PropertyGroup>
 
+  <!-- Register the Squill item types with MSBuild-aware IDEs (Rider, Visual Studio) so
+       that .sql files appear under the project node in Solution Explorer and the "Build
+       Action" dropdown is populated with the Squill item types. -->
+  <ItemGroup>
+    <AvailableItemName Include="SquillCompile" />
+    <AvailableItemName Include="SquillPreDeploy" />
+    <AvailableItemName Include="SquillPostDeploy" />
+  </ItemGroup>
+
   <!-- Default include globs. Pre/post-deployment scripts are matched first and then
        excluded from SquillCompile: they are imperative scripts run around the schema
        diff, not declarations, so they must not be parsed into the model. Following
