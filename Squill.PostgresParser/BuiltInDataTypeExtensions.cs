@@ -19,10 +19,15 @@ public static class BuiltInDataTypeExtensions
             PostgresBuiltInDataType.SmallSerial => "smallserial",
             PostgresBuiltInDataType.Serial => "serial",
             PostgresBuiltInDataType.BigSerial => "bigserial",
-            PostgresBuiltInDataType.Timestamp => "timestamp",
+            // information_schema and format_type() spell the without-time-zone variants
+            // out in full ("timestamp without time zone", "time without time zone"), so the
+            // canonical names must match or a parsed model won't hash-match one extracted
+            // from the database (issue #97).
+            // https://www.postgresql.org/docs/current/datatype-datetime.html
+            PostgresBuiltInDataType.Timestamp => "timestamp without time zone",
             PostgresBuiltInDataType.TimestampWithTimeZone => "timestamp with time zone",
             PostgresBuiltInDataType.Date => "date",
-            PostgresBuiltInDataType.Time => "time",
+            PostgresBuiltInDataType.Time => "time without time zone",
             PostgresBuiltInDataType.TimeWithTimeZone => "time with time zone",
             PostgresBuiltInDataType.Interval => "interval",
             PostgresBuiltInDataType.Text => "text",
@@ -30,6 +35,11 @@ public static class BuiltInDataTypeExtensions
             PostgresBuiltInDataType.TSQuery => "tsquery",
             PostgresBuiltInDataType.Boolean => "boolean",
             PostgresBuiltInDataType.ByteArray => "bytea",
+            // A bare `bit` is fixed-length `bit(1)`; `bit varying` (varbit) is unbounded.
+            // format_type() renders these as "bit" and "bit varying" (see
+            // https://www.postgresql.org/docs/current/datatype-bit.html).
+            PostgresBuiltInDataType.Bit => "bit",
+            PostgresBuiltInDataType.BitVarying => "bit varying",
             _ => throw new ArgumentOutOfRangeException(nameof(dataType), dataType, null)
         };
     }

@@ -1331,21 +1331,38 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         {
             var typeSpec = MakeTypeSpecifierElement(builtInDataType.Type.CanonicalName());
 
+            // A bare `bit` is fixed-length bit(1): Postgres stores it that way and
+            // information_schema reports character_maximum_length = 1, so the parser
+            // side must emit Length = 1 to hash-match the DB builder. A bare `bit
+            // varying`, by contrast, is unbounded and reports NULL length, so it gets
+            // no property — the same treatment as a bare varchar (issue #97).
+            if (builtInDataType.Type == PostgresBuiltInDataType.Bit
+                && builtInDataType.Modifiers.Count == 0)
+            {
+                typeSpec.Properties.Add(new Property(PostgresPropertyNames.Length, 1));
+                return typeSpec;
+            }
+
             // A type with no modifiers gets no length/precision properties. For a
             // bare varchar this mirrors the DB builder, where an unbounded
             // character varying reports character_maximum_length = NULL — so both
             // sides agree and the model hashes match (issue #6).
             if (builtInDataType.Modifiers.Count == 1)
             {
-                if (builtInDataType.Type is PostgresBuiltInDataType.Varchar or PostgresBuiltInDataType.Char)
+                if (builtInDataType.Type is PostgresBuiltInDataType.Varchar
+                    or PostgresBuiltInDataType.Char
+                    or PostgresBuiltInDataType.Bit
+                    or PostgresBuiltInDataType.BitVarying)
                 {
                     if (builtInDataType.Modifiers[0] is not LiteralExpression { Value: long length })
                     {
-                        throw new InvalidOperationException("Unexpected length modifier for varchar or character type");
+                        throw new InvalidOperationException(
+                            "Unexpected length modifier for varchar, character, or bit type");
                     }
 
                     // Store as int to match the DB-extraction builder and the script
-                    // generator, which both use int for the Length property.
+                    // generator, which both use int for the Length property. For bit types
+                    // this is the bit-string length; format_type() reports it the same way.
                     typeSpec.Properties.Add(new Property(PostgresPropertyNames.Length, (int)length));
                 }
                 else

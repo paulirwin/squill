@@ -60,4 +60,69 @@ public class CreateTableDataTypeTests
 
         Assert.Empty(ColumnType(table, "title").CollectionValues);
     }
+
+    // The parser lower-cases and preserves the written type name; alias canonicalization
+    // (e.g. integer->int) happens later in the model builder, not here. Grounded in
+    // https://mariadb.com/kb/en/data-types/.
+    [Theory]
+    [InlineData("tinyint", "tinyint")]
+    [InlineData("SMALLINT", "smallint")]
+    [InlineData("mediumint", "mediumint")]
+    [InlineData("int", "int")]
+    [InlineData("integer", "integer")]
+    [InlineData("bigint", "bigint")]
+    [InlineData("float", "float")]
+    [InlineData("double", "double")]
+    [InlineData("date", "date")]
+    [InlineData("datetime", "datetime")]
+    [InlineData("timestamp", "timestamp")]
+    [InlineData("time", "time")]
+    [InlineData("year", "year")]
+    [InlineData("text", "text")]
+    [InlineData("longtext", "longtext")]
+    [InlineData("blob", "blob")]
+    [InlineData("mediumblob", "mediumblob")]
+    [InlineData("json", "json")]
+    public void ScalarColumn_CapturesTypeName(string declared, string expected)
+    {
+        var table = ParseOne($"CREATE TABLE t (c {declared});");
+
+        Assert.Equal(expected, ColumnType(table, "c").TypeName);
+    }
+
+    // A length modifier on a character or binary type is captured as a single modifier.
+    [Theory]
+    [InlineData("char(10)", "char", 10)]
+    [InlineData("varchar(255)", "varchar", 255)]
+    [InlineData("binary(16)", "binary", 16)]
+    [InlineData("varbinary(255)", "varbinary", 255)]
+    public void LengthColumn_CapturesLength(string declared, string expectedName, long expectedLength)
+    {
+        var type = ColumnType(ParseOne($"CREATE TABLE t (c {declared});"), "c");
+
+        Assert.Equal(expectedName, type.TypeName);
+        Assert.Equal(expectedLength, Assert.Single(type.Modifiers));
+    }
+
+    // decimal/numeric carry precision and scale as two modifiers.
+    [Theory]
+    [InlineData("decimal(10,2)", "decimal")]
+    [InlineData("numeric(10,2)", "numeric")]
+    public void DecimalColumn_CapturesPrecisionAndScale(string declared, string expectedName)
+    {
+        var type = ColumnType(ParseOne($"CREATE TABLE t (c {declared});"), "c");
+
+        Assert.Equal(expectedName, type.TypeName);
+        Assert.Equal(new long[] { 10, 2 }, type.Modifiers);
+    }
+
+    // UNSIGNED on an integer type is captured as a flag on the data type.
+    [Fact]
+    public void UnsignedColumn_CapturesUnsignedFlag()
+    {
+        var type = ColumnType(ParseOne("CREATE TABLE t (c int unsigned);"), "c");
+
+        Assert.Equal("int", type.TypeName);
+        Assert.True(type.IsUnsigned);
+    }
 }

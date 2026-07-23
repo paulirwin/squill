@@ -237,6 +237,45 @@ public partial class PostgresVisitor
             }
         }
 
+        if (simpletypenameContext.bit() is { } bit)
+        {
+            // A bare `bit` / `bit(n)` is fixed-length; `bit varying` / `bit varying(n)`
+            // (aka varbit) is unbounded unless a length is given. The optional length is
+            // an expr_list on bitwithlength.
+            // See https://www.postgresql.org/docs/current/datatype-bit.html.
+            var varying = bit.bitwithlength()?.opt_varying()?.VARYING() is not null
+                          || bit.bitwithoutlength()?.opt_varying()?.VARYING() is not null;
+
+            var bitType = new BuiltInDataType(
+                varying ? PostgresBuiltInDataType.BitVarying : PostgresBuiltInDataType.Bit,
+                bit.GetText());
+
+            if (bit.bitwithlength()?.expr_list() is { } bitModifiers)
+            {
+                foreach (var bitModifierExpr in bitModifiers.a_expr())
+                {
+                    if (VisitA_expr(bitModifierExpr) is not Expression bitExpression)
+                    {
+                        throw new PostgresParseException("Unable to parse bit type length expression");
+                    }
+
+                    bitType.Modifiers.Add(bitExpression);
+                }
+            }
+
+            dataType = bitType;
+        }
+
+        if (simpletypenameContext.constinterval() is not null)
+        {
+            // `interval` optionally carries a field spec (e.g. `interval day to second`)
+            // or a fractional-seconds precision (e.g. `interval(6)`); both are captured as
+            // the type's original text but the canonical type is always `interval`, which
+            // is how format_type() renders a bare interval column.
+            // See https://www.postgresql.org/docs/current/datatype-datetime.html#DATATYPE-INTERVAL-INPUT.
+            dataType = new BuiltInDataType(PostgresBuiltInDataType.Interval, simpletypenameContext.GetText());
+        }
+
         if (dataType == null)
         {
             throw new NotImplementedException(

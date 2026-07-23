@@ -125,6 +125,30 @@ CREATE TABLE films
         Assert.Contains("text[]", sql);
     }
 
+    [Theory]
+    // A fixed-length character type must script with its length, or the column would be
+    // created as char(1) rather than the declared width (issue #97).
+    [InlineData("char(10)", "char(10)")]
+    // Bit-string types script with their length in parentheses; `bit varying` keeps its
+    // two-word spelling. https://www.postgresql.org/docs/current/datatype-bit.html
+    [InlineData("bit(8)", "bit(8)")]
+    [InlineData("bit varying(16)", "bit varying(16)")]
+    // A bare `bit` is fixed-length bit(1) and scripts as `bit`.
+    [InlineData("bit", "bit")]
+    // The without-time-zone temporal types script with their full spelling.
+    [InlineData("timestamp", "timestamp without time zone")]
+    [InlineData("time", "time without time zone")]
+    // interval scripts as the bare canonical type.
+    [InlineData("interval", "interval")]
+    public async Task GenerateScript_DataType_ScriptsExpectedType(string declared, string expected)
+    {
+        var comparison = await CompareToEmptyAsync($"CREATE TABLE t (c {declared});");
+
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        Assert.Contains(expected, sql);
+    }
+
     [Fact]
     public async Task GenerateScript_CreateTableWithIndex()
     {

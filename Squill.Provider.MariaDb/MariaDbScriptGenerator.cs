@@ -813,7 +813,8 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
 
         var rendered = typeName switch
         {
-            "varchar" or "char" when maxLength != null => $"{typeName}({maxLength})",
+            "varchar" or "char" or "binary" or "varbinary" when maxLength != null
+                => $"{typeName}({maxLength})",
             "decimal" or "numeric" when precision != null => $"{typeName}({precision}, {scale ?? 0})",
             "enum" or "set" when collectionValues != null => $"{typeName}{collectionValues}",
             _ => typeName,
