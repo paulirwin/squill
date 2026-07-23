@@ -1,4 +1,6 @@
-# Packs every shippable Squill project and pushes the packages to NuGet.org.
+# Packs every shippable Squill project and pushes the packages to NuGet.org using
+# NuGet Trusted Publishing (OIDC), so no long-lived API key is stored in the repo.
+# https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing
 #
 # Triggers on a version tag (e.g. `v0.1.0`) so a release is cut by tagging a commit:
 #   git tag v0.1.0 && git push origin v0.1.0
@@ -6,8 +8,10 @@
 # Directory.Build.props. Keep them in sync when tagging. Can also be run manually
 # from the Actions tab (workflow_dispatch) to re-push after a failure.
 #
-# Requires a repository secret NUGET_API_KEY with push rights to the Squill* package
-# IDs on nuget.org.
+# Setup required on nuget.org (once): create a Trusted Publishing policy pointing at
+# this repo, workflow file `release.yml`, and environment `release`. In this GitHub
+# repo, add a `release` environment and a NUGET_USER secret holding your nuget.org
+# username (profile name, not email).
 
 name: Release
 
@@ -20,6 +24,16 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+
+    # Gate on the `release` environment so the Trusted Publishing policy can be scoped
+    # to it (and so environment protection rules, if configured, apply before publish).
+    environment: release
+
+    permissions:
+      # Required for GitHub to issue the OIDC token that nuget.org exchanges for a
+      # short-lived API key. contents: read is the default minimum for checkout.
+      id-token: write
+      contents: read
 
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -45,12 +59,21 @@ jobs:
     - name: List packages
       run: ls -la ${{ runner.temp }}/packages
 
-    # Push every .nupkg and its .snupkg symbol package. --skip-duplicate makes a re-run
-    # idempotent: packages already on the feed (e.g. from a partial earlier push) are
-    # skipped instead of failing the whole job.
+    # Exchange the GitHub OIDC token for a short-lived nuget.org API key. This must run
+    # immediately before the push: the key is valid for only 1 hour. The username comes
+    # from a secret rather than being hardcoded.
+    - name: NuGet login (OIDC to temporary API key)
+      uses: NuGet/login@v1
+      id: login
+      with:
+        user: ${{ secrets.NUGET_USER }}
+
+    # Push every .nupkg and its .snupkg symbol package with the temporary key.
+    # --skip-duplicate makes a re-run idempotent: packages already on the feed (e.g.
+    # from a partial earlier push) are skipped instead of failing the whole job.
     - name: Push to NuGet.org
       run: |
         dotnet nuget push "${{ runner.temp }}/packages/*.nupkg" \
-          --api-key "${{ secrets.NUGET_API_KEY }}" \
+          --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" \
           --source https://api.nuget.org/v3/index.json \
           --skip-duplicate
