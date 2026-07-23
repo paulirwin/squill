@@ -6,59 +6,39 @@ namespace Squill.Provider.MariaDb;
 
 /// <summary>
 /// Builds a DACPAC from a workspace of declarative MariaDB SQL source files, using the
-/// ANTLR-based parser (no live database required). Mirrors the Postgres provider's build
-/// path so both hosts (the MSBuild task and the console <c>build</c> verb) produce the same
-/// DACPAC from the same inputs.
+/// ANTLR-based parser (no live database required). Mirrors the Postgres provider's build path
+/// so both hosts (the MSBuild task and the console <c>build</c> verb) produce the same DACPAC
+/// from the same inputs. The build itself is provider-agnostic (see
+/// <see cref="WorkspaceDacpacBuilder"/>); this type only supplies the MariaDB model builder.
 /// </summary>
 public static class DacpacBuilder
 {
-    public static async Task BuildAsync(
+    private static IWorkspaceModelBuilder CreateModelBuilder(Workspace workspace) =>
+        new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser());
+
+    /// <inheritdoc cref="WorkspaceDacpacBuilder.BuildAsync"/>
+    public static Task BuildAsync(
         Workspace workspace,
         ModelMetadata metadata,
         Stream stream,
-        CancellationToken cancellationToken = default)
-    {
-        var result = await BuildModelAsync(workspace, cancellationToken);
+        CancellationToken cancellationToken = default) =>
+        WorkspaceDacpacBuilder.BuildAsync(workspace, metadata, stream, CreateModelBuilder, cancellationToken);
 
-        await DacpacSerializer.Serialize(metadata, result.Model, stream, cancellationToken);
-    }
-
-    public static async Task BuildToFileAsync(
+    /// <inheritdoc cref="WorkspaceDacpacBuilder.BuildToFileAsync"/>
+    public static Task BuildToFileAsync(
         Workspace workspace,
         ModelMetadata metadata,
         string outputPath,
-        CancellationToken cancellationToken = default)
-    {
-        var directory = Path.GetDirectoryName(outputPath);
-        if (!string.IsNullOrEmpty(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
+        CancellationToken cancellationToken = default) =>
+        WorkspaceDacpacBuilder.BuildToFileAsync(workspace, metadata, outputPath, CreateModelBuilder, cancellationToken);
 
-        await using var stream = File.Create(outputPath);
-
-        await BuildAsync(workspace, metadata, stream, cancellationToken);
-    }
-
+    /// <inheritdoc cref="WorkspaceDacpacBuilder.BuildModelAsync"/>
     public static Task<BuildResult> BuildModelAsync(
         Workspace workspace,
-        CancellationToken cancellationToken = default)
-    {
-        var parser = new AntlrMariaDbParser();
-        var modelBuilder = new ParserWorkspaceModelBuilder(workspace, parser);
+        CancellationToken cancellationToken = default) =>
+        WorkspaceDacpacBuilder.BuildModelAsync(workspace, CreateModelBuilder, cancellationToken);
 
-        return modelBuilder.ExtractModelAsync(cancellationToken);
-    }
-
-    public static Workspace CreateWorkspace(IEnumerable<string> sourceFilePaths)
-    {
-        var workspace = new Workspace();
-
-        foreach (var path in sourceFilePaths)
-        {
-            workspace.Files.Add(new FileSystemFile(path, FileKind.Compile));
-        }
-
-        return workspace;
-    }
+    /// <inheritdoc cref="WorkspaceDacpacBuilder.CreateWorkspace"/>
+    public static Workspace CreateWorkspace(IEnumerable<string> sourceFilePaths) =>
+        WorkspaceDacpacBuilder.CreateWorkspace(sourceFilePaths);
 }

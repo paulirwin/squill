@@ -1,17 +1,16 @@
+using Squill.Core;
+
 namespace Squill.Provider.Postgres;
 
-public static class PostgresPropertyNames
+/// <summary>
+/// The <see cref="Property"/> keys for the Postgres provider. Inherits the shared
+/// <see cref="SqlPropertyNames"/> vocabulary (IsNullable, Length, DefaultValue, …) and adds
+/// the Postgres-only properties (identity/sequence options, operator classes, enum/domain
+/// and aggregate/trigger facets) on top.
+/// </summary>
+public sealed class PostgresPropertyNames : SqlPropertyNames
 {
-    public const string IsNullable = nameof(IsNullable);
-    public const string Length = nameof(Length);
-    public const string Precision = nameof(Precision);
-    public const string Scale = nameof(Scale);
-    public const string IsUnique = nameof(IsUnique);
-    public const string IndexMethod = nameof(IndexMethod);
-    public const string IsAscending = nameof(IsAscending);
     public const string NullsFirst = nameof(NullsFirst);
-    public const string DeleteAction = nameof(DeleteAction);
-    public const string UpdateAction = nameof(UpdateAction);
     public const string IsIdentity = nameof(IsIdentity);
     public const string IdentityGeneration = nameof(IdentityGeneration);
     // Identity sequence options (issue #13), stored only when they differ from the
@@ -23,8 +22,6 @@ public static class PostgresPropertyNames
     public const string MaxValue = nameof(MaxValue);
     public const string CacheSize = nameof(CacheSize);
     public const string IsCycling = nameof(IsCycling);
-    // The canonical form of a column DEFAULT constant literal (see PostgresDefaultValue).
-    public const string DefaultValue = nameof(DefaultValue);
     public const string FilterPredicate = nameof(FilterPredicate);
     public const string Version = nameof(Version);
     // PostgreSQL terminology: an index element may specify an operator class (opclass),
@@ -32,32 +29,20 @@ public static class PostgresPropertyNames
     // https://www.postgresql.org/docs/current/sql-createindex.html
     public const string OperatorClass = nameof(OperatorClass);
     public const string StorageParameters = nameof(StorageParameters);
-    // Stored procedures (issue #41). A procedure element's Name carries its argument
-    // signature so overloads are distinct objects, so the bare name and the signature are
-    // also stored separately for scripting. Body is the routine source held verbatim, as
+    // Stored procedures (issue #41). ArgumentTypes carries the argument signature so
+    // overloads are distinct objects. Body is the routine source held verbatim, as
     // PostgreSQL stores it in pg_proc.prosrc.
-    public const string RoutineName = nameof(RoutineName);
     public const string ArgumentTypes = nameof(ArgumentTypes);
-    public const string Arguments = nameof(Arguments);
     public const string Language = nameof(Language);
-    public const string Body = nameof(Body);
     public const string IsSecurityDefiner = nameof(IsSecurityDefiner);
-    // Views (issue #42). A view's query is carried for scripting only and never takes part
-    // in comparison: every engine rewrites the query it is given (PostgreSQL reformats it
-    // through pg_get_viewdef), so a declared body can never hash-match an extracted one. A
-    // view's modeled identity is its name and column list instead — see
-    // PostgresModelFactory.CreateView and PostgresDatabaseDependencyAnalyzer.NormalizeForComparison.
-    public const string Definition = nameof(Definition);
     // User-defined types (issue #75). An enum type carries its labels in declaration order
     // (their significant sort order) as an ordered list. A domain carries the canonical text
     // of its CHECK constraint expression (or null when it has none).
     public const string Labels = nameof(Labels);
     public const string CheckExpression = nameof(CheckExpression);
-    // Functions (issue #81). ReturnType is the canonical return type name (as pg_proc's
-    // format_type reports it); ReturnsSet is true for RETURNS SETOF. Volatility is one of
+    // Functions (issue #81). ReturnsSet is true for RETURNS SETOF. Volatility is one of
     // "IMMUTABLE"/"STABLE"/"VOLATILE" (stored only when not the VOLATILE default); IsStrict
     // is stored only when true (CALLED ON NULL INPUT is the default).
-    public const string ReturnType = nameof(ReturnType);
     public const string ReturnsSet = nameof(ReturnsSet);
     public const string Volatility = nameof(Volatility);
     public const string IsStrict = nameof(IsStrict);
@@ -66,11 +51,10 @@ public static class PostgresPropertyNames
     // name (STYPE, as format_type reports it).
     public const string StateFunction = nameof(StateFunction);
     public const string StateType = nameof(StateType);
-    // Triggers (issue #83). Timing is "BEFORE"/"AFTER"/"INSTEAD OF"; Events is the OR'd event
-    // list rendered canonically (e.g. "INSERT OR UPDATE") in a fixed order; Level is
-    // "ROW"/"STATEMENT". TriggerFunction is the schema-qualified function name and
-    // FunctionArguments is the comma-joined literal argument list (empty when there are none).
-    public const string Timing = nameof(Timing);
+    // Triggers (issue #83). Events is the OR'd event list rendered canonically (e.g.
+    // "INSERT OR UPDATE") in a fixed order; Level is "ROW"/"STATEMENT". TriggerFunction is
+    // the schema-qualified function name and FunctionArguments is the comma-joined literal
+    // argument list (empty when there are none).
     public const string Events = nameof(Events);
     public const string Level = nameof(Level);
     public const string TriggerFunction = nameof(TriggerFunction);
