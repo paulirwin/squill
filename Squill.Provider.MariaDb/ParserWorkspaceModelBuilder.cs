@@ -49,7 +49,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         // rather than one per rebuild (issue #61).
         validator.ThrowIfInvalid();
 
-        MoveProceduresToEnd(model);
+        MoveRoutinesToEnd(model);
 
         return new BuildResult(model, warnings);
     }
@@ -85,38 +85,39 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     }
 
     /// <summary>
-    /// Moves procedures after every other element, ordered by name. The
-    /// database-extraction builder emits them last in that order (information_schema has no
-    /// notion of the order they were declared in) and the Merkle hash is order-sensitive, so
-    /// a parsed model must adopt the same order to hash-match an extracted one.
+    /// Moves routines — procedures and functions — after every other element, ordered by
+    /// name. The database-extraction builder emits them last in that order (information_schema
+    /// has no notion of the order they were declared in, and reads both routine kinds together
+    /// ordered by name) and the Merkle hash is order-sensitive, so a parsed model must adopt
+    /// the same order to hash-match an extracted one.
     ///
     /// This also has to run after <see cref="SortTablesByName"/>, which groups each table
-    /// with the elements that follow it — a procedure left in place would be treated as one
-    /// of the preceding table's dependents and dragged around by that table's name.
+    /// with the elements that follow it — a routine left in place would be treated as one of
+    /// the preceding table's dependents and dragged around by that table's name.
     ///
-    /// Ordering procedures last matches the create order too, since a procedure body may
+    /// Ordering routines last matches the create order too, since a routine body may
     /// reference any table.
     /// </summary>
-    private static void MoveProceduresToEnd(Model model)
+    private static void MoveRoutinesToEnd(Model model)
     {
-        var procedures = model.Elements
-            .Where(i => i.Type == MariaDbElementTypes.SqlProcedure)
+        var routines = model.Elements
+            .Where(i => i.Type is MariaDbElementTypes.SqlProcedure or MariaDbElementTypes.SqlFunction)
             .ToList();
 
-        if (procedures.Count == 0)
+        if (routines.Count == 0)
         {
             return;
         }
 
-        foreach (var procedure in procedures)
+        foreach (var routine in routines)
         {
-            model.Elements.Remove(procedure);
+            model.Elements.Remove(routine);
         }
 
         // Ordinal, to match the database's byte-wise ordering of the same names.
-        foreach (var procedure in procedures.OrderBy(i => i.Name as string, StringComparer.Ordinal))
+        foreach (var routine in routines.OrderBy(i => i.Name as string, StringComparer.Ordinal))
         {
-            model.Elements.Add(procedure);
+            model.Elements.Add(routine);
         }
     }
 
@@ -243,9 +244,16 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         views.Add(new PendingView(file, createView));
                         break;
 
-                    case CreateFunctionStatement:
-                        throw new NotSupportedException(
-                            "CREATE FUNCTION is not yet supported; only CREATE PROCEDURE is modeled");
+                    case CreateFunctionStatement createFunction:
+                        validator.AddCreateFunction(file, createFunction);
+
+                        if (validator.IsDuplicateFunction(createFunction))
+                        {
+                            break;
+                        }
+
+                        model.Elements.Add(MakeCreateFunctionElement(createFunction));
+                        break;
 
                     // Recognized but not modeled (CREATE VIEW, ALTER, …). Not fatal — the
                     // rest of the project still builds — but the construct will not reach
@@ -350,6 +358,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         // Where each object was first defined, so a redefinition can name the original.
         private readonly Dictionary<string, Origin> _tableOrigins = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Origin> _procedureOrigins = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, Origin> _functionOrigins = new(StringComparer.OrdinalIgnoreCase);
 
         // An index name only has to be unique within its table in MariaDB, unlike Postgres
         // where constraints and indexes share a per-schema namespace.
@@ -357,6 +366,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
         private readonly HashSet<CreateTableStatement> _duplicateTables = [];
         private readonly HashSet<CreateProcedureStatement> _duplicateProcedures = [];
+        private readonly HashSet<CreateFunctionStatement> _duplicateFunctions = [];
 
         // The column sets made unique by a primary key or unique constraint/index on each
         // table; a foreign key's referenced columns must match one of these exactly.
@@ -418,6 +428,30 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             }
 
             _procedureOrigins[name] = new Origin(file.Name, createProcedure.Line);
+        }
+
+        public bool IsDuplicateFunction(CreateFunctionStatement createFunction)
+            => _duplicateFunctions.Contains(createFunction);
+
+        public void AddCreateFunction(IFile file, CreateFunctionStatement createFunction)
+        {
+            // Like a procedure, a function name identifies one function within the database,
+            // regardless of parameters — neither engine allows routine overloading.
+            var name = createFunction.Name.Name;
+
+            if (_functionOrigins.TryGetValue(name, out var existing))
+            {
+                _errors.Add(new SqlSourceException(
+                    $"Function '{name}' is already defined in {DescribeOrigin(existing)}.",
+                    file.Name, createFunction.Line, createFunction.Column,
+                    SqlSourceException.DuplicateDefinition));
+
+                _duplicateFunctions.Add(createFunction);
+
+                return;
+            }
+
+            _functionOrigins[name] = new Origin(file.Name, createFunction.Line);
         }
 
         // A deferred reference to a table (and optionally columns on it) that must be
@@ -1246,6 +1280,40 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             createProcedure.IsDeterministic,
             createProcedure.SqlDataAccess,
             createProcedure.IsSecurityInvoker);
+    }
+
+    private static Element MakeCreateFunctionElement(CreateFunctionStatement createFunction)
+    {
+        if (createFunction.Body is not { } body)
+        {
+            throw new InvalidOperationException("A function must declare a body");
+        }
+
+        // Parameter and return types are normalized rather than stored as written, for the
+        // same reason as a procedure's: the two engines report a routine type differently
+        // (MariaDB keeps an integer display width, MySQL does not). See MariaDbTypeNormalizer.
+        var parameters = createFunction.Parameters.Select(i =>
+            new MariaDbModelFactory.ProcedureParameter(
+                RenderParameterMode(i.Mode),
+                i.Name.Name,
+                MariaDbTypeNormalizer.Normalize(
+                    i.DataType.TypeName, i.DataType.Modifiers, i.DataType.IsUnsigned)));
+
+        var returnType = MariaDbTypeNormalizer.Normalize(
+            createFunction.ReturnType.TypeName,
+            createFunction.ReturnType.Modifiers,
+            createFunction.ReturnType.IsUnsigned);
+
+        return MariaDbModelFactory.CreateFunction(
+            // A function is not schema-scoped within a database, so a leading db qualifier is
+            // dropped exactly as it is for a table or procedure.
+            SqlName.Object(createFunction.Name.Name),
+            returnType,
+            body,
+            parameters,
+            createFunction.IsDeterministic,
+            createFunction.SqlDataAccess,
+            createFunction.IsSecurityInvoker);
     }
 
     private static string RenderParameterMode(ParameterMode mode) => mode switch

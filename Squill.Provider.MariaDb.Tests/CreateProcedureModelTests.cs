@@ -212,28 +212,4 @@ public class CreateProcedureModelTests
 
         Assert.Equal(MariaDbElementTypes.SqlProcedure, model.Elements[^1].Type);
     }
-
-    [Fact]
-    public async Task CreateFunction_IsReportedAsASourceError()
-    {
-        var ex = await Assert.ThrowsAsync<SqlSourceException>(() =>
-            BuildModelAsync("CREATE FUNCTION f(a INT) RETURNS INT RETURN a + 1;"));
-
-        Assert.Equal("Test.sql", ex.SourceFile);
-        Assert.Contains("CREATE FUNCTION", ex.Message);
-    }
-
-    [Fact]
-    public async Task CreateFunction_ErrorPointsAtTheStatement()
-    {
-        var ex = await Assert.ThrowsAsync<SqlSourceException>(() =>
-            BuildModelAsync(
-                """
-                CREATE TABLE t (id INT PRIMARY KEY);
-
-                CREATE FUNCTION f(a INT) RETURNS INT RETURN a + 1;
-                """));
-
-        Assert.Equal(3, ex.Line);
-    }
 }

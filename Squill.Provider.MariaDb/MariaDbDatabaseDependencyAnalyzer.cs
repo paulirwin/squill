@@ -24,11 +24,13 @@ public class MariaDbDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
 
     public string? GetExtensionVersion(Element extension) => null;
 
-    // A procedure's definition is replaced wholesale rather than altered facet by facet. A
-    // view is here too; both are scripted as DROP + CREATE, since CREATE OR REPLACE is
+    // A procedure or function's definition is replaced wholesale rather than altered facet by
+    // facet. A view is here too; all are scripted as DROP + CREATE, since CREATE OR REPLACE is
     // MariaDB-only syntax and this provider targets MySQL as well.
     public bool IsReplaceableElementType(string type)
-        => type is MariaDbElementTypes.SqlProcedure or MariaDbElementTypes.SqlView;
+        => type is MariaDbElementTypes.SqlProcedure
+            or MariaDbElementTypes.SqlFunction
+            or MariaDbElementTypes.SqlView;
 
     public bool DropCausesDataLoss(string type)
         => type == MariaDbElementTypes.SqlTable;
@@ -41,15 +43,15 @@ public class MariaDbDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
     public string? GetElementSchema(Element element) => null;
 
     // MariaDB has no schema/extension objects that must precede tables, so every element
-    // sorts to the same create order — except a view and a procedure, which reference
-    // tables. Neither is parsed for dependencies beyond its source tables, so this ordering
-    // is what makes a view or procedure that reads a table in the same deploy work.
-    // A view selects from tables, so it follows them; a procedure body may query either, so
-    // it comes last.
+    // sorts to the same create order — except a view and a routine, which reference tables.
+    // None is parsed for dependencies beyond its source tables, so this ordering is what
+    // makes a view or routine that reads a table in the same deploy work. A view selects from
+    // tables, so it follows them; a procedure or function body may query either, so it comes
+    // last.
     public int GetCreateOrder(string type) => type switch
     {
         MariaDbElementTypes.SqlView => 1,
-        MariaDbElementTypes.SqlProcedure => 2,
+        MariaDbElementTypes.SqlProcedure or MariaDbElementTypes.SqlFunction => 2,
         _ => 0,
     };
 

@@ -36,6 +36,11 @@ public static class MariaDbPropertyNames
     public const string SqlDataAccess = nameof(SqlDataAccess);
     public const string IsSecurityInvoker = nameof(IsSecurityInvoker);
 
+    // Stored functions (issue #74). A function is a routine like a procedure but declares a
+    // return type; ReturnType holds it engine-normalized (as parameter types are), so a
+    // parsed model matches one extracted from either engine. See MariaDbTypeNormalizer.
+    public const string ReturnType = nameof(ReturnType);
+
     // Views (issue #42). A view's query is carried for scripting only and never takes part
     // in comparison: MariaDB and MySQL both rewrite the query when they store it — and not
     // even the same way as each other — so a declared body could never hash-match an

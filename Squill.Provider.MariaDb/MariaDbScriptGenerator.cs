@@ -77,6 +77,11 @@ public class MariaDbScriptGenerator
             return GenerateCreateProcedureScript(createDelta.Element);
         }
 
+        if (createDelta.Element.Type == MariaDbElementTypes.SqlFunction)
+        {
+            return GenerateCreateFunctionScript(createDelta.Element);
+        }
+
         if (createDelta.Element.Type == MariaDbElementTypes.SqlView)
         {
             return GenerateCreateViewScript(createDelta.Element);
@@ -303,6 +308,13 @@ public class MariaDbScriptGenerator
             return DropProcedureStatement(source) + GenerateCreateProcedureScript(source);
         }
 
+        // A function whose definition changed is dropped and recreated, for the same reason
+        // as a procedure — no portable in-place redefinition exists on both engines.
+        if (source.Type == MariaDbElementTypes.SqlFunction)
+        {
+            return DropFunctionStatement(source) + GenerateCreateFunctionScript(source);
+        }
+
         // A view whose column list changed is dropped and recreated. CREATE OR REPLACE VIEW
         // is MariaDB-only (MySQL has no such form), so the portable spelling for both
         // engines is DROP ... IF EXISTS followed by CREATE.
@@ -359,6 +371,8 @@ public class MariaDbScriptGenerator
             // Neither engine allows overloading, so the name alone identifies the procedure
             // — no argument signature is needed, unlike PostgreSQL.
             MariaDbElementTypes.SqlProcedure => DropProcedureStatement(element),
+
+            MariaDbElementTypes.SqlFunction => DropFunctionStatement(element),
 
             MariaDbElementTypes.SqlView => DropViewStatement(element),
 
@@ -465,6 +479,74 @@ public class MariaDbScriptGenerator
         sb.AppendLine(body);
 
         return sb.ToString();
+    }
+
+    private static string DropFunctionStatement(Element function)
+    {
+        if (function.Name is not string name)
+        {
+            throw new ArgumentException("Cannot drop a function without a name");
+        }
+
+        return $"DROP FUNCTION IF EXISTS {SqlName.Parse(name).Sql};{Environment.NewLine}";
+    }
+
+    private static string GenerateCreateFunctionScript(Element function)
+    {
+        if (function.Name is not string name)
+        {
+            throw new ArgumentException("Cannot create a function without a name");
+        }
+
+        var arguments = function.GetRequiredProperty<string>(MariaDbPropertyNames.Arguments);
+        var returnType = function.GetRequiredProperty<string>(MariaDbPropertyNames.ReturnType);
+        var body = function.GetRequiredProperty<string>(MariaDbPropertyNames.Body);
+
+        var sb = new StringBuilder();
+
+        sb.Append("CREATE FUNCTION ").Append(SqlName.Parse(name).Sql)
+            .Append('(').Append(FunctionArguments(arguments)).Append(')')
+            .Append(" RETURNS ").AppendLine(returnType);
+
+        // Only non-default characteristics are stored on the element, so each is written only
+        // when present — matching what the engines report for an unadorned function.
+        if (function.GetProperty<bool?>(MariaDbPropertyNames.IsDeterministic) == true)
+        {
+            sb.AppendLine("    DETERMINISTIC");
+        }
+
+        if (function.GetProperty<string>(MariaDbPropertyNames.SqlDataAccess) is { } dataAccess)
+        {
+            sb.Append("    ").AppendLine(dataAccess);
+        }
+
+        if (function.GetProperty<bool?>(MariaDbPropertyNames.IsSecurityInvoker) == true)
+        {
+            sb.AppendLine("    SQL SECURITY INVOKER");
+        }
+
+        // The body — a RETURN ... or a BEGIN ... END — is emitted verbatim, and the statement
+        // is not terminated with a semicolon: a BEGIN ... END body contains its own, and each
+        // delta is sent as a single command, so no DELIMITER handling is needed.
+        sb.AppendLine(body);
+
+        return sb.ToString();
+    }
+
+    // A function's parameters are stored with an "IN " mode prefix, matching what both engines
+    // report from information_schema (so a parsed model hash-matches an extracted one). But
+    // CREATE FUNCTION syntax forbids a mode keyword on a parameter — a function parameter is
+    // always IN — so the prefix is stripped when scripting the DDL.
+    private static string FunctionArguments(string storedArguments)
+    {
+        if (storedArguments.Length == 0)
+        {
+            return storedArguments;
+        }
+
+        return string.Join(", ", storedArguments
+            .Split(", ")
+            .Select(a => a.StartsWith("IN ", StringComparison.Ordinal) ? a[3..] : a));
     }
 
     // ---- REBUILD ----

@@ -72,9 +72,10 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
         // matches the order the parser-based builder produces.
         await ExtractViewsAsync(model, cancellationToken);
 
-        // Procedures come last, matching the parser-based builder: a procedure body may
-        // reference any table, so on publish its CREATE must run after the tables it uses.
-        await ExtractProceduresAsync(model, cancellationToken);
+        // Routines (procedures and functions) come last, matching the parser-based builder:
+        // a routine body may reference any table, so on publish its CREATE must run after the
+        // tables it uses. Procedures and functions are ordered together by name.
+        await ExtractRoutinesAsync(model, cancellationToken);
 
         return model;
     }
@@ -130,25 +131,31 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
     // Column names are joined with a record separator, which cannot occur in an identifier.
     private const char ViewColumnSeparator = '\u001e';
 
-    private async Task ExtractProceduresAsync(Model model, CancellationToken cancellationToken = default)
+    private async Task ExtractRoutinesAsync(Model model, CancellationToken cancellationToken = default)
     {
-        // ROUTINE_TYPE = 'PROCEDURE' excludes functions, which are not modeled. Both engines
-        // return ROUTINE_DEFINITION verbatim, so the body needs no canonicalization on
-        // either side. Ordered by name to match the parser-based builder, since the catalog
-        // has no notion of the order routines were declared in.
+        // Procedures and functions are read together, ordered by name, so a single ordering
+        // covers both. Both engines return ROUTINE_DEFINITION verbatim, so the body needs no
+        // canonicalization on either side. The catalog has no notion of declaration order, so
+        // the parser-based builder must adopt this same name order — see MoveRoutinesToEnd.
+        //
+        // DATA_TYPE / DTD_IDENTIFIER are the function's return type (empty for a procedure).
+        // The type is rebuilt from DATA_TYPE plus the numeric columns (as for parameters),
+        // because the two engines spell DTD_IDENTIFIER differently for integers.
         const string routineSql =
             """
-            SELECT ROUTINE_NAME, ROUTINE_DEFINITION, IS_DETERMINISTIC,
-                   SQL_DATA_ACCESS, SECURITY_TYPE
+            SELECT ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_DEFINITION, IS_DETERMINISTIC,
+                   SQL_DATA_ACCESS, SECURITY_TYPE,
+                   DATA_TYPE, DTD_IDENTIFIER,
+                   CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE
             FROM information_schema.ROUTINES
-            WHERE ROUTINE_SCHEMA = @db AND ROUTINE_TYPE = 'PROCEDURE'
+            WHERE ROUTINE_SCHEMA = @db AND ROUTINE_TYPE IN ('PROCEDURE', 'FUNCTION')
             ORDER BY ROUTINE_NAME;
             """;
 
         var dbParam = new[] { new DatabaseParameter<string>("@db", _database.Name) };
 
-        var routines = new List<(string Name, string Body, bool IsDeterministic,
-            string SqlDataAccess, bool IsSecurityInvoker)>();
+        var routines = new List<(string Name, bool IsFunction, string Body, string? ReturnType,
+            bool IsDeterministic, string SqlDataAccess, bool IsSecurityInvoker)>();
 
         await using (var reader = await _database.RunScriptReaderAsync(
             routineSql, dbParam, cancellationToken))
@@ -156,20 +163,35 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
             while (await reader.ReadAsync(cancellationToken))
             {
                 var name = reader.GetString("ROUTINE_NAME");
+                var isFunction = reader.GetString("ROUTINE_TYPE") == "FUNCTION";
 
                 // ROUTINE_DEFINITION is NULL when the connected user lacks the privileges to
-                // read a routine's body. Deploying the resulting model would silently
-                // replace the procedure with an empty one, so fail loudly instead.
+                // read a routine's body. Deploying the resulting model would silently replace
+                // the routine with an empty one, so fail loudly instead.
                 if (reader.IsDBNull(reader.GetOrdinal("ROUTINE_DEFINITION")))
                 {
                     throw new InvalidOperationException(
-                        $"The body of procedure '{name}' could not be read. The connected user "
+                        $"The body of routine '{name}' could not be read. The connected user "
                         + "needs privileges on the routine to extract its definition.");
+                }
+
+                string? returnType = null;
+                if (isFunction)
+                {
+                    var dataType = reader.GetString("DATA_TYPE").ToLowerInvariant();
+                    var dtd = reader.GetString("DTD_IDENTIFIER").ToLowerInvariant();
+                    var maxLength = reader.GetNullableInt64("CHARACTER_MAXIMUM_LENGTH");
+                    var precision = reader.GetNullableInt64("NUMERIC_PRECISION");
+                    var scale = reader.GetNullableInt64("NUMERIC_SCALE");
+
+                    returnType = NormalizeParameterType(dataType, dtd, maxLength, precision, scale);
                 }
 
                 routines.Add((
                     name,
+                    isFunction,
                     reader.GetString("ROUTINE_DEFINITION"),
+                    returnType,
                     reader.GetString("IS_DETERMINISTIC") == "YES",
                     reader.GetString("SQL_DATA_ACCESS"),
                     reader.GetString("SECURITY_TYPE") == "INVOKER"));
@@ -178,13 +200,24 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
 
         foreach (var routine in routines)
         {
-            model.Elements.Add(MariaDbModelFactory.CreateProcedure(
-                SqlName.Object(routine.Name),
-                routine.Body,
-                await ExtractProcedureParametersAsync(routine.Name, cancellationToken),
-                routine.IsDeterministic,
-                routine.SqlDataAccess,
-                routine.IsSecurityInvoker));
+            var parameters = await ExtractProcedureParametersAsync(routine.Name, cancellationToken);
+
+            model.Elements.Add(routine.IsFunction
+                ? MariaDbModelFactory.CreateFunction(
+                    SqlName.Object(routine.Name),
+                    routine.ReturnType!,
+                    routine.Body,
+                    parameters,
+                    routine.IsDeterministic,
+                    routine.SqlDataAccess,
+                    routine.IsSecurityInvoker)
+                : MariaDbModelFactory.CreateProcedure(
+                    SqlName.Object(routine.Name),
+                    routine.Body,
+                    parameters,
+                    routine.IsDeterministic,
+                    routine.SqlDataAccess,
+                    routine.IsSecurityInvoker));
         }
     }
 
