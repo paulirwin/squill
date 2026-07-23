@@ -1,4 +1,5 @@
 using Squill.PostgresParser.Syntax;
+using Squill.TestFramework;
 
 namespace Squill.PostgresParser.Tests;
 
@@ -10,10 +11,7 @@ namespace Squill.PostgresParser.Tests;
 public class CreateAggregateTests
 {
     private static CreateAggregateStatement ParseOne(string text)
-    {
-        var root = new AntlrPostgresParser().Parse(text);
-        return Assert.IsType<CreateAggregateStatement>(Assert.Single(root.Statements));
-    }
+        => ParseAssertions.Single<CreateAggregateStatement>(new AntlrPostgresParser().Parse(text).Statements);
 
     [Fact]
     public void SimpleAggregate()

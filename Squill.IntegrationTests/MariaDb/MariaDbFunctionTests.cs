@@ -37,36 +37,9 @@ public abstract class MariaDbFunctionTests
     {
         var provider = new MariaDbDatabaseProvider(Fixture.ConnectionString);
         var model = ParseModel(sql, cancellationToken);
-
-        var testDb = await provider.CreateDatabaseAsync(
-            $"squill_test_{Guid.NewGuid():n}", cancellationToken);
-        var dbModelBuilder = provider.CreateDatabaseModelBuilder(testDb);
-
-        try
-        {
-            var targetModel = await dbModelBuilder.ExtractModelAsync(cancellationToken);
-
-            await testDb.PublishAsync(
-                SchemaCompare.Compare(provider, model, targetModel), cancellationToken);
-
-            var newModel = await dbModelBuilder.ExtractModelAsync(cancellationToken);
-
-            Assert.True(
-                HashUtility.HashesEqual(model.Hash, newModel.Hash),
-                $"[{Fixture.EngineName}] Parsed and extracted model hashes do not match.\n"
-                + $"Parsed:    {Describe(model)}\n"
-                + $"Extracted: {Describe(newModel)}");
-
-            // Redeploying the same source must be a no-op: if any facet of a function did not
-            // round-trip, the comparison would produce a spurious delta here.
-            Assert.Empty(SchemaCompare.Compare(provider, model, newModel).Deltas);
-
-            return newModel;
-        }
-        finally
-        {
-            await testDb.DropAsync(cancellationToken);
-        }
+        return await RoundTripHarness.AssertRoundTripAsync(
+            provider, model, Fixture.EngineName, assertRedeployNoOp: true,
+            cancellationToken: cancellationToken);
     }
 
     [Fact]
@@ -263,8 +236,8 @@ public abstract class MariaDbFunctionTests
             Assert.True(
                 HashUtility.HashesEqual(v2.Hash, republished.Hash),
                 $"[{Fixture.EngineName}] The updated function did not round-trip.\n"
-                + $"Parsed:    {Describe(v2)}\n"
-                + $"Extracted: {Describe(republished)}");
+                + $"Parsed:    {ModelAssertions.Describe(v2)}\n"
+                + $"Extracted: {ModelAssertions.Describe(republished)}");
 
             var function = Assert.Single(
                 republished.Elements, i => i.Type == MariaDbElementTypes.SqlFunction);
@@ -315,10 +288,6 @@ public abstract class MariaDbFunctionTests
         }
     }
 
-    // Element type and name in order, so an ordering mismatch reports what actually differs
-    // rather than just "hashes do not match".
-    private static string Describe(Model model)
-        => string.Join(" | ", model.Elements.Select(i => $"{i.Type}:{i.Name}"));
 }
 
 // ---- Per-engine bindings: each scenario runs once against MariaDB and once against MySQL. ----

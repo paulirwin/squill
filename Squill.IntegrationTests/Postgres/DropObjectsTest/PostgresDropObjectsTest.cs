@@ -1,6 +1,7 @@
 using Npgsql;
 using Squill.Core;
 using Squill.Dacpac;
+using Squill.PostgresParser;
 using Squill.Provider.Postgres;
 
 namespace Squill.IntegrationTests.Postgres.DropObjectsTest;
@@ -211,19 +212,12 @@ CREATE INDEX idx_film_title ON film (title);
         }
     }
 
-    private static async Task<string> BuildDacpacAsync(
+    private static Task<string> BuildDacpacAsync(
         string dir, string label, string schema, CancellationToken ct)
-    {
-        var sqlPath = Path.Combine(dir, $"{label}.sql");
-        await File.WriteAllTextAsync(sqlPath, schema, ct);
-
-        var dacpacPath = Path.Combine(dir, "bin", $"{label}.dacpac");
-        var workspace = DacpacBuilder.CreateWorkspace([sqlPath]);
-        var metadata = new ModelMetadata { ProviderName = "Postgresql", Name = "TestDb" };
-        await DacpacBuilder.BuildToFileAsync(workspace, metadata, dacpacPath, ct);
-
-        return dacpacPath;
-    }
+        => DacpacTestBuilder.BuildToFileAsync(
+            dir, schema, "Postgresql",
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrPostgresParser()),
+            ct, label: label, outputSubdirectory: "bin", fileName: label);
 
     private async Task<NpgsqlConnection> OpenAsync(string databaseName, CancellationToken ct)
     {

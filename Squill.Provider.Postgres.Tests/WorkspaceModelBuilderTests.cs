@@ -1,5 +1,6 @@
 using Squill.Core;
 using Squill.PostgresParser;
+using Squill.TestFramework;
 
 namespace Squill.Provider.Postgres.Tests;
 
@@ -645,14 +646,9 @@ CREATE INDEX items_embedding_idx ON items USING hnsw (embedding vector_cosine_op
         Assert.Null(columnSpec.GetProperty<bool?>(PostgresPropertyNames.NullsFirst));
     }
 
-    private static async Task<Model> BuildModel(string sql)
-    {
-        var parser = new AntlrPostgresParser();
-        var workspace = new Workspace();
-        workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
-
-        var builder = new ParserWorkspaceModelBuilder(workspace, parser);
-
-        return (await builder.ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
-    }
+    private static Task<Model> BuildModel(string sql)
+        => WorkspaceModelBuilding.BuildModelAsync(
+            sql,
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrPostgresParser()),
+            TestContext.Current.CancellationToken);
 }

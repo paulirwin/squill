@@ -1,5 +1,6 @@
 using Squill.Core;
 using Squill.PostgresParser;
+using Squill.TestFramework;
 
 namespace Squill.Provider.Postgres.Tests;
 
@@ -13,14 +14,11 @@ public class PostgresViewScriptTests
     private const string Users =
         "CREATE TABLE users (id integer PRIMARY KEY, name varchar(50), active boolean);";
 
-    private static async Task<Model> BuildModelAsync(string sql)
-    {
-        var workspace = new Workspace();
-        workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
-
-        return (await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
-            .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
-    }
+    private static Task<Model> BuildModelAsync(string sql)
+        => WorkspaceModelBuilding.BuildModelAsync(
+            sql,
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrPostgresParser()),
+            TestContext.Current.CancellationToken);
 
     private static async Task<string> ScriptAgainstEmptyAsync(string sql)
     {

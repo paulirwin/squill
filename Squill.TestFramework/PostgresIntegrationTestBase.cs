@@ -1,8 +1,13 @@
 using DotNet.Testcontainers.Images;
 using Testcontainers.PostgreSql;
+using Xunit;
 
-namespace Squill.IntegrationTests.Postgres;
+namespace Squill.TestFramework;
 
+/// <summary>
+/// Base class for a PostgreSQL integration test: a lazily-created, per-class Testcontainers
+/// Postgres container started once for the test class and disposed at the end.
+/// </summary>
 public abstract class PostgresIntegrationTestBase : IAsyncLifetime
 {
     // The Docker image used for the test container. Defaults to the stock postgres

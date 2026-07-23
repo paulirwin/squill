@@ -23,6 +23,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\Squill.PostgresParser\Squill.PostgresParser.csproj" />
+      <ProjectReference Include="..\Squill.TestFramework\Squill.TestFramework.csproj" />
     </ItemGroup>
 
 </Project>

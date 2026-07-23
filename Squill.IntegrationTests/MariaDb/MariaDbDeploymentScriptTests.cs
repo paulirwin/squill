@@ -254,35 +254,19 @@ public abstract class MariaDbDeploymentScriptTests
         return Convert.ToInt32(value);
     }
 
-    private async Task<string> BuildDacpacAsync(
+    private Task<string> BuildDacpacAsync(
         string directory,
         CancellationToken ct,
         string preDeploy = "",
         string postDeploy = "")
-    {
-        var sqlPath = Path.Combine(directory, "schema.sql");
-        await File.WriteAllTextAsync(sqlPath, SchemaSql, ct);
-
-        var workspace = DacpacBuilder.CreateWorkspace([sqlPath]);
-        var metadata = new ModelMetadata
-        {
-            Name = "TestDb",
-            Version = "1.0.0.0",
-            ProviderName = Fixture.ProviderName,
-            PreDeployScript = preDeploy,
-            PostDeployScript = postDeploy,
-        };
-
-        var dacpacPath = Path.Combine(directory, "TestDb.dacpac");
-        await DacpacBuilder.BuildToFileAsync(workspace, metadata, dacpacPath, ct);
-
-        return dacpacPath;
-    }
-
-    private sealed class CollectingProgress(List<string> messages) : IProgress<string>
-    {
-        public void Report(string value) => messages.Add(value);
-    }
+        => DacpacTestBuilder.BuildToFileAsync(
+            directory,
+            SchemaSql,
+            Fixture.ProviderName,
+            ws => new ParserWorkspaceModelBuilder(ws, new Squill.MariaDbParser.AntlrMariaDbParser()),
+            ct,
+            preDeploy: preDeploy,
+            postDeploy: postDeploy);
 }
 
 public sealed class MariaDbDeploymentScriptTestsMariaDb(MariaDbFixture fixture)

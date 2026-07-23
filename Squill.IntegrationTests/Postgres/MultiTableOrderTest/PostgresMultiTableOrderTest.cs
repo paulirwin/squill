@@ -49,12 +49,9 @@ public class PostgresMultiTableOrderTest : PostgresIntegrationTestBase
         Assert.True(
             HashUtility.HashesEqual(parsed.Hash, published.Hash),
             "Parsed and extracted model hashes do not match.\n"
-            + $"Parsed:    {Describe(parsed)}\n"
-            + $"Extracted: {Describe(published)}");
+            + $"Parsed:    {ModelAssertions.Describe(parsed)}\n"
+            + $"Extracted: {ModelAssertions.Describe(published)}");
     }
-
-    private static string Describe(Model model)
-        => string.Join(" | ", model.Elements.Select(i => $"{i.Type}:{i.Name}"));
 
     // Two independent tables, each with a primary key: the parser interleaves each table
     // with its own PK, so extraction grouping all tables ahead of all PKs would diverge.

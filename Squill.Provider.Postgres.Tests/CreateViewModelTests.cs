@@ -1,18 +1,16 @@
 using Squill.Core;
 using Squill.PostgresParser;
+using Squill.TestFramework;
 
 namespace Squill.Provider.Postgres.Tests;
 
 public class CreateViewModelTests
 {
-    private static async Task<Model> BuildModelAsync(string sql)
-    {
-        var workspace = new Workspace();
-        workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
-
-        return (await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
-            .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
-    }
+    private static Task<Model> BuildModelAsync(string sql)
+        => WorkspaceModelBuilding.BuildModelAsync(
+            sql,
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrPostgresParser()),
+            TestContext.Current.CancellationToken);
 
     private static async Task<Element> BuildViewAsync(string sql)
     {

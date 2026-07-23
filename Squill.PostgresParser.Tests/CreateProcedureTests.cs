@@ -1,15 +1,12 @@
 using Squill.PostgresParser.Syntax;
+using Squill.TestFramework;
 
 namespace Squill.PostgresParser.Tests;
 
 public class CreateProcedureTests
 {
     private static CreateProcedureStatement ParseOne(string text)
-    {
-        var parser = new AntlrPostgresParser();
-        var root = parser.Parse(text);
-        return Assert.IsType<CreateProcedureStatement>(Assert.Single(root.Statements));
-    }
+        => ParseAssertions.Single<CreateProcedureStatement>(new AntlrPostgresParser().Parse(text).Statements);
 
     [Fact]
     public void CreateProcedure_NoArguments()

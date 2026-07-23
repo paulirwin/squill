@@ -1,4 +1,5 @@
 using Squill.Core;
+using Squill.TestFramework;
 using Squill.MariaDbParser;
 
 namespace Squill.Provider.MariaDb.Tests;
@@ -11,14 +12,11 @@ namespace Squill.Provider.MariaDb.Tests;
 /// </summary>
 public class CreateFunctionModelTests
 {
-    private static async Task<Model> BuildModelAsync(string sql)
-    {
-        var workspace = new Workspace();
-        workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
-
-        return (await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser())
-            .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
-    }
+    private static Task<Model> BuildModelAsync(string sql)
+        => WorkspaceModelBuilding.BuildModelAsync(
+            sql,
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser()),
+            TestContext.Current.CancellationToken);
 
     private static async Task<Element> BuildFunctionAsync(string sql)
     {

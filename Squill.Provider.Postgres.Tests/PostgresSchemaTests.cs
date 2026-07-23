@@ -1,5 +1,6 @@
 using Squill.Core;
 using Squill.PostgresParser;
+using Squill.TestFramework;
 
 namespace Squill.Provider.Postgres.Tests;
 
@@ -22,14 +23,10 @@ public class PostgresSchemaTests
             options ?? new DeployOptions { BlockOnPossibleDataLoss = false });
     }
 
-    private static async Task<Model> BuildModelAsync(string sql)
-    {
-        var parser = new AntlrPostgresParser();
-        var workspace = new Workspace();
-        workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
-
-        return (await new ParserWorkspaceModelBuilder(workspace, parser).ExtractModelAsync()).Model;
-    }
+    private static Task<Model> BuildModelAsync(string sql)
+        => WorkspaceModelBuilding.BuildModelAsync(
+            sql,
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrPostgresParser()));
 
     [Fact]
     public async Task CreateSchema_EmitsCreateSchemaDdl()

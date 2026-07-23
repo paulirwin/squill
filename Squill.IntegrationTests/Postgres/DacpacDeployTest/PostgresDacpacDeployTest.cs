@@ -61,8 +61,8 @@ public class PostgresDacpacDeployTest : PostgresIntegrationTestBase
                 var deployedModel = await dbModelBuilder.ExtractModelAsync(ct);
 
                 Assert.Equal(
-                    ElementHashMultiset(dacpacModel),
-                    ElementHashMultiset(deployedModel));
+                    ModelAssertions.ElementHashMultiset(dacpacModel),
+                    ModelAssertions.ElementHashMultiset(deployedModel));
             }
             finally
             {
@@ -224,8 +224,8 @@ public class PostgresDacpacDeployTest : PostgresIntegrationTestBase
                     .ExtractModelAsync(ct);
 
                 Assert.Equal(
-                    ElementHashMultiset(dacpacModel),
-                    ElementHashMultiset(deployedModel));
+                    ModelAssertions.ElementHashMultiset(dacpacModel),
+                    ModelAssertions.ElementHashMultiset(deployedModel));
             }
             finally
             {
@@ -289,36 +289,16 @@ public class PostgresDacpacDeployTest : PostgresIntegrationTestBase
                 "Squill.IntegrationTests.Postgres.DacpacDeployTest.Schema.sql", FileKind.Compile)
             .ReadAllTextAsync(ct);
 
-        var sqlPath = Path.Combine(dir, "Schema.sql");
-        await File.WriteAllTextAsync(sqlPath, schema, ct);
-
-        var dacpacPath = Path.Combine(dir, "bin", "TestDb.dacpac");
-        var workspace = DacpacBuilder.CreateWorkspace([sqlPath]);
-        var metadata = new ModelMetadata
-        {
-            ProviderName = "Postgresql",
-            Name = "TestDb",
-            TargetMajorVersion = targetMajorVersion,
-        };
-        await DacpacBuilder.BuildToFileAsync(workspace, metadata, dacpacPath, ct);
-
-        return dacpacPath;
-    }
-
-    // The sorted multiset of each top-level element's hash, as hex strings so the
-    // collection compares by value. Order-independent by construction — the parser and
-    // the database model builder emit elements in different orders.
-    private static List<string> ElementHashMultiset(Model model)
-        => model.Elements
-            .Select(e => Convert.ToHexString(e.Hash))
-            .OrderBy(h => h, StringComparer.Ordinal)
-            .ToList();
-
-    // An IProgress<string> that records every reported message, so tests can assert on
-    // the progress the deployer surfaces.
-    private sealed class CollectingProgress(List<string> messages) : IProgress<string>
-    {
-        public void Report(string value) => messages.Add(value);
+        return await DacpacTestBuilder.BuildToFileAsync(
+            dir,
+            schema,
+            "Postgresql",
+            ws => new Squill.Provider.Postgres.ParserWorkspaceModelBuilder(
+                ws, new Squill.PostgresParser.AntlrPostgresParser()),
+            ct,
+            label: "Schema",
+            targetMajorVersion: targetMajorVersion,
+            outputSubdirectory: "bin");
     }
 }
 

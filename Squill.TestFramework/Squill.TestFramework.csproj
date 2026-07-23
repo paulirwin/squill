@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Testcontainers.PostgreSql" Version="4.13.0" />
+        <PackageReference Include="Testcontainers.MariaDb" Version="4.13.0" />
+        <PackageReference Include="Testcontainers.MySql" Version="4.13.0" />
+        <PackageReference Include="xunit.v3.extensibility.core" Version="3.2.2" />
+        <PackageReference Include="xunit.v3.assert" Version="3.2.2" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Squill.Dacpac\Squill.Dacpac.csproj" />
+        <ProjectReference Include="..\Squill.Provider.Postgres\Squill.Provider.Postgres.csproj" />
+        <ProjectReference Include="..\Squill.Provider.MariaDb\Squill.Provider.MariaDb.csproj" />
+    </ItemGroup>
+
+</Project>

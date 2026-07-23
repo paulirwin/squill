@@ -29,26 +29,15 @@ public abstract class MariaDbDacpacDeployTests
         );
         """;
 
-    private async Task<string> BuildDacpacAsync(
+    private Task<string> BuildDacpacAsync(
         string directory, CancellationToken ct, int? targetMajorVersion = null)
-    {
-        var sqlPath = Path.Combine(directory, "schema.sql");
-        await File.WriteAllTextAsync(sqlPath, SchemaSql, ct);
-
-        var workspace = DacpacBuilder.CreateWorkspace(new[] { sqlPath });
-        var metadata = new ModelMetadata
-        {
-            Name = "TestDb",
-            Version = "1.0.0.0",
-            ProviderName = Fixture.ProviderName,
-            TargetMajorVersion = targetMajorVersion,
-        };
-
-        var dacpacPath = Path.Combine(directory, "TestDb.dacpac");
-        await DacpacBuilder.BuildToFileAsync(workspace, metadata, dacpacPath, ct);
-
-        return dacpacPath;
-    }
+        => DacpacTestBuilder.BuildToFileAsync(
+            directory,
+            SchemaSql,
+            Fixture.ProviderName,
+            ws => new ParserWorkspaceModelBuilder(ws, new Squill.MariaDbParser.AntlrMariaDbParser()),
+            ct,
+            targetMajorVersion: targetMajorVersion);
 
     [Fact]
     public async Task DeployFromFile_DeploysDacpacSchema_ToTargetDatabase()
@@ -89,7 +78,7 @@ public abstract class MariaDbDacpacDeployTests
                     .CreateDatabaseModelBuilder(createdDb)
                     .ExtractModelAsync(ct);
 
-                Assert.Equal(ElementHashMultiset(dacpacModel), ElementHashMultiset(deployedModel));
+                Assert.Equal(ModelAssertions.ElementHashMultiset(dacpacModel), ModelAssertions.ElementHashMultiset(deployedModel));
             }
             finally
             {
@@ -183,15 +172,6 @@ public abstract class MariaDbDacpacDeployTests
         }
     }
 
-    // A stable, order-independent fingerprint of a model's elements, so two models with the
-    // same objects match regardless of element order.
-    private static IEnumerable<string> ElementHashMultiset(Model model)
-        => model.Elements.Select(e => Convert.ToHexString(e.Hash)).OrderBy(h => h, StringComparer.Ordinal);
-
-    private sealed class CollectingProgress(List<string> messages) : IProgress<string>
-    {
-        public void Report(string value) => messages.Add(value);
-    }
 }
 
 public sealed class MariaDbDacpacDeployTestsMariaDb(MariaDbFixture fixture)

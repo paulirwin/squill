@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Squill.Core;
 using Squill.PostgresParser;
+using Squill.TestFramework;
 
 namespace Squill.Provider.Postgres.Tests;
 
@@ -36,14 +37,10 @@ public class PostgresTableAlterTests
         return SchemaCompare.Compare(provider, source, target, options);
     }
 
-    private static async Task<Model> BuildModelAsync(string sql)
-    {
-        var parser = new AntlrPostgresParser();
-        var workspace = new Workspace();
-        workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
-
-        return (await new ParserWorkspaceModelBuilder(workspace, parser).ExtractModelAsync()).Model;
-    }
+    private static Task<Model> BuildModelAsync(string sql)
+        => WorkspaceModelBuilding.BuildModelAsync(
+            sql,
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrPostgresParser()));
 
     [Fact]
     public void DiffTable_HashDiffersButColumnsIdentical_ThrowsClearDiagnostic()

@@ -1,4 +1,5 @@
 using Squill.Core;
+using Squill.TestFramework;
 using Squill.MariaDbParser;
 
 namespace Squill.Provider.MariaDb.Tests;
@@ -8,14 +9,11 @@ public class CreateViewModelTests
     private const string Users =
         "CREATE TABLE users (id int PRIMARY KEY, name varchar(50), active tinyint(1));";
 
-    private static async Task<Model> BuildModelAsync(string sql)
-    {
-        var workspace = new Workspace();
-        workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
-
-        return (await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser())
-            .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
-    }
+    private static Task<Model> BuildModelAsync(string sql)
+        => WorkspaceModelBuilding.BuildModelAsync(
+            sql,
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser()),
+            TestContext.Current.CancellationToken);
 
     private static async Task<Element> BuildViewAsync(string sql)
     {
