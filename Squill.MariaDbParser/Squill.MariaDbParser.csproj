@@ -12,6 +12,10 @@
           code we do not hand-edit, so suppress it rather than add the `new` keyword.
         -->
         <NoWarn>$(NoWarn);CS0108</NoWarn>
+
+        <IsPackable>true</IsPackable>
+        <Description>ANTLR4-based MariaDB/MySQL DDL parser for Squill. Parses CREATE statements into a typed syntax tree used to build a Squill model without a live database.</Description>
+        <PackageTags>squill;mariadb;mysql;sql;parser;antlr;ddl</PackageTags>
     </PropertyGroup>
 
     <ItemGroup>

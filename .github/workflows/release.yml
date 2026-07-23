@@ -1,0 +1,56 @@
+# Packs every shippable Squill project and pushes the packages to NuGet.org.
+#
+# Triggers on a version tag (e.g. `v0.1.0`) so a release is cut by tagging a commit:
+#   git tag v0.1.0 && git push origin v0.1.0
+# The tag is informational here; the version that ships is the <Version> in
+# Directory.Build.props. Keep them in sync when tagging. Can also be run manually
+# from the Actions tab (workflow_dispatch) to re-push after a failure.
+#
+# Requires a repository secret NUGET_API_KEY with push rights to the Squill* package
+# IDs on nuget.org.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      with:
+        dotnet-version: 10.0.x
+
+    - name: Restore
+      run: dotnet restore Squill.slnx
+
+    # Build once in Release; pack --no-build reuses this output so the packed DLLs are
+    # exactly what was compiled and (implicitly) what the test job on main validated.
+    - name: Build
+      run: dotnet build Squill.slnx --configuration Release --no-restore
+
+    # Pack every project that opts into packing (IsPackable / PackAsTool / Template).
+    # Non-packable projects (tests, demo, Squill.Build, samples) produce no package.
+    - name: Pack
+      run: dotnet pack Squill.slnx --configuration Release --no-build --output ${{ runner.temp }}/packages
+
+    - name: List packages
+      run: ls -la ${{ runner.temp }}/packages
+
+    # Push every .nupkg and its .snupkg symbol package. --skip-duplicate makes a re-run
+    # idempotent: packages already on the feed (e.g. from a partial earlier push) are
+    # skipped instead of failing the whole job.
+    - name: Push to NuGet.org
+      run: |
+        dotnet nuget push "${{ runner.temp }}/packages/*.nupkg" \
+          --api-key "${{ secrets.NUGET_API_KEY }}" \
+          --source https://api.nuget.org/v3/index.json \
+          --skip-duplicate

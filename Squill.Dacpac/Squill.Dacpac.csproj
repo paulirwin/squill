@@ -5,6 +5,10 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+        <IsPackable>true</IsPackable>
+        <Description>DACPAC serialization for Squill. Reads and writes the DACPAC zip format (model.xml, Origin.xml, metadata) and the provider-dispatch layer that routes deploy/script to the recorded provider.</Description>
+        <PackageTags>squill;dacpac;sql;deployment;ssdt</PackageTags>
     </PropertyGroup>
 
     <ItemGroup>

@@ -4,6 +4,10 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+
+        <IsPackable>true</IsPackable>
+        <Description>PostgreSQL .NET Aspire hosting integration for Squill. Build and deploy a Squill DACPAC against a Postgres resource from your Aspire AppHost.</Description>
+        <PackageTags>squill;aspire;dotnet-aspire;postgresql;dacpac;sql;deployment</PackageTags>
     </PropertyGroup>
 
     <ItemGroup>

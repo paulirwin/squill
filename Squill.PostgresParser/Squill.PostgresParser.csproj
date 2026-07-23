@@ -5,6 +5,10 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+        <IsPackable>true</IsPackable>
+        <Description>ANTLR4-based PostgreSQL DDL parser for Squill. Parses CREATE statements into a typed syntax tree used to build a Squill model without a live database.</Description>
+        <PackageTags>squill;postgresql;sql;parser;antlr;ddl</PackageTags>
     </PropertyGroup>
 
     <ItemGroup>

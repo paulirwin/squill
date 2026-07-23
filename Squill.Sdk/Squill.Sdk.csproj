@@ -9,9 +9,12 @@
         <NoBuild>false</NoBuild>
         <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
 
+        <!-- This package ships no compiled assembly of its own, so there are no
+             symbols to package. The repo-wide IncludeSymbols from Directory.Build.props
+             would otherwise try to emit an empty .snupkg and fail with NU5017. -->
+        <IncludeSymbols>false</IncludeSymbols>
+
         <PackageId>Squill.Sdk</PackageId>
-        <Version>0.0.1</Version>
-        <Authors>Paul Irwin</Authors>
         <Description>MSBuild project SDK for Squill (.squillproj) projects. Building a project that references this SDK produces a DACPAC from declarative .sql files, like SSDT.</Description>
         <PackageTags>sdk;msbuild;squill;dacpac;postgresql;sql</PackageTags>
 
