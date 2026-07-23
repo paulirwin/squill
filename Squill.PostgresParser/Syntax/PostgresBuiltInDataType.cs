@@ -23,5 +23,7 @@ public enum PostgresBuiltInDataType
     TSVector,
     TSQuery,
     Boolean,
-    ByteArray
+    ByteArray,
+    Bit,
+    BitVarying
 }

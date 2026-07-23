@@ -66,4 +66,34 @@ public static class RoundTripHarness
             await testDb.DropAsync(cancellationToken);
         }
     }
+
+    /// <summary>
+    /// Parses <paramref name="sql"/> with the supplied provider's model builder and round-trips
+    /// it through a fresh database, asserting the parsed and re-extracted models hash-match. This
+    /// is the "build model, then round-trip" composition each provider's data-type test declared
+    /// as its own private helper — the only per-provider parts are the model-builder factory and
+    /// the engine label.
+    /// </summary>
+    /// <param name="provider">The database provider to deploy against.</param>
+    /// <param name="modelBuilderFactory">Builds the provider's ANTLR-backed workspace model builder.</param>
+    /// <param name="sql">The declarative SQL to parse and deploy.</param>
+    /// <param name="engineName">A label for assertion messages (e.g. the engine name).</param>
+    /// <param name="assertRedeployNoOp">
+    /// When true, also asserts that redeploying the same source against the re-extracted model is
+    /// a no-op.
+    /// </param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    public static async Task<Model> AssertRoundTripAsync(
+        IDatabaseProvider provider,
+        Func<Workspace, IWorkspaceModelBuilder> modelBuilderFactory,
+        string sql,
+        string engineName,
+        bool assertRedeployNoOp = false,
+        CancellationToken cancellationToken = default)
+    {
+        var model = await WorkspaceModelBuilding.BuildModelAsync(sql, modelBuilderFactory, cancellationToken);
+
+        return await AssertRoundTripAsync(
+            provider, model, engineName, assertRedeployNoOp, cancellationToken);
+    }
 }

@@ -331,7 +331,7 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
 
         var modifiers = new List<long>();
 
-        if (IsCharacterType(dataType) && maxLength.HasValue)
+        if (IsLengthType(dataType) && maxLength.HasValue)
         {
             modifiers.Add(maxLength.Value);
         }
@@ -413,9 +413,10 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
                 }
             };
 
-            // A character type carries its length; a numeric(p,s) type carries precision and
-            // scale. These mirror what the parser builder records so both sides hash-match.
-            if (IsCharacterType(dataType) && maxLength.HasValue)
+            // A character/binary type carries its length; a numeric(p,s) type carries
+            // precision and scale. These mirror what the parser builder records so both
+            // sides hash-match.
+            if (IsLengthType(dataType) && maxLength.HasValue)
             {
                 typeElement.Properties.Add(new Property(MariaDbPropertyNames.Length, (int)maxLength.Value));
             }
@@ -731,8 +732,15 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
             _ => throw new InvalidOperationException($"Unknown referential rule: {rule}"),
         };
 
+    // Character types, whose column defaults are string literals that MySQL reports unquoted.
     private static bool IsCharacterType(string dataType)
         => dataType is "char" or "varchar";
+
+    // Types whose single modifier is a length: character types and binary types. The length
+    // must be carried through so a `varbinary`, which requires an explicit length, can be
+    // recreated (issue #97).
+    private static bool IsLengthType(string dataType)
+        => IsCharacterType(dataType) || dataType is "binary" or "varbinary";
 
     private static bool IsDecimalType(string dataType)
         => dataType is "decimal" or "numeric";

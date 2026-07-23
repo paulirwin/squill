@@ -1460,12 +1460,22 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             // A length-less character varying scripts as a bare `varchar`; Postgres has
             // no `varchar(MAX)` (that is SQL-Server syntax).
             "character varying" => maxLength != null ? $"varchar({maxLength})" : "varchar",
+            // A fixed-length `character(n)` scripts with its length; a bare `character`
+            // is char(1). Without the length the column would be created as char(1) and
+            // the round-trip would disagree with the source (issue #97).
+            "character" => maxLength != null ? $"char({maxLength})" : "char",
             // A custom type carrying a length modifier (e.g. pgvector's vector(3), where
             // Length holds the dimension) scripts with that modifier in parentheses.
             "vector" when maxLength != null => $"vector({maxLength})",
             // A `numeric(p, s)` column scripts with its precision and scale; a bare
             // `numeric` (no Precision property) stays unconstrained (issue #33).
             "numeric" when precision != null => $"numeric({precision}, {scale ?? 0})",
+            // Bit-string types script with their length in parentheses. A bare `bit`
+            // is fixed-length bit(1) and `bit varying` without a length is unbounded, so
+            // the length is emitted only when present (issue #97).
+            // https://www.postgresql.org/docs/current/datatype-bit.html
+            "bit" => maxLength != null ? $"bit({maxLength})" : "bit",
+            "bit varying" => maxLength != null ? $"bit varying({maxLength})" : "bit varying",
             _ => typeReference.Name,
         };
     }

@@ -1152,13 +1152,18 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
     private static Relationship BuildTypeSpecifier(DataType dataType)
     {
+        // Canonicalize aliases the engines report under a different spelling — e.g.
+        // `integer`->`int`, `numeric`/`dec`/`fixed`->`decimal` — so a column's parsed type
+        // name matches the DATA_TYPE the DB reports and the two models hash-match (issue #97).
+        var canonicalTypeName = MariaDbTypeNormalizer.Canonicalize(dataType.TypeName);
+
         var typeSpec = new Element(MariaDbElementTypes.SqlTypeSpecifier)
         {
             Relationships =
             {
                 new Relationship(MariaDbRelationshipNames.Type)
                 {
-                    new Reference(dataType.TypeName)
+                    new Reference(canonicalTypeName)
                     {
                         ExternalSource = "BuiltIns",
                     }
@@ -1166,13 +1171,13 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             }
         };
 
-        // A character type carries a single length modifier; a decimal type carries
+        // A character/binary type carries a single length modifier; a decimal type carries
         // precision and scale. These mirror the DB extractor so both sides hash-match.
-        if (IsCharacterType(dataType.TypeName) && dataType.Modifiers.Count == 1)
+        if (IsLengthType(canonicalTypeName) && dataType.Modifiers.Count == 1)
         {
             typeSpec.Properties.Add(new Property(MariaDbPropertyNames.Length, (int)dataType.Modifiers[0]));
         }
-        else if (IsDecimalType(dataType.TypeName) && dataType.Modifiers.Count >= 1)
+        else if (IsDecimalType(canonicalTypeName) && dataType.Modifiers.Count >= 1)
         {
             var precision = dataType.Modifiers[0];
             var scale = dataType.Modifiers.Count > 1 ? dataType.Modifiers[1] : 0;
@@ -1429,8 +1434,11 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     private static SqlName TableName(QualifiedName qualifiedName)
         => SqlName.Object(qualifiedName.Name);
 
-    private static bool IsCharacterType(string typeName)
-        => typeName is "char" or "varchar";
+    // Types whose single modifier is a length: character types and binary types. `binary`
+    // defaults to length 1 when omitted, but `varbinary` requires an explicit length, so the
+    // length must be carried through to the generated DDL or the column fails to create.
+    private static bool IsLengthType(string typeName)
+        => typeName is "char" or "varchar" or "binary" or "varbinary";
 
     private static bool IsDecimalType(string typeName)
         => typeName is "decimal" or "numeric" or "dec" or "fixed";
