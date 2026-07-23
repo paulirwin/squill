@@ -5,6 +5,10 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+        <IsPackable>true</IsPackable>
+        <Description>PostgreSQL provider for Squill. Extracts a model from a live database via Npgsql, generates deployment scripts, and builds a model from parsed SQL. Implements the Squill.Core provider abstractions for Postgres.</Description>
+        <PackageTags>squill;postgresql;npgsql;sql;deployment;dacpac</PackageTags>
     </PropertyGroup>
 
     <ItemGroup>

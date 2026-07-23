@@ -12,9 +12,12 @@
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <NoDefaultExcludes>true</NoDefaultExcludes>
 
+    <!-- Content-only template pack: no compiled assembly, so no symbols. The repo-wide
+         IncludeSymbols from Directory.Build.props would otherwise emit an empty .snupkg
+         and fail with NU5017. -->
+    <IncludeSymbols>false</IncludeSymbols>
+
     <PackageId>Squill.Templates</PackageId>
-    <Version>0.0.1</Version>
-    <Authors>Paul Irwin</Authors>
     <Title>Squill Database Project Templates</Title>
     <Description>`dotnet new` templates for Squill (.squillproj) database projects. After installing, run `dotnet new squill` to scaffold a declarative Squill database project that builds a DACPAC.</Description>
     <PackageTags>dotnet-new;templates;squill;dacpac;postgresql;mariadb;mysql;sql</PackageTags>

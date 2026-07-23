@@ -5,6 +5,10 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+        <IsPackable>true</IsPackable>
+        <Description>Core, database-agnostic model and schema-comparison engine for Squill. The generic Model/Element/Property graph, Merkle-tree hashing, and the IDatabaseProvider abstractions shared by all Squill providers.</Description>
+        <PackageTags>squill;dacpac;sql;schema;deployment;ssdt</PackageTags>
     </PropertyGroup>
 
 </Project>

@@ -1,0 +1,50 @@
+<Project>
+
+  <!--
+    Shared build + NuGet packaging metadata for the whole repo. Individual projects
+    opt in to packing (IsPackable=true or a package-shaped SDK/PackageType) and may
+    override any of these. A single <Version> here versions every shipped package in
+    lockstep; bump it in one place to cut a release.
+  -->
+  <PropertyGroup>
+    <Version>0.0.1</Version>
+
+    <Authors>Paul Irwin</Authors>
+    <Company>Paul Irwin</Company>
+    <Product>Squill</Product>
+    <Copyright>Copyright © Paul Irwin</Copyright>
+
+    <PackageProjectUrl>https://github.com/paulirwin/squill</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/paulirwin/squill.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+
+    <!-- Embed source-link metadata and a SNUPKG symbol package for debuggable releases. -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <!--
+    Ship a README and the LICENSE inside every package. Only added to projects that
+    actually pack so test/demo projects stay clean. A project that has its own
+    README.md keeps it (curated per-package copy); otherwise it falls back to the repo
+    root README. PackageReadmeFile is set to that same file so NuGet renders it.
+    PackageLicenseExpression already declares the license, so LICENSE is carried for
+    offline reference only.
+  -->
+  <PropertyGroup Condition="'$(IsPackable)' == 'true' Or '$(PackAsTool)' == 'true' Or '$(PackageType)' == 'Template'">
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup Condition="('$(IsPackable)' == 'true' Or '$(PackAsTool)' == 'true' Or '$(PackageType)' == 'Template')">
+    <!-- Per-project README if present, else the repo-root README. -->
+    <None Condition="Exists('$(MSBuildProjectDirectory)/README.md')"
+          Include="$(MSBuildProjectDirectory)/README.md" Pack="true" PackagePath="\" Visible="false" />
+    <None Condition="!Exists('$(MSBuildProjectDirectory)/README.md')"
+          Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
+
+</Project>

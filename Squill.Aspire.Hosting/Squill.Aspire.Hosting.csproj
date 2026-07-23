@@ -4,6 +4,10 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+
+        <IsPackable>true</IsPackable>
+        <Description>.NET Aspire hosting integration for Squill. A provider-neutral core that lets an Aspire AppHost build and deploy a Squill DACPAC as part of the application model. Use the provider-specific Squill.Aspire.Hosting.PostgreSQL or Squill.Aspire.Hosting.MariaDb package.</Description>
+        <PackageTags>squill;aspire;dotnet-aspire;dacpac;sql;deployment</PackageTags>
     </PropertyGroup>
 
     <ItemGroup>
