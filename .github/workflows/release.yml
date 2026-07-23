@@ -46,15 +46,22 @@ jobs:
     - name: Restore
       run: dotnet restore Squill.slnx
 
-    # Build once in Release; pack --no-build reuses this output so the packed DLLs are
-    # exactly what was compiled and (implicitly) what the test job on main validated.
+    # Build once in Release so the compiled output exists and (implicitly) matches
+    # what the test job on main validated.
     - name: Build
       run: dotnet build Squill.slnx --configuration Release --no-restore
 
     # Pack every project that opts into packing (IsPackable / PackAsTool / Template).
     # Non-packable projects (tests, demo, Squill.Build, samples) produce no package.
+    #
+    # We deliberately do NOT pass --no-build here. Squill.Build sets
+    # CopyLocalLockFileAssemblies (its runtime deps are shipped inside Squill.Sdk),
+    # which makes solution-level pack invoke that project's Build target; with
+    # --no-build's NoBuild=true that combination fails with NETSDK1085. Since the
+    # Build step above already compiled everything, this pack is a fast incremental
+    # no-op rebuild rather than a fresh compile, and it packs the same output.
     - name: Pack
-      run: dotnet pack Squill.slnx --configuration Release --no-build --output ${{ runner.temp }}/packages
+      run: dotnet pack Squill.slnx --configuration Release --no-restore --output ${{ runner.temp }}/packages
 
     - name: List packages
       run: ls -la ${{ runner.temp }}/packages
