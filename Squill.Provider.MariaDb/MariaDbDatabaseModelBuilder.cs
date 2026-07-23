@@ -1,5 +1,6 @@
 using Squill.Core;
 using Squill.MariaDbParser.Syntax;
+using ForeignKeyAccumulator = Squill.Core.ForeignKeyAccumulator<Squill.Provider.MariaDb.SqlName, Squill.MariaDbParser.Syntax.ReferentialAction>;
 
 namespace Squill.Provider.MariaDb;
 
@@ -701,23 +702,6 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
         }
     }
 
-    private sealed class ForeignKeyAccumulator
-    {
-        public ForeignKeyAccumulator(SqlName referencedTable,
-            ReferentialAction onDelete,
-            ReferentialAction onUpdate)
-        {
-            ReferencedTable = referencedTable;
-            OnDelete = onDelete;
-            OnUpdate = onUpdate;
-        }
-
-        public SqlName ReferencedTable { get; }
-        public ReferentialAction OnDelete { get; }
-        public ReferentialAction OnUpdate { get; }
-        public List<SqlName> Columns { get; } = new();
-        public List<SqlName> ReferencedColumns { get; } = new();
-    }
 
     // REFERENTIAL_CONSTRAINTS reports the rule as text (e.g. "CASCADE", "SET NULL",
     // "RESTRICT", "NO ACTION"). MariaDB treats NO ACTION as RESTRICT and reports RESTRICT.
@@ -734,7 +718,7 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
 
     // Character types, whose column defaults are string literals that MySQL reports unquoted.
     private static bool IsCharacterType(string dataType)
-        => dataType is "char" or "varchar";
+        => MariaDbTypeCategories.IsCharacterType(dataType);
 
     // Types whose single modifier is a length: character types and binary types. The length
     // must be carried through so a `varbinary`, which requires an explicit length, can be
@@ -743,5 +727,5 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
         => IsCharacterType(dataType) || dataType is "binary" or "varbinary";
 
     private static bool IsDecimalType(string dataType)
-        => dataType is "decimal" or "numeric";
+        => MariaDbTypeCategories.IsDecimalType(dataType);
 }
