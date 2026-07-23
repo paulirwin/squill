@@ -476,6 +476,56 @@ public static class PostgresModelFactory
     }
 
     /// <summary>
+    /// Builds a trigger element (issue #83).
+    ///
+    /// A trigger's identity is its name (scoped to the table, so folded into the element Name
+    /// as <c>schema.table.trigger</c> to keep same-named triggers on different tables
+    /// distinct), the table it fires on, and its behavior facets: <paramref name="timing"/>
+    /// (BEFORE/AFTER/INSTEAD OF), <paramref name="events"/> (the canonical OR'd event list),
+    /// <paramref name="level"/> (ROW/STATEMENT) and the function it executes
+    /// (<paramref name="triggerFunction"/>, schema-qualified) with its literal
+    /// <paramref name="functionArguments"/>. All of these round-trip faithfully through
+    /// <c>pg_get_triggerdef</c>, so a parsed model hash-matches one extracted from a live
+    /// database. The trigger carries its table's <paramref name="schema"/> so it can be
+    /// schema-scoped for identity and dependency ordering.
+    /// </summary>
+    public static Element CreateTrigger(
+        string schema,
+        string triggerName,
+        SqlName table,
+        string timing,
+        string events,
+        string level,
+        string triggerFunction,
+        string functionArguments)
+    {
+        return new Element(PostgresElementTypes.SqlTrigger)
+        {
+            Name = SqlName.Object(schema, $"{table.UnqualifiedName}.{triggerName}"),
+            Relationships =
+            {
+                new Relationship(PostgresRelationshipNames.Schema)
+                {
+                    new Reference(schema) { ExternalSource = "BuiltIns" }
+                },
+                new Relationship(PostgresRelationshipNames.TriggerTable)
+                {
+                    new Reference(table)
+                },
+            },
+            Properties =
+            {
+                new Property(PostgresPropertyNames.RoutineName, triggerName),
+                new Property(PostgresPropertyNames.Timing, timing),
+                new Property(PostgresPropertyNames.Events, events),
+                new Property(PostgresPropertyNames.Level, level),
+                new Property(PostgresPropertyNames.TriggerFunction, triggerFunction),
+                new Property(PostgresPropertyNames.FunctionArguments, functionArguments),
+            },
+        };
+    }
+
+    /// <summary>
     /// Builds a view element (issue #42).
     ///
     /// A view's identity is its name and its ordered column list — the two facets

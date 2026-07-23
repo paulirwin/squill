@@ -46,7 +46,8 @@ public class PostgresDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
             or PostgresElementTypes.SqlEnumType
             or PostgresElementTypes.SqlDomain
             or PostgresElementTypes.SqlFunction
-            or PostgresElementTypes.SqlAggregate))
+            or PostgresElementTypes.SqlAggregate
+            or PostgresElementTypes.SqlTrigger))
         {
             return null;
         }
@@ -65,21 +66,26 @@ public class PostgresDatabaseDependencyAnalyzer : IDatabaseDependencyAnalyzer
         // are typed as it — same rank as an extension: after the schema, before tables.
         PostgresElementTypes.SqlEnumType => 1,
         PostgresElementTypes.SqlDomain => 1,
-        // A procedure body may reference any table, so it is created after them. Its body
-        // is not parsed for dependencies, so this ordering is what makes a procedure that
-        // reads or writes a table in the same deploy work.
-        PostgresElementTypes.SqlProcedure => 4,
-        // A function, like a procedure, may reference any table in its body, so it is
-        // created after tables (issue #81). Note: a view or another function that calls this
-        // function would need it created first; body dependencies are not parsed, so that
-        // cross-object ordering (function-before-view/aggregate) is a known follow-up.
-        PostgresElementTypes.SqlFunction => 4,
+        // A function may reference any table in its body, so it is created after tables
+        // (issue #81). It comes before views and aggregates, which may call it — a view that
+        // uses group_concat or a plain function, or an aggregate's SFUNC, needs the function
+        // to exist first. Body dependencies are not parsed, so this rank ordering is what
+        // sequences those cross-object dependencies on deploy.
+        PostgresElementTypes.SqlFunction => 3,
         // An aggregate references its state function (SFUNC), so it must be created after
-        // functions (issue #82). Rank 5 puts it after both tables and functions.
-        PostgresElementTypes.SqlAggregate => 5,
-        // A view selects from tables (and may select from another view), so it is created
-        // after them and before procedures, whose bodies may in turn query a view.
-        PostgresElementTypes.SqlView => 3,
+        // functions (issue #82), and before a view that uses the aggregate.
+        PostgresElementTypes.SqlAggregate => 4,
+        // A view selects from tables and may call a function or aggregate (e.g. Pagila's
+        // views build on the group_concat aggregate), so it is created after both. It comes
+        // before procedures, whose bodies may in turn query a view.
+        PostgresElementTypes.SqlView => 5,
+        // A procedure body may reference any table or view, so it is created after them. Its
+        // body is not parsed for dependencies, so this ordering is what makes a procedure that
+        // reads or writes a table or view in the same deploy work.
+        PostgresElementTypes.SqlProcedure => 6,
+        // A trigger depends on both its table and the function it runs, so it is created after
+        // everything else, including functions, aggregates and views (issue #83).
+        PostgresElementTypes.SqlTrigger => 7,
         _ => 2,
     };
 

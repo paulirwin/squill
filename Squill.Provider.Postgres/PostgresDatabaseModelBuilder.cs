@@ -101,6 +101,10 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         // orders aggregates after functions and procedures (issue #82).
         await ExtractAggregatesAsync(model, cancellationToken);
 
+        // Triggers come after everything: one depends on both its table and the function it
+        // runs. This matches the parser builder's MoveTriggersToEnd (issue #83).
+        await ExtractTriggersAsync(model, cancellationToken);
+
         return model;
     }
 
@@ -657,6 +661,84 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         foreach (var aggregate in aggregates)
         {
             model.Elements.Add(aggregate);
+        }
+    }
+
+    private async Task ExtractTriggersAsync(Model model, CancellationToken cancellationToken = default)
+    {
+        // pg_trigger.tgtype is a bitmask (see the TRIGGER_TYPE_* macros): bit 0 = ROW,
+        // bit 1 = BEFORE, bit 2 = INSERT, bit 3 = DELETE, bit 4 = UPDATE, bit 5 = TRUNCATE,
+        // bit 6 = INSTEAD. Internal triggers (tgisinternal, e.g. those implementing FK
+        // constraints) are excluded — they are managed by their constraint, not declared. The
+        // event list is rendered in the same fixed order the parser builder uses
+        // (INSERT, DELETE, UPDATE, TRUNCATE) so the two models hash-match.
+        //
+        // tgargs is a bytea of null-terminated argument strings; string_to_array on the text
+        // splits them and a trailing empty element (from the final terminator) is trimmed. The
+        // arguments are re-joined with ', ' to match the parser builder's storage.
+        const string sql =
+            """
+            SELECT n.nspname AS schema_name,
+                   c.relname AS table_name,
+                   t.tgname AS trigger_name,
+                   CASE
+                       WHEN (t.tgtype & 64) <> 0 THEN 'INSTEAD OF'
+                       WHEN (t.tgtype & 2) <> 0 THEN 'BEFORE'
+                       ELSE 'AFTER'
+                   END AS timing,
+                   array_to_string(ARRAY[]::text[]
+                       || CASE WHEN (t.tgtype & 4)  <> 0 THEN ARRAY['INSERT']   ELSE ARRAY[]::text[] END
+                       || CASE WHEN (t.tgtype & 8)  <> 0 THEN ARRAY['DELETE']   ELSE ARRAY[]::text[] END
+                       || CASE WHEN (t.tgtype & 16) <> 0 THEN ARRAY['UPDATE']   ELSE ARRAY[]::text[] END
+                       || CASE WHEN (t.tgtype & 32) <> 0 THEN ARRAY['TRUNCATE'] ELSE ARRAY[]::text[] END,
+                       ' OR ') AS events,
+                   CASE WHEN (t.tgtype & 1) <> 0 THEN 'ROW' ELSE 'STATEMENT' END AS level,
+                   -- A function in public or pg_catalog (built-ins like tsvector_update_trigger
+                   -- live in the latter) is reported bare, matching the parser builder, which
+                   -- stores a bare function name unqualified so the search path resolves it.
+                   CASE WHEN fn.nspname IN ('public', 'pg_catalog') THEN p.proname
+                        ELSE fn.nspname || '.' || p.proname END AS trigger_function,
+                   COALESCE(
+                       array_to_string(
+                           (SELECT array_agg(a ORDER BY o)
+                            FROM unnest(
+                                (SELECT string_to_array(
+                                    encode(t.tgargs, 'escape'), E'\\000'))) WITH ORDINALITY AS ta(a, o)
+                            WHERE a <> ''),
+                           ', '), '') AS function_arguments
+            FROM pg_trigger t
+            JOIN pg_class c ON c.oid = t.tgrelid
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            JOIN pg_proc p ON p.oid = t.tgfoid
+            JOIN pg_namespace fn ON fn.oid = p.pronamespace
+            WHERE NOT t.tgisinternal
+              AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+            ORDER BY n.nspname COLLATE "C",
+                     c.relname COLLATE "C",
+                     t.tgname COLLATE "C";
+            """;
+
+        var triggers = new List<Element>();
+
+        await using (var reader = await _database.RunScriptReaderAsync(sql, cancellationToken: cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                triggers.Add(PostgresModelFactory.CreateTrigger(
+                    reader.GetString("schema_name"),
+                    reader.GetString("trigger_name"),
+                    SqlName.Object(reader.GetString("table_name")),
+                    reader.GetString("timing"),
+                    reader.GetString("events"),
+                    reader.GetString("level"),
+                    reader.GetString("trigger_function"),
+                    reader.GetString("function_arguments")));
+            }
+        }
+
+        foreach (var trigger in triggers)
+        {
+            model.Elements.Add(trigger);
         }
     }
 

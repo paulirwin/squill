@@ -144,6 +144,53 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         MoveRoutineKindToEnd(model, PostgresElementTypes.SqlFunction);
         MoveRoutineKindToEnd(model, PostgresElementTypes.SqlProcedure);
         MoveRoutineKindToEnd(model, PostgresElementTypes.SqlAggregate);
+
+        // Triggers come last of all: one depends on both its table and the function it runs,
+        // so it must be created after every table and routine. The DB-extraction builder
+        // likewise emits triggers last, in this same order, so the order-sensitive Merkle
+        // hash agrees between the two builders.
+        MoveTriggersToEnd(model);
+    }
+
+    // Triggers are moved to the end, ordered by schema, then table, then trigger name —
+    // matching the DB-extraction builder's ordering (COLLATE "C" on the same values) so a
+    // parsed model hash-matches an extracted one.
+    private static void MoveTriggersToEnd(Model model)
+    {
+        var triggers = model.Elements
+            .Where(i => i.Type == PostgresElementTypes.SqlTrigger)
+            .ToList();
+
+        if (triggers.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var trigger in triggers)
+        {
+            model.Elements.Remove(trigger);
+        }
+
+        foreach (var trigger in triggers
+                     .OrderBy(i => PostgresModelFactory.GetSchema(i), StringComparer.Ordinal)
+                     .ThenBy(i => TriggerTableName(i), StringComparer.Ordinal)
+                     .ThenBy(i => i.GetProperty<string>(PostgresPropertyNames.RoutineName), StringComparer.Ordinal))
+        {
+            model.Elements.Add(trigger);
+        }
+    }
+
+    // The bare name of the table a trigger fires on, read from its TriggerTable relationship.
+    private static string TriggerTableName(Element trigger)
+    {
+        var reference = trigger.GetRelationship(PostgresRelationshipNames.TriggerTable)
+            ?.Entries.OfType<Reference>().FirstOrDefault();
+
+        // The reference name may be schema-qualified (schema.table); the DB builder orders by
+        // the bare table name, so take the last segment.
+        var name = reference?.Name ?? string.Empty;
+        var dot = name.LastIndexOf('.');
+        return dot < 0 ? name : name[(dot + 1)..];
     }
 
     private static void MoveRoutineKindToEnd(Model model, string elementType)
@@ -266,6 +313,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         else if (statement is CreateAggregateStatement createAggregateStatement)
         {
             model.Elements.Add(MakeCreateAggregateElement(createAggregateStatement));
+        }
+        else if (statement is CreateTriggerStatement createTriggerStatement)
+        {
+            validator.AddCreateTrigger(file, createTriggerStatement);
+
+            model.Elements.Add(MakeCreateTriggerElement(createTriggerStatement));
         }
         else
         {
@@ -515,6 +568,29 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     file.Name, createFunctionStatement.Line, createFunctionStatement.Column,
                     $"Function '{schema}.{name.UnqualifiedName}'", schema));
             }
+        }
+
+        public void AddCreateTrigger(IFile file, CreateTriggerStatement createTriggerStatement)
+        {
+            var (schema, table) = SplitSchema(createTriggerStatement.Table);
+
+            // Schemas are declared objects (issue #37): a trigger on a table in a non-public
+            // schema needs that schema declared, or the deploy would fail.
+            if (!string.Equals(schema, "public", StringComparison.OrdinalIgnoreCase))
+            {
+                _schemaReferences.Add(new SchemaReference(
+                    file.Name, createTriggerStatement.Line, createTriggerStatement.Column,
+                    $"Trigger '{createTriggerStatement.Name}'", schema));
+            }
+
+            // The table the trigger fires on must be declared in the project, so an
+            // unresolved one is reported like any other unresolved reference. The function is
+            // not validated here: a trigger commonly runs a built-in (tsvector_update_trigger),
+            // which is not a declared object, so requiring one would reject valid schemas.
+            _tableReferences.Add(new TableReference(
+                file.Name, createTriggerStatement.Line, createTriggerStatement.Column,
+                $"Trigger '{createTriggerStatement.Name}'",
+                schema, table.UnqualifiedName, []));
         }
 
         public void AddCreateView(IFile file, CreateViewStatement createViewStatement)
@@ -1900,6 +1976,89 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             normalizedStateType,
             parameters);
     }
+
+    private static Element MakeCreateTriggerElement(CreateTriggerStatement statement)
+    {
+        var (schema, table) = SplitSchema(statement.Table);
+
+        if (statement.FunctionName is not { } functionName)
+        {
+            throw new InvalidOperationException("A trigger must declare a function to execute");
+        }
+
+        // The function is stored the way it was written: bare when unqualified, schema.name
+        // when qualified. A bare name is NOT force-qualified with the table's schema — the
+        // function is commonly a built-in (tsvector_update_trigger) that lives in pg_catalog,
+        // not public, and would be unresolvable if qualified with the wrong schema. Storing it
+        // bare lets PostgreSQL resolve it through the search path, and the DB-extraction
+        // builder likewise strips a public/pg_catalog prefix so both sides store the same bare
+        // name and hash-match.
+        var (functionSchema, functionBareName) = SplitSchema(functionName);
+
+        var storedFunction = functionName.Segments.Count > 1
+            ? $"{functionSchema}.{functionBareName.UnqualifiedName}"
+            : functionBareName.UnqualifiedName;
+
+        return PostgresModelFactory.CreateTrigger(
+            schema,
+            statement.Name,
+            table,
+            RenderTiming(statement.Timing),
+            RenderEvents(statement.Events),
+            RenderLevel(statement.Level),
+            storedFunction,
+            string.Join(", ", statement.FunctionArguments));
+    }
+
+    private static string RenderTiming(TriggerTiming timing) => timing switch
+    {
+        TriggerTiming.Before => "BEFORE",
+        TriggerTiming.After => "AFTER",
+        TriggerTiming.InsteadOf => "INSTEAD OF",
+        _ => throw new NotImplementedException($"Trigger timing {timing} is not supported"),
+    };
+
+    // Renders the OR'd events in a fixed order (INSERT, DELETE, UPDATE, TRUNCATE) so the model
+    // is canonical regardless of how they were written; pg_get_triggerdef reports them in this
+    // same order, so a parsed model hash-matches an extracted one.
+    private static string RenderEvents(TriggerEvents events)
+    {
+        var parts = new List<string>();
+
+        if (events.HasFlag(TriggerEvents.Insert))
+        {
+            parts.Add("INSERT");
+        }
+
+        if (events.HasFlag(TriggerEvents.Delete))
+        {
+            parts.Add("DELETE");
+        }
+
+        if (events.HasFlag(TriggerEvents.Update))
+        {
+            parts.Add("UPDATE");
+        }
+
+        if (events.HasFlag(TriggerEvents.Truncate))
+        {
+            parts.Add("TRUNCATE");
+        }
+
+        if (parts.Count == 0)
+        {
+            throw new InvalidOperationException("A trigger must fire on at least one event");
+        }
+
+        return string.Join(" OR ", parts);
+    }
+
+    private static string RenderLevel(TriggerLevel level) => level switch
+    {
+        TriggerLevel.Row => "ROW",
+        TriggerLevel.Statement => "STATEMENT",
+        _ => throw new NotImplementedException($"Trigger level {level} is not supported"),
+    };
 
     private static string RenderParameterMode(ParameterMode mode) => mode switch
     {

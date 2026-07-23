@@ -12,24 +12,12 @@ namespace Squill.IntegrationTests.Postgres.PagilaSampleTest;
 /// an aggregate, and triggers).
 ///
 /// <para>
-/// The schema centres on the <c>film</c> table, which nearly every other table references and
-/// which uses several Postgres features the provider does not yet model. As a result the sample
-/// cannot currently be built or deployed. <see cref="BuildFullSchema_IsNotYetSupported"/> is a
-/// passing test that documents this: it asserts building the sample still fails, so the day the
-/// features land, the test starts failing and flags that the deploy test can be un-skipped.
-/// </para>
-///
-/// <para>
-/// Missing features (why <see cref="Deploy_PagilaSample_ProducesTheSampleSchema"/> is skipped):
-/// </para>
-/// <list type="bullet">
-///   <item><description><c>CREATE TRIGGER</c> — the sample's per-table <c>last_updated</c>
-///     triggers and the full-text trigger are not modeled yet.</description></item>
-/// </list>
-/// <para>
-/// Already supported: <c>CREATE TYPE ... AS ENUM</c> (mpaa_rating) and <c>CREATE DOMAIN</c>
-/// with a CHECK (year) since #75/#80, PL/pgSQL and SQL functions since #81, the group_concat
-/// user-defined aggregate since #82, and tsvector + GiST full-text and array columns since #76.
+/// As of issue #83 (CREATE TRIGGER) the whole sample builds and deploys against real Postgres:
+/// enum/domain types (#75/#80), functions (#81), the group_concat aggregate (#82), tsvector +
+/// GiST full-text and array columns (#76), and now triggers are all modeled. Deploy sequences
+/// functions before the views and aggregates that use them, and disables function-body
+/// validation for the session so a body may reference an object created later in the same
+/// deploy (as pg_dump does).
 /// </para>
 /// </summary>
 public class PagilaSampleDeployTest : PostgresIntegrationTestBase
@@ -47,13 +35,11 @@ public class PagilaSampleDeployTest : PostgresIntegrationTestBase
     }
 
     /// <summary>
-    /// Documents that the full Pagila sample cannot yet be built: the build path throws when it
-    /// reaches one of the unsupported features on the class summary. This test needs no database
-    /// and passes today; when the missing features are implemented it will start failing, which is
-    /// the signal to remove the Skip from <see cref="Deploy_PagilaSample_ProducesTheSampleSchema"/>.
+    /// The full Pagila sample builds into a DACPAC — every feature it uses is now modeled. Needs
+    /// no database.
     /// </summary>
     [Fact]
-    public async Task BuildFullSchema_IsNotYetSupported()
+    public async Task BuildFullSchema_Succeeds()
     {
         var ct = TestContext.Current.CancellationToken;
         var tempDir = Directory.CreateTempSubdirectory("squill-pagila-build");
@@ -65,14 +51,9 @@ public class PagilaSampleDeployTest : PostgresIntegrationTestBase
             var workspace = DacpacBuilder.CreateWorkspace([sqlPath]);
             var metadata = new ModelMetadata { ProviderName = "Postgresql", Name = "Pagila" };
 
-            // Building the full schema throws because the schema still uses features the
-            // provider does not model yet — chiefly CREATE TRIGGER. (Enum/domain types are
-            // supported since #75/#80, functions since #81, the group_concat aggregate since
-            // #82, and tsvector + GiST full-text and array columns since #76.) If this ever
-            // stops throwing, the remaining features have landed: remove the Skip on the
-            // deploy test below.
-            await Assert.ThrowsAnyAsync<Exception>(() =>
-                DacpacBuilder.BuildToFileAsync(workspace, metadata, dacpacPath, ct));
+            await DacpacBuilder.BuildToFileAsync(workspace, metadata, dacpacPath, ct);
+
+            Assert.True(File.Exists(dacpacPath));
         }
         finally
         {
@@ -82,15 +63,9 @@ public class PagilaSampleDeployTest : PostgresIntegrationTestBase
 
     /// <summary>
     /// The end-to-end deploy of the Pagila sample into a real Postgres database via the exact code
-    /// path <c>squill deploy</c> uses. Skipped until the features on the class summary are
-    /// supported; when they are, remove the Skip and this should deploy the full schema and the
-    /// deployed model should match the DACPAC's.
+    /// path <c>squill deploy</c> uses: build the DACPAC, deploy it, and assert it executed.
     /// </summary>
-    [Fact(Skip = "The Pagila sample still needs Postgres features the provider does not yet model: "
-        + "chiefly CREATE TRIGGER. (Enum/domain types are supported since #75/#80, functions since "
-        + "#81, the group_concat aggregate since #82, and tsvector + GiST full-text and array "
-        + "columns since #76.) Remove Skip once these are supported "
-        + "(BuildFullSchema_IsNotYetSupported will start failing then).")]
+    [Fact]
     public async Task Deploy_PagilaSample_ProducesTheSampleSchema()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -114,8 +89,21 @@ public class PagilaSampleDeployTest : PostgresIntegrationTestBase
                     dacpacPath, ConnectionString, targetDbName, dryRun: false,
                     cancellationToken: ct);
 
-                // The goal is simply a successful full build → deploy against real Postgres.
+                // The goal is a successful full build → deploy against real Postgres.
                 Assert.True(result.WasExecuted);
+
+                // A few representative objects across the schema's feature surface exist,
+                // proving the deploy reached the end and created the harder-to-model objects.
+                await AssertObjectExistsAsync(provider, targetDbName,
+                    "SELECT to_regclass('public.film') IS NOT NULL", "film table", ct);
+                await AssertObjectExistsAsync(provider, targetDbName,
+                    "SELECT to_regclass('public.actor_info') IS NOT NULL", "actor_info view", ct);
+                await AssertObjectExistsAsync(provider, targetDbName,
+                    "SELECT EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'group_concat' AND prokind = 'a')",
+                    "group_concat aggregate", ct);
+                await AssertObjectExistsAsync(provider, targetDbName,
+                    "SELECT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'film_fulltext_trigger')",
+                    "film_fulltext_trigger", ct);
             }
             finally
             {
@@ -126,5 +114,16 @@ public class PagilaSampleDeployTest : PostgresIntegrationTestBase
         {
             tempDir.Delete(recursive: true);
         }
+    }
+
+    private async Task AssertObjectExistsAsync(
+        IDatabaseProvider provider, string dbName, string existsQuery, string what, CancellationToken ct)
+    {
+        var db = new PostgresDatabase(ConnectionString, dbName);
+        await db.ConnectAsync(ct);
+
+        await using var reader = await db.RunScriptReaderAsync(existsQuery, cancellationToken: ct);
+        Assert.True(await reader.ReadAsync(ct), $"existence query for {what} returned no rows");
+        Assert.True(reader.GetBoolean(0), $"expected {what} to exist after deploy");
     }
 }

@@ -26,4 +26,8 @@ public static class PostgresElementTypes
     // pg_aggregate (with prokind = 'a' in pg_proc). It references a state transition
     // function (SFUNC), so it must be created after that function.
     public const string SqlAggregate = nameof(SqlAggregate);
+    // A CREATE TRIGGER (issue #83). A trigger attaches to a table (pg_trigger) and executes a
+    // function on an event, so it depends on both its table and (for a user function) that
+    // function, and is created after both.
+    public const string SqlTrigger = nameof(SqlTrigger);
 }

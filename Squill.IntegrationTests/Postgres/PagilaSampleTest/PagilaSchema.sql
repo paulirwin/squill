@@ -256,8 +256,9 @@ CREATE UNIQUE INDEX idx_unq_rental_rental_date_inventory_id_customer_id
     ON rental (rental_date, inventory_id, customer_id);
 
 CREATE INDEX idx_fk_inventory_id ON rental (inventory_id);
-CREATE INDEX idx_fk_customer_id ON rental (customer_id);
-CREATE INDEX idx_fk_staff_id ON rental (staff_id);
+-- Note: canonical Pagila carries idx_fk_customer_id and idx_fk_staff_id on the payment
+-- table (not rental); PostgreSQL index names must be unique within a schema, so they are
+-- declared there rather than duplicated here (matching samples/PagilaSampleDatabase).
 
 -- Payments taken against rentals. Each payment ties a customer, the staff member who took it,
 -- and the rental being paid for; amount is a fixed-precision numeric.
