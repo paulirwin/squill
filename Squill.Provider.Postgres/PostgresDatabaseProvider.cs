@@ -3,37 +3,27 @@ using Squill.Core;
 
 namespace Squill.Provider.Postgres;
 
-public class PostgresDatabaseProvider : IDatabaseProvider
+public class PostgresDatabaseProvider : DatabaseProviderBase
 {
-    private readonly string _connectionString;
-
-    public PostgresDatabaseProvider(string connectionString)
+    public PostgresDatabaseProvider(string connectionString) : base(connectionString)
     {
-        _connectionString = connectionString;
     }
 
-    public Task<IDatabase> CreateTemporaryModelDatabaseAsync(CancellationToken cancellationToken)
+    public override async Task<IDatabase> CreateDatabaseAsync(string name, CancellationToken cancellationToken = default)
     {
-        var dbName = $"squill_model_{Guid.NewGuid():n}";
-
-        return CreateDatabaseAsync(dbName, cancellationToken);
-    }
-
-    public async Task<IDatabase> CreateDatabaseAsync(string name, CancellationToken cancellationToken = default)
-    {
-        await using var conn = new NpgsqlConnection(_connectionString);
+        await using var conn = new NpgsqlConnection(ConnectionString);
         await conn.OpenAsync(cancellationToken);
 
         await using var cmd = new NpgsqlCommand($"CREATE DATABASE {name} WITH OWNER = postgres", conn);
         await cmd.ExecuteNonQueryAsync(cancellationToken);
 
-        return new PostgresDatabase(_connectionString, name);
+        return new PostgresDatabase(ConnectionString, name);
     }
 
-    public IDatabaseModelBuilder CreateDatabaseModelBuilder(IDatabase database) 
+    public override IDatabaseModelBuilder CreateDatabaseModelBuilder(IDatabase database)
         => new PostgresDatabaseModelBuilder(database);
 
-    public IDatabaseDependencyAnalyzer DependencyAnalyzer { get; } = new PostgresDatabaseDependencyAnalyzer();
+    public override IDatabaseDependencyAnalyzer DependencyAnalyzer { get; } = new PostgresDatabaseDependencyAnalyzer();
 
-    public ITableDiffAnalyzer TableDiffAnalyzer { get; } = new PostgresTableDiffAnalyzer();
+    public override ITableDiffAnalyzer TableDiffAnalyzer { get; } = new PostgresTableDiffAnalyzer();
 }

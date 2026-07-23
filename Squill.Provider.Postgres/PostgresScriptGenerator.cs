@@ -8,7 +8,7 @@ namespace Squill.Provider.Postgres;
 /// Generates PostgreSQL DDL from schema deltas. This is pure model-to-SQL logic
 /// with no database dependency, so it can be unit-tested without a live server.
 /// </summary>
-public class PostgresScriptGenerator
+public class PostgresScriptGenerator : IScriptGenerator
 {
     /// <summary>
     /// Generates a single script covering every delta in the comparison, in order, with a
