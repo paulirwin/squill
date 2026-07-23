@@ -1,5 +1,6 @@
 using Squill.Core;
 using Squill.PostgresParser;
+using Squill.TestFramework;
 
 namespace Squill.Provider.Postgres.Tests;
 
@@ -21,14 +22,10 @@ public class PostgresDropAndDataLossTests
         return SchemaCompare.Compare(provider, source, target, options);
     }
 
-    private static async Task<Model> BuildModelAsync(string sql)
-    {
-        var parser = new AntlrPostgresParser();
-        var workspace = new Workspace();
-        workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
-
-        return (await new ParserWorkspaceModelBuilder(workspace, parser).ExtractModelAsync()).Model;
-    }
+    private static Task<Model> BuildModelAsync(string sql)
+        => WorkspaceModelBuilding.BuildModelAsync(
+            sql,
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrPostgresParser()));
 
     // Options that keep the focus on drops: object drops on, data-loss block off so the
     // drop produces a delta rather than throwing.

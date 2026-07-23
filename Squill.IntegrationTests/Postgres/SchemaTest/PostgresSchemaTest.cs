@@ -73,8 +73,8 @@ SELECT table_schema FROM information_schema.tables WHERE table_name = 'event';
                     .ExtractModelAsync(ct);
 
                 Assert.Equal(
-                    ElementHashMultiset(dacpacModel),
-                    ElementHashMultiset(deployedModel));
+                    ModelAssertions.ElementHashMultiset(dacpacModel),
+                    ModelAssertions.ElementHashMultiset(deployedModel));
 
                 // The schema is represented as a first-class element on both sides.
                 Assert.Contains(deployedModel.Elements,
@@ -232,7 +232,7 @@ CREATE TABLE audit.record_change
                     dacpacPath, ConnectionString, targetDbName, cancellationToken: ct);
 
                 var deployed = await provider.CreateDatabaseModelBuilder(createdDb).ExtractModelAsync(ct);
-                Assert.Equal(ElementHashMultiset(dacpacModel), ElementHashMultiset(deployed));
+                Assert.Equal(ModelAssertions.ElementHashMultiset(dacpacModel), ModelAssertions.ElementHashMultiset(deployed));
 
                 // A second deploy must find nothing to do — proving the cross-schema FK
                 // round-trips (parser model == extracted model).
@@ -252,18 +252,16 @@ CREATE TABLE audit.record_change
         }
     }
 
-    private static async Task<string> BuildDacpacAsync(string dir, string schema, CancellationToken ct)
-    {
-        var sqlPath = Path.Combine(dir, "Schema.sql");
-        await File.WriteAllTextAsync(sqlPath, schema, ct);
-
-        var dacpacPath = Path.Combine(dir, "bin", "TestDb.dacpac");
-        var workspace = DacpacBuilder.CreateWorkspace([sqlPath]);
-        var metadata = new ModelMetadata { ProviderName = "Postgresql", Name = "TestDb" };
-        await DacpacBuilder.BuildToFileAsync(workspace, metadata, dacpacPath, ct);
-
-        return dacpacPath;
-    }
+    private static Task<string> BuildDacpacAsync(string dir, string schema, CancellationToken ct)
+        => DacpacTestBuilder.BuildToFileAsync(
+            dir,
+            schema,
+            "Postgresql",
+            ws => new Squill.Provider.Postgres.ParserWorkspaceModelBuilder(
+                ws, new Squill.PostgresParser.AntlrPostgresParser()),
+            ct,
+            label: "Schema",
+            outputSubdirectory: "bin");
 
     private async Task<NpgsqlConnection> OpenAsync(string databaseName, CancellationToken ct)
     {
@@ -288,10 +286,4 @@ CREATE TABLE audit.record_change
         await using var cmd = new NpgsqlCommand(sql, conn);
         return await cmd.ExecuteScalarAsync(TestContext.Current.CancellationToken);
     }
-
-    private static List<string> ElementHashMultiset(Model model)
-        => model.Elements
-            .Select(e => Convert.ToHexString(e.Hash))
-            .OrderBy(h => h, StringComparer.Ordinal)
-            .ToList();
 }

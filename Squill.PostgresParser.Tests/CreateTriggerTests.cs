@@ -1,4 +1,5 @@
 using Squill.PostgresParser.Syntax;
+using Squill.TestFramework;
 
 namespace Squill.PostgresParser.Tests;
 
@@ -10,10 +11,7 @@ namespace Squill.PostgresParser.Tests;
 public class CreateTriggerTests
 {
     private static CreateTriggerStatement ParseOne(string text)
-    {
-        var root = new AntlrPostgresParser().Parse(text);
-        return Assert.IsType<CreateTriggerStatement>(Assert.Single(root.Statements));
-    }
+        => ParseAssertions.Single<CreateTriggerStatement>(new AntlrPostgresParser().Parse(text).Statements);
 
     [Fact]
     public void SimpleBeforeUpdateRowTrigger()

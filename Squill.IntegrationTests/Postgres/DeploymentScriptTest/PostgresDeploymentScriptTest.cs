@@ -306,31 +306,20 @@ ON CONFLICT (phase) DO UPDATE SET country_existed = EXCLUDED.country_existed;
         return (bool)value!;
     }
 
-    private static async Task<string> BuildDacpacAsync(
+    private static Task<string> BuildDacpacAsync(
         string dir,
         CancellationToken ct,
         string preDeploy = "",
         string postDeploy = "")
-    {
-        var sqlPath = Path.Combine(dir, "Schema.sql");
-        await File.WriteAllTextAsync(sqlPath, Schema, ct);
-
-        var dacpacPath = Path.Combine(dir, "bin", "TestDb.dacpac");
-        var workspace = DacpacBuilder.CreateWorkspace([sqlPath]);
-        var metadata = new ModelMetadata
-        {
-            ProviderName = "Postgresql",
-            Name = "TestDb",
-            PreDeployScript = preDeploy,
-            PostDeployScript = postDeploy,
-        };
-        await DacpacBuilder.BuildToFileAsync(workspace, metadata, dacpacPath, ct);
-
-        return dacpacPath;
-    }
-
-    private sealed class CollectingProgress(List<string> messages) : IProgress<string>
-    {
-        public void Report(string value) => messages.Add(value);
-    }
+        => DacpacTestBuilder.BuildToFileAsync(
+            dir,
+            Schema,
+            "Postgresql",
+            ws => new Squill.Provider.Postgres.ParserWorkspaceModelBuilder(
+                ws, new Squill.PostgresParser.AntlrPostgresParser()),
+            ct,
+            label: "Schema",
+            preDeploy: preDeploy,
+            postDeploy: postDeploy,
+            outputSubdirectory: "bin");
 }

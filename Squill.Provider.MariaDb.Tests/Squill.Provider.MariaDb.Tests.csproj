@@ -23,6 +23,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\Squill.Provider.MariaDb\Squill.Provider.MariaDb.csproj" />
+      <ProjectReference Include="..\Squill.TestFramework\Squill.TestFramework.csproj" />
     </ItemGroup>
 
 </Project>

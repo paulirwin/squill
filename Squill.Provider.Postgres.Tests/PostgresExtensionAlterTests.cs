@@ -1,5 +1,6 @@
 using Squill.Core;
 using Squill.PostgresParser;
+using Squill.TestFramework;
 
 namespace Squill.Provider.Postgres.Tests;
 
@@ -14,12 +15,10 @@ public class PostgresExtensionAlterTests
 {
     private static readonly PostgresDatabaseProvider Provider = new("Host=unused");
 
-    private static async Task<Model> ParseModelAsync(string sql)
-    {
-        var workspace = new Workspace();
-        workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
-        return (await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser()).ExtractModelAsync()).Model;
-    }
+    private static Task<Model> ParseModelAsync(string sql)
+        => WorkspaceModelBuilding.BuildModelAsync(
+            sql,
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrPostgresParser()));
 
     // A stand-in for the database's model: one extension element carrying an installed
     // version, exactly as PostgresDatabaseModelBuilder now extracts it.

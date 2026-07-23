@@ -25,6 +25,7 @@
   <Project Path="Squill.Sdk/Squill.Sdk.csproj" />
   <Project Path="Squill.Templates/Squill.Templates.csproj" />
   <Project Path="Squill.Templates.Tests/Squill.Templates.Tests.csproj" />
+  <Project Path="Squill.TestFramework/Squill.TestFramework.csproj" />
   <Project Path="Squill/Squill.csproj" />
   <Project Path="samples/PostgresSampleDatabase/PostgresSampleDatabase.squillproj" Type="9A19103F-16F7-4668-BE54-9A1E7A4F7556">
     <!-- The sample consumes the SDK by relative Import, which the solution graph

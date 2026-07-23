@@ -1,4 +1,5 @@
 using Squill.PostgresParser.Syntax;
+using Squill.TestFramework;
 
 namespace Squill.PostgresParser.Tests;
 
@@ -10,10 +11,7 @@ namespace Squill.PostgresParser.Tests;
 public class CreateFunctionTests
 {
     private static CreateFunctionStatement ParseOne(string text)
-    {
-        var root = new AntlrPostgresParser().Parse(text);
-        return Assert.IsType<CreateFunctionStatement>(Assert.Single(root.Statements));
-    }
+        => ParseAssertions.Single<CreateFunctionStatement>(new AntlrPostgresParser().Parse(text).Statements);
 
     [Fact]
     public void SimpleSqlFunction()

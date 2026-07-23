@@ -2,14 +2,15 @@ using DotNet.Testcontainers.Containers;
 using DotNet.Testcontainers.Images;
 using Testcontainers.MariaDb;
 using Testcontainers.MySql;
+using Xunit;
 
-namespace Squill.IntegrationTests.MariaDb;
+namespace Squill.TestFramework;
 
 /// <summary>
 /// A running database container for one MariaDB-family engine, shared across all the tests
 /// of a test class (xUnit class fixture). The same provider is exercised against both a
 /// MariaDB and a MySQL server (issue #12), so each scenario runs once per engine via the
-/// two concrete fixtures below.
+/// concrete fixtures below.
 /// </summary>
 public abstract class MariaDbLikeFixture : IAsyncLifetime
 {
@@ -86,6 +87,32 @@ public sealed class MySqlFixture : MariaDbLikeFixture
 
     protected override IDatabaseContainer BuildContainer() =>
         new MySqlBuilder(new DockerImage("mysql:latest"))
+            .WithUsername("root")
+            .Build();
+}
+
+/// <summary>A MariaDB fixture pinned to an older supported major (10).</summary>
+public sealed class MariaDb10Fixture : MariaDbLikeFixture
+{
+    public override string EngineName => "MariaDB";
+    public override string ProviderName => "MariaDb";
+    public override int LowestSupportedMajor => 10;
+
+    protected override IDatabaseContainer BuildContainer() =>
+        new MariaDbBuilder(new DockerImage("mariadb:10"))
+            .WithUsername("root")
+            .Build();
+}
+
+/// <summary>A MySQL fixture pinned to an older supported major (8).</summary>
+public sealed class MySql8Fixture : MariaDbLikeFixture
+{
+    public override string EngineName => "MySQL";
+    public override string ProviderName => "MySql";
+    public override int LowestSupportedMajor => 8;
+
+    protected override IDatabaseContainer BuildContainer() =>
+        new MySqlBuilder(new DockerImage("mysql:8.0"))
             .WithUsername("root")
             .Build();
 }

@@ -1,5 +1,6 @@
 using Squill.MariaDbParser;
 using Squill.MariaDbParser.Syntax;
+using Squill.TestFramework;
 
 namespace Squill.MariaDbParser.Tests;
 
@@ -11,11 +12,7 @@ namespace Squill.MariaDbParser.Tests;
 public class CreateTableDataTypeTests
 {
     private static CreateTableStatement ParseOne(string text)
-    {
-        var root = new AntlrMariaDbParser().Parse(text);
-
-        return Assert.IsType<CreateTableStatement>(Assert.Single(root.Statements));
-    }
+        => ParseAssertions.Single<CreateTableStatement>(new AntlrMariaDbParser().Parse(text).Statements);
 
     private static DataType ColumnType(CreateTableStatement table, string columnName)
     {

@@ -75,8 +75,8 @@ public class PostgresSquillProjBuildTest : PostgresIntegrationTestBase
                 // own extraction order — so the two agree on content but not ordering.
                 // Matching element-hash multisets proves every element round-tripped
                 // faithfully, which is what "the DACPAC is deployable" requires.
-                var dacpacElementHashes = ElementHashMultiset(dacpacModel);
-                var publishedElementHashes = ElementHashMultiset(publishedModel);
+                var dacpacElementHashes = ModelAssertions.ElementHashMultiset(dacpacModel);
+                var publishedElementHashes = ModelAssertions.ElementHashMultiset(publishedModel);
 
                 Assert.Equal(dacpacElementHashes, publishedElementHashes);
             }
@@ -90,12 +90,4 @@ public class PostgresSquillProjBuildTest : PostgresIntegrationTestBase
             tempDir.Delete(recursive: true);
         }
     }
-
-    // The sorted multiset of each top-level element's hash, as hex strings so the
-    // collection compares by value. Order-independent by construction.
-    private static List<string> ElementHashMultiset(Model model)
-        => model.Elements
-            .Select(e => Convert.ToHexString(e.Hash))
-            .OrderBy(h => h, StringComparer.Ordinal)
-            .ToList();
 }

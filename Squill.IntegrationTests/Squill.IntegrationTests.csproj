@@ -29,6 +29,7 @@
       <ProjectReference Include="..\Squill.Provider.Postgres\Squill.Provider.Postgres.csproj" />
       <ProjectReference Include="..\Squill.Provider.MariaDb\Squill.Provider.MariaDb.csproj" />
       <ProjectReference Include="..\Squill\Squill.csproj" />
+      <ProjectReference Include="..\Squill.TestFramework\Squill.TestFramework.csproj" />
     </ItemGroup>
 
     <ItemGroup>

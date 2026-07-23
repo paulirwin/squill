@@ -1,4 +1,6 @@
+using Squill.MariaDbParser;
 using Squill.MariaDbParser.Syntax;
+using Squill.TestFramework;
 
 namespace Squill.MariaDbParser.Tests;
 

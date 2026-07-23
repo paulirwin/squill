@@ -137,10 +137,4 @@ public class PostgresAggregateTest : PostgresIntegrationTestBase
         Assert.Equal("red, green, blue", reader.GetString(0));
     }
 
-    // An IProgress<string> that records every reported message, so tests can assert on the
-    // deploy's per-object progress output.
-    private sealed class CollectingProgress(List<string> messages) : IProgress<string>
-    {
-        public void Report(string value) => messages.Add(value);
-    }
 }

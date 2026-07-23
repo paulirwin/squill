@@ -1,5 +1,6 @@
 using Squill.MariaDbParser;
 using Squill.MariaDbParser.Syntax;
+using Squill.TestFramework;
 
 namespace Squill.MariaDbParser.Tests;
 
@@ -11,11 +12,7 @@ namespace Squill.MariaDbParser.Tests;
 public class CreateFunctionTests
 {
     private static CreateFunctionStatement ParseOne(string text)
-    {
-        var root = new AntlrMariaDbParser().Parse(text);
-
-        return Assert.IsType<CreateFunctionStatement>(Assert.Single(root.Statements));
-    }
+        => ParseAssertions.Single<CreateFunctionStatement>(new AntlrMariaDbParser().Parse(text).Statements);
 
     [Fact]
     public void CreateFunction_NoParameters()

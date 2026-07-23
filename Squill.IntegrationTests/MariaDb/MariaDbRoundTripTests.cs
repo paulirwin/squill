@@ -24,41 +24,12 @@ public abstract class MariaDbRoundTripTests
     private async Task<Model> AssertRoundTripAsync(string sql, CancellationToken cancellationToken)
     {
         var provider = new MariaDbDatabaseProvider(Fixture.ConnectionString);
-
-        var workspace = new Workspace();
-        workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
-
-        var parser = new AntlrMariaDbParser();
-        var model = (await new ParserWorkspaceModelBuilder(workspace, parser)
-            .ExtractModelAsync(cancellationToken)).Model;
-
-        var testDb = await provider.CreateDatabaseAsync($"squill_test_{Guid.NewGuid():n}", cancellationToken);
-        var dbModelBuilder = provider.CreateDatabaseModelBuilder(testDb);
-
-        try
-        {
-            var targetModel = await dbModelBuilder.ExtractModelAsync(cancellationToken);
-
-            var comparison = SchemaCompare.Compare(provider, model, targetModel);
-
-            await testDb.PublishAsync(comparison, cancellationToken);
-
-            var newModel = await dbModelBuilder.ExtractModelAsync(cancellationToken);
-
-            Assert.True(
-                HashUtility.HashesEqual(model.Hash, newModel.Hash),
-                $"[{Fixture.EngineName}] Parsed and extracted model hashes do not match.\n"
-                + $"Parsed:    {Describe(model)}\n"
-                + $"Extracted: {Describe(newModel)}");
-
-            // The model as extracted from the database, so a caller's extra assertions are
-            // made against what was actually deployed rather than against the source.
-            return newModel;
-        }
-        finally
-        {
-            await testDb.DropAsync(cancellationToken);
-        }
+        var model = await WorkspaceModelBuilding.BuildModelAsync(
+            sql,
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser()),
+            cancellationToken);
+        return await RoundTripHarness.AssertRoundTripAsync(
+            provider, model, Fixture.EngineName, cancellationToken: cancellationToken);
     }
 
     [Fact]
@@ -311,11 +282,6 @@ public abstract class MariaDbRoundTripTests
             CREATE TABLE xray (id int NOT NULL PRIMARY KEY);
             """, TestContext.Current.CancellationToken);
     }
-
-    // Element type and name in order, so an ordering mismatch reports what actually differs
-    // rather than just "hashes do not match".
-    private static string Describe(Model model)
-        => string.Join(" | ", model.Elements.Select(i => $"{i.Type}:{i.Name}"));
 
     private static string? ReferencedTable(Element foreignKey)
         => foreignKey.GetRelationship(MariaDbRelationshipNames.ForeignTable)

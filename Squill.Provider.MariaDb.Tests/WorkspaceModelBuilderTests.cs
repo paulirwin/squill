@@ -1,20 +1,16 @@
 using Squill.Core;
 using Squill.MariaDbParser;
+using Squill.TestFramework;
 
 namespace Squill.Provider.MariaDb.Tests;
 
 public class WorkspaceModelBuilderTests
 {
-    private static async Task<Model> BuildAsync(string sql)
-    {
-        var parser = new AntlrMariaDbParser();
-        var workspace = new Workspace();
-        workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
-
-        var builder = new ParserWorkspaceModelBuilder(workspace, parser);
-
-        return (await builder.ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
-    }
+    private static Task<Model> BuildAsync(string sql)
+        => WorkspaceModelBuilding.BuildModelAsync(
+            sql,
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser()),
+            TestContext.Current.CancellationToken);
 
     [Fact]
     public async Task ExtractModel_GivenEmptyWorkspace_ReturnsEmptyModel()

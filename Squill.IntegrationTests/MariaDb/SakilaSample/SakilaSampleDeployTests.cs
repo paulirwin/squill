@@ -43,21 +43,13 @@ public abstract class SakilaSampleDeployTests
         var schema = await new EmbeddedResourceFile(SchemaResource, FileKind.Compile)
             .ReadAllTextAsync(ct);
 
-        var sqlPath = Path.Combine(directory, "schema.sql");
-        await File.WriteAllTextAsync(sqlPath, schema, ct);
-
-        var workspace = DacpacBuilder.CreateWorkspace(new[] { sqlPath });
-        var metadata = new ModelMetadata
-        {
-            Name = "Sakila",
-            Version = "1.0.0.0",
-            ProviderName = Fixture.ProviderName,
-        };
-
-        var dacpacPath = Path.Combine(directory, "Sakila.dacpac");
-        await DacpacBuilder.BuildToFileAsync(workspace, metadata, dacpacPath, ct);
-
-        return dacpacPath;
+        return await DacpacTestBuilder.BuildToFileAsync(
+            directory,
+            schema,
+            Fixture.ProviderName,
+            ws => new ParserWorkspaceModelBuilder(ws, new Squill.MariaDbParser.AntlrMariaDbParser()),
+            ct,
+            name: "Sakila");
     }
 
     /// <summary>

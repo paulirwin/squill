@@ -1,15 +1,12 @@
 using Squill.PostgresParser.Syntax;
+using Squill.TestFramework;
 
 namespace Squill.PostgresParser.Tests;
 
 public class CreateViewTests
 {
     private static CreateViewStatement ParseOne(string text)
-    {
-        var parser = new AntlrPostgresParser();
-        var root = parser.Parse(text);
-        return Assert.IsType<CreateViewStatement>(Assert.Single(root.Statements));
-    }
+        => ParseAssertions.Single<CreateViewStatement>(new AntlrPostgresParser().Parse(text).Statements);
 
     [Fact]
     public void CreateView_PlainColumns()
