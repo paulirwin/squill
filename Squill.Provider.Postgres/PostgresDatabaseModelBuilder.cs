@@ -1086,11 +1086,19 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 seq.seqcache AS identity_cache,
                 c.column_default,
                 c.udt_name,
+                -- A domain-typed column reports its base type in data_type but its domain in
+                -- domain_name; the model carries the domain name, so it is read here (#84).
+                c.domain_name,
+                -- The typtype of the column's own type: 'd' marks a domain, whose column
+                -- information_schema reports as its base type (issue #84). Resolved from
+                -- pg_attribute.atttypid so a domain-typed column can adopt the domain name.
+                col_type.typtype::text AS col_typtype,
                 format_type(a.atttypid, a.atttypmod) AS formatted_type
             FROM information_schema.columns c
             JOIN pg_namespace n ON n.nspname = c.table_schema
             JOIN pg_class t ON t.relname = c.table_name AND t.relnamespace = n.oid
             JOIN pg_attribute a ON a.attrelid = t.oid AND a.attname = c.column_name
+            JOIN pg_type col_type ON col_type.oid = a.atttypid
             -- An identity column's CACHE lives on its implicit sequence (pg_sequence),
             -- which information_schema does not expose; the sequence is found through
             -- its internal ('i') dependency on the column.
@@ -1127,12 +1135,28 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             var numericPrecision = reader.GetFieldValue<int?>("numeric_precision");
             var numericScale = reader.GetFieldValue<int?>("numeric_scale");
             var isIdentity = reader.GetString("is_identity") == "YES";
+            var columnTypeType = reader.GetString("col_typtype");
 
+            // A domain-typed column (pg_type.typtype = 'd') reports its base type in
+            // information_schema.data_type (e.g. a DOMAIN over integer reports "integer"),
+            // but the parser builder carries the column type as the domain name — so the
+            // two models would disagree and the hash comparison would fail. domain_name
+            // holds the domain's own name (udt_name is the base type's internal name here,
+            // e.g. "int4"), so adopt it, and drop any base-type length / precision that
+            // information_schema reported: the parser side emits the domain name with no
+            // modifiers, so both sides must (issue #84).
+            if (columnTypeType == "d")
+            {
+                dataType = reader.GetString("domain_name");
+                maxLength = null;
+                numericPrecision = null;
+                numericScale = null;
+            }
             // For a user-defined type the canonical name is udt_name (e.g. "vector"), not
             // the generic "USER-DEFINED" that data_type reports. The type modifier (a
             // vector's dimension) is recovered from the format_type() text and mapped to
             // the same Length property the parser builder uses, so both sides hash-match.
-            if (dataType == "USER-DEFINED")
+            else if (dataType == "USER-DEFINED")
             {
                 dataType = reader.GetString("udt_name");
 

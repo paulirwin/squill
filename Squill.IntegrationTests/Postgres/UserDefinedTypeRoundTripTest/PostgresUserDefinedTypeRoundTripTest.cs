@@ -1,18 +1,22 @@
 using Squill.Core;
+using Squill.PostgresParser;
 using Squill.Provider.Postgres;
+using Squill.TestFramework;
 
 namespace Squill.IntegrationTests.Postgres.UserDefinedTypeRoundTripTest;
 
-// Full round trip for user-defined types (issue #75): build a model from SQL (a CREATE TYPE
-// ... AS ENUM, a CREATE DOMAIN with a named CHECK, and a table whose column is the enum)
-// against a temporary database, publish it to a fresh target, re-extract the target's model,
-// and assert the model hashes match. It then inserts and reads back an enum value to prove
-// the emitted DDL is valid, executable Postgres.
+// Full round trip for user-defined types (issue #75, #84): build a model from SQL (a CREATE
+// TYPE ... AS ENUM, a CREATE DOMAIN with a named CHECK, and a table with both an enum-typed
+// and a domain-typed column) against a temporary database, publish it to a fresh target,
+// re-extract the target's model, and assert the model hashes match. It then inserts and reads
+// back an enum value to prove the emitted DDL is valid, executable Postgres.
 //
 // The enum type's identity is its name and its ordered labels; the domain's identity is its
 // name and base type (its CHECK text is carried for scripting only, since PostgreSQL rewrites
-// the predicate — see PostgresModelFactory.CreateDomain). So a re-extracted database hashes
-// equal to the source model.
+// the predicate — see PostgresModelFactory.CreateDomain). A domain-typed column's type
+// specifier is the domain name, which the DB-extraction builder resolves from the catalog
+// rather than the base type information_schema reports (issue #84). So a re-extracted database
+// hashes equal to the source model.
 public class PostgresUserDefinedTypeRoundTripTest : PostgresIntegrationTestBase
 {
     [Fact]
@@ -62,6 +66,29 @@ public class PostgresUserDefinedTypeRoundTripTest : PostgresIntegrationTestBase
             await testDb.DropAsync(TestContext.Current.CancellationToken);
         }
     }
+
+    // A parser-built model with a domain-typed column round-trips through a real database and
+    // redeploys as a no-op (issue #84). This drives the parser model builder directly — the
+    // direction the project is moving — and asserts idempotency, the property the round-trip
+    // breaks without the domain-name resolution in the DB-extraction builder: the parsed column
+    // type is the domain name (`year`), while information_schema reports the base type
+    // (`integer`), so without the fix the two hashes diverge and every redeploy shows a delta.
+    [Fact]
+    public async Task DomainTypedColumn_RoundTripsAndRedeploysNoOp()
+        => await RoundTripHarness.AssertRoundTripAsync(
+            new PostgresDatabaseProvider(ConnectionString),
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrPostgresParser()),
+            """
+            CREATE DOMAIN year AS integer
+                CONSTRAINT year_check CHECK (VALUE >= 1901 AND VALUE <= 2155);
+            CREATE TABLE film (
+                film_id integer PRIMARY KEY,
+                release_year year
+            );
+            """,
+            "postgres",
+            assertRedeployNoOp: true,
+            TestContext.Current.CancellationToken);
 
     // Inserts a row using an enum literal and reads it back, confirming the published schema
     // is functional: the enum-typed column accepts and returns an enum value.

@@ -81,6 +81,22 @@ public class CreateTypeModelTests
             .Entries.OfType<Element>().ToList();
 
         Assert.Equal(["film.film_id", "film.rating", "film.release_year"], columns.Select(c => c.Name));
+
+        // The domain-typed column's type specifier is the domain name (not its base type),
+        // matching what the DB-extraction builder resolves from the catalog so a parsed model
+        // hash-matches an extracted one (issue #84).
+        Assert.Equal("year", TypeReferenceName(columns.Single(c => c.Name == "film.release_year")));
+        Assert.Equal("mpaa_rating", TypeReferenceName(columns.Single(c => c.Name == "film.rating")));
+    }
+
+    // The canonical type name a column's type specifier references (e.g. "year", "integer").
+    private static string TypeReferenceName(Element column)
+    {
+        var typeSpecifier = column.GetRelationship(PostgresRelationshipNames.TypeSpecifier)!
+            .Entries.OfType<Element>().Single();
+
+        return typeSpecifier.GetRelationship(PostgresRelationshipNames.Type)!
+            .Entries.OfType<Reference>().Single().Name;
     }
 
     [Fact]
