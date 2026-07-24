@@ -172,4 +172,23 @@ public class MariaDbScriptGeneratorTests
         var newline = Environment.NewLine;
         Assert.Contains($"{newline}{newline}CREATE ", sql);
     }
+
+    [Fact]
+    public void RebuildAsideName_ShortName_UsesSuffixVerbatim()
+    {
+        Assert.Equal("film__squill_rebuild_old", MariaDbScriptGenerator.RebuildAsideName("film"));
+    }
+
+    [Fact]
+    public void RebuildAsideName_LongNames_StayWithinLimitAndStayDistinct()
+    {
+        var a = MariaDbScriptGenerator.RebuildAsideName(new string('a', 60));
+        var b = MariaDbScriptGenerator.RebuildAsideName(new string('a', 59) + "b");
+
+        // MariaDB caps identifiers at 64 characters.
+        Assert.True(a.Length <= 64);
+        Assert.True(b.Length <= 64);
+        // Two distinct long names that share a truncated prefix must not collide.
+        Assert.NotEqual(a, b);
+    }
 }

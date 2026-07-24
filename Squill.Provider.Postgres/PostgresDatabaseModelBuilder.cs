@@ -1,6 +1,7 @@
 using System.Data;
 using Squill.Core;
 using Squill.PostgresParser.Syntax;
+using ForeignKeyAccumulator = Squill.Core.ForeignKeyAccumulator<Squill.Provider.Postgres.SqlName, Squill.PostgresParser.Syntax.ReferentialAction>;
 
 namespace Squill.Provider.Postgres;
 
@@ -830,25 +831,6 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 accumulator.OnDelete,
                 accumulator.OnUpdate));
         }
-    }
-
-    // Accumulates the ordered column pairs of one foreign key across result rows.
-    private sealed class ForeignKeyAccumulator
-    {
-        public ForeignKeyAccumulator(SqlName referencedTable,
-            ReferentialAction onDelete,
-            ReferentialAction onUpdate)
-        {
-            ReferencedTable = referencedTable;
-            OnDelete = onDelete;
-            OnUpdate = onUpdate;
-        }
-
-        public SqlName ReferencedTable { get; }
-        public ReferentialAction OnDelete { get; }
-        public ReferentialAction OnUpdate { get; }
-        public List<SqlName> Columns { get; } = new();
-        public List<SqlName> ReferencedColumns { get; } = new();
     }
 
     // Extracts a single integer type modifier from format_type() output, e.g. the 3 in

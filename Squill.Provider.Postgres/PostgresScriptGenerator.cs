@@ -319,38 +319,19 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
         }
     }
 
-    // Postgres truncates identifiers at 63 bytes (NAMEDATALEN - 1). The suffix appended to
-    // rename an object aside during a rebuild.
-    private const string RebuildAsideSuffix = "__squill_rebuild_old";
-    private const int MaxIdentifierBytes = 63;
+    protected override string ForeignKeyDropVerb => "DROP CONSTRAINT";
 
-    // A rename-aside name for a rebuilt object, derived from its bare name and guaranteed to
-    // stay within Postgres's 63-byte identifier limit. When the base name plus the suffix
-    // fits, it is used verbatim. Otherwise the base is truncated and a short deterministic
-    // hash of the full base is folded in, so two long names that share a truncated prefix
-    // still get distinct aside names rather than silently colliding after truncation.
-    public static string RebuildAsideName(string baseName)
-    {
-        var candidate = baseName + RebuildAsideSuffix;
+    protected override string QuoteForeignKeyDefiningTable(string referencedName) =>
+        QualifiedForeignTable(referencedName);
 
-        if (Encoding.UTF8.GetByteCount(candidate) <= MaxIdentifierBytes)
-        {
-            return candidate;
-        }
+    protected override string QuoteConstraintName(string constraintName) =>
+        SqlName.Parse(constraintName).QuotedUnqualified;
 
-        // 8 hex chars of a stable hash disambiguate names that truncate to the same prefix.
-        var hash = Convert.ToHexString(
-            System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(baseName)))[..8];
-
-        // Reserve room for "_" + hash + suffix, then take as many leading bytes of the base
-        // as fit. Base names here are ASCII identifiers, so byte length equals char length;
-        // clamp defensively in case of a multi-byte name.
-        var reserved = 1 + hash.Length + RebuildAsideSuffix.Length;
-        var keep = Math.Max(0, MaxIdentifierBytes - reserved);
-        var truncatedBase = baseName.Length > keep ? baseName[..keep] : baseName;
-
-        return $"{truncatedBase}_{hash}{RebuildAsideSuffix}";
-    }
+    // A rename-aside name for a rebuilt object, guaranteed to stay within Postgres's 63-byte
+    // identifier limit. See <see cref="ScriptGeneratorBase.ComputeRebuildAsideName"/> for the
+    // truncate-and-hash logic. Static so the unit tests can call it without a generator instance.
+    public static string RebuildAsideName(string baseName) =>
+        ComputeRebuildAsideName(baseName, static s => Encoding.UTF8.GetByteCount(s), 63);
 
     // Rebuilds a table that can't be altered in place: rename the existing table aside,
     // create the table with its desired shape, copy the data for the columns common to
@@ -454,7 +435,11 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
         // Recreate the inbound FKs dropped above, now that the rebuilt table (with its key)
         // exists again. Their referenced key columns are preserved by the rebuild, so the
         // same definition is valid.
-        AppendInboundForeignKeyRecreates(sb, rebuildDelta.InboundForeignKeys);
+        if (rebuildDelta.InboundForeignKeys.Count > 0)
+        {
+            AppendInboundForeignKeyRecreates(sb, rebuildDelta.InboundForeignKeys);
+            sb.AppendLine();
+        }
 
         // Copying identity values verbatim (OVERRIDING SYSTEM VALUE) does not advance the
         // new column's identity sequence, which still starts at 1 — so the next generated
@@ -483,62 +468,6 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
         sb.AppendLine("COMMIT;");
 
         return sb.ToString();
-    }
-
-    // ALTER TABLE <defining> DROP CONSTRAINT <fk>; for each inbound FK, so the referenced
-    // table can be dropped during the rebuild.
-    private static void AppendInboundForeignKeyDrops(StringBuilder sb, IList<Element> inboundForeignKeys)
-    {
-        if (inboundForeignKeys.Count == 0)
-        {
-            return;
-        }
-
-        foreach (var fk in inboundForeignKeys)
-        {
-            var (definingTable, fkName) = InboundForeignKeyNames(fk);
-
-            sb.Append("ALTER TABLE ").Append(definingTable)
-                .Append(" DROP CONSTRAINT ").Append(fkName).AppendLine(";");
-        }
-
-        sb.AppendLine();
-    }
-
-    // ALTER TABLE <defining> ADD <fk-clause>; for each inbound FK, recreating it after the
-    // rebuild.
-    private static void AppendInboundForeignKeyRecreates(StringBuilder sb, IList<Element> inboundForeignKeys)
-    {
-        if (inboundForeignKeys.Count == 0)
-        {
-            return;
-        }
-
-        foreach (var fk in inboundForeignKeys)
-        {
-            var (definingTable, _) = InboundForeignKeyNames(fk);
-
-            sb.Append("ALTER TABLE ").Append(definingTable)
-                .Append(" ADD ").Append(GetForeignKeyClause(fk)).AppendLine(";");
-        }
-
-        sb.AppendLine();
-    }
-
-    // The (quoted defining-table name, quoted constraint name) for an inbound FK, used to
-    // drop and recreate it around a rebuild.
-    private static (string DefiningTable, string ConstraintName) InboundForeignKeyNames(Element fk)
-    {
-        if (fk.Name is not string fkName)
-        {
-            throw new ArgumentException("Foreign keys must have names");
-        }
-
-        var definingTableRef = fk.GetRelationship(PostgresRelationshipNames.DefiningTable)
-            ?.Entries.OfType<Reference>().SingleOrDefault()
-            ?? throw new InvalidOperationException($"Foreign key {fkName} has no defining table");
-
-        return (QualifiedForeignTable(definingTableRef.Name), SqlName.Parse(fkName).QuotedUnqualified);
     }
 
     // Renames the renamed-aside old table's constraints and indexes out of the way so the
@@ -1341,7 +1270,7 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
 
     // CONSTRAINT "<name>" FOREIGN KEY ("a", "b") REFERENCES "table" ("x", "y")
     //   [ON DELETE <action>] [ON UPDATE <action>]
-    private static string GetForeignKeyClause(Element foreignKey)
+    protected override string GetForeignKeyClause(Element foreignKey)
     {
         if (foreignKey.Name is not string fkName)
         {

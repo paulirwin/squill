@@ -1438,8 +1438,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     // defaults to length 1 when omitted, but `varbinary` requires an explicit length, so the
     // length must be carried through to the generated DDL or the column fails to create.
     private static bool IsLengthType(string typeName)
-        => typeName is "char" or "varchar" or "binary" or "varbinary";
+        => MariaDbTypeCategories.IsCharacterType(typeName) || typeName is "binary" or "varbinary";
 
     private static bool IsDecimalType(string typeName)
-        => typeName is "decimal" or "numeric" or "dec" or "fixed";
+        => MariaDbTypeCategories.IsDecimalType(typeName);
 }

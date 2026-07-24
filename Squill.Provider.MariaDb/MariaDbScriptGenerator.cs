@@ -584,29 +584,19 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
 
     // ---- REBUILD ----
 
-    // The suffix appended to rename an object aside during a rebuild. MariaDB identifiers
-    // allow up to 64 characters.
-    private const string RebuildAsideSuffix = "__squill_rebuild_old";
-    private const int MaxIdentifierChars = 64;
+    protected override string ForeignKeyDropVerb => "DROP FOREIGN KEY";
 
-    public static string RebuildAsideName(string baseName)
-    {
-        var candidate = baseName + RebuildAsideSuffix;
+    protected override string QuoteForeignKeyDefiningTable(string referencedName) =>
+        SqlName.Parse(referencedName).Sql;
 
-        if (candidate.Length <= MaxIdentifierChars)
-        {
-            return candidate;
-        }
+    protected override string QuoteConstraintName(string constraintName) =>
+        SqlName.Parse(constraintName).QuotedUnqualified;
 
-        var hash = Convert.ToHexString(
-            System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(baseName)))[..8];
-
-        var reserved = 1 + hash.Length + RebuildAsideSuffix.Length;
-        var keep = Math.Max(0, MaxIdentifierChars - reserved);
-        var truncatedBase = baseName.Length > keep ? baseName[..keep] : baseName;
-
-        return $"{truncatedBase}_{hash}{RebuildAsideSuffix}";
-    }
+    // A rename-aside name for a rebuilt object, guaranteed to stay within MariaDB's 64-character
+    // identifier limit. See <see cref="ScriptGeneratorBase.ComputeRebuildAsideName"/> for the
+    // truncate-and-hash logic. Static so the unit tests can call it without a generator instance.
+    public static string RebuildAsideName(string baseName) =>
+        ComputeRebuildAsideName(baseName, static s => s.Length, 64);
 
     // Rebuilds a table that can't be altered in place: rename the existing table aside,
     // create the desired table, copy the shared columns, then drop the renamed original.
@@ -672,54 +662,11 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
         return sb.ToString();
     }
 
-    private static void AppendInboundForeignKeyDrops(StringBuilder sb, IList<Element> inboundForeignKeys)
-    {
-        if (inboundForeignKeys.Count == 0)
-        {
-            return;
-        }
-
-        foreach (var fk in inboundForeignKeys)
-        {
-            var (definingTable, fkName) = InboundForeignKeyNames(fk);
-
-            sb.Append("ALTER TABLE ").Append(definingTable)
-                .Append(" DROP FOREIGN KEY ").Append(fkName).AppendLine(";");
-        }
-
-        sb.AppendLine();
-    }
-
-    private static void AppendInboundForeignKeyRecreates(StringBuilder sb, IList<Element> inboundForeignKeys)
-    {
-        foreach (var fk in inboundForeignKeys)
-        {
-            var (definingTable, _) = InboundForeignKeyNames(fk);
-
-            sb.Append("ALTER TABLE ").Append(definingTable)
-                .Append(" ADD ").Append(GetForeignKeyClause(fk)).AppendLine(";");
-        }
-    }
-
-    private static (string DefiningTable, string ConstraintName) InboundForeignKeyNames(Element fk)
-    {
-        if (fk.Name is not string fkName)
-        {
-            throw new ArgumentException("Foreign keys must have names");
-        }
-
-        var definingTableRef = fk.GetRelationship(MariaDbRelationshipNames.DefiningTable)
-            ?.Entries.OfType<Reference>().SingleOrDefault()
-            ?? throw new InvalidOperationException($"Foreign key {fkName} has no defining table");
-
-        return (SqlName.Parse(definingTableRef.Name).Sql, SqlName.Parse(fkName).QuotedUnqualified);
-    }
-
     // ---- Foreign keys ----
 
     // CONSTRAINT `name` FOREIGN KEY (`a`, `b`) REFERENCES `table` (`x`, `y`)
     //   [ON DELETE <action>] [ON UPDATE <action>]
-    private static string GetForeignKeyClause(Element foreignKey)
+    protected override string GetForeignKeyClause(Element foreignKey)
     {
         if (foreignKey.Name is not string fkName)
         {
