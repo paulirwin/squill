@@ -52,12 +52,18 @@ public abstract class DacpacDeployerBase
         DeployOptions? options,
         CancellationToken cancellationToken)
     {
+        // The provider is created first because deserializing needs its identity rules: whether a
+        // property takes part in its element's identity is not stored in the DACPAC (it has no
+        // SSDT-compatible representation), so the provider restates it as the model is read.
+        // Without it a domain's CHECK or a view's query would come back participating in the hash
+        // and the object would appear changed on every deploy (issue #122).
+        var provider = CreateProvider(connectionString);
+
         progress?.Report("Reading DACPAC...");
-        var (metadata, sourceModel) = await DacpacSerializer.Deserialize(dacpacStream, cancellationToken);
+        var (metadata, sourceModel) = await DacpacSerializer.Deserialize(
+            dacpacStream, provider.DependencyAnalyzer, cancellationToken);
 
         var databaseName = targetDatabaseName ?? ResolveDatabaseName(connectionString);
-
-        var provider = CreateProvider(connectionString);
 
         await using var targetDb = CreateDatabase(connectionString, databaseName);
 

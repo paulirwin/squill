@@ -145,6 +145,61 @@ public abstract class SakilaSampleDeployTests
         }
     }
 
+    /// <summary>
+    /// Deploying the same DACPAC twice is a no-op the second time (issue #122). The first deploy
+    /// creates the schema; the second compares the unchanged source model against the model
+    /// extracted from the database it just created, so every element must hash-match and the
+    /// deploy must produce no deltas.
+    ///
+    /// <para>
+    /// This is the strongest available check that the parser builder and the database builder
+    /// agree on every construct the sample uses — any facet one side records and the other does
+    /// not shows up here as a spurious delta. It matters most for the six views: a view's query
+    /// is excluded from its identity precisely because MariaDB/MySQL rewrite it when they store
+    /// it, and that exclusion has to survive the DACPAC round trip for a redeploy to be clean.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task Deploy_SakilaSampleTwice_SecondDeployHasNoChanges()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var tempDir = Directory.CreateTempSubdirectory("squill-sakila-redeploy");
+
+        try
+        {
+            var dacpacPath = await BuildDacpacAsync(tempDir.FullName, ct);
+
+            IDatabaseProvider provider = new MariaDbDatabaseProvider(Fixture.ConnectionString);
+            var targetDbName = $"squill_sakila_redeploy_{Guid.NewGuid():n}";
+            var createdDb = await provider.CreateDatabaseAsync(targetDbName, ct);
+
+            try
+            {
+                var first = await DacpacDeployer.DeployFromFileAsync(
+                    dacpacPath, Fixture.ConnectionString, targetDbName, dryRun: false,
+                    cancellationToken: ct);
+                Assert.True(first.WasExecuted, $"[{Fixture.EngineName}] first deploy should execute.");
+
+                // The second deploy of an unchanged DACPAC must find nothing to do.
+                var second = await DacpacDeployer.DeployFromFileAsync(
+                    dacpacPath, Fixture.ConnectionString, targetDbName, dryRun: false,
+                    cancellationToken: ct);
+
+                Assert.True(
+                    string.IsNullOrWhiteSpace(second.Script),
+                    $"[{Fixture.EngineName}] expected no changes on redeploy, but got script:\n{second.Script}");
+            }
+            finally
+            {
+                await createdDb.DropAsync(ct);
+            }
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
     // Runs a COUNT(*) existence query (parameterized on the target database name) and asserts
     // it returned a positive count, i.e. the object was created by the deploy.
     private async Task AssertObjectExistsAsync(

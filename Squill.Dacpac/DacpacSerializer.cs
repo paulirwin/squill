@@ -72,6 +72,22 @@ public static class DacpacSerializer
     public static Task<(ModelMetadata, Model)> Deserialize(
         Stream stream,
         CancellationToken cancellationToken = default)
+        => Deserialize(stream, identityRules: null, cancellationToken);
+
+    /// <summary>
+    /// Deserializes a DACPAC, using <paramref name="identityRules"/> to restore each property's
+    /// <see cref="Property.ParticipatesInIdentity"/> flag. That flag has no SSDT-compatible
+    /// representation in <c>model.xml</c>, but it is a static rule of the element type rather
+    /// than per-model data, so the provider restates it on load — without which an element with
+    /// a non-participating property (a domain's CHECK, a view's query) could never hash-match
+    /// its deployed counterpart and would be re-altered on every deploy (issue #122).
+    /// Callers with no provider to hand pass <c>null</c> and get the default: everything
+    /// participates.
+    /// </summary>
+    public static Task<(ModelMetadata, Model)> Deserialize(
+        Stream stream,
+        IModelIdentityRules? identityRules,
+        CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -115,7 +131,7 @@ public static class DacpacSerializer
         metadata.PostDeployScript = ReadScriptPart(zip, DacpacConstants.PostDeployPart);
 
         using var modelStream = new MemoryStream(modelBytes, writable: false);
-        var model = ModelXmlReader.Read(modelStream, metadata);
+        var model = ModelXmlReader.Read(modelStream, metadata, identityRules);
 
         return Task.FromResult((metadata, model));
     }

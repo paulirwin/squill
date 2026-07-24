@@ -50,6 +50,18 @@ public class PostgresDatabaseDependencyAnalyzer : DatabaseDependencyAnalyzerBase
         return PostgresModelFactory.GetSchema(element);
     }
 
+    // In addition to a view's query (excluded by the base), a domain's CHECK predicate does not
+    // participate in identity: PostgreSQL rewrites it when it stores it, so the declared
+    // `VALUE >= 1901 AND VALUE <= 2155` comes back from pg_get_constraintdef as
+    // `((VALUE >= 1901) AND (VALUE <= 2155))` and could never hash-match. A domain's identity is
+    // its name and base type instead (see PostgresModelFactory.CreateDomain). Restating the rule
+    // here is what keeps it true for a model loaded from a DACPAC, where the flag itself is not
+    // stored (issue #122).
+    public override bool ParticipatesInIdentity(string elementType, string propertyName)
+        => base.ParticipatesInIdentity(elementType, propertyName)
+           && (elementType, propertyName)
+               is not (PostgresElementTypes.SqlDomain, PostgresPropertyNames.CheckExpression);
+
     public override int GetCreateOrder(string type) => type switch
     {
         // A schema must exist before the tables (and other objects) that live in it, and an

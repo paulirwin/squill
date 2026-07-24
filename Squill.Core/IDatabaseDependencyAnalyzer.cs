@@ -1,6 +1,6 @@
 namespace Squill.Core;
 
-public interface IDatabaseDependencyAnalyzer
+public interface IDatabaseDependencyAnalyzer : IModelIdentityRules
 {
     bool IsDependentElementType(string type);
 
