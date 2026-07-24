@@ -103,11 +103,12 @@ public class SchemaCompare
         return comparison;
     }
 
-    // Adds a RecreateDelta for each droppable standalone dependent (an index) present in
-    // both models whose definition differs. Such an element is a separate top-level object
-    // that the main loop skips (it is a dependent) and whose change does not alter its
-    // table's hash, so without this pass an index-only change would be lost. A recreate
-    // holds no data, so it is never gated by a data-loss option.
+    // Reconciles the droppable standalone dependents (indexes and unique constraints) that
+    // the main loop skips because they are dependents, and whose change does not alter their
+    // table's hash — so without this pass a change to one alone would be lost. Present in
+    // both models but differing yields a RecreateDelta; present only in the source, on a
+    // table that already exists, yields a CreateDelta. Neither holds data, so this is never
+    // gated by a data-loss option.
     private static void AddRecreateDeltas(
         SchemaComparison comparison, IDatabaseDependencyAnalyzer analyzer, Model source, Model target)
     {
@@ -139,8 +140,12 @@ public class SchemaCompare
             if (target.Elements.SingleOrDefault(i => ElementsMatch(analyzer, i, sourceElement))
                 is not Element targetElement)
             {
-                // Absent in the target: a new index is created as its table's dependent
-                // (or, if the table already exists, handled elsewhere), not recreated here.
+                // Absent in the target and not covered by a table being created above, so
+                // its table already exists: there is no CREATE TABLE to carry it and nothing
+                // to recreate, so it needs a CreateDelta of its own (e.g. adding an index or
+                // a unique constraint to an existing table). Without this the object would
+                // simply never be created.
+                comparison.Deltas.Add(new CreateDelta(sourceElement));
                 continue;
             }
 

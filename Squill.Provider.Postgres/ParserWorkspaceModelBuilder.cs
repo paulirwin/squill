@@ -412,12 +412,11 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         private readonly Dictionary<(string Schema, string Name), Origin> _constraintOrigins = new();
         private readonly Dictionary<(string Schema, string Name, string Args), Origin> _procedureOrigins = new();
 
-        // NOTE on unique column sets (tracked by the base): a table-level UNIQUE constraint is
-        // not yet parsed (VisitConstraintelem throws NotImplementedException), so only PKs and
-        // CREATE UNIQUE INDEX reach AddUniqueColumnSet today. When UNIQUE parsing is added it
-        // must also call AddUniqueColumnSet, or a foreign key to a UNIQUE column would be
-        // wrongly rejected. Postgres rejects a foreign key not backed by an exact unique set at
-        // deploy time — unlike InnoDB, a leftmost prefix of a wider index is not enough.
+        // NOTE on unique column sets (tracked by the base): PRIMARY KEY, UNIQUE (both column-
+        // and table-level) and CREATE UNIQUE INDEX all register their column set here. Any
+        // future source of uniqueness must do the same, or a foreign key to those columns
+        // would be wrongly rejected: Postgres requires a foreign key to be backed by an exact
+        // unique set — unlike InnoDB, a leftmost prefix of a wider index is not enough.
 
         // A deferred reference to a schema an object is declared in.
         private sealed record SchemaReference(
@@ -664,7 +663,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 // schema's relation namespace. A FOREIGN KEY or CHECK name is scoped to its
                 // table, and Postgres happily accepts the same one on two tables — so
                 // checking those would reject valid SQL.
-                if (constraintName is not null && constraint is PrimaryKeyTableConstraint)
+                if (constraintName is not null
+                    && constraint is PrimaryKeyTableConstraint or UniqueTableConstraint)
                 {
                     CheckDuplicateConstraintName(file, line, column, schema, constraintName);
                 }
@@ -676,6 +676,31 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         pk.Columns.Select(c => c.Name));
 
                     AddUniqueColumnSet(schema, table, pk.Columns.Select(c => c.Name), isPrimaryKey: true);
+                }
+                else if (constraint is UniqueTableConstraint unique)
+                {
+                    CheckOwnColumns(file, line, column,
+                        $"Unique constraint on table '{table}'", table, columns,
+                        unique.Columns.Select(c => c.Name));
+
+                    // An unnamed unique constraint takes the derived <table>_<cols>_key name,
+                    // which the model predicts. Two of them can collide (UNIQUE (a_b) and
+                    // UNIQUE (a, b) both derive <table>_a_b_key), and Postgres would resolve
+                    // that by appending a uniquifying suffix the model cannot predict — so
+                    // report it as a duplicate rather than deploy a name that won't match.
+                    if (constraintName is null)
+                    {
+                        var derived = DeriveUniqueConstraintName(
+                            table, unique.Columns.Select(c => c.Name));
+
+                        CheckUniqueConstraintNameIsPredictable(
+                            file, line, column, table, derived);
+                        CheckDuplicateConstraintName(file, line, column, schema, derived);
+                    }
+
+                    // Registering the set lets a foreign key legitimately reference these
+                    // columns; without it the FK would be wrongly rejected as unbacked.
+                    AddUniqueColumnSet(schema, table, unique.Columns.Select(c => c.Name), isPrimaryKey: false);
                 }
                 else if (constraint is ForeignKeyTableConstraint fk)
                 {
@@ -719,7 +744,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     // a name in the schema's relation namespace; an inline FOREIGN KEY name
                     // is per-table, and a named DEFAULT is rejected downstream with a message
                     // of its own.
-                    if (constraintName is not null && constraint is PrimaryKeyColumnConstraint)
+                    if (constraintName is not null
+                        && constraint is PrimaryKeyColumnConstraint or UniqueColumnConstraint)
                     {
                         CheckDuplicateConstraintName(file, line, column, schema, constraintName);
                     }
@@ -728,6 +754,23 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     {
                         AddUniqueColumnSet(schema, table,
                             [columnDefinition.Name.Name], isPrimaryKey: true);
+                    }
+                    else if (constraint is UniqueColumnConstraint)
+                    {
+                        // As above: an unnamed inline UNIQUE takes the derived name, so a
+                        // collision with another derived name must be reported.
+                        if (constraintName is null)
+                        {
+                            var derived = DeriveUniqueConstraintName(
+                                table, [columnDefinition.Name.Name]);
+
+                            CheckUniqueConstraintNameIsPredictable(
+                                file, line, column, table, derived);
+                            CheckDuplicateConstraintName(file, line, column, schema, derived);
+                        }
+
+                        AddUniqueColumnSet(schema, table,
+                            [columnDefinition.Name.Name], isPrimaryKey: false);
                     }
                     else if (constraint is ForeignKeyColumnConstraint fk)
                     {
@@ -859,6 +902,31 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         /// <c>CONSTRAINT pk_x PRIMARY KEY</c>, and the deploy would fail with
         /// "relation already exists".
         /// </summary>
+        // PostgreSQL truncates a generated constraint name to 63 bytes, shortening the table
+        // and column components from the middle while preserving the "_key" suffix. That
+        // algorithm is not reproduced here, so a name that would be truncated cannot be
+        // predicted — and an unpredictable name would never hash-match the one read back from
+        // the database, silently re-diffing on every deploy. Require an explicit name instead.
+        private void CheckUniqueConstraintNameIsPredictable(IFile file,
+            int? line,
+            int? column,
+            string table,
+            string derivedName)
+        {
+            // The limit is NAMEDATALEN - 1 = 63 bytes, not characters.
+            if (System.Text.Encoding.UTF8.GetByteCount(derivedName) <= 63)
+            {
+                return;
+            }
+
+            AddError(new SqlSourceException(
+                $"The generated name for the unique constraint on table '{table}' "
+                + $"('{derivedName}') exceeds PostgreSQL's 63-byte identifier limit and would "
+                + "be truncated to a name Squill cannot predict. Name the constraint "
+                + "explicitly with CONSTRAINT <name> UNIQUE (...).",
+                file.Name, line, column, SqlSourceException.InvalidConstraint));
+        }
+
         private void CheckDuplicateConstraintName(IFile file,
             int? line,
             int? column,
@@ -897,6 +965,23 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         ReferentialAction OnDelete,
         ReferentialAction OnUpdate);
 
+    // A UNIQUE constraint gathered while walking a CREATE TABLE, before it becomes an
+    // element (its name may be explicit or derived from the Postgres convention).
+    private sealed record UniqueConstraintSpec(string? ExplicitName, IReadOnlyList<string> Columns);
+
+    // The name Postgres gives an unnamed unique constraint: <table>_<col>_..._key. Shared by
+    // the validator (to detect a collision between two derived names) and by element
+    // construction, so the predicted name and the validated name cannot drift apart.
+    //
+    // Postgres resolves a name that is already taken by appending an increasing integer
+    // (<table>_<col>_key1, …) against the relation namespace it shares with indexes. Two
+    // colliding declarations in the source are caught by CheckDuplicateConstraintName, and a
+    // name too long to predict by CheckUniqueConstraintNameIsPredictable; a collision with an
+    // object that exists only in the target database remains unpredictable from source alone,
+    // so naming the constraint explicitly is the reliable option.
+    private static string DeriveUniqueConstraintName(string table, IEnumerable<string> columns)
+        => $"{table}_{string.Join('_', columns)}_key";
+
     private static IEnumerable<Element> MakeCreateTableElements(CreateTableStatement createTableStatement)
     {
         var (schema, tableName) = SplitSchema(createTableStatement.Name);
@@ -908,12 +993,14 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
         var primaryKeyColumns = new List<PostgresModelFactory.IndexedColumn>();
         var foreignKeys = new List<ForeignKeySpec>();
+        var uniqueConstraints = new List<UniqueConstraintSpec>();
 
         var inlinePkName = AddTableColumnsRelationship(
-            tableElement, tableName, createTableStatement, primaryKeyColumns, foreignKeys);
+            tableElement, tableName, createTableStatement, primaryKeyColumns, foreignKeys,
+            uniqueConstraints);
 
         var tableLevelPkName = CollectTableLevelConstraints(
-            createTableStatement, tableName, primaryKeyColumns, foreignKeys);
+            createTableStatement, tableName, primaryKeyColumns, foreignKeys, uniqueConstraints);
 
         // A named PK can be written inline on its column (CONSTRAINT pk_x PRIMARY KEY) or as
         // a table-level clause; at most one applies, so either source is the explicit name.
@@ -929,6 +1016,21 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             var pkName = tableName.Sibling(explicitPkName ?? $"{tableName.UnqualifiedName}_pkey");
 
             yield return PostgresModelFactory.CreatePrimaryKey(pkName, tableName, primaryKeyColumns);
+        }
+
+        // Postgres names an unnamed unique constraint <table>_<col>_..._key. Predicting it
+        // here lets a parsed model hash-match one extracted from the database. Emitted after
+        // the PK and before the FKs, matching the DB builder's per-table element order.
+        foreach (var unique in uniqueConstraints)
+        {
+            var uniqueName = tableName.Sibling(unique.ExplicitName
+                ?? DeriveUniqueConstraintName(tableName.UnqualifiedName, unique.Columns));
+
+            var columns = unique.Columns
+                .Select(c => new PostgresModelFactory.IndexedColumn(tableName.Child(c)));
+
+            yield return PostgresModelFactory.CreateUniqueConstraint(
+                uniqueName, tableName, columns, schema);
         }
 
         foreach (var foreignKey in foreignKeys)
@@ -960,12 +1062,13 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             spec.OnUpdate);
     }
 
-    // Walks the table-level constraints, appending table-level PK columns and FK specs.
-    // Returns the explicit name of a table-level PRIMARY KEY constraint if one was named.
+    // Walks the table-level constraints, appending table-level PK columns, unique specs and
+    // FK specs. Returns the explicit name of a table-level PRIMARY KEY constraint if named.
     private static string? CollectTableLevelConstraints(CreateTableStatement createTableStatement,
         SqlName tableName,
         List<PostgresModelFactory.IndexedColumn> primaryKeyColumns,
-        List<ForeignKeySpec> foreignKeys)
+        List<ForeignKeySpec> foreignKeys,
+        List<UniqueConstraintSpec> uniqueConstraints)
     {
         string? explicitPkName = null;
 
@@ -983,6 +1086,11 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 }
 
                 explicitPkName = explicitName;
+            }
+            else if (constraint is UniqueTableConstraint unique)
+            {
+                uniqueConstraints.Add(new UniqueConstraintSpec(
+                    explicitName, unique.Columns.Select(c => c.Name).ToList()));
             }
             else if (constraint is ForeignKeyTableConstraint fk)
             {
@@ -1005,7 +1113,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         SqlName tableName,
         CreateTableStatement createTableStatement,
         List<PostgresModelFactory.IndexedColumn> primaryKeyColumns,
-        List<ForeignKeySpec> foreignKeys)
+        List<ForeignKeySpec> foreignKeys,
+        List<UniqueConstraintSpec> uniqueConstraints)
     {
         string? inlinePkName = null;
 
@@ -1028,6 +1137,22 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             bool? isNullable = null;
             IdentityColumnConstraint? identityConstraint = null;
             string? defaultValue = null;
+
+            // SERIAL/SMALLSERIAL/BIGSERIAL are shorthand for a sequence-backed integer
+            // column, not real types. They are lowered to the modern equivalent — the
+            // underlying integer type (handled by CanonicalName) plus GENERATED BY DEFAULT
+            // AS IDENTITY — so the deployed column round-trips: a literal `serial` would
+            // deploy as integer + a nextval default, which extraction drops, leaving the
+            // column to re-diff on every deploy (issue #121).
+            if (IsSerialType(columnDefinition.DataType))
+            {
+                identityConstraint = new IdentityColumnConstraint(
+                    columnDefinition.DataType.TypeName, always: false,
+                    null, null, null, null, null, null);
+
+                // A serial column is implicitly NOT NULL.
+                isNullable = false;
+            }
 
             foreach (var columnConstraint in columnDefinition.Constraints)
             {
@@ -1054,6 +1179,13 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
                     // PKs are not nullable
                     isNullable = false;
+                }
+                else if (constraint is UniqueColumnConstraint)
+                {
+                    // An inline UNIQUE is a single-column unique constraint; a
+                    // CONSTRAINT <name> UNIQUE wrapper names it.
+                    uniqueConstraints.Add(new UniqueConstraintSpec(
+                        explicitName, [columnDefinition.Name.Name]));
                 }
                 else if (constraint is DefaultColumnConstraint defaultConstraint)
                 {
@@ -1140,6 +1272,13 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
         return inlinePkName;
     }
+
+    // Whether a column's declared type is one of the serial shorthands, which imply a
+    // sequence-backed (identity) integer column rather than naming a real type.
+    private static bool IsSerialType(DataType dataType)
+        => dataType is BuiltInDataType { Type: PostgresBuiltInDataType.SmallSerial
+            or PostgresBuiltInDataType.Serial
+            or PostgresBuiltInDataType.BigSerial };
 
     // Builds the SqlTypeSpecifier element for a column's data type. The type reference
     // name is the canonical PostgreSQL type name (matching what the DB builder reads back

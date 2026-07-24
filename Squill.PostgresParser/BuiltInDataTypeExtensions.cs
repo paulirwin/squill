@@ -16,9 +16,15 @@ public static class BuiltInDataTypeExtensions
             PostgresBuiltInDataType.Decimal => "numeric",
             PostgresBuiltInDataType.Real => "real",
             PostgresBuiltInDataType.Double => "double precision",
-            PostgresBuiltInDataType.SmallSerial => "smallserial",
-            PostgresBuiltInDataType.Serial => "serial",
-            PostgresBuiltInDataType.BigSerial => "bigserial",
+            // The serial types are shorthand for a sequence-backed integer column, not
+            // types in their own right: a serial column's type is reported by
+            // format_type()/information_schema as the underlying integer type. Canonicalize
+            // to that so a parsed model can hash-match one extracted from a live database
+            // (issue #121).
+            // https://www.postgresql.org/docs/current/datatype-numeric.html#DATATYPE-SERIAL
+            PostgresBuiltInDataType.SmallSerial => "smallint",
+            PostgresBuiltInDataType.Serial => "integer",
+            PostgresBuiltInDataType.BigSerial => "bigint",
             // information_schema and format_type() spell the without-time-zone variants
             // out in full ("timestamp without time zone", "time without time zone"), so the
             // canonical names must match or a parsed model won't hash-match one extracted

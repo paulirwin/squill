@@ -17,6 +17,12 @@ public partial class PostgresVisitor
             return At(new PrimaryKeyColumnConstraint(context.GetText()), context);
         }
 
+        if (context.UNIQUE() is not null)
+        {
+            // TODO: support opt_definition and optconsttablespace
+            return At(new UniqueColumnConstraint(context.GetText()), context);
+        }
+
         if (context.DEFAULT() is not null)
         {
             if (VisitB_expr(context.b_expr()) is not Expression expression)
@@ -126,7 +132,7 @@ public partial class PostgresVisitor
             return At(new CheckColumnConstraint(context.GetText(), checkExpression), context);
         }
 
-        // TODO: support UNIQUE and GENERATED ... AS (expr) STORED
+        // TODO: support GENERATED ... AS (expr) STORED
         throw new NotImplementedException("Column constraint type not yet implemented");
     }
 

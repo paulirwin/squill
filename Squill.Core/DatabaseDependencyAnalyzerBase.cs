@@ -18,6 +18,7 @@ public abstract class DatabaseDependencyAnalyzerBase : IDatabaseDependencyAnalyz
 {
     public bool IsDependentElementType(string type)
         => type is SqlElementTypes.SqlPrimaryKeyConstraint
+            or SqlElementTypes.SqlUniqueConstraint
             or SqlElementTypes.SqlIndex
             or SqlElementTypes.SqlForeignKeyConstraint;
 
@@ -27,8 +28,11 @@ public abstract class DatabaseDependencyAnalyzerBase : IDatabaseDependencyAnalyz
     public bool DropCausesDataLoss(string type)
         => type == SqlElementTypes.SqlTable;
 
+    // An index or a unique constraint can be created and dropped on its own, so a change to
+    // one on an otherwise-unchanged table is reconciled without touching the table. A PK or
+    // FK is not: those are reconciled through their table.
     public bool IsDroppableStandaloneDependent(string type)
-        => type == SqlElementTypes.SqlIndex;
+        => type is SqlElementTypes.SqlIndex or SqlElementTypes.SqlUniqueConstraint;
 
     // No extension concept by default (Postgres overrides).
     public virtual bool IsExtensionElementType(string type) => false;

@@ -26,13 +26,16 @@ public class PostgresDatabaseDependencyAnalyzer : DatabaseDependencyAnalyzerBase
 
     public override string? GetElementSchema(Element element)
     {
-        // Tables and indexes carry their schema in a Schema relationship. Extensions and
+        // Tables, indexes and unique constraints carry their schema in a Schema
+        // relationship — a unique constraint needs one so the ALTER TABLE that adds or drops
+        // it can qualify the table. Extensions and
         // schemas themselves are not schema-scoped (an extension is globally named per
         // database; a schema is the namespace), so they have no schema for identity. Enum
         // types and domains are schema-scoped user-defined types (issue #75), so they carry
         // their schema like a table does.
         if (element.Type is not (PostgresElementTypes.SqlTable
             or PostgresElementTypes.SqlIndex
+            or PostgresElementTypes.SqlUniqueConstraint
             or PostgresElementTypes.SqlProcedure
             or PostgresElementTypes.SqlView
             or PostgresElementTypes.SqlEnumType

@@ -211,7 +211,13 @@ public partial class PostgresVisitor
                 else if (Enum.TryParse<PostgresBuiltInDataType>(text, ignoreCase: true, out var builtInUnparsedType)
                          && builtInUnparsedType is PostgresBuiltInDataType.TSVector
                              or PostgresBuiltInDataType.TSQuery
-                             or PostgresBuiltInDataType.Date)
+                             or PostgresBuiltInDataType.Date
+                             // SERIAL/SMALLSERIAL/BIGSERIAL are notational shorthand rather
+                             // than real types, so the grammar has no token for them and
+                             // they arrive here as generic type names (issue #121).
+                             or PostgresBuiltInDataType.SmallSerial
+                             or PostgresBuiltInDataType.Serial
+                             or PostgresBuiltInDataType.BigSerial)
                 {
                     // TODO: modify parser/lexer to support these types and PR upstream
                     dataType = new BuiltInDataType(builtInUnparsedType, text);
