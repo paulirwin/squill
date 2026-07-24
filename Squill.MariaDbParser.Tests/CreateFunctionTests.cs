@@ -208,6 +208,62 @@ public class CreateFunctionTests
     }
 
     [Fact]
+    public void CreateFunction_BareReturnAsHandlerActionParses()
+    {
+        // Regression for #101: a bare `RETURN` used as a DECLARE ... HANDLER action must parse.
+        // The upstream grammar's handler action was `routineBody`, which rejected this form with
+        // "no viable alternative"; widened to accept a bare sqlStatement (antlr/grammars-v4#4949).
+        // This is the canonical Sakila `inventory_held_by_customer` shape.
+        var statement = ParseOne(
+            """
+            CREATE FUNCTION inventory_held_by_customer(p_inventory_id int) RETURNS int READS SQL DATA
+            BEGIN
+                DECLARE v_customer_id INT;
+                DECLARE EXIT HANDLER FOR NOT FOUND RETURN NULL;
+
+                SELECT customer_id INTO v_customer_id FROM rental WHERE inventory_id = p_inventory_id;
+                RETURN v_customer_id;
+            END;
+            """);
+
+        Assert.Equal("inventory_held_by_customer", statement.Name.Name);
+    }
+
+    [Fact]
+    public void CreateFunction_BeginEndHandlerActionStillParses()
+    {
+        // The pre-fix workaround form (a compound statement action) must keep parsing after the
+        // grammar was widened to `(compoundStatement | sqlStatement)`.
+        var statement = ParseOne(
+            """
+            CREATE FUNCTION f() RETURNS INT
+            BEGIN
+                DECLARE EXIT HANDLER FOR NOT FOUND BEGIN RETURN NULL; END;
+                RETURN 1;
+            END;
+            """);
+
+        Assert.Equal("f", statement.Name.Name);
+    }
+
+    [Fact]
+    public void CreateFunction_SetAsHandlerActionStillParses()
+    {
+        // A plain SET as the handler action (an sqlStatement) must also parse.
+        var statement = ParseOne(
+            """
+            CREATE FUNCTION f() RETURNS INT
+            BEGIN
+                DECLARE done INT DEFAULT 0;
+                DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = 1;
+                RETURN done;
+            END;
+            """);
+
+        Assert.Equal("f", statement.Name.Name);
+    }
+
+    [Fact]
     public void CreateFunction_RecordsSourcePosition()
     {
         var statement = ParseOne(
