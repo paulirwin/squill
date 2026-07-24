@@ -8,31 +8,37 @@ small [MariaDbSampleDatabase](../MariaDbSampleDatabase).
 
 What it covers: 16 tables with `AUTO_INCREMENT` keys and foreign keys (including
 the circular `staff`↔`store` pair), `ENUM` / `SET` / `YEAR` columns,
-`ON UPDATE CURRENT_TIMESTAMP`, a `FULLTEXT` index, seven views, stored
+`ON UPDATE CURRENT_TIMESTAMP`, a `FULLTEXT` index, six views, stored
 procedures, stored functions, and triggers.
 
 ## Status
 
-This sample is **aspirational**: it intentionally includes features Squill's
-MariaDB provider does not fully support yet, so it doubles as a living gap list.
-Today:
+The full sample **builds into a DACPAC and deploys against real MariaDB and
+MySQL**. The features it exercises are all modeled:
 
-- **Builds** (parses to a DACPAC) for the supported subset — all tables, views,
-  procedures, and triggers.
-- **Does not yet deploy** end-to-end, because of two provider gaps:
-  1. **`ENUM` / `SET` script generation** — these columns parse, but the
-     generated DDL drops the value list (emits `enum NULL` / `set NULL`), which
-     is invalid SQL. This blocks the `film` table.
-  2. **`CREATE FUNCTION`** — only `CREATE PROCEDURE` is modeled, so the three
-     Sakila stored functions (`get_customer_balance`, `inventory_in_stock`,
-     `inventory_held_by_customer`) can't be built.
+- **`ENUM` / `SET` script generation** — the value lists are preserved in the
+  generated DDL (issue #73), so the `film` table's `rating` enum and
+  `special_features` set deploy correctly.
+- **`CREATE FUNCTION`** — the three Sakila stored functions
+  (`get_customer_balance`, `inventory_in_stock`, `inventory_held_by_customer`)
+  are modeled alongside the procedures (issue #74).
+- **Triggers** — the three `film` triggers that keep the `FULLTEXT`-indexed
+  `film_text` copy in sync (issue #100).
 
 The integration tests in
-`Squill.IntegrationTests/MariaDb/SakilaSample` track this: a build test runs
-today, and the end-to-end deploy test is `Skip`ped with the exact reasons above.
-When those features land, remove the skip and switch the test to the full schema.
+`Squill.IntegrationTests/MariaDb/SakilaSample` cover this end to end, running
+once against MariaDB and once against MySQL: a DB-less
+`BuildFullSchema_ProducesADacpac` test builds the DACPAC, and
+`Deploy_SakilaSample_ProducesTheSampleSchema` deploys it into a real database
+(via the same code path as `squill deploy`) and asserts that a representative
+object from each feature area — the `film` table, its `rating` enum column, the
+`customer_list` view, the `get_customer_balance` function, the `film_in_stock`
+procedure, and the `ins_film` trigger — exists afterward. Both tests are live
+(not skipped).
 
-Because it can't build cleanly yet, this project is **not** part of `Squill.slnx`.
+This project is part of `Squill.slnx`, so it builds with the solution. The same
+schema is also embedded as a resource in `Squill.IntegrationTests`, which is how
+the end-to-end deploy tests above exercise it against a real database.
 
 ## License
 

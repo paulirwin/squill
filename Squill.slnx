@@ -36,4 +36,10 @@
   <Project Path="samples/MariaDbSampleDatabase/MariaDbSampleDatabase.squillproj" Type="9A19103F-16F7-4668-BE54-9A1E7A4F7556">
     <BuildDependency Project="Squill.Build/Squill.Build.csproj" />
   </Project>
+  <Project Path="samples/PagilaSampleDatabase/PagilaSampleDatabase.squillproj" Type="9A19103F-16F7-4668-BE54-9A1E7A4F7556">
+    <BuildDependency Project="Squill.Build/Squill.Build.csproj" />
+  </Project>
+  <Project Path="samples/SakilaSampleDatabase/SakilaSampleDatabase.squillproj" Type="9A19103F-16F7-4668-BE54-9A1E7A4F7556">
+    <BuildDependency Project="Squill.Build/Squill.Build.csproj" />
+  </Project>
 </Solution>
