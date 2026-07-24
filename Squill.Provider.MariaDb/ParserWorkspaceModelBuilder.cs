@@ -394,17 +394,17 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     /// files, does not matter. Every error is reported, not just the first. MariaDB has
     /// no schema objects (a database is the schema), so tables are keyed by bare name.
     /// </summary>
-    private sealed class SourceValidator
+    // A MariaDB database *is* the schema namespace — there are no schema objects — so tables
+    // (and routines and triggers) are keyed by their bare name, case-insensitively. The shared
+    // validation core lives in SourceValidatorBase; this subclass adds MariaDB's routine/
+    // trigger/index tracking and the registration methods that read MariaDB syntax.
+    private sealed class SourceValidator : SourceValidatorBase<string>
     {
-        private readonly Dictionary<string, HashSet<string>> _declaredTables =
-            new(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<string, List<string>> _declaredColumnOrder =
-            new(StringComparer.OrdinalIgnoreCase);
-        private readonly List<TableReference> _tableReferences = [];
-        private readonly List<SqlSourceException> _errors = [];
+        public SourceValidator() : base(StringComparer.OrdinalIgnoreCase)
+        {
+        }
 
-        // Where each object was first defined, so a redefinition can name the original.
-        private readonly Dictionary<string, Origin> _tableOrigins = new(StringComparer.OrdinalIgnoreCase);
+        // Where each routine/trigger was first defined, so a redefinition can name the original.
         private readonly Dictionary<string, Origin> _procedureOrigins = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Origin> _functionOrigins = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Origin> _triggerOrigins = new(StringComparer.OrdinalIgnoreCase);
@@ -418,40 +418,11 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         private readonly HashSet<CreateFunctionStatement> _duplicateFunctions = [];
         private readonly HashSet<CreateTriggerStatement> _duplicateTriggers = [];
 
-        // The column sets made unique by a primary key or unique constraint/index on each
-        // table; a foreign key's referenced columns must match one of these exactly.
-        //
-        // This provider serves both MariaDB and MySQL, and the two genuinely differ here:
-        // MariaDB accepts a foreign key backed by the leftmost prefix of any index (unique or
-        // not), while MySQL 8+ requires a unique key on exactly the referenced columns and
-        // rejects the rest with "Missing unique key for constraint ... in the referenced
-        // table". The stricter MySQL rule is the one enforced, so a DACPAC that builds is
-        // deployable on either engine — accepting MariaDB's looser form would let a project
-        // build and then fail on deploy against MySQL.
-        private readonly Dictionary<string, List<HashSet<string>>> _uniqueColumnSets =
-            new(StringComparer.OrdinalIgnoreCase);
-        private readonly HashSet<string> _tablesWithPrimaryKey = new(StringComparer.OrdinalIgnoreCase);
-        private readonly List<ForeignKeyUniquenessCheck> _foreignKeyChecks = [];
-
-        // Where an object was first defined.
-        private sealed record Origin(string SourceFile, int? Line);
-
-        // A deferred check that a foreign key's referenced columns are backed by a primary
-        // key or unique constraint on the referenced table.
-        private sealed record ForeignKeyUniquenessCheck(
-            string SourceFile,
-            int? Line,
-            int? Column,
-            string Subject,
-            string Table,
-            IReadOnlyList<string> Columns);
-
-        /// <summary>
-        /// Records an error found outside the validator (a syntax error, or a statement that
-        /// could not be mapped) so it is reported together with the reference errors instead
-        /// of aborting the build at the first file.
-        /// </summary>
-        public void AddError(SqlSourceException error) => _errors.Add(error);
+        // The base tracks unique column sets and the FK backing-index check; the rationale for
+        // recording only unique sets is MariaDB/MySQL-specific and lives at each call site
+        // (AddCreateTable / AddCreateIndex): this provider serves both engines and enforces the
+        // stricter MySQL rule (a unique key on exactly the referenced columns), so a DACPAC that
+        // builds is deployable on either — MariaDB's looser leftmost-prefix form is rejected.
 
         public bool IsDuplicateTable(CreateTableStatement createTable)
             => _duplicateTables.Contains(createTable);
@@ -467,7 +438,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
             if (_procedureOrigins.TryGetValue(name, out var existing))
             {
-                _errors.Add(new SqlSourceException(
+                AddError(new SqlSourceException(
                     $"Procedure '{name}' is already defined in {DescribeOrigin(existing)}.",
                     file.Name, createProcedure.Line, createProcedure.Column,
                     SqlSourceException.DuplicateDefinition));
@@ -491,7 +462,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
             if (_functionOrigins.TryGetValue(name, out var existing))
             {
-                _errors.Add(new SqlSourceException(
+                AddError(new SqlSourceException(
                     $"Function '{name}' is already defined in {DescribeOrigin(existing)}.",
                     file.Name, createFunction.Line, createFunction.Column,
                     SqlSourceException.DuplicateDefinition));
@@ -515,7 +486,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
             if (_triggerOrigins.TryGetValue(name, out var existing))
             {
-                _errors.Add(new SqlSourceException(
+                AddError(new SqlSourceException(
                     $"Trigger '{name}' is already defined in {DescribeOrigin(existing)}.",
                     file.Name, createTrigger.Line, createTrigger.Column,
                     SqlSourceException.DuplicateDefinition));
@@ -529,21 +500,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
             // The table the trigger fires on must be declared in the project, so an unresolved
             // one is reported like any other unresolved reference.
-            _tableReferences.Add(new TableReference(
+            var triggerTable = createTrigger.Table.Name;
+            AddTableReference(new TableReference(
                 file.Name, createTrigger.Line, createTrigger.Column,
                 $"Trigger '{name}'",
-                createTrigger.Table.Name, []));
+                triggerTable, triggerTable, []));
         }
-
-        // A deferred reference to a table (and optionally columns on it) that must be
-        // declared somewhere in the project, with the source position to report against.
-        private sealed record TableReference(
-            string SourceFile,
-            int? Line,
-            int? Column,
-            string Subject,
-            string Table,
-            IReadOnlyList<string> Columns);
 
         public void AddCreateTable(IFile file, CreateTableStatement createTable)
         {
@@ -556,7 +518,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 // MariaDB rejects it outright, so it is a build error.
                 if (!columns.Add(columnDefinition.Name.Name))
                 {
-                    _errors.Add(new SqlSourceException(
+                    AddError(new SqlSourceException(
                         $"Column '{columnDefinition.Name.Name}' is defined more than once on "
                         + $"table '{table}'.",
                         file.Name, createTable.Line, createTable.Column,
@@ -567,9 +529,9 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             // Two CREATE TABLEs for the same name would last-win in the declared-table map
             // and put both element sets in the model, which confuses diffing — so it is an
             // error reported at the second definition, naming where the first one is.
-            if (_tableOrigins.TryGetValue(table, out var existingTable))
+            if (TableOrigins.TryGetValue(table, out var existingTable))
             {
-                _errors.Add(new SqlSourceException(
+                AddError(new SqlSourceException(
                     $"Table '{table}' is already defined in {DescribeOrigin(existingTable)}.",
                     file.Name, createTable.Line, createTable.Column,
                     SqlSourceException.DuplicateDefinition));
@@ -579,12 +541,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 return;
             }
 
-            _tableOrigins[table] = new Origin(file.Name, createTable.Line);
-            _declaredTables[table] = columns;
+            TableOrigins[table] = new Origin(file.Name, createTable.Line);
+            DeclaredTables[table] = columns;
 
             // The set above is for membership checks and is unordered; a view's SELECT *
             // expands in declaration order, so that order is kept alongside it.
-            _declaredColumnOrder[table] = createTable.Elements
+            DeclaredColumnOrder[table] = createTable.Elements
                 .OfType<ColumnDefinition>()
                 .Select(i => i.Name.Name)
                 .ToList();
@@ -643,26 +605,27 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
                         if (!shapeIsValid)
                         {
-                            _errors.Add(new SqlSourceException(
+                            AddError(new SqlSourceException(
                                 $"Foreign key on table '{table}' has {fk.Columns.Count} referencing "
                                 + $"column(s) but {fk.ReferencedColumns.Count} referenced column(s).",
                                 file.Name, line, column, SqlSourceException.InvalidConstraint));
                         }
 
-                        _tableReferences.Add(new TableReference(
+                        var referenced = fk.ReferencedTable.Name;
+                        AddTableReference(new TableReference(
                             file.Name, line, column,
                             $"Foreign key on table '{table}'",
-                            fk.ReferencedTable.Name,
+                            referenced, referenced,
                             fk.ReferencedColumns.Select(c => c.Name).ToList()));
 
                         // A foreign key whose shape is already wrong gets no uniqueness
                         // complaint on top — that would only obscure the actual problem.
                         if (shapeIsValid)
                         {
-                            _foreignKeyChecks.Add(new ForeignKeyUniquenessCheck(
+                            AddForeignKeyCheck(new ForeignKeyUniquenessCheck(
                                 file.Name, line, column,
                                 $"Foreign key on table '{table}'",
-                                fk.ReferencedTable.Name,
+                                referenced, referenced,
                                 fk.ReferencedColumns.Select(c => c.Name).ToList()));
                         }
                         break;
@@ -694,47 +657,22 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                             ? new[] { referencedColumn.Name }
                             : Array.Empty<string>();
 
-                        _tableReferences.Add(new TableReference(
+                        var referenced = fk.ReferencedTable.Name;
+                        AddTableReference(new TableReference(
                             file.Name, line, column,
                             $"Foreign key on table '{table}'",
-                            fk.ReferencedTable.Name,
+                            referenced, referenced,
                             referencedColumns));
 
-                        _foreignKeyChecks.Add(new ForeignKeyUniquenessCheck(
+                        AddForeignKeyCheck(new ForeignKeyUniquenessCheck(
                             file.Name, line, column,
                             $"Foreign key on table '{table}'",
-                            fk.ReferencedTable.Name,
+                            referenced, referenced,
                             referencedColumns));
                     }
                 }
             }
         }
-
-        /// <summary>
-        /// Records a set of columns made unique by a primary key or unique constraint/index,
-        /// so a foreign key referencing exactly that set can be validated. A non-unique index
-        /// is deliberately not recorded: MySQL does not accept one as a foreign key's backing
-        /// index, even though MariaDB does.
-        /// </summary>
-        private void AddUniqueColumnSet(string table, IEnumerable<string> columns, bool isPrimaryKey)
-        {
-            if (!_uniqueColumnSets.TryGetValue(table, out var sets))
-            {
-                sets = [];
-                _uniqueColumnSets[table] = sets;
-            }
-
-            sets.Add(new HashSet<string>(columns, StringComparer.OrdinalIgnoreCase));
-
-            if (isPrimaryKey)
-            {
-                _tablesWithPrimaryKey.Add(table);
-            }
-        }
-
-        // Describes where an object was first defined, for a duplicate-definition message.
-        private static string DescribeOrigin(Origin origin)
-            => origin.Line is { } line ? $"{origin.SourceFile} line {line}" : origin.SourceFile;
 
         public void AddCreateView(IFile file, CreateViewStatement createView)
         {
@@ -742,30 +680,30 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             // unresolved one is reported like any other unresolved reference.
             foreach (var sourceTable in createView.SourceTables)
             {
-                _tableReferences.Add(new TableReference(
+                AddTableReference(new TableReference(
                     file.Name, createView.Line, createView.Column,
                     $"View '{createView.Name.Name}'",
-                    sourceTable.Name, []));
+                    sourceTable.Name, sourceTable.Name, []));
             }
         }
 
         /// <summary>
         /// The columns declared on a table, or null when the table is not declared in the
         /// project. Used to expand a view's <c>SELECT *</c>; an unresolved table is already
-        /// reported as an error by <see cref="ThrowIfInvalid"/>.
+        /// reported as an error by <see cref="SourceValidatorBase{TTableKey}.ThrowIfInvalid"/>.
         /// </summary>
         public IReadOnlyList<string>? GetDeclaredColumns(string table)
-            => _declaredColumnOrder.TryGetValue(table, out var columns) ? columns : null;
+            => DeclaredColumnOrder.TryGetValue(table, out var columns) ? columns : null;
 
         public void AddCreateIndex(IFile file, CreateIndexStatement createIndex)
         {
             var table = createIndex.OnTable.Name;
             var columns = createIndex.Columns.Select(c => c.Column.Name).ToList();
 
-            _tableReferences.Add(new TableReference(
+            AddTableReference(new TableReference(
                 file.Name, createIndex.Line, createIndex.Column,
                 createIndex.Name is { } name ? $"Index '{name}'" : "Index",
-                table,
+                table, table,
                 columns));
 
             CheckDuplicateIndexName(file, createIndex.Line, createIndex.Column,
@@ -799,7 +737,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
             if (_indexOrigins.TryGetValue(key, out var existing))
             {
-                _errors.Add(new SqlSourceException(
+                AddError(new SqlSourceException(
                     $"Index '{indexName}' on table '{table}' is already defined in "
                     + $"{DescribeOrigin(existing)}.",
                     file.Name, line, column, SqlSourceException.DuplicateDefinition));
@@ -810,124 +748,6 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             _indexOrigins[key] = new Origin(file.Name, line);
         }
 
-        public void ThrowIfInvalid()
-        {
-            foreach (var reference in _tableReferences)
-            {
-                if (!_declaredTables.TryGetValue(reference.Table, out var columns))
-                {
-                    _errors.Add(new SqlSourceException(
-                        $"{reference.Subject} references table '{reference.Table}', "
-                        + "which is not defined in the project.",
-                        reference.SourceFile, reference.Line, reference.Column,
-                        SqlSourceException.UnresolvedReference));
-
-                    continue;
-                }
-
-                foreach (var column in reference.Columns)
-                {
-                    if (!columns.Contains(column))
-                    {
-                        _errors.Add(new SqlSourceException(
-                            $"{reference.Subject} references column '{reference.Table}.{column}', "
-                            + "which is not defined in the project.",
-                            reference.SourceFile, reference.Line, reference.Column,
-                            SqlSourceException.UnresolvedReference));
-                    }
-                }
-            }
-
-            CheckForeignKeyUniqueness();
-
-            if (_errors.Count == 1)
-            {
-                throw _errors[0];
-            }
-
-            if (_errors.Count > 1)
-            {
-                throw new AggregateException(_errors);
-            }
-        }
-
-        /// <summary>
-        /// Checks that every foreign key's referenced columns are backed by a primary key or
-        /// unique constraint/index on the referenced table — InnoDB requires this and
-        /// otherwise fails the deploy (errno 150). The columns are compared as a set, since a
-        /// unique constraint on (a, b) equally covers a reference to (b, a).
-        /// </summary>
-        private void CheckForeignKeyUniqueness()
-        {
-            foreach (var check in _foreignKeyChecks)
-            {
-                // An unresolved table was already reported as SQ0002; don't pile on.
-                if (!_declaredTables.TryGetValue(check.Table, out var declaredColumns))
-                {
-                    continue;
-                }
-
-                // Likewise when a referenced column does not exist: that unresolved-reference
-                // error is the specific one, and "not covered by a unique constraint" on top
-                // of it would just be noise.
-                if (check.Columns.Any(i => !declaredColumns.Contains(i)))
-                {
-                    continue;
-                }
-
-                // No column list means "the referenced table's primary key", so it must have one.
-                if (check.Columns.Count == 0)
-                {
-                    if (!_tablesWithPrimaryKey.Contains(check.Table))
-                    {
-                        _errors.Add(new SqlSourceException(
-                            $"{check.Subject} references table '{check.Table}', which has no "
-                            + "primary key. Either declare a primary key on it or name the "
-                            + "referenced columns explicitly.",
-                            check.SourceFile, check.Line, check.Column,
-                            SqlSourceException.InvalidConstraint));
-                    }
-
-                    continue;
-                }
-
-                var referenced = new HashSet<string>(check.Columns, StringComparer.OrdinalIgnoreCase);
-
-                var backed = _uniqueColumnSets.TryGetValue(check.Table, out var sets)
-                    && sets.Any(referenced.SetEquals);
-
-                if (!backed)
-                {
-                    _errors.Add(new SqlSourceException(
-                        $"{check.Subject} references column(s) "
-                        + $"({string.Join(", ", check.Columns)}) on table '{check.Table}', which "
-                        + "are not covered by a primary key or unique constraint. Add a unique "
-                        + "constraint or unique index on exactly those columns.",
-                        check.SourceFile, check.Line, check.Column,
-                        SqlSourceException.InvalidConstraint));
-                }
-            }
-        }
-
-        private void CheckOwnColumns(IFile file,
-            int? line,
-            int? column,
-            string subject,
-            string table,
-            HashSet<string> declaredColumns,
-            IEnumerable<string> columnNames)
-        {
-            foreach (var name in columnNames)
-            {
-                if (!declaredColumns.Contains(name))
-                {
-                    _errors.Add(new SqlSourceException(
-                        $"{subject} references column '{table}.{name}', "
-                        + "which is not defined on the table.",
-                        file.Name, line, column, SqlSourceException.UnresolvedReference));
-                }
-            }
-        }
     }
 
     // A foreign key gathered while walking a CREATE TABLE, before it becomes an element (its
