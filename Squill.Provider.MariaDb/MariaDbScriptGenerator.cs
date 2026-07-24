@@ -44,6 +44,14 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
             return GenerateCreateIndexScript(createDelta.Element, IndexTableName(createDelta.Element));
         }
 
+        // A CHECK constraint added to a table that already exists: there is no CREATE TABLE
+        // to carry the clause, so it is added with ALTER TABLE (issue #120).
+        if (createDelta.Element.Type == MariaDbElementTypes.SqlCheckConstraint)
+        {
+            return $"ALTER TABLE {ConstraintTableName(createDelta.Element)} "
+                + $"ADD {GetCheckConstraintClause(createDelta.Element)};{Environment.NewLine}";
+        }
+
         if (createDelta.Element.Type == MariaDbElementTypes.SqlProcedure)
         {
             return GenerateCreateProcedureScript(createDelta.Element);
@@ -112,6 +120,13 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
             lines.Add(GetForeignKeyClause(foreignKey));
         }
 
+        // CHECK constraints are emitted as named table-level clauses so the deployed
+        // constraint keeps the name the model carries (issue #120).
+        foreach (var check in dependentElements.Where(i => i.Type == MariaDbElementTypes.SqlCheckConstraint))
+        {
+            lines.Add(GetCheckConstraintClause(check));
+        }
+
         sb.Append("    ").AppendLine(string.Join($",{Environment.NewLine}    ", lines));
         sb.AppendLine(");");
 
@@ -138,6 +153,27 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
         var text = $"`{SqlName.UnqualifiedOf(columnName)}` {columnType}";
 
         var nullable = column.GetProperty<bool?>(MariaDbPropertyNames.IsNullable);
+
+        // A generated column's value is computed, so it takes no DEFAULT and no
+        // AUTO_INCREMENT; the GENERATED ALWAYS AS clause replaces both, and its storage kind
+        // (STORED or VIRTUAL) is written explicitly rather than relying on the engine
+        // default (issue #120).
+        if (column.GetProperty<string>(MariaDbPropertyNames.GeneratedExpression) is { } generated)
+        {
+            var storage = column.GetProperty<bool?>(MariaDbPropertyNames.IsStored) == true
+                ? "STORED"
+                : "VIRTUAL";
+
+            // No nullability suffix is emitted. MySQL accepts `... STORED NOT NULL` but
+            // MariaDB rejects it inside a CREATE TABLE (in either position), and one DACPAC
+            // serves both engines — so a NOT NULL generated column has no portable spelling
+            // and is rejected at build time instead (see the model builder). NULL is the
+            // default and both engines reject writing it explicitly here.
+            text += $" GENERATED ALWAYS AS ({generated}) {storage}";
+
+            return text;
+        }
+
         text += nullable == false ? " NOT NULL" : " NULL";
 
         if (column.GetProperty<bool?>(MariaDbPropertyNames.IsAutoIncrement) == true)
@@ -352,6 +388,11 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
 
             MariaDbElementTypes.SqlIndex =>
                 $"DROP INDEX {parsed.QuotedUnqualified} ON {IndexTableName(element)};{Environment.NewLine}",
+
+            // A CHECK constraint belongs to its table, so it is dropped through it.
+            MariaDbElementTypes.SqlCheckConstraint =>
+                $"ALTER TABLE {ConstraintTableName(element)} DROP CONSTRAINT "
+                + $"{parsed.QuotedUnqualified};{Environment.NewLine}",
 
             // Neither engine allows overloading, so the name alone identifies the procedure
             // — no argument signature is needed, unlike PostgreSQL.
@@ -738,6 +779,36 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
         return SqlName.Parse(reference.Name).Sql;
     }
 
+    // The quoted table name a constraint belongs to, from its DefiningTable reference.
+    private static string ConstraintTableName(Element constraint)
+    {
+        var reference = constraint.GetRelationship(MariaDbRelationshipNames.DefiningTable)
+            ?.Entries.OfType<Reference>().SingleOrDefault()
+            ?? throw new InvalidOperationException(
+                $"Constraint {constraint.Name} has no defining-table reference");
+
+        return SqlName.Parse(reference.Name).Sql;
+    }
+
+    // CONSTRAINT `name` CHECK (predicate), for a CHECK constraint written into a
+    // CREATE TABLE or added by ALTER TABLE (issue #120).
+    private static string GetCheckConstraintClause(Element checkConstraint)
+    {
+        if (checkConstraint.Name is not string checkName)
+        {
+            throw new ArgumentException("Check constraints must have names");
+        }
+
+        var expression = checkConstraint.GetProperty<string>(MariaDbPropertyNames.CheckExpression);
+
+        if (string.IsNullOrWhiteSpace(expression))
+        {
+            throw new InvalidOperationException(
+                $"Check constraint '{checkName}' has no expression");
+        }
+
+        return $"CONSTRAINT {SqlName.Parse(checkName).QuotedUnqualified} CHECK ({expression})";
+    }
 
     private string GetTypeStringForColumn(Element column)
     {

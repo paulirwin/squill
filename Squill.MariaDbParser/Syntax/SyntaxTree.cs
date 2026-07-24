@@ -130,6 +130,29 @@ public sealed class ForeignKeyColumnConstraint(
     public ReferentialAction? OnUpdate { get; } = onUpdate;
 }
 
+/// <summary>
+/// An inline column-level <c>CHECK (expr)</c> constraint (issue #120). The predicate is
+/// carried as the source text between the parentheses; MariaDB rewrites it when it stores
+/// it, so it is reproduced for scripting rather than compared.
+/// </summary>
+public sealed class CheckColumnConstraint(string expression) : ColumnConstraint
+{
+    public string Expression { get; } = expression;
+}
+
+/// <summary>
+/// A generated (computed) column: <c>GENERATED ALWAYS AS (expr) STORED|VIRTUAL</c>
+/// (issue #120). MariaDB defaults to VIRTUAL when no storage kind is written, and accepts
+/// PERSISTENT as a synonym for STORED.
+/// </summary>
+public sealed class GeneratedColumnConstraint(string expression, bool isStored) : ColumnConstraint
+{
+    public string Expression { get; } = expression;
+
+    /// <summary>True for STORED/PERSISTENT; false for VIRTUAL (the MariaDB default).</summary>
+    public bool IsStored { get; } = isStored;
+}
+
 /// <summary>A column constraint Squill recognizes but does not model (COMMENT, COLLATE, …).</summary>
 public sealed class IgnoredColumnConstraint : ColumnConstraint;
 
@@ -179,7 +202,16 @@ public sealed class IndexTableConstraint(
     public IReadOnlyList<IndexColumn> Columns { get; } = columns;
 }
 
-/// <summary>A table constraint Squill recognizes but does not model (CHECK, …).</summary>
+/// <summary>
+/// A table-level <c>CHECK (expr)</c> constraint (issue #120). Unlike a PK or UNIQUE it has
+/// no column set of its own — the predicate may reference any columns of the table.
+/// </summary>
+public sealed class CheckTableConstraint(string expression) : TableConstraint
+{
+    public string Expression { get; } = expression;
+}
+
+/// <summary>A table constraint Squill recognizes but does not model (FULLTEXT, SPATIAL, …).</summary>
 public sealed class IgnoredTableConstraint : TableConstraint;
 
 // ---- CREATE INDEX ----

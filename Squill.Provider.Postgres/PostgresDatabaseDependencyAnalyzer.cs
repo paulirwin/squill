@@ -36,6 +36,7 @@ public class PostgresDatabaseDependencyAnalyzer : DatabaseDependencyAnalyzerBase
         if (element.Type is not (PostgresElementTypes.SqlTable
             or PostgresElementTypes.SqlIndex
             or PostgresElementTypes.SqlUniqueConstraint
+            or PostgresElementTypes.SqlCheckConstraint
             or PostgresElementTypes.SqlProcedure
             or PostgresElementTypes.SqlView
             or PostgresElementTypes.SqlEnumType

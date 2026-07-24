@@ -144,8 +144,33 @@ internal static class MariaDbStatementMapper
             case MariaDBParser.ReferenceColumnConstraintContext reference:
                 return At(MapInlineForeignKey(reference.referenceDefinition()), reference);
 
-            // COMMENT, COLLATE, VISIBLE, CHECK, generated columns, ON UPDATE, … are
-            // recognized but not modeled.
+            case MariaDBParser.CheckColumnConstraintContext check:
+            {
+                // An inline CHECK; a `CONSTRAINT <uid> CHECK (...)` wrapper names it. The
+                // predicate is kept as source text so it can be scripted back out (#120).
+                var checkConstraint = At(
+                    new CheckColumnConstraint(SourceText(check.expression())), check);
+
+                return check.name is { } name
+                    ? At(new NamedColumnConstraint(UidText(name), checkConstraint), check)
+                    : checkConstraint;
+            }
+
+            case MariaDBParser.GeneratedColumnConstraintContext generated
+                when generated.expression() is { } generationExpression:
+            {
+                // `AS (expr) [VIRTUAL|STORED|PERSISTENT]` — a generated column (issue #120).
+                // MariaDB defaults to VIRTUAL when no storage kind is written; PERSISTENT is
+                // its older synonym for STORED. The `AS ROW START|END` form of this rule is a
+                // system-versioning period column, not a generated one, and has no
+                // expression — the `when` guard above routes it to the ignored path.
+                var isStored = generated.STORED() != null || generated.PERSISTENT() != null;
+
+                return At(new GeneratedColumnConstraint(
+                    SourceText(generationExpression), isStored), generated);
+            }
+
+            // COMMENT, COLLATE, VISIBLE, ON UPDATE, … are recognized but not modeled.
             default:
                 return new IgnoredColumnConstraint();
         }
@@ -205,7 +230,17 @@ internal static class MariaDbStatementMapper
                     columns, referencedTable, referencedColumns, onDelete, onUpdate), fk));
             }
 
-            // CHECK and anything else is recognized but not modeled.
+            case MariaDBParser.CheckTableConstraintContext check:
+            {
+                // The check rule labels its single optional uid as `name`, so unlike the
+                // PK/UNIQUE rules there is no trailing index name to disambiguate.
+                var name = check.name is { } uid ? UidText(uid) : null;
+
+                return Wrap(name, At(
+                    new CheckTableConstraint(SourceText(check.expression())), check));
+            }
+
+            // FULLTEXT, SPATIAL and anything else is recognized but not modeled.
             default:
                 return new IgnoredTableConstraint();
         }

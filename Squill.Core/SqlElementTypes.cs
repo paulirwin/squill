@@ -18,6 +18,10 @@ public abstract class SqlElementTypes
     // as an index (MariaDB, where a UNIQUE KEY is an index) simply never emit this type.
     public const string SqlUniqueConstraint = nameof(SqlUniqueConstraint);
     public const string SqlIndexedColumnSpecification = nameof(SqlIndexedColumnSpecification);
+    // A CHECK constraint (issue #120). Modeled as its own element rather than a column
+    // property because a CHECK may span several columns of its table, and because both
+    // engines record it as a named, independently addressable constraint.
+    public const string SqlCheckConstraint = nameof(SqlCheckConstraint);
     public const string SqlIndex = nameof(SqlIndex);
     public const string SqlForeignKeyConstraint = nameof(SqlForeignKeyConstraint);
     public const string SqlProcedure = nameof(SqlProcedure);

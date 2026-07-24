@@ -82,6 +82,10 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             // the order the parser-based builder emits them in.
             await ExtractUniqueConstraintsAsync(model, table, cancellationToken);
 
+            // CHECK constraints follow the unique constraints and precede the foreign keys,
+            // again matching the parser-based builder's order (issue #120).
+            await ExtractCheckConstraintsAsync(model, table, cancellationToken);
+
             // Foreign keys precede indexes, matching the parser: a table's constraints are
             // written in its CREATE TABLE, while a standalone index comes from a separate
             // CREATE INDEX statement that follows it.
@@ -1089,6 +1093,74 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         }
     }
 
+    // Extracts the table's CHECK constraints (issue #120). pg_get_constraintdef renders the
+    // constraint as `CHECK ((<predicate>))`; the model carries just the predicate, since the
+    // script generator adds the `CHECK (` wrapper back.
+    //
+    // NOT NULL is recorded in pg_constraint as a check constraint in PostgreSQL 18+, and the
+    // column's IsNullable property already models it, so those are excluded (connoinherit /
+    // conkey shape would not distinguish them reliably — pg_constraint.contype = 'c' with a
+    // single key column and a `IS NOT NULL` predicate is the marker PostgreSQL itself uses).
+    private async Task ExtractCheckConstraintsAsync(Model model, TableRef table,
+        CancellationToken cancellationToken = default)
+    {
+        var tableSqlName = SqlName.Object(table.BareName);
+
+        // contype = 'c' is a CHECK constraint. Ordered by name so extraction is stable.
+        // conislocal excludes a constraint inherited from a parent table, which belongs to
+        // the parent's declaration rather than this table's.
+        const string sql = """
+            SELECT c.conname AS constraint_name,
+                   pg_get_constraintdef(c.oid) AS constraint_def
+            FROM pg_constraint c
+            JOIN pg_class t ON t.oid = c.conrelid
+            JOIN pg_namespace n ON n.oid = t.relnamespace
+            WHERE n.nspname = @schema
+              AND t.relname = @name
+              AND c.contype = 'c'
+              AND c.conislocal
+            ORDER BY c.conname COLLATE "C";
+            """;
+
+        var parameters = new[]
+        {
+            new DatabaseParameter<string>("@schema", table.Schema),
+            new DatabaseParameter<string>("@name", table.BareName),
+        };
+
+        var checks = new List<(string Name, string Definition)>();
+
+        await using (var reader = await _database.RunScriptReaderAsync(sql, parameters, cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                checks.Add((reader.GetString("constraint_name"),
+                    reader.GetString("constraint_def")));
+            }
+        }
+
+        foreach (var (name, definition) in checks)
+        {
+            // A NOT NULL constraint surfaces here on PostgreSQL 18+; the column's
+            // IsNullable property already carries it, so modeling it again would produce a
+            // constraint the source never declared and a permanent re-diff.
+            if (IsNotNullCheckDefinition(definition))
+            {
+                continue;
+            }
+
+            model.Elements.Add(PostgresModelFactory.CreateCheckConstraint(
+                SqlName.Object(name), tableSqlName, NormalizeCheckDefinition(definition),
+                table.Schema));
+        }
+    }
+
+    // Whether a check constraint definition is really a NOT NULL constraint, which
+    // PostgreSQL 18+ records in pg_constraint as `CHECK ((<column> IS NOT NULL))`.
+    private static bool IsNotNullCheckDefinition(string constraintDef)
+        => constraintDef.EndsWith("IS NOT NULL))", StringComparison.Ordinal)
+           || constraintDef.EndsWith("IS NOT NULL)", StringComparison.Ordinal);
+
     private async Task<IReadOnlyList<PostgresModelFactory.IndexedColumn>> ExtractPrimaryKeyColumnsAsync(
         string constraintSchema,
         string constraintName,
@@ -1161,7 +1233,14 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 -- information_schema reports as its base type (issue #84). Resolved from
                 -- pg_attribute.atttypid so a domain-typed column can adopt the domain name.
                 col_type.typtype::text AS col_typtype,
-                format_type(a.atttypid, a.atttypmod) AS formatted_type
+                format_type(a.atttypid, a.atttypmod) AS formatted_type,
+                -- A generated (computed) column (issue #120). attgenerated is 's' for a
+                -- STORED generated column and '' otherwise; the generation expression lives
+                -- in pg_attrdef alongside ordinary defaults, so it is read through
+                -- pg_get_expr rather than information_schema.column_default (which reports
+                -- NULL for a generated column).
+                a.attgenerated::text AS generated_kind,
+                pg_get_expr(ad.adbin, ad.adrelid) AS generation_expression
             FROM information_schema.columns c
             JOIN pg_namespace n ON n.nspname = c.table_schema
             JOIN pg_class t ON t.relname = c.table_name AND t.relnamespace = n.oid
@@ -1176,6 +1255,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 AND dep.classid = 'pg_class'::regclass
                 AND dep.deptype = 'i'
             LEFT JOIN pg_sequence seq ON seq.seqrelid = dep.objid
+            LEFT JOIN pg_attrdef ad ON ad.adrelid = t.oid AND ad.adnum = a.attnum
             WHERE c.table_catalog = @catalog
               AND c.table_schema = @schema
               AND c.table_name = @name
@@ -1373,6 +1453,19 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             if (PostgresDefaultValue.FromDatabaseText(columnDefault) is { } defaultValue)
             {
                 column.Properties.Add(new Property(PostgresPropertyNames.DefaultValue, defaultValue));
+            }
+
+            // A generated column (issue #120). PostgreSQL supports only STORED generation,
+            // so attgenerated is 's' or empty. The expression comes back rewritten by
+            // pg_get_expr, which is why it does not take part in comparison — see
+            // PostgresModelFactory.AddGeneratedColumnProperties.
+            if (reader.GetString("generated_kind") == "s")
+            {
+                var generationExpression = reader.IsDBNull(reader.GetOrdinal("generation_expression"))
+                    ? null
+                    : reader.GetString("generation_expression");
+
+                PostgresModelFactory.AddGeneratedColumnProperties(column, generationExpression);
             }
 
             columns.Entries.Add(column);

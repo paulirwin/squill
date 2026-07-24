@@ -179,6 +179,13 @@ public static class ExpressionSqlRenderer
 
     private static string BinaryOperatorText(Operator op)
     {
+        // A general operator (`||`, `->>`, a user-defined one) is carried verbatim, so it
+        // renders back out exactly as written.
+        if (op is CustomOperator custom)
+        {
+            return custom.Symbol;
+        }
+
         if (op is not BuiltInOperator builtIn)
         {
             throw new NotImplementedException(

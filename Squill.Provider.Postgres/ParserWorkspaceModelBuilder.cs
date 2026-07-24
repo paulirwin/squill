@@ -330,32 +330,16 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     /// <summary>
     /// Records a warning for every construct in a CREATE TABLE that is recognized but not
     /// carried into the model, so a declared-but-unmodeled construct is visible rather than
-    /// silently absent from the DACPAC (issue #61). Currently: CHECK constraints, and column
-    /// defaults that are not constant literals (a function default like <c>now()</c>, or
-    /// <c>DEFAULT NULL</c>) — see <see cref="PostgresDefaultValue"/>.
+    /// silently absent from the DACPAC (issue #61). Currently: column defaults that are not
+    /// constant literals (a function default like <c>now()</c>, or <c>DEFAULT NULL</c>) —
+    /// see <see cref="PostgresDefaultValue"/>. CHECK constraints were listed here until
+    /// issue #120 modeled them.
     /// </summary>
     private static void AddUnmodeledTableWarnings(IFile file,
         CreateTableStatement createTableStatement,
         List<SqlSourceDiagnostic> warnings)
     {
         var table = SplitSchema(createTableStatement.Name).Name.UnqualifiedName;
-
-        foreach (var tableConstraint in createTableStatement.Elements.OfType<TableConstraint>())
-        {
-            var constraint = tableConstraint is NamedTableConstraint named
-                ? named.Constraint
-                : tableConstraint;
-
-            if (constraint is CheckTableConstraint)
-            {
-                warnings.Add(new SqlSourceDiagnostic(
-                    $"CHECK constraint on table '{table}' is not modeled and will not be "
-                    + "deployed or compared.",
-                    file.Name,
-                    constraint.Line ?? createTableStatement.Line,
-                    constraint.Column ?? createTableStatement.Column));
-            }
-        }
 
         foreach (var columnDefinition in createTableStatement.Elements.OfType<ColumnDefinition>())
         {
@@ -373,15 +357,6 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     warnings.Add(new SqlSourceDiagnostic(
                         $"DEFAULT on column '{table}.{columnDefinition.Name.Name}' is not a "
                         + "constant literal and is not modeled; it will not be deployed or compared.",
-                        file.Name,
-                        constraint.Line ?? createTableStatement.Line,
-                        constraint.Column ?? createTableStatement.Column));
-                }
-                else if (constraint is CheckColumnConstraint)
-                {
-                    warnings.Add(new SqlSourceDiagnostic(
-                        $"CHECK constraint on column '{table}.{columnDefinition.Name.Name}' is "
-                        + "not modeled and will not be deployed or compared.",
                         file.Name,
                         constraint.Line ?? createTableStatement.Line,
                         constraint.Column ?? createTableStatement.Column));
@@ -969,6 +944,18 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     // element (its name may be explicit or derived from the Postgres convention).
     private sealed record UniqueConstraintSpec(string? ExplicitName, IReadOnlyList<string> Columns);
 
+    // A CHECK constraint gathered from a CREATE TABLE. Column is the column an inline CHECK
+    // was written on (null for a table-level one), which is what Postgres folds into the
+    // name it derives for an unnamed constraint.
+    private sealed record CheckConstraintSpec(
+        string? ExplicitName, string? Column, string Expression);
+
+    // Postgres names an unnamed CHECK constraint <table>_<column>_check for one written
+    // inline on a column, and <table>_check for a table-level one. Predicting the name lets
+    // a parsed model hash-match one extracted from the database.
+    private static string DeriveCheckConstraintName(string table, string? column)
+        => column is null ? $"{table}_check" : $"{table}_{column}_check";
+
     // The name Postgres gives an unnamed unique constraint: <table>_<col>_..._key. Shared by
     // the validator (to detect a collision between two derived names) and by element
     // construction, so the predicted name and the validated name cannot drift apart.
@@ -994,13 +981,15 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         var primaryKeyColumns = new List<PostgresModelFactory.IndexedColumn>();
         var foreignKeys = new List<ForeignKeySpec>();
         var uniqueConstraints = new List<UniqueConstraintSpec>();
+        var checkConstraints = new List<CheckConstraintSpec>();
 
         var inlinePkName = AddTableColumnsRelationship(
             tableElement, tableName, createTableStatement, primaryKeyColumns, foreignKeys,
-            uniqueConstraints);
+            uniqueConstraints, checkConstraints);
 
         var tableLevelPkName = CollectTableLevelConstraints(
-            createTableStatement, tableName, primaryKeyColumns, foreignKeys, uniqueConstraints);
+            createTableStatement, tableName, primaryKeyColumns, foreignKeys, uniqueConstraints,
+            checkConstraints);
 
         // A named PK can be written inline on its column (CONSTRAINT pk_x PRIMARY KEY) or as
         // a table-level clause; at most one applies, so either source is the explicit name.
@@ -1031,6 +1020,17 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
             yield return PostgresModelFactory.CreateUniqueConstraint(
                 uniqueName, tableName, columns, schema);
+        }
+
+        // CHECK constraints follow the unique constraints and precede the FKs, matching the
+        // DB builder's per-table element order.
+        foreach (var check in checkConstraints)
+        {
+            var checkName = tableName.Sibling(check.ExplicitName
+                ?? DeriveCheckConstraintName(tableName.UnqualifiedName, check.Column));
+
+            yield return PostgresModelFactory.CreateCheckConstraint(
+                checkName, tableName, check.Expression, schema);
         }
 
         foreach (var foreignKey in foreignKeys)
@@ -1068,7 +1068,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         SqlName tableName,
         List<PostgresModelFactory.IndexedColumn> primaryKeyColumns,
         List<ForeignKeySpec> foreignKeys,
-        List<UniqueConstraintSpec> uniqueConstraints)
+        List<UniqueConstraintSpec> uniqueConstraints,
+        List<CheckConstraintSpec> checkConstraints)
     {
         string? explicitPkName = null;
 
@@ -1102,6 +1103,13 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     fk.OnDelete ?? ReferentialAction.NoAction,
                     fk.OnUpdate ?? ReferentialAction.NoAction));
             }
+            else if (constraint is CheckTableConstraint check)
+            {
+                // A table-level CHECK has no column of its own; its predicate may span any
+                // columns of the table (issue #120).
+                checkConstraints.Add(new CheckConstraintSpec(
+                    explicitName, Column: null, ExpressionSqlRenderer.Render(check.Expression)));
+            }
         }
 
         return explicitPkName;
@@ -1114,7 +1122,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         CreateTableStatement createTableStatement,
         List<PostgresModelFactory.IndexedColumn> primaryKeyColumns,
         List<ForeignKeySpec> foreignKeys,
-        List<UniqueConstraintSpec> uniqueConstraints)
+        List<UniqueConstraintSpec> uniqueConstraints,
+        List<CheckConstraintSpec> checkConstraints)
     {
         string? inlinePkName = null;
 
@@ -1137,6 +1146,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             bool? isNullable = null;
             IdentityColumnConstraint? identityConstraint = null;
             string? defaultValue = null;
+            string? generatedExpression = null;
 
             // SERIAL/SMALLSERIAL/BIGSERIAL are shorthand for a sequence-backed integer
             // column, not real types. They are lowered to the modern equivalent — the
@@ -1223,11 +1233,21 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         fk.OnDelete ?? ReferentialAction.NoAction,
                         fk.OnUpdate ?? ReferentialAction.NoAction));
                 }
-                else if (constraint is CheckColumnConstraint)
+                else if (constraint is CheckColumnConstraint check)
                 {
-                    // An inline column CHECK is not modeled yet (issue #61), like a
-                    // table-level CHECK — a warning is emitted in AddUnmodeledTableWarnings.
-                    // It is skipped here rather than throwing so the table still builds.
+                    // An inline CHECK belongs to the column it is written on, which is what
+                    // Postgres folds into the name it derives for an unnamed one (#120).
+                    checkConstraints.Add(new CheckConstraintSpec(
+                        explicitName,
+                        columnDefinition.Name.Name,
+                        ExpressionSqlRenderer.Render(check.Expression)));
+                }
+                else if (constraint is GeneratedColumnConstraint generated)
+                {
+                    // A generated (computed) column (issue #120). The expression is rendered
+                    // back to SQL text for scripting; it does not take part in comparison,
+                    // since PostgreSQL rewrites it on the way into the catalog.
+                    generatedExpression = ExpressionSqlRenderer.Render(generated.Expression);
                 }
                 else
                 {
@@ -1260,6 +1280,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             if (defaultValue != null)
             {
                 element.Properties.Add(new Property(PostgresPropertyNames.DefaultValue, defaultValue));
+            }
+
+            // Emitted last, matching the DB-extraction builder's property order.
+            if (generatedExpression != null)
+            {
+                PostgresModelFactory.AddGeneratedColumnProperties(element, generatedExpression);
             }
 
             element.Relationships.Add(new Relationship(PostgresRelationshipNames.TypeSpecifier)
