@@ -405,17 +405,61 @@ CREATE TABLE Event
         }
     }
 
+    /// <summary>
+    /// The terminal logger renders its per-project "succeeded ... -> path" line by matching
+    /// high-importance messages that start with the project name and contain " -> " (see
+    /// TerminalLogger.MessageRaised). A differently-worded message still builds the DACPAC
+    /// but reports nothing, so the exact shape is part of the contract.
+    /// </summary>
+    [Fact]
+    public async Task Execute_LogsProjectNameAndOutputPathForTerminalLogger()
+    {
+        var tempDir = Directory.CreateTempSubdirectory("squill-buildtask-test");
+        try
+        {
+            var sqlPath = Path.Combine(tempDir.FullName, "Foo.sql");
+            await File.WriteAllTextAsync(sqlPath, SampleSchema, TestContext.Current.CancellationToken);
+
+            var outputPath = Path.Combine(tempDir.FullName, "bin", "Sample.dacpac");
+
+            var engine = new StubBuildEngine();
+            var task = new BuildDacpacTask
+            {
+                BuildEngine = engine,
+                SourceFiles = [new TaskItem(sqlPath)],
+                OutputPath = outputPath,
+                ProviderName = "Postgresql",
+                ProjectName = "MyDatabase",
+            };
+
+            Assert.True(task.Execute(), $"Task should succeed. Errors: {string.Join("; ", engine.Errors.Select(e => e.Message))}");
+
+            var message = Assert.Single(
+                engine.Messages,
+                m => m.Importance == MessageImportance.High && m.Message is not null && m.Message.Contains(" -> "));
+
+            // The path must be absolute: the logger relativizes it for display itself.
+            Assert.Equal($"MyDatabase -> {Path.GetFullPath(outputPath)}", message.Message);
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
     private sealed class StubBuildEngine : IBuildEngine
     {
         public List<BuildErrorEventArgs> Errors { get; } = [];
 
         public List<BuildWarningEventArgs> Warnings { get; } = [];
 
+        public List<BuildMessageEventArgs> Messages { get; } = [];
+
         public void LogErrorEvent(BuildErrorEventArgs e) => Errors.Add(e);
 
         public void LogWarningEvent(BuildWarningEventArgs e) => Warnings.Add(e);
 
-        public void LogMessageEvent(BuildMessageEventArgs e) { }
+        public void LogMessageEvent(BuildMessageEventArgs e) => Messages.Add(e);
 
         public void LogCustomEvent(CustomBuildEventArgs e) { }
 

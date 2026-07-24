@@ -48,6 +48,14 @@ public class BuildDacpacTask : Microsoft.Build.Utilities.Task
     /// </summary>
     public string ProviderName { get; set; } = "Postgresql";
 
+    /// <summary>
+    /// The name of the project being built, used only for the MSBuild
+    /// "&lt;project&gt; -&gt; &lt;output&gt;" completion message. Passed in from the targets because
+    /// <c>BuildEngine.ProjectFileOfTaskNode</c> reports the SDK targets file that declares
+    /// the task, not the consuming <c>.squillproj</c>.
+    /// </summary>
+    public string ProjectName { get; set; } = "Squill";
+
     /// <summary>The data-tier application name recorded in DacMetadata.xml.</summary>
     public string DacName { get; set; } = "Squill";
 
@@ -118,7 +126,14 @@ public class BuildDacpacTask : Microsoft.Build.Utilities.Task
                 LogSourceWarning(warning);
             }
 
-            Log.LogMessage(MessageImportance.High, $"Squill: wrote DACPAC to {OutputPath}");
+            // MSBuild's conventional "<project> -> <absolute output path>" high-importance
+            // message. The terminal logger parses this exact shape to render the per-project
+            // "succeeded ... -> path" line (and the clickable link), so a custom-worded
+            // message would build the DACPAC but report nothing. Mirrors what
+            // CopyFilesToOutputDirectory logs for an ordinary assembly.
+            Log.LogMessage(
+                MessageImportance.High,
+                $"{ProjectName} -> {Path.GetFullPath(OutputPath)}");
 
             return true;
         }
