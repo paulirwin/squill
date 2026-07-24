@@ -32,6 +32,34 @@ public static class PostgresModelFactory
         => element.GetRelationship(PostgresRelationshipNames.Schema)
             ?.Entries.OfType<Reference>().FirstOrDefault()?.Name;
 
+    /// <summary>
+    /// Records that a column is generated (computed): <c>GENERATED ALWAYS AS (expr) STORED</c>
+    /// (issue #120). Called by both model builders so a parsed column and an extracted one
+    /// carry the same properties in the same order (the Merkle hash is order-sensitive).
+    ///
+    /// The expression is carried for scripting only and does not take part in comparison:
+    /// PostgreSQL rewrites the expression it is given (adding parentheses and type casts, so
+    /// <c>price * quantity</c> comes back as <c>(price * (quantity)::numeric)</c>), so a
+    /// declared expression could never hash-match one read back through
+    /// <c>pg_get_expr</c> — the same treatment a domain's CHECK and a view's query get.
+    /// What does participate is <em>that</em> the column is generated, which is a real
+    /// structural difference: a generated column cannot be written to.
+    /// </summary>
+    public static void AddGeneratedColumnProperties(Element column, string? generationExpression)
+    {
+        // PostgreSQL has only STORED generated columns, but IsStored is recorded explicitly
+        // so the property set matches MariaDB's (which also has VIRTUAL) and so scripting
+        // never has to infer the storage kind.
+        column.Properties.Add(new Property(PostgresPropertyNames.IsStored, true));
+
+        if (generationExpression is not null)
+        {
+            column.Properties.Add(
+                new Property(PostgresPropertyNames.GeneratedExpression, generationExpression,
+                    participatesInIdentity: false));
+        }
+    }
+
     public static Element CreateTable(SqlName name, string schema)
         => new(PostgresElementTypes.SqlTable)
         {
@@ -149,6 +177,42 @@ public static class PostgresModelFactory
             }
         };
     }
+
+    /// <summary>
+    /// A CHECK constraint on a table (issue #120). Unlike a PK or UNIQUE it has no column
+    /// set of its own — the predicate may reference any columns of the table (or none) — so
+    /// the element carries the predicate text and its defining table, and nothing else.
+    ///
+    /// The predicate does not take part in comparison, for the same reason a domain's CHECK
+    /// does not: PostgreSQL rewrites it when it stores it, so the declared
+    /// <c>price &gt; 0</c> comes back from pg_get_constraintdef as <c>((price &gt; (0)::numeric))</c>.
+    /// A CHECK constraint's modeled identity is its name and table instead, which is why an
+    /// unnamed one is given the engine-derived <c>&lt;table&gt;_&lt;column&gt;_check</c> name.
+    /// </summary>
+    public static Element CreateCheckConstraint(
+        SqlName name, SqlName definingTable, string checkExpression, string schema = "public")
+        => new(PostgresElementTypes.SqlCheckConstraint)
+        {
+            Name = name,
+            Properties =
+            {
+                new Property(PostgresPropertyNames.CheckExpression, checkExpression,
+                    participatesInIdentity: false),
+            },
+            Relationships =
+            {
+                new Relationship(PostgresRelationshipNames.DefiningTable)
+                {
+                    new Reference(definingTable)
+                },
+                // Carried so ALTER TABLE ... ADD/DROP CONSTRAINT can qualify the table
+                // rather than resolving it against the session search_path.
+                new Relationship(PostgresRelationshipNames.Schema)
+                {
+                    new Reference(schema) { ExternalSource = "BuiltIns" }
+                }
+            }
+        };
 
     public static Element CreateIndex(SqlName name,
         SqlName indexedObject,

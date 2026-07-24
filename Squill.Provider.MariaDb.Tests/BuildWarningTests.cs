@@ -74,8 +74,12 @@ CREATE TABLE event
         Assert.Empty(result.Warnings);
     }
 
+    /// <summary>
+    /// A named CHECK constraint is modeled as of issue #120, so it no longer warns as an
+    /// unmodeled construct — it is carried into the model and deployed.
+    /// </summary>
     [Fact]
-    public async Task CheckConstraint_Warns()
+    public async Task NamedCheckConstraint_DoesNotWarn()
     {
         const string sql = """
 CREATE TABLE product
@@ -89,8 +93,7 @@ CREATE TABLE product
 
         var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
 
-        var warning = Assert.Single(result.Warnings);
-        Assert.Equal("SQ1002", warning.Code);
+        Assert.Empty(result.Warnings);
     }
 
     [Fact]

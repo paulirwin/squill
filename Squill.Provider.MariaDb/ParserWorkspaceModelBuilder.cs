@@ -346,7 +346,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             if (constraint is IgnoredTableConstraint)
             {
                 warnings.Add(new SqlSourceDiagnostic(
-                    $"A constraint on table '{table}' (CHECK, FULLTEXT, SPATIAL, …) is not "
+                    $"A constraint on table '{table}' (FULLTEXT, SPATIAL, …) is not "
                     + "modeled and will not be deployed or compared.",
                     file.Name,
                     constraint.Line ?? createTable.Line,
@@ -369,7 +369,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 {
                     warnings.Add(new SqlSourceDiagnostic(
                         $"A constraint on column '{table}.{columnDefinition.Name.Name}' "
-                        + "(CHECK, COMMENT, COLLATE, …) is not modeled and will not be "
+                        + "(COMMENT, COLLATE, …) is not modeled and will not be "
                         + "deployed or compared.",
                         file.Name, line, column));
                 }
@@ -412,6 +412,9 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         // An index name only has to be unique within its table in MariaDB, unlike Postgres
         // where constraints and indexes share a per-schema namespace.
         private readonly Dictionary<(string Table, string Name), Origin> _indexOrigins = new();
+
+        // Keyed by name alone: a CHECK constraint name is database-scoped in both engines.
+        private readonly Dictionary<string, Origin> _checkConstraintOrigins = new();
 
         private readonly HashSet<CreateTableStatement> _duplicateTables = [];
         private readonly HashSet<CreateProcedureStatement> _duplicateProcedures = [];
@@ -595,6 +598,28 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                             constraintName ?? index.IndexName);
                         break;
 
+                    case CheckTableConstraint:
+                        // MariaDB and MySQL derive different names for an unnamed
+                        // table-level CHECK — MariaDB uses CONSTRAINT_1, CONSTRAINT_2, …
+                        // while MySQL uses <table>_chk_1 — and one DACPAC serves both, so
+                        // the name cannot be predicted at build time. An unpredictable name
+                        // would never match the one read back from the database and the
+                        // constraint would re-diff on every deploy, so require an explicit
+                        // one (issue #120).
+                        if (constraintName is null)
+                        {
+                            AddError(new SqlSourceException(
+                                $"The CHECK constraint on table '{table}' has no name, and "
+                                + "MariaDB and MySQL derive different names for one. Name it "
+                                + "explicitly with CONSTRAINT <name> CHECK (...).",
+                                file.Name, line, column, SqlSourceException.InvalidConstraint));
+                        }
+                        else
+                        {
+                            CheckDuplicateCheckConstraintName(file, line, column, table, constraintName);
+                        }
+                        break;
+
                     case ForeignKeyTableConstraint fk:
                         CheckOwnColumns(file, line, column,
                             $"Foreign key on table '{table}'", table, columns,
@@ -636,14 +661,49 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             {
                 foreach (var columnConstraint in columnDefinition.Constraints)
                 {
-                    var constraint = columnConstraint is NamedColumnConstraint named
-                        ? named.Constraint
-                        : columnConstraint;
+                    var (constraint, constraintName) = columnConstraint is NamedColumnConstraint named
+                        ? (named.Constraint, named.Name)
+                        : (columnConstraint, (string?)null);
 
                     var line = constraint.Line ?? createTable.Line;
                     var column = constraint.Column ?? createTable.Column;
 
-                    if (constraint is PrimaryKeyColumnConstraint)
+                    if (constraint is GeneratedColumnConstraint
+                        && columnDefinition.Constraints.Any(c =>
+                            (c is NamedColumnConstraint n ? n.Constraint : c)
+                                is NullableColumnConstraint { Nullable: false }))
+                    {
+                        // MySQL accepts `GENERATED ALWAYS AS (...) STORED NOT NULL` but
+                        // MariaDB rejects it inside a CREATE TABLE, and one DACPAC serves
+                        // both engines — so there is no portable spelling to generate
+                        // (issue #120). Reject it at build time rather than emit DDL that
+                        // fails to deploy on one of the two engines.
+                        AddError(new SqlSourceException(
+                            $"Generated column '{table}.{columnDefinition.Name.Name}' is "
+                            + "declared NOT NULL, which MariaDB does not accept on a "
+                            + "generated column in a CREATE TABLE. Remove the NOT NULL.",
+                            file.Name, line, column, SqlSourceException.InvalidConstraint));
+                    }
+                    else if (constraint is CheckColumnConstraint)
+                    {
+                        // As with a table-level CHECK, the two engines derive different names
+                        // for an unnamed inline one (MariaDB uses the column's name, MySQL
+                        // <table>_chk_N), so an explicit name is required (issue #120).
+                        if (constraintName is null)
+                        {
+                            AddError(new SqlSourceException(
+                                $"The CHECK constraint on column "
+                                + $"'{table}.{columnDefinition.Name.Name}' has no name, and "
+                                + "MariaDB and MySQL derive different names for one. Name it "
+                                + "explicitly with CONSTRAINT <name> CHECK (...).",
+                                file.Name, line, column, SqlSourceException.InvalidConstraint));
+                        }
+                        else
+                        {
+                            CheckDuplicateCheckConstraintName(file, line, column, table, constraintName);
+                        }
+                    }
+                    else if (constraint is PrimaryKeyColumnConstraint)
                     {
                         AddUniqueColumnSet(table, [columnDefinition.Name.Name], isPrimaryKey: true);
                     }
@@ -748,6 +808,29 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             _indexOrigins[key] = new Origin(file.Name, line);
         }
 
+        // Unlike an index name, a CHECK constraint name is scoped to the database rather than
+        // to its table in both engines, so a collision anywhere in the project is an error
+        // (issue #120).
+        private void CheckDuplicateCheckConstraintName(IFile file,
+            int? line,
+            int? column,
+            string table,
+            string constraintName)
+        {
+            var key = constraintName.ToLowerInvariant();
+
+            if (_checkConstraintOrigins.TryGetValue(key, out var existing))
+            {
+                AddError(new SqlSourceException(
+                    $"Check constraint '{constraintName}' on table '{table}' is already "
+                    + $"defined in {DescribeOrigin(existing)}.",
+                    file.Name, line, column, SqlSourceException.DuplicateDefinition));
+
+                return;
+            }
+
+            _checkConstraintOrigins[key] = new Origin(file.Name, line);
+        }
     }
 
     // A foreign key gathered while walking a CREATE TABLE, before it becomes an element (its
@@ -769,9 +852,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         var primaryKeyColumns = new List<MariaDbModelFactory.IndexedColumn>();
         var foreignKeys = new List<ForeignKeySpec>();
         var uniqueIndexes = new List<(string? Name, IReadOnlyList<string> Columns)>();
+        var checkConstraints = new List<(string Name, string Expression)>();
 
-        AddColumns(tableElement, tableName, createTable, primaryKeyColumns, foreignKeys, uniqueIndexes);
-        CollectTableLevelConstraints(createTable, tableName, primaryKeyColumns, foreignKeys, uniqueIndexes);
+        AddColumns(tableElement, tableName, createTable, primaryKeyColumns, foreignKeys,
+            uniqueIndexes, checkConstraints);
+        CollectTableLevelConstraints(createTable, tableName, primaryKeyColumns, foreignKeys,
+            uniqueIndexes, checkConstraints);
 
         yield return tableElement;
 
@@ -819,6 +905,15 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             yield return MariaDbModelFactory.CreateIndex(
                 tableName.Sibling(indexName), tableName, isUnique: true, indexMethod: "BTREE", indexedColumns);
         }
+
+        // CHECK constraints come last, matching the DB-extraction builder's per-table order
+        // (issue #120). Every one has an explicit name — an unnamed CHECK is a build error,
+        // since MariaDB and MySQL derive different names for one.
+        foreach (var (name, expression) in checkConstraints)
+        {
+            yield return MariaDbModelFactory.CreateCheckConstraint(
+                tableName.Sibling(name), tableName, expression);
+        }
     }
 
     private static Element MakeForeignKeyElement(SqlName tableName, SqlName fkName, ForeignKeySpec spec)
@@ -843,7 +938,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         SqlName tableName,
         List<MariaDbModelFactory.IndexedColumn> primaryKeyColumns,
         List<ForeignKeySpec> foreignKeys,
-        List<(string? Name, IReadOnlyList<string> Columns)> uniqueIndexes)
+        List<(string? Name, IReadOnlyList<string> Columns)> uniqueIndexes,
+        List<(string Name, string Expression)> checkConstraints)
     {
         foreach (var tableElement in createTable.Elements.OfType<TableConstraint>())
         {
@@ -875,6 +971,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         fk.OnDelete ?? ReferentialAction.Restrict,
                         fk.OnUpdate ?? ReferentialAction.Restrict));
                     break;
+
+                // An unnamed CHECK is rejected by the validator, so it is skipped here
+                // rather than modeled under a name that cannot be predicted.
+                case CheckTableConstraint check when explicitName is not null:
+                    checkConstraints.Add((explicitName, check.Expression));
+                    break;
             }
         }
     }
@@ -885,7 +987,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         CreateTableStatement createTable,
         List<MariaDbModelFactory.IndexedColumn> primaryKeyColumns,
         List<ForeignKeySpec> foreignKeys,
-        List<(string? Name, IReadOnlyList<string> Columns)> uniqueIndexes)
+        List<(string? Name, IReadOnlyList<string> Columns)> uniqueIndexes,
+        List<(string Name, string Expression)> checkConstraints)
     {
         var columns = new Relationship(MariaDbRelationshipNames.Columns);
         tableElement.Relationships.Add(columns);
@@ -902,6 +1005,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             bool? isNullable = null;
             bool isAutoIncrement = false;
             string? defaultValue = null;
+            string? generatedExpression = null;
+            var generatedIsStored = false;
 
             foreach (var columnConstraint in columnDefinition.Constraints)
             {
@@ -943,6 +1048,17 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                             fk.OnUpdate ?? ReferentialAction.Restrict));
                         break;
 
+                    // An unnamed inline CHECK is rejected by the validator, so only a named
+                    // one reaches the model (issue #120).
+                    case CheckColumnConstraint check when explicitName is not null:
+                        checkConstraints.Add((explicitName, check.Expression));
+                        break;
+
+                    case GeneratedColumnConstraint generated:
+                        generatedExpression = generated.Expression;
+                        generatedIsStored = generated.IsStored;
+                        break;
+
                     // IgnoredColumnConstraint and others contribute nothing to the model.
                 }
             }
@@ -962,6 +1078,13 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             if (defaultValue != null)
             {
                 element.Properties.Add(new Property(MariaDbPropertyNames.DefaultValue, defaultValue));
+            }
+
+            // Emitted last, matching the DB-extraction builder's property order.
+            if (generatedExpression != null)
+            {
+                MariaDbModelFactory.AddGeneratedColumnProperties(
+                    element, generatedExpression, generatedIsStored);
             }
 
             element.Relationships.Add(BuildTypeSpecifier(columnDefinition.DataType));

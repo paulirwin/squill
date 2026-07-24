@@ -37,9 +37,9 @@ public sealed class PostgresPropertyNames : SqlPropertyNames
     public const string IsSecurityDefiner = nameof(IsSecurityDefiner);
     // User-defined types (issue #75). An enum type carries its labels in declaration order
     // (their significant sort order) as an ordered list. A domain carries the canonical text
-    // of its CHECK constraint expression (or null when it has none).
+    // of its CHECK constraint expression (inherited as CheckExpression from
+    // SqlPropertyNames, which a table CHECK constraint also uses).
     public const string Labels = nameof(Labels);
-    public const string CheckExpression = nameof(CheckExpression);
     // Functions (issue #81). ReturnsSet is true for RETURNS SETOF. Volatility is one of
     // "IMMUTABLE"/"STABLE"/"VOLATILE" (stored only when not the VOLATILE default); IsStrict
     // is stored only when true (CALLED ON NULL INPUT is the default).

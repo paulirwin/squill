@@ -66,6 +66,9 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
             // CREATE INDEX statement that follows it.
             await ExtractForeignKeysAsync(model, table, cancellationToken);
             await ExtractIndexesAsync(model, table, cancellationToken);
+
+            // CHECK constraints come last, matching the parser-based builder's order.
+            await ExtractCheckConstraintsAsync(model, table, cancellationToken);
         }
 
         // Views come after tables (a view selects from them) and before procedures, whose
@@ -365,7 +368,11 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
                 NUMERIC_PRECISION,
                 NUMERIC_SCALE,
                 EXTRA,
-                COLUMN_DEFAULT
+                COLUMN_DEFAULT,
+                -- A generated (computed) column (issue #120). Both engines report the
+                -- rewritten expression here and mark the storage kind in EXTRA as
+                -- "STORED GENERATED" or "VIRTUAL GENERATED".
+                GENERATION_EXPRESSION
             FROM information_schema.COLUMNS
             WHERE TABLE_SCHEMA = @db AND TABLE_NAME = @name
             ORDER BY ORDINAL_POSITION;
@@ -480,6 +487,18 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
             if (MariaDbDefaultValue.FromDatabaseText(columnDefault, defaultIsStringLiteral) is { } defaultValue)
             {
                 column.Properties.Add(new Property(MariaDbPropertyNames.DefaultValue, defaultValue));
+            }
+
+            // A generated column (issue #120). EXTRA carries "STORED GENERATED" or
+            // "VIRTUAL GENERATED"; GENERATION_EXPRESSION is empty for an ordinary column.
+            if (extra.Contains("GENERATED", StringComparison.OrdinalIgnoreCase))
+            {
+                var generationExpression = reader.IsDBNull(reader.GetOrdinal("GENERATION_EXPRESSION"))
+                    ? null
+                    : reader.GetString("GENERATION_EXPRESSION");
+
+                MariaDbModelFactory.AddGeneratedColumnProperties(column, generationExpression,
+                    isStored: extra.Contains("STORED", StringComparison.OrdinalIgnoreCase));
             }
 
             columns.Entries.Add(column);
@@ -626,6 +645,60 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
         }
 
         return names;
+    }
+
+    // Extracts the table's CHECK constraints (issue #120). Both engines expose them through
+    // information_schema.CHECK_CONSTRAINTS, which reports the predicate as the engine
+    // rewrote it — which is why the predicate does not take part in comparison.
+    //
+    // MariaDB also lists a column's `NOT NULL` here in some versions; those never carry an
+    // explicit name in the source, and an unnamed CHECK is a build error, so a constraint
+    // whose predicate is just a NOT NULL test is skipped to avoid a phantom re-diff.
+    private async Task ExtractCheckConstraintsAsync(Model model, TableRef table,
+        CancellationToken cancellationToken = default)
+    {
+        var tableSqlName = SqlName.Object(table.BareName);
+
+        // CHECK_CONSTRAINTS is joined to TABLE_CONSTRAINTS to find the owning table: MariaDB
+        // exposes a TABLE_NAME column on CHECK_CONSTRAINTS but MySQL does not, and this
+        // provider serves both. TABLE_CONSTRAINTS carries TABLE_NAME on both engines.
+        const string sql = """
+            SELECT cc.CONSTRAINT_NAME, cc.CHECK_CLAUSE
+            FROM information_schema.CHECK_CONSTRAINTS cc
+            JOIN information_schema.TABLE_CONSTRAINTS tc
+              ON tc.CONSTRAINT_SCHEMA = cc.CONSTRAINT_SCHEMA
+             AND tc.CONSTRAINT_NAME = cc.CONSTRAINT_NAME
+             AND tc.CONSTRAINT_TYPE = 'CHECK'
+            WHERE cc.CONSTRAINT_SCHEMA = @db AND tc.TABLE_NAME = @name
+            ORDER BY cc.CONSTRAINT_NAME;
+            """;
+
+        var parameters = new[]
+        {
+            new DatabaseParameter<string>("@db", _database.Name),
+            new DatabaseParameter<string>("@name", table.BareName),
+        };
+
+        var checks = new List<(string Name, string Clause)>();
+
+        await using (var reader = await _database.RunScriptReaderAsync(sql, parameters, cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                checks.Add((reader.GetString("CONSTRAINT_NAME"), reader.GetString("CHECK_CLAUSE")));
+            }
+        }
+
+        foreach (var (name, clause) in checks)
+        {
+            if (clause.EndsWith("is not null", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            model.Elements.Add(MariaDbModelFactory.CreateCheckConstraint(
+                tableSqlName.Sibling(name), tableSqlName, clause));
+        }
     }
 
     private async Task ExtractForeignKeysAsync(Model model, TableRef table, CancellationToken cancellationToken = default)

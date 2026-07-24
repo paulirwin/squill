@@ -73,6 +73,59 @@ public static class MariaDbModelFactory
         };
     }
 
+    /// <summary>
+    /// A CHECK constraint on a table (issue #120). It has no column set of its own — the
+    /// predicate may reference any columns of the table — so the element carries the
+    /// predicate text and its defining table.
+    ///
+    /// The predicate does not take part in comparison: both engines rewrite it when they
+    /// store it (backtick-quoting identifiers, and in MySQL wrapping the whole expression in
+    /// parentheses), so a declared expression could never hash-match what
+    /// information_schema.CHECK_CONSTRAINTS reports. A CHECK constraint's modeled identity is
+    /// its name and table instead, which is why an unnamed one is a build error: the two
+    /// engines derive different names for it.
+    /// </summary>
+    public static Element CreateCheckConstraint(
+        SqlName name, SqlName definingTable, string checkExpression)
+        => new(MariaDbElementTypes.SqlCheckConstraint)
+        {
+            Name = name,
+            Properties =
+            {
+                new Property(MariaDbPropertyNames.CheckExpression, checkExpression,
+                    participatesInIdentity: false),
+            },
+            Relationships =
+            {
+                new Relationship(MariaDbRelationshipNames.DefiningTable)
+                {
+                    new Reference(definingTable)
+                }
+            }
+        };
+
+    /// <summary>
+    /// Records that a column is generated (computed) (issue #120). Called by both model
+    /// builders so a parsed column and an extracted one carry the same properties in the
+    /// same order (the Merkle hash is order-sensitive).
+    ///
+    /// As with a CHECK predicate the expression is carried for scripting only and does not
+    /// participate in comparison — both engines rewrite it. What does participate is whether
+    /// the column is STORED or VIRTUAL, a real structural difference.
+    /// </summary>
+    public static void AddGeneratedColumnProperties(Element column, string? generationExpression,
+        bool isStored)
+    {
+        column.Properties.Add(new Property(MariaDbPropertyNames.IsStored, isStored));
+
+        if (generationExpression is not null)
+        {
+            column.Properties.Add(
+                new Property(MariaDbPropertyNames.GeneratedExpression, generationExpression,
+                    participatesInIdentity: false));
+        }
+    }
+
     public static Element CreateIndex(SqlName name,
         SqlName indexedObject,
         bool isUnique,

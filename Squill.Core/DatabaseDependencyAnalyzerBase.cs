@@ -19,6 +19,7 @@ public abstract class DatabaseDependencyAnalyzerBase : IDatabaseDependencyAnalyz
     public bool IsDependentElementType(string type)
         => type is SqlElementTypes.SqlPrimaryKeyConstraint
             or SqlElementTypes.SqlUniqueConstraint
+            or SqlElementTypes.SqlCheckConstraint
             or SqlElementTypes.SqlIndex
             or SqlElementTypes.SqlForeignKeyConstraint;
 
@@ -28,11 +29,13 @@ public abstract class DatabaseDependencyAnalyzerBase : IDatabaseDependencyAnalyz
     public bool DropCausesDataLoss(string type)
         => type == SqlElementTypes.SqlTable;
 
-    // An index or a unique constraint can be created and dropped on its own, so a change to
-    // one on an otherwise-unchanged table is reconciled without touching the table. A PK or
-    // FK is not: those are reconciled through their table.
+    // An index, a unique constraint or a CHECK constraint can be created and dropped on its
+    // own, so a change to one on an otherwise-unchanged table is reconciled without touching
+    // the table. A PK or FK is not: those are reconciled through their table.
     public bool IsDroppableStandaloneDependent(string type)
-        => type is SqlElementTypes.SqlIndex or SqlElementTypes.SqlUniqueConstraint;
+        => type is SqlElementTypes.SqlIndex
+            or SqlElementTypes.SqlUniqueConstraint
+            or SqlElementTypes.SqlCheckConstraint;
 
     // No extension concept by default (Postgres overrides).
     public virtual bool IsExtensionElementType(string type) => false;
@@ -51,7 +54,18 @@ public abstract class DatabaseDependencyAnalyzerBase : IDatabaseDependencyAnalyz
     // PostgreSQL and MariaDB both reformat it — so it is excluded here; a provider overrides to
     // add its own (Postgres: a domain's CHECK predicate).
     public virtual bool ParticipatesInIdentity(string elementType, string propertyName)
-        => (elementType, propertyName) is not (SqlElementTypes.SqlView, SqlPropertyNames.Definition);
+        => (elementType, propertyName) switch
+        {
+            (SqlElementTypes.SqlView, SqlPropertyNames.Definition) => false,
+            // A CHECK predicate and a generated column's expression are rewritten by every
+            // engine when stored (parentheses and casts added), so a declared one could never
+            // hash-match what is read back (issue #120). A CHECK constraint's identity is its
+            // name and table; a generated column's is that it is generated (IsStored), which
+            // does participate.
+            (SqlElementTypes.SqlCheckConstraint, SqlPropertyNames.CheckExpression) => false,
+            (SqlElementTypes.SqlSimpleColumn, SqlPropertyNames.GeneratedExpression) => false,
+            _ => true,
+        };
 
     public abstract bool IsReplaceableElementType(string type);
 

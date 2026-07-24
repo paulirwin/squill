@@ -132,7 +132,20 @@ public partial class PostgresVisitor
             return At(new CheckColumnConstraint(context.GetText(), checkExpression), context);
         }
 
-        // TODO: support GENERATED ... AS (expr) STORED
+        if (context.GENERATED() is not null && context.STORED() is not null)
+        {
+            // GENERATED <when> AS ( a_expr ) STORED — a generated (computed) column (issue
+            // #120). PostgreSQL accepts only ALWAYS here (BY DEFAULT is an error), and only
+            // STORED storage, so neither is recorded: the shape is fixed.
+            if (VisitA_expr(context.a_expr()) is not Expression generationExpression)
+            {
+                throw new PostgresParseException(
+                    "Unable to parse the generation expression of a generated column");
+            }
+
+            return At(new GeneratedColumnConstraint(context.GetText(), generationExpression), context);
+        }
+
         throw new NotImplementedException("Column constraint type not yet implemented");
     }
 

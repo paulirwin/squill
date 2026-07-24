@@ -32,4 +32,16 @@ public abstract class SqlPropertyNames
     // scripting from an element Name that folds in the table it fires on.
     public const string Timing = nameof(Timing);
     public const string RoutineName = nameof(RoutineName);
+    // A CHECK constraint's predicate (and, on Postgres, a domain's). Carried for scripting
+    // only — every engine rewrites the predicate it is given, so a declared expression can
+    // never hash-match an extracted one; see ParticipatesInIdentity.
+    public const string CheckExpression = nameof(CheckExpression);
+    // A generated (computed) column's generation expression, and whether it is stored on
+    // disk rather than computed on read (issue #120). Like a CHECK predicate the expression
+    // is carried for scripting only and does not take part in comparison — every engine
+    // rewrites the expression it is given, so a declared one can never hash-match an
+    // extracted one. IsStored is false only for MariaDB's VIRTUAL columns; PostgreSQL
+    // supports STORED alone.
+    public const string GeneratedExpression = nameof(GeneratedExpression);
+    public const string IsStored = nameof(IsStored);
 }

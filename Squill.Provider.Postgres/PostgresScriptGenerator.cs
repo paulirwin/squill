@@ -58,9 +58,9 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             PostgresElementTypes.SqlIndex =>
                 $"DROP INDEX IF EXISTS {SchemaQualified(element, parsed)};{Environment.NewLine}",
 
-            // A unique constraint belongs to its table, so it is dropped through it rather
-            // than as a standalone object.
-            PostgresElementTypes.SqlUniqueConstraint =>
+            // A unique or CHECK constraint belongs to its table, so it is dropped through it
+            // rather than as a standalone object.
+            PostgresElementTypes.SqlUniqueConstraint or PostgresElementTypes.SqlCheckConstraint =>
                 $"ALTER TABLE {ConstraintTableName(element)} DROP CONSTRAINT IF EXISTS "
                 + $"{parsed.QuotedUnqualified};{Environment.NewLine}",
 
@@ -737,6 +737,13 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             return GenerateAddUniqueConstraintScript(createDelta.Element);
         }
 
+        // Likewise a CHECK constraint added to an existing table (issue #120).
+        if (createDelta.Element.Type == PostgresElementTypes.SqlCheckConstraint)
+        {
+            return $"ALTER TABLE {ConstraintTableName(createDelta.Element)} "
+                + $"ADD {GetCheckConstraintClause(createDelta.Element)};{Environment.NewLine}";
+        }
+
         throw new NotImplementedException(
             $"Creating an element of type {createDelta.Element.Type} is not supported.");
     }
@@ -1113,6 +1120,24 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
 
                 var isIdentity = column.GetProperty<bool?>(PostgresPropertyNames.IsIdentity) == true;
                 var isSingleColumnPk = pkIsInline && pkColumns[0].Equals(columnName);
+                var generatedExpression =
+                    column.GetProperty<string>(PostgresPropertyNames.GeneratedExpression);
+
+                // A generated column's value is computed, so it takes neither a DEFAULT nor
+                // an explicit NULL (PostgreSQL rejects both). NOT NULL is legal on one, so
+                // it is still emitted when declared.
+                if (generatedExpression is not null)
+                {
+                    if (column.GetProperty<bool?>(PostgresPropertyNames.IsNullable) == false)
+                    {
+                        text += " NOT NULL";
+                    }
+
+                    text += $" GENERATED ALWAYS AS ({generatedExpression}) STORED";
+
+                    columnText.Add(text);
+                    continue;
+                }
 
                 if (isIdentity)
                 {
@@ -1159,6 +1184,14 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
         foreach (var unique in dependentElements.Where(i => i.Type == PostgresElementTypes.SqlUniqueConstraint))
         {
             columnText.Add(GetUniqueConstraintClause(unique));
+        }
+
+        // CHECK constraints are likewise emitted as named table-level clauses, so an
+        // unnamed one keeps the <table>_<column>_check name the model predicted for it
+        // rather than being re-derived by Postgres (issue #120).
+        foreach (var check in dependentElements.Where(i => i.Type == PostgresElementTypes.SqlCheckConstraint))
+        {
+            columnText.Add(GetCheckConstraintClause(check));
         }
 
         foreach (var foreignKey in dependentElements.Where(i => i.Type == PostgresElementTypes.SqlForeignKeyConstraint))
@@ -1416,6 +1449,26 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
         var columnList = string.Join(", ", columns.Select(c => $"\"{SqlName.UnqualifiedOf(c)}\""));
 
         return $"CONSTRAINT {SqlName.Parse(uniqueName).QuotedUnqualified} UNIQUE ({columnList})";
+    }
+
+    // CONSTRAINT <name> CHECK (<predicate>), for a CHECK constraint written into a
+    // CREATE TABLE or added by ALTER TABLE (issue #120).
+    private static string GetCheckConstraintClause(Element checkConstraint)
+    {
+        if (checkConstraint.Name is not string checkName)
+        {
+            throw new ArgumentException("Check constraints must have names");
+        }
+
+        var expression = checkConstraint.GetProperty<string>(PostgresPropertyNames.CheckExpression);
+
+        if (string.IsNullOrWhiteSpace(expression))
+        {
+            throw new InvalidOperationException(
+                $"Check constraint '{checkName}' has no expression");
+        }
+
+        return $"CONSTRAINT {SqlName.Parse(checkName).QuotedUnqualified} CHECK ({expression})";
     }
 
     // The ordered key columns of an index-backed constraint (a primary key or a unique
