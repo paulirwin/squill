@@ -14,28 +14,30 @@ user-defined aggregate, and triggers.
 
 ## Status
 
-This sample is **aspirational**: it intentionally includes features Squill's
-Postgres provider does not support yet, so it doubles as a living gap list. The
-schema centres on the `film` table, which nearly every other table references
-and which needs four unsupported features, so today the sample **does not build
-or deploy** at all:
+The full sample **builds into a DACPAC and deploys against real Postgres**. The
+features it centres on — around the `film` table and beyond — are all modeled:
 
-- **`CREATE TYPE ... AS ENUM`** — `mpaa_rating`, used by `film.rating`.
-- **`CREATE DOMAIN`** with a `CHECK` — `year`, used by `film.release_year`.
-- **`tsvector`** columns and their GiST index — `film.fulltext` /
-  `film_fulltext_idx`.
-- **Array columns** (`text[]`) — `film.special_features`.
-
-Beyond `film`, it also uses PL/pgSQL and SQL functions, a user-defined aggregate,
-and triggers, which are likewise not yet modeled.
+- **`CREATE TYPE ... AS ENUM`** (`mpaa_rating`, used by `film.rating`) and
+  **`CREATE DOMAIN`** with a `CHECK` (`year`, used by `film.release_year`) —
+  issues #75 / #80.
+- **`tsvector`** columns and their GiST index (`film.fulltext` /
+  `film_fulltext_idx`) and **array columns** (`text[]`, `film.special_features`)
+  — issue #76.
+- PL/pgSQL and SQL **functions** (#81), a user-defined **aggregate**
+  (`group_concat`, #82), and **triggers** (#83).
 
 The integration tests in
-`Squill.IntegrationTests/Postgres/PagilaSampleTest` track this: a passing test
-asserts the full schema still fails to build (so it will start failing — a useful
-signal — once the features land), and the end-to-end deploy test is `Skip`ped
-with the exact reasons above.
+`Squill.IntegrationTests/Postgres/PagilaSampleTest` cover this end to end: a
+DB-less `BuildFullSchema_Succeeds` test builds the DACPAC, and
+`Deploy_PagilaSample_ProducesTheSampleSchema` deploys it into a real Postgres
+database (via the same code path as `squill deploy`) and asserts that
+representative objects across the feature surface — the `film` table, the
+`actor_info` view, the `group_concat` aggregate, and the `film_fulltext_trigger`
+— exist afterward. Both tests are live (not skipped).
 
-Because it can't build yet, this project is **not** part of `Squill.slnx`.
+This project is part of `Squill.slnx`, so it builds with the solution. The same
+schema is also embedded as a resource in `Squill.IntegrationTests`, which is how
+the end-to-end deploy tests above exercise it against a real database.
 
 ## License
 
