@@ -7,7 +7,7 @@
     lockstep; bump it in one place to cut a release.
   -->
   <PropertyGroup>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
 
     <Authors>Paul Irwin</Authors>
     <Company>Paul Irwin</Company>
