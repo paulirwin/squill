@@ -266,11 +266,57 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
         foreach (var (schema, name, baseType, check) in domains)
         {
-            var typeSpecifier = MakeTypeSpecifierElement(baseType);
+            var typeSpecifier = MakeDomainTypeSpecifierElement(baseType);
 
             model.Elements.Add(
                 PostgresModelFactory.CreateDomain(SqlName.Object(name), schema, typeSpecifier, check));
         }
+    }
+
+    // Builds a domain's base-type specifier from what format_type() renders, which includes any
+    // modifier inline — `character varying(5)`, `numeric(10,2)`. The parser builder instead
+    // carries the bare canonical type name plus Length (or Precision/Scale) properties, the same
+    // shape a column uses, so the modifier is split out here for the two to hash-match. Without
+    // this a domain declared with any modifier looked different on every deploy, and — since a
+    // domain's base type cannot be altered — that difference then failed the deploy (issue #122).
+    private static Element MakeDomainTypeSpecifierElement(string formattedType)
+    {
+        var open = formattedType.IndexOf('(');
+
+        if (open < 0 || !formattedType.EndsWith(')'))
+        {
+            return MakeTypeSpecifierElement(formattedType);
+        }
+
+        var typeName = formattedType[..open].Trim();
+        var modifiers = formattedType[(open + 1)..^1].Split(',');
+
+        var element = MakeTypeSpecifierElement(typeName);
+
+        // numeric(p, s) carries precision and scale; every other modified type Squill models
+        // (character varying, character, bit, bit varying) carries a single length. Values are
+        // stored with the same CLR types the parser builder uses, or the hashes differ.
+        // A numeric carries precision and scale. The catalog cannot distinguish `numeric(10)`
+        // from `numeric(10, 0)` — format_type renders both as `numeric(10,0)` — so this matches
+        // the explicit two-modifier spelling, which is what the parser builder models. A domain
+        // declared `numeric(10)` is the one form that still differs; it is unambiguous in the
+        // source but genuinely unrecoverable from the database.
+        if (typeName == "numeric")
+        {
+            if (modifiers.Length > 1
+                && long.TryParse(modifiers[0].Trim(), out var precision)
+                && long.TryParse(modifiers[1].Trim(), out var scale))
+            {
+                element.Properties.Add(new Property(PostgresPropertyNames.Precision, precision));
+                element.Properties.Add(new Property(PostgresPropertyNames.Scale, scale));
+            }
+        }
+        else if (modifiers.Length == 1 && int.TryParse(modifiers[0].Trim(), out var length))
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.Length, length));
+        }
+
+        return element;
     }
 
     // pg_get_constraintdef renders a domain CHECK as `CHECK (<predicate>)`; the model and the

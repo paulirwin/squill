@@ -172,6 +172,31 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             return view.ToString();
         }
 
+        // PostgreSQL has no CREATE OR REPLACE AGGREGATE, so a changed aggregate is dropped
+        // and recreated (issue #122). Its argument types are part of its identity, so the
+        // element being "changed" means its definition (SFUNC, INITCOND, …) differs.
+        if (source.Type == PostgresElementTypes.SqlAggregate)
+        {
+            var aggregate = new StringBuilder();
+
+            aggregate.Append(GenerateDropScript(new DropDelta(recreateDelta.TargetElement, false)));
+            aggregate.Append(GenerateCreateAggregateScript(source));
+
+            return aggregate.ToString();
+        }
+
+        // CREATE OR REPLACE TRIGGER only exists from PostgreSQL 14, so a changed trigger is
+        // dropped and recreated — the portable spelling, and the one MariaDB already uses.
+        if (source.Type == PostgresElementTypes.SqlTrigger)
+        {
+            var trigger = new StringBuilder();
+
+            trigger.Append(GenerateDropScript(new DropDelta(recreateDelta.TargetElement, false)));
+            trigger.Append(GenerateCreateTriggerScript(source));
+
+            return trigger.ToString();
+        }
+
         if (source.Type != PostgresElementTypes.SqlIndex)
         {
             throw new NotImplementedException(
@@ -1329,6 +1354,84 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
         var quotedName = SqlName.Parse(extensionName).QuotedUnqualified;
 
         return $"ALTER EXTENSION {quotedName} UPDATE TO '{delta.TargetVersion}';{Environment.NewLine}";
+    }
+
+    // ALTER TYPE ... ADD VALUE, one statement per added label (issue #122). An enum is never
+    // dropped and recreated: DROP TYPE fails while any column is typed as it.
+    protected override string GenerateAlterEnumTypeScript(AlterEnumTypeDelta delta)
+    {
+        if (delta.SourceElement.Name is not string name)
+        {
+            throw new ArgumentException("Enum types must have names");
+        }
+
+        var qualifiedName = SchemaQualified(delta.SourceElement, SqlName.Parse(name));
+
+        // No added labels means the difference was a removed or reordered label. PostgreSQL
+        // has no ALTER TYPE ... DROP VALUE and no way to reorder, and rebuilding the type
+        // would require rewriting every column that uses it. Report it rather than emitting
+        // SQL that would leave the database not matching the declared source.
+        if (delta.AddedLabels.Count == 0)
+        {
+            var declared = PostgresModelFactory.GetEnumLabels(delta.SourceElement);
+            var existing = PostgresModelFactory.GetEnumLabels(delta.TargetElement);
+            var lost = existing.Where(l => !declared.Contains(l, StringComparer.Ordinal)).ToList();
+
+            var detail = lost.Count > 0
+                ? $"the existing {string.Join(", ", lost.Select(l => $"'{l}'"))} "
+                  + (lost.Count == 1 ? "label is" : "labels are") + " no longer declared"
+                : "its labels are declared in a different order";
+
+            throw new NotSupportedException(
+                $"The enum type {qualifiedName} cannot be altered: {detail}. PostgreSQL can "
+                + "only add labels to an existing enum — removing or reordering one requires "
+                + "rewriting every column that uses the type, which Squill will not do "
+                + "automatically. Add the change as a pre-deployment script, or declare the "
+                + "labels so existing ones are preserved in order.");
+        }
+
+        var sb = new StringBuilder();
+
+        foreach (var (label, beforeLabel) in delta.AddedLabels)
+        {
+            sb.Append("ALTER TYPE ").Append(qualifiedName)
+                .Append(" ADD VALUE '").Append(label.Replace("'", "''")).Append('\'');
+
+            // An appended label needs no position; one inserted between existing labels must
+            // say which it precedes, since an enum's declared order is its sort order.
+            if (beforeLabel is not null)
+            {
+                sb.Append(" BEFORE '").Append(beforeLabel.Replace("'", "''")).Append('\'');
+            }
+
+            sb.Append(';').AppendLine();
+        }
+
+        return sb.ToString();
+    }
+
+    // A domain's base type cannot be changed (issue #122). PostgreSQL's ALTER DOMAIN covers
+    // the default, NOT NULL and constraints, but has no TYPE form, and dropping the domain to
+    // recreate it fails while any column is typed as it. Since the base type is the only facet
+    // that takes part in a domain's identity, reaching here always means the base type changed,
+    // so this reports rather than emitting SQL that would not parse.
+    protected override string GenerateAlterDomainTypeScript(AlterDomainTypeDelta delta)
+    {
+        if (delta.SourceElement.Name is not string name)
+        {
+            throw new ArgumentException("Domains must have names");
+        }
+
+        var qualifiedName = SchemaQualified(delta.SourceElement, SqlName.Parse(name));
+        var declaredType = GetTypeStringForColumn(delta.SourceElement);
+        var existingType = GetTypeStringForColumn(delta.TargetElement);
+
+        throw new NotSupportedException(
+            $"The domain {qualifiedName} is declared as {declaredType} but exists as "
+            + $"{existingType}, and PostgreSQL cannot change a domain's base type: ALTER DOMAIN "
+            + "has no TYPE form, and the domain cannot be dropped and recreated while a column "
+            + "still uses it. Migrate the dependent columns off the domain in a pre-deployment "
+            + "script, or declare the domain with its existing base type.");
     }
 
     // CONSTRAINT "<name>" FOREIGN KEY ("a", "b") REFERENCES "table" ("x", "y")
