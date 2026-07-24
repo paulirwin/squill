@@ -1525,10 +1525,16 @@ declareCursor
     : DECLARE uid CURSOR FOR selectStatement
     ;
 
+// The handler action was `routineBody`, which only accepts a compound statement
+// or a single procedure statement, so a bare `RETURN` (e.g.
+// `DECLARE EXIT HANDLER FOR NOT FOUND RETURN NULL;`) failed to parse. Widened to
+// `(compoundStatement | sqlStatement)` to accept a bare statement action, matching
+// MySQL/MariaDB. Submitted upstream as antlr/grammars-v4#4949 (issue #4948);
+// this local copy will be updated if the upstream approach changes. See Squill #101.
 declareHandler
     : DECLARE handlerAction = (CONTINUE | EXIT | UNDO) HANDLER FOR handlerConditionValue (
         ',' handlerConditionValue
-    )* routineBody
+    )* (compoundStatement | sqlStatement)
     ;
 
 handlerConditionValue

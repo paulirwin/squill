@@ -564,7 +564,7 @@ CREATE FUNCTION inventory_held_by_customer(p_inventory_id int)
     READS SQL DATA
 BEGIN
     DECLARE v_customer_id INT;
-    DECLARE EXIT HANDLER FOR NOT FOUND BEGIN RETURN NULL; END;
+    DECLARE EXIT HANDLER FOR NOT FOUND RETURN NULL;
 
     SELECT customer_id INTO v_customer_id
     FROM rental
