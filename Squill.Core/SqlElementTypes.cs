@@ -13,6 +13,10 @@ public abstract class SqlElementTypes
     public const string SqlSimpleColumn = nameof(SqlSimpleColumn);
     public const string SqlTypeSpecifier = nameof(SqlTypeSpecifier);
     public const string SqlPrimaryKeyConstraint = nameof(SqlPrimaryKeyConstraint);
+    // A UNIQUE constraint. Distinct from a unique SqlIndex: Postgres records one in
+    // pg_constraint and it can back a foreign key. Providers that express uniqueness only
+    // as an index (MariaDB, where a UNIQUE KEY is an index) simply never emit this type.
+    public const string SqlUniqueConstraint = nameof(SqlUniqueConstraint);
     public const string SqlIndexedColumnSpecification = nameof(SqlIndexedColumnSpecification);
     public const string SqlIndex = nameof(SqlIndex);
     public const string SqlForeignKeyConstraint = nameof(SqlForeignKeyConstraint);

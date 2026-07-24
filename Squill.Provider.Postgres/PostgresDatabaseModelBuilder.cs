@@ -78,6 +78,10 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             await ExtractColumnsAsync(table, cancellationToken);
             await ExtractPrimaryKeyAsync(model, table, cancellationToken);
 
+            // Unique constraints sit between the primary key and the foreign keys, matching
+            // the order the parser-based builder emits them in.
+            await ExtractUniqueConstraintsAsync(model, table, cancellationToken);
+
             // Foreign keys precede indexes, matching the parser: a table's constraints are
             // written in its CREATE TABLE, while a standalone index comes from a separate
             // CREATE INDEX statement that follows it.
@@ -1019,6 +1023,70 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
         model.Elements.Add(PostgresModelFactory.CreatePrimaryKey(
             SqlName.Object(name), tableSqlName, columns));
+    }
+
+    // Extracts the table's UNIQUE constraints (issue #121). Read from pg_constraint rather
+    // than information_schema so the key columns come from conkey, which gives their real
+    // constraint order — information_schema.constraint_column_usage does not distinguish
+    // the ordering of a composite unique key reliably. Unique constraints are modeled as
+    // their own SqlUniqueConstraint elements, distinct from the unique SqlIndex that backs
+    // them (ExtractIndexesAsync skips constraint-backed indexes, so there is no double-count).
+    private async Task ExtractUniqueConstraintsAsync(Model model, TableRef table,
+        CancellationToken cancellationToken = default)
+    {
+        var tableSqlName = SqlName.Object(table.BareName);
+
+        // contype = 'u' is a UNIQUE constraint. The lateral unnest keeps conkey's ordinality
+        // so a composite key's columns come back in the order they were declared.
+        const string sql = """
+            SELECT c.conname AS constraint_name,
+                   a.attname AS column_name
+            FROM pg_constraint c
+            JOIN pg_class t ON t.oid = c.conrelid
+            JOIN pg_namespace n ON n.oid = t.relnamespace
+            JOIN LATERAL unnest(c.conkey) WITH ORDINALITY AS k(attnum, ordinality) ON TRUE
+            JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
+            WHERE n.nspname = @schema
+              AND t.relname = @name
+              AND c.contype = 'u'
+            ORDER BY c.conname, k.ordinality;
+            """;
+
+        var parameters = new[]
+        {
+            new DatabaseParameter<string>("@schema", table.Schema),
+            new DatabaseParameter<string>("@name", table.BareName),
+        };
+
+        // Accumulate rows per constraint (already ordered by column ordinality) so a
+        // composite unique constraint becomes a single element.
+        var constraints = new Dictionary<string, List<PostgresModelFactory.IndexedColumn>>();
+        var order = new List<string>();
+
+        await using (var reader = await _database.RunScriptReaderAsync(sql, parameters, cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var constraintName = reader.GetString("constraint_name");
+
+                if (!constraints.TryGetValue(constraintName, out var columns))
+                {
+                    columns = [];
+                    constraints[constraintName] = columns;
+                    order.Add(constraintName);
+                }
+
+                columns.Add(new PostgresModelFactory.IndexedColumn(
+                    tableSqlName.Child(reader.GetString("column_name"))));
+            }
+        }
+
+        foreach (var constraintName in order)
+        {
+            model.Elements.Add(PostgresModelFactory.CreateUniqueConstraint(
+                SqlName.Object(constraintName), tableSqlName, constraints[constraintName],
+                table.Schema));
+        }
     }
 
     private async Task<IReadOnlyList<PostgresModelFactory.IndexedColumn>> ExtractPrimaryKeyColumnsAsync(

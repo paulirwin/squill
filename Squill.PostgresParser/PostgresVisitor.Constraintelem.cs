@@ -28,6 +28,19 @@ public partial class PostgresVisitor
             return At(new PrimaryKeyTableConstraint(ParseColumnList(columnlist)), context);
         }
 
+        if (context.UNIQUE() is not null)
+        {
+            // UNIQUE (columnlist) — the parenthesized form. The USING-index form
+            // (existingindex) has no columnlist and is not yet supported, mirroring
+            // PRIMARY KEY above.
+            if (context.columnlist() is not { } uniqueColumnlist)
+            {
+                throw new NotImplementedException("UNIQUE USING INDEX form not yet supported");
+            }
+
+            return At(new UniqueTableConstraint(ParseColumnList(uniqueColumnlist)), context);
+        }
+
         if (context.FOREIGN() is not null && context.KEY() is not null)
         {
             // FOREIGN KEY (cols) REFERENCES table (cols) key_match key_actions.

@@ -113,6 +113,43 @@ public static class PostgresModelFactory
         };
     }
 
+    /// <summary>
+    /// A UNIQUE constraint on a table. Shaped like a primary key (an ordered column set
+    /// owned by a defining table) because Postgres backs both with an index and records
+    /// both in pg_constraint, where either can back a foreign key.
+    /// </summary>
+    public static Element CreateUniqueConstraint(
+        SqlName name, SqlName definingTable, IEnumerable<IndexedColumn> columns,
+        string schema = "public")
+    {
+        var columnSpecs = new Relationship(PostgresRelationshipNames.ColumnSpecifications);
+
+        foreach (var column in columns)
+        {
+            columnSpecs.Add(CreateIndexedColumnSpecification(column));
+        }
+
+        return new Element(PostgresElementTypes.SqlUniqueConstraint)
+        {
+            Name = name,
+            Relationships =
+            {
+                columnSpecs,
+                new Relationship(PostgresRelationshipNames.DefiningTable)
+                {
+                    new Reference(definingTable)
+                },
+                // A unique constraint lives in its table's schema. Carrying it (as an index
+                // does) lets ALTER TABLE ... ADD/DROP CONSTRAINT qualify the table correctly
+                // instead of resolving it against the session search_path.
+                new Relationship(PostgresRelationshipNames.Schema)
+                {
+                    new Reference(schema) { ExternalSource = "BuiltIns" }
+                }
+            }
+        };
+    }
+
     public static Element CreateIndex(SqlName name,
         SqlName indexedObject,
         bool isUnique,

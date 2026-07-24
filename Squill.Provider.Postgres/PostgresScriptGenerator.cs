@@ -58,6 +58,12 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             PostgresElementTypes.SqlIndex =>
                 $"DROP INDEX IF EXISTS {SchemaQualified(element, parsed)};{Environment.NewLine}",
 
+            // A unique constraint belongs to its table, so it is dropped through it rather
+            // than as a standalone object.
+            PostgresElementTypes.SqlUniqueConstraint =>
+                $"ALTER TABLE {ConstraintTableName(element)} DROP CONSTRAINT IF EXISTS "
+                + $"{parsed.QuotedUnqualified};{Environment.NewLine}",
+
             // An extension is not schema-scoped (globally named per database).
             PostgresElementTypes.SqlExtension =>
                 $"DROP EXTENSION IF EXISTS {parsed.QuotedUnqualified};{Environment.NewLine}",
@@ -209,6 +215,29 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
 
         return schema is null or "public"
             ? bare.Sql
+            : SqlName.Object(schema, bare.UnqualifiedName).Sql;
+    }
+
+    // The qualified table name a constraint is defined on, from its DefiningTable reference.
+    // The referenced table name is bare; a constraint shares its table's schema, so qualify
+    // the table with the constraint's own schema (suppressed for public, as elsewhere).
+    // Mirrors IndexTableName.
+    private static string ConstraintTableName(Element constraint)
+    {
+        var reference = constraint.GetRelationship(PostgresRelationshipNames.DefiningTable)
+            ?.Entries.OfType<Reference>().SingleOrDefault();
+
+        if (reference == null)
+        {
+            throw new InvalidOperationException(
+                $"Constraint {constraint.Name} has no defining-table reference");
+        }
+
+        var bare = SqlName.Parse(reference.Name);
+        var schema = GetSchema(constraint);
+
+        return schema is null or "public"
+            ? bare.QuotedUnqualified
             : SqlName.Object(schema, bare.UnqualifiedName).Sql;
     }
 
@@ -694,7 +723,32 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             return GenerateCreateTriggerScript(createDelta.Element);
         }
 
-        throw new NotImplementedException();
+        // An index added to a table that already exists arrives as its own CreateDelta
+        // (a from-scratch deploy scripts indexes as their table's dependents instead).
+        if (createDelta.Element.Type == PostgresElementTypes.SqlIndex)
+        {
+            return GenerateCreateIndexScript(createDelta.Element, IndexTableName(createDelta.Element));
+        }
+
+        // Likewise a unique constraint added to an existing table: there is no CREATE TABLE
+        // to carry the clause, so it is added with ALTER TABLE.
+        if (createDelta.Element.Type == PostgresElementTypes.SqlUniqueConstraint)
+        {
+            return GenerateAddUniqueConstraintScript(createDelta.Element);
+        }
+
+        throw new NotImplementedException(
+            $"Creating an element of type {createDelta.Element.Type} is not supported.");
+    }
+
+    // ALTER TABLE ... ADD CONSTRAINT ... UNIQUE (...), for a unique constraint added to a
+    // table that already exists.
+    private string GenerateAddUniqueConstraintScript(Element uniqueConstraint)
+    {
+        var quotedTable = ConstraintTableName(uniqueConstraint);
+
+        return $"ALTER TABLE {quotedTable} ADD {GetUniqueConstraintClause(uniqueConstraint)};"
+            + Environment.NewLine;
     }
 
     // Scripts a view as CREATE OR REPLACE, naming its columns explicitly so the deployed
@@ -1028,7 +1082,7 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
 
         var pk = dependentElements.SingleOrDefault(i => i.Type == PostgresElementTypes.SqlPrimaryKeyConstraint);
 
-        var pkColumns = pk == null ? new List<string>() : GetPrimaryKeyColumns(pk);
+        var pkColumns = pk == null ? new List<string>() : GetKeyColumns(pk);
 
         // A single-column PK is written inline (col ... PRIMARY KEY) only when it has the
         // default <table>_pkey name; a differently-named single-column PK is emitted as a
@@ -1096,6 +1150,15 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             // (CONSTRAINT pk_x PRIMARY KEY (...)) keeps its name in the database rather than
             // getting the Postgres-generated <table>_pkey.
             columnText.Add($"CONSTRAINT {SqlName.Parse(pk!.Name!).QuotedUnqualified} PRIMARY KEY ({pkColumnList})");
+        }
+
+        // UNIQUE constraints are always emitted as named table-level clauses. Unlike a PK
+        // there is no inline shorthand worth special-casing: an inline UNIQUE has no place
+        // for a name, and the model always carries one (explicit, or the Postgres-derived
+        // <table>_<col>_key), so writing it out keeps the name in the database.
+        foreach (var unique in dependentElements.Where(i => i.Type == PostgresElementTypes.SqlUniqueConstraint))
+        {
+            columnText.Add(GetUniqueConstraintClause(unique));
         }
 
         foreach (var foreignKey in dependentElements.Where(i => i.Type == PostgresElementTypes.SqlForeignKeyConstraint))
@@ -1333,7 +1396,31 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             _ => throw new InvalidOperationException($"Unknown referential action: {action}"),
         };
 
-    private static IList<string> GetPrimaryKeyColumns(Element pkConstraint)
+    // The CONSTRAINT "<name>" UNIQUE ("col", ...) clause for a unique constraint. A unique
+    // constraint is shaped like a primary key, so it reads its columns the same way.
+    private static string GetUniqueConstraintClause(Element uniqueConstraint)
+    {
+        if (uniqueConstraint.Name is not string uniqueName)
+        {
+            throw new ArgumentException("Unique constraints must have names");
+        }
+
+        var columns = GetKeyColumns(uniqueConstraint);
+
+        if (columns.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"Unique constraint '{uniqueName}' has no columns");
+        }
+
+        var columnList = string.Join(", ", columns.Select(c => $"\"{SqlName.UnqualifiedOf(c)}\""));
+
+        return $"CONSTRAINT {SqlName.Parse(uniqueName).QuotedUnqualified} UNIQUE ({columnList})";
+    }
+
+    // The ordered key columns of an index-backed constraint (a primary key or a unique
+    // constraint); both carry their columns as SqlIndexedColumnSpecification entries.
+    private static IList<string> GetKeyColumns(Element pkConstraint)
     {
         var columnSpecs = pkConstraint.GetRelationship(PostgresRelationshipNames.ColumnSpecifications);
 
@@ -1356,7 +1443,7 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             if (column == null)
             {
                 throw new InvalidOperationException(
-                    "Primary key column specification has no column reference");
+                    "Key column specification has no column reference");
             }
 
             columns.Add(column.Name);
