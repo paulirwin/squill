@@ -412,6 +412,12 @@ public class SchemaCompare
     // for schema-scoped types — same schema, so two same-named objects in different
     // schemas (public.foo vs. staging.foo) are distinct. A null name never matches (an
     // anonymous element is not identity-comparable), so it can't act as a wildcard.
+    //
+    // A dependent (an index, a constraint) is additionally scoped by the table it belongs to.
+    // Its name is only unique within that table, not across the database: MariaDB's Sakila has
+    // an `idx_fk_film_id` on both film_actor and inventory, and an `idx_fk_address_id` on three
+    // tables. Without the table in the comparison those all read as one object, and matching a
+    // source index against the target would find several (issue #122).
     private static bool ElementsMatch(IDatabaseDependencyAnalyzer analyzer, Element a, Element b)
     {
         if (!a.Type.Equals(b.Type))
@@ -424,8 +430,31 @@ public class SchemaCompare
             return false;
         }
 
-        return a.Name.Equals(b.Name)
-            && string.Equals(analyzer.GetElementSchema(a), analyzer.GetElementSchema(b), StringComparison.Ordinal);
+        if (!a.Name.Equals(b.Name)
+            || !string.Equals(analyzer.GetElementSchema(a), analyzer.GetElementSchema(b), StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (!analyzer.IsDependentElementType(a.Type))
+        {
+            return true;
+        }
+
+        return string.Equals(GetOwningTableName(a), GetOwningTableName(b), StringComparison.Ordinal);
+    }
+
+    // The name of the table a dependent element belongs to, or null when it names none. An
+    // index records its table as IndexedObject; every other dependent (PK, FK, unique
+    // constraint) as DefiningTable.
+    private static string? GetOwningTableName(Element element)
+    {
+        var relationshipName = element.Type == SqlElementTypes.SqlIndex
+            ? SqlRelationshipNames.IndexedObject
+            : SqlRelationshipNames.DefiningTable;
+
+        return element.GetRelationship(relationshipName)
+            ?.Entries.OfType<Reference>().FirstOrDefault()?.Name;
     }
 
     // Produces the delta for an element present in both models whose definitions differ.

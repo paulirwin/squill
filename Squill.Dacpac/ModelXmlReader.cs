@@ -11,10 +11,20 @@ namespace Squill.Dacpac;
 /// where a hint is present), relationships and their entries (nested elements and
 /// references), and annotations — so the deserialized model's whole-model hash
 /// matches the original.
+///
+/// <para>
+/// One facet is not carried in the XML and is restored from the provider instead:
+/// <see cref="Property.ParticipatesInIdentity"/>. It has no SSDT-compatible representation in
+/// <c>model.xml</c>, but it is a static rule of the element type rather than per-model data, so
+/// the caller's <see cref="IModelIdentityRules"/> (when supplied) re-applies it on load. Without
+/// that, a property that opted out of its element's identity would come back participating and
+/// the element could never hash-match its deployed counterpart (issue #122).
+/// </para>
 /// </summary>
 internal static class ModelXmlReader
 {
-    public static Model Read(Stream stream, ModelMetadata? metadata = null)
+    public static Model Read(
+        Stream stream, ModelMetadata? metadata = null, IModelIdentityRules? identityRules = null)
     {
         var document = XDocument.Load(stream);
         var root = document.Root
@@ -40,13 +50,13 @@ internal static class ModelXmlReader
 
         foreach (var elementXml in modelElement.Elements(ns + "Element"))
         {
-            model.Elements.Add(ReadElement(elementXml, ns));
+            model.Elements.Add(ReadElement(elementXml, ns, identityRules));
         }
 
         return model;
     }
 
-    private static Element ReadElement(XElement xml, XNamespace ns)
+    private static Element ReadElement(XElement xml, XNamespace ns, IModelIdentityRules? identityRules)
     {
         var type = (string?)xml.Attribute("Type")
                    ?? throw new InvalidOperationException("Element is missing its Type attribute.");
@@ -60,11 +70,11 @@ internal static class ModelXmlReader
         {
             if (child.Name == ns + "Property")
             {
-                element.Properties.Add(ReadProperty(child));
+                element.Properties.Add(ReadProperty(child, type, identityRules));
             }
             else if (child.Name == ns + "Relationship")
             {
-                element.Relationships.Add(ReadRelationship(child, ns));
+                element.Relationships.Add(ReadRelationship(child, ns, identityRules));
             }
             else if (child.Name == ns + "Annotation")
             {
@@ -75,7 +85,8 @@ internal static class ModelXmlReader
         return element;
     }
 
-    private static Property ReadProperty(XElement xml)
+    private static Property ReadProperty(
+        XElement xml, string elementType, IModelIdentityRules? identityRules)
     {
         var name = (string?)xml.Attribute("Name")
                    ?? throw new InvalidOperationException("Property is missing its Name attribute.");
@@ -83,10 +94,16 @@ internal static class ModelXmlReader
         var rawValue = (string?)xml.Attribute("Value");
         var valueType = (string?)xml.Attribute("ValueType");
 
-        return new Property(name, DecodeValue(rawValue, valueType));
+        // Not stored in the XML — restated by the provider. With no rules the default stands
+        // and the property participates, as every property did before issue #122.
+        var participatesInIdentity =
+            identityRules?.ParticipatesInIdentity(elementType, name) ?? true;
+
+        return new Property(name, DecodeValue(rawValue, valueType), participatesInIdentity);
     }
 
-    private static Relationship ReadRelationship(XElement xml, XNamespace ns)
+    private static Relationship ReadRelationship(
+        XElement xml, XNamespace ns, IModelIdentityRules? identityRules)
     {
         var name = (string?)xml.Attribute("Name")
                    ?? throw new InvalidOperationException("Relationship is missing its Name attribute.");
@@ -98,7 +115,7 @@ internal static class ModelXmlReader
             var nestedElement = entryXml.Element(ns + "Element");
             if (nestedElement is not null)
             {
-                relationship.Add(ReadElement(nestedElement, ns));
+                relationship.Add(ReadElement(nestedElement, ns, identityRules));
                 continue;
             }
 

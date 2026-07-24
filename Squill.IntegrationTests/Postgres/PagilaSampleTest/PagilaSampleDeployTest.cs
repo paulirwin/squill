@@ -116,6 +116,60 @@ public class PagilaSampleDeployTest : PostgresIntegrationTestBase
         }
     }
 
+    /// <summary>
+    /// Deploying the same DACPAC twice is a no-op the second time (issue #122). The first deploy
+    /// creates the schema; the second compares the unchanged source model against the model
+    /// extracted from the database it just created, so every element must hash-match and the
+    /// deploy must produce no deltas. This is the strongest available check that the parser
+    /// builder and the database builder agree on every construct the sample uses — any facet one
+    /// side records and the other does not shows up here as a spurious delta (or, for an object
+    /// kind that cannot be altered in place, as a hard failure).
+    /// </summary>
+    [Fact]
+    public async Task Deploy_PagilaSampleTwice_SecondDeployHasNoChanges()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var tempDir = Directory.CreateTempSubdirectory("squill-pagila-redeploy");
+
+        try
+        {
+            var sqlPath = await WriteSchemaAsync(tempDir.FullName, ct);
+            var dacpacPath = Path.Combine(tempDir.FullName, "bin", "Pagila.dacpac");
+            var workspace = DacpacBuilder.CreateWorkspace([sqlPath]);
+            var metadata = new ModelMetadata { ProviderName = "Postgresql", Name = "Pagila" };
+            await DacpacBuilder.BuildToFileAsync(workspace, metadata, dacpacPath, ct);
+
+            IDatabaseProvider provider = new PostgresDatabaseProvider(ConnectionString);
+            var targetDbName = $"squill_pagila_redeploy_{Guid.NewGuid():n}";
+            var createdDb = await provider.CreateDatabaseAsync(targetDbName, ct);
+
+            try
+            {
+                var first = await DacpacDeployer.DeployFromFileAsync(
+                    dacpacPath, ConnectionString, targetDbName, dryRun: false,
+                    cancellationToken: ct);
+                Assert.True(first.WasExecuted);
+
+                // The second deploy of an unchanged DACPAC must find nothing to do.
+                var second = await DacpacDeployer.DeployFromFileAsync(
+                    dacpacPath, ConnectionString, targetDbName, dryRun: false,
+                    cancellationToken: ct);
+
+                Assert.True(
+                    string.IsNullOrWhiteSpace(second.Script),
+                    $"expected no changes on redeploy, but got script:\n{second.Script}");
+            }
+            finally
+            {
+                await createdDb.DropAsync(ct);
+            }
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
     private async Task AssertObjectExistsAsync(
         IDatabaseProvider provider, string dbName, string existsQuery, string what, CancellationToken ct)
     {

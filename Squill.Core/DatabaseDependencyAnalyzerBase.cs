@@ -45,6 +45,14 @@ public abstract class DatabaseDependencyAnalyzerBase : IDatabaseDependencyAnalyz
     // No extension version to normalize by default (Postgres overrides).
     public virtual Element NormalizeForComparison(Element source, Element target) => source;
 
+    // Almost every property is part of its element's identity; the exceptions are properties
+    // carrying text the engine rewrites when it stores it, which could therefore never match
+    // what a comparison reads back (issue #122). A view's query is one on every engine —
+    // PostgreSQL and MariaDB both reformat it — so it is excluded here; a provider overrides to
+    // add its own (Postgres: a domain's CHECK predicate).
+    public virtual bool ParticipatesInIdentity(string elementType, string propertyName)
+        => (elementType, propertyName) is not (SqlElementTypes.SqlView, SqlPropertyNames.Definition);
+
     public abstract bool IsReplaceableElementType(string type);
 
     public abstract int GetCreateOrder(string type);
