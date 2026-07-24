@@ -38,6 +38,7 @@
                      PostDeployFiles="@(SquillPostDeploy)"
                      OutputPath="$(SquillDacpacPath)"
                      ProviderName="$(SquillProviderName)"
+                     ProjectName="$(MSBuildProjectName)"
                      DacName="$(SquillDacName)"
                      DacVersion="$(SquillDacVersion)"
                      TargetVersion="$(SquillTargetVersion)" />
@@ -61,10 +62,57 @@
        that contains a .squillproj fails with MSB4057 ("target does not exist") when
        it reaches this project. A database project has nothing to test/pack/publish,
        so these are deliberately empty (Publish just builds the DACPAC). -->
-  <Target Name="Restore" />
   <Target Name="Publish" DependsOnTargets="Build" />
   <Target Name="VSTest" />
   <Target Name="Pack" />
+
+  <!-- Restore. A database project has no package references, but a solution-wide restore still
+       walks it: NuGet asks every project for _IsProjectRestoreSupported and warns NU1503
+       ("may be invalid or missing targets required for restore") for any that doesn't answer.
+       Answering that one target alone isn't enough — NuGet then calls the rest of the graph
+       protocol (_GenerateRestoreGraphProjectEntry and friends) and fails with MSB4057 — so
+       rather than reimplementing it, import NuGet's own targets, the same file
+       Microsoft.Common.CurrentVersion.targets imports for SDK projects. That supplies a real
+       Restore target too, so we deliberately no longer define an empty one.
+
+       PackageReference is the style NuGet expects for a project with no packages.config, and is
+       what both Microsoft.Build.Sql (Microsoft's own SDK-style .sqlproj) and
+       Microsoft.Build.NoTargets set for the same reason. Restoring is a no-op today since there
+       is nothing to restore, but going through the real graph means a PackageReference added to
+       a .squillproj later resolves rather than being silently ignored. -->
+  <PropertyGroup>
+    <RestoreProjectStyle Condition="'$(RestoreProjectStyle)' == ''">PackageReference</RestoreProjectStyle>
+    <NuGetRestoreTargets Condition="'$(NuGetRestoreTargets)' == ''">$(MSBuildToolsPath)\NuGet.targets</NuGetRestoreTargets>
+
+    <!-- The nominal TFM below must not pull a targeting pack down: there is no compilation to
+         reference it. Same reason Microsoft.Build.Sql and NoTargets set this. -->
+    <DisableImplicitFrameworkReferences Condition="'$(DisableImplicitFrameworkReferences)' == ''">true</DisableImplicitFrameworkReferences>
+  </PropertyGroup>
+
+  <!-- PackageReference restore insists on a target framework and a place to write
+       project.assets.json, neither of which a DACPAC has any use for. Supply them only while
+       NuGet is asking (_GetRestoreTargetFrameworksOutput and the graph targets run under the
+       Restore target), so they stay out of the build: leaking TargetFramework into the build
+       would make the terminal logger label the project "netstandard2.1", which is meaningless
+       for a database project and would read as a lie in build output. -->
+  <Target Name="_SquillSetRestoreProperties"
+          BeforeTargets="_GetRestoreProjectStyle;_GetRestoreTargetFrameworksOutput;_GetRestoreSettings;_GenerateRestoreGraphProjectEntry">
+    <PropertyGroup>
+      <TargetFramework Condition="'$(TargetFramework)' == ''">$(_SquillRestoreTargetFramework)</TargetFramework>
+      <TargetFrameworkMoniker Condition="'$(TargetFrameworkMoniker)' == ''">$(_SquillRestoreTargetFrameworkMoniker)</TargetFrameworkMoniker>
+    </PropertyGroup>
+  </Target>
+
+  <PropertyGroup>
+    <!-- netstandard2.1, matching Microsoft's own Microsoft.Build.Sql SDK for .sqlproj. A
+         netstandard TFM carries no runtime implication, unlike net10.0, and nothing is
+         actually resolved against it. -->
+    <_SquillRestoreTargetFramework>netstandard2.1</_SquillRestoreTargetFramework>
+    <_SquillRestoreTargetFrameworkMoniker>.NETStandard,Version=v2.1</_SquillRestoreTargetFrameworkMoniker>
+    <MSBuildProjectExtensionsPath Condition="'$(MSBuildProjectExtensionsPath)' == ''">$([MSBuild]::EnsureTrailingSlash('$(BaseIntermediateOutputPath)'))</MSBuildProjectExtensionsPath>
+  </PropertyGroup>
+
+  <Import Project="$(NuGetRestoreTargets)" Condition="Exists('$(NuGetRestoreTargets)')" />
 
   <!-- The DACPAC is this project's "target": expose it as $(TargetPath) so tooling
        that resolves a referenced project's output (e.g. an Aspire AppHost's
