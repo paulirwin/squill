@@ -55,8 +55,72 @@ public class PostgresDatabaseDependencyAnalyzer : DatabaseDependencyAnalyzerBase
             return new AlterSequenceDelta(source, target);
         }
 
+        // A composite type's attributes can be added and dropped in place; DROP TYPE would
+        // fail against any column typed as the composite.
+        if (source.Type == PostgresElementTypes.SqlCompositeType)
+        {
+            return DiffCompositeType(source, target);
+        }
+
+        // A range type has no ALTER form at all, so the change is recorded for reporting.
+        if (source.Type == PostgresElementTypes.SqlRangeType)
+        {
+            return new AlterRangeTypeDelta(source, target);
+        }
+
         return null;
     }
+
+    /// <summary>
+    /// Diffs a composite type's attributes by bare name into added, dropped and retyped sets.
+    ///
+    /// Matching is by name rather than position: PostgreSQL identifies an attribute by name,
+    /// and ALTER TYPE has no way to reorder attributes, so a reordering alone is not a change
+    /// this can (or needs to) express. An attribute present in both whose element hash differs
+    /// has had its type changed, which PostgreSQL cannot do while a column uses the composite —
+    /// the script generator reports those.
+    /// </summary>
+    private static AlterCompositeTypeDelta DiffCompositeType(Element source, Element target)
+    {
+        var sourceAttributes = PostgresModelFactory.GetCompositeTypeAttributes(source);
+        var targetAttributes = PostgresModelFactory.GetCompositeTypeAttributes(target);
+
+        var targetByName = targetAttributes.ToDictionary(AttributeName, StringComparer.Ordinal);
+        var sourceNames = sourceAttributes.Select(AttributeName).ToHashSet(StringComparer.Ordinal);
+
+        var added = new List<Element>();
+        var retyped = new List<string>();
+
+        foreach (var attribute in sourceAttributes)
+        {
+            var attributeName = AttributeName(attribute);
+
+            if (!targetByName.TryGetValue(attributeName, out var existing))
+            {
+                added.Add(attribute);
+                continue;
+            }
+
+            // A differing hash on an attribute present in both means its type changed. Only
+            // the name is recorded; rendering the two types is the script generator's job.
+            if (!HashUtility.HashesEqual(attribute.Hash, existing.Hash))
+            {
+                retyped.Add(attributeName);
+            }
+        }
+
+        var dropped = targetAttributes
+            .Select(AttributeName)
+            .Where(i => !sourceNames.Contains(i))
+            .ToList();
+
+        return new AlterCompositeTypeDelta(source, target, added, dropped, retyped);
+    }
+
+    // A composite attribute's element name is qualified by its type (addr.city), so the bare
+    // trailing segment is the attribute name.
+    private static string AttributeName(Element attribute)
+        => attribute.Name is { } name ? SqlName.Parse(name).UnqualifiedName : string.Empty;
 
     /// <summary>
     /// The labels present in <paramref name="source"/> but not in <paramref name="target"/>,
@@ -133,6 +197,8 @@ public class PostgresDatabaseDependencyAnalyzer : DatabaseDependencyAnalyzerBase
             or PostgresElementTypes.SqlEnumType
             or PostgresElementTypes.SqlDomain
             or PostgresElementTypes.SqlSequence
+            or PostgresElementTypes.SqlCompositeType
+            or PostgresElementTypes.SqlRangeType
             or PostgresElementTypes.SqlFunction
             or PostgresElementTypes.SqlAggregate
             or PostgresElementTypes.SqlTrigger))
@@ -169,6 +235,10 @@ public class PostgresDatabaseDependencyAnalyzer : DatabaseDependencyAnalyzerBase
         // A sequence must exist before a table whose column default draws from it via
         // nextval(), so it shares the pre-table rank (issue #122).
         PostgresElementTypes.SqlSequence => 1,
+        // A composite or range type must exist before the tables whose columns are typed as
+        // it, the same as an enum or domain (issue #122).
+        PostgresElementTypes.SqlCompositeType => 1,
+        PostgresElementTypes.SqlRangeType => 1,
         // A function may reference any table in its body, so it is created after tables
         // (issue #81). It comes before views and aggregates, which may call it — a view that
         // uses group_concat or a plain function, or an aggregate's SFUNC, needs the function to

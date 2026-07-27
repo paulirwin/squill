@@ -45,6 +45,13 @@ public sealed class PostgresPropertyNames : SqlPropertyNames
     // of its CHECK constraint expression (inherited as CheckExpression from
     // SqlPropertyNames, which a table CHECK constraint also uses).
     public const string Labels = nameof(Labels);
+    // Range types (issue #122). Subtype is the canonical name of the type the range is built
+    // over, as format_type reports it. SubtypeOperatorClass and Collation are stored only
+    // when they are not the subtype's default, so a declared range hash-matches an extracted
+    // one — the catalog always reports a resolved opclass.
+    public const string Subtype = nameof(Subtype);
+    public const string SubtypeOperatorClass = nameof(SubtypeOperatorClass);
+    public const string Collation = nameof(Collation);
     // Functions (issue #81). ReturnsSet is true for RETURNS SETOF. Volatility is one of
     // "IMMUTABLE"/"STABLE"/"VOLATILE" (stored only when not the VOLATILE default); IsStrict
     // is stored only when true (CALLED ON NULL INPUT is the default).

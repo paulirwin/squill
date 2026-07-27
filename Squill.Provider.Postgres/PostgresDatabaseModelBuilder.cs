@@ -44,6 +44,11 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         await ExtractEnumTypesAsync(model, cancellationToken);
         await ExtractDomainsAsync(model, cancellationToken);
 
+        // Composite and range types (issue #122) are likewise types a column may be declared
+        // as, so they precede the tables for the same reasons as enums and domains.
+        await ExtractCompositeTypesAsync(model, cancellationToken);
+        await ExtractRangeTypesAsync(model, cancellationToken);
+
         // Standalone sequences (issue #122) likewise precede tables: a column default may draw
         // from one via nextval(), so the CREATE SEQUENCE must run before the CREATE TABLE.
         await ExtractSequencesAsync(model, cancellationToken);
@@ -278,6 +283,148 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
             model.Elements.Add(
                 PostgresModelFactory.CreateDomain(SqlName.Object(name), schema, typeSpecifier, check));
+        }
+    }
+
+    private async Task ExtractCompositeTypesAsync(Model model,
+        CancellationToken cancellationToken = default)
+    {
+        // Every declared composite type with its attributes in declaration order (attnum).
+        //
+        // The load-bearing clause is `c.relkind = 'c'`. PostgreSQL gives every table, view and
+        // index a composite row type in pg_type with typtype = 'c', so filtering on typtype
+        // alone would model a phantom composite type for every table in the database. Only a
+        // relkind of 'c' is a standalone, declared composite type.
+        //
+        // Dropped attributes stay in pg_attribute with attisdropped set, so they are excluded;
+        // system columns (attnum <= 0) likewise. Extension-owned types are skipped as for
+        // enums and domains, and the ordering matches the parser builder's.
+        const string sql =
+            """
+            SELECT n.nspname AS schema_name,
+                   t.typname AS type_name,
+                   a.attname AS attribute_name,
+                   format_type(a.atttypid, a.atttypmod) AS attribute_type
+            FROM pg_type t
+            JOIN pg_namespace n ON n.oid = t.typnamespace
+            JOIN pg_class c ON c.oid = t.typrelid
+            JOIN pg_attribute a ON a.attrelid = c.oid
+            WHERE t.typtype = 'c'
+              AND c.relkind = 'c'
+              AND a.attnum > 0
+              AND NOT a.attisdropped
+              AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+              AND NOT EXISTS (SELECT 1 FROM pg_depend d
+                              WHERE d.objid = t.oid AND d.deptype = 'e')
+            ORDER BY n.nspname COLLATE "C", t.typname COLLATE "C", a.attnum;
+            """;
+
+        // Accumulate attributes per (schema, type) preserving encounter order (the query is
+        // ordered by attnum), then build one element per composite type.
+        var types = new List<(string Schema, string Name, List<(string Name, string Type)> Attributes)>();
+
+        await using (var reader = await _database.RunScriptReaderAsync(sql, cancellationToken: cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var schema = reader.GetString("schema_name");
+                var name = reader.GetString("type_name");
+
+                // The list holds a reference to each attribute list, so appending through it
+                // mutates the entry already in `types` (the tuple itself is never rewritten).
+                if (types.Count == 0 || types[^1].Schema != schema || types[^1].Name != name)
+                {
+                    types.Add((schema, name, new List<(string, string)>()));
+                }
+
+                types[^1].Attributes.Add(
+                    (reader.GetString("attribute_name"), reader.GetString("attribute_type")));
+            }
+        }
+
+        foreach (var (schema, name, attributes) in types)
+        {
+            var typeName = SqlName.Object(name);
+
+            var attributeElements = attributes.Select(attribute =>
+                new Element(PostgresElementTypes.SqlSimpleColumn)
+                {
+                    Name = typeName.Child(attribute.Name),
+                    Relationships =
+                    {
+                        new Relationship(PostgresRelationshipNames.TypeSpecifier)
+                        {
+                            // format_type() renders any modifier inline (character varying(60)),
+                            // while the parser builder carries the bare type plus a Length /
+                            // Precision / Scale property — the same split a domain's base type
+                            // needs, so the same helper applies.
+                            MakeDomainTypeSpecifierElement(attribute.Type),
+                        },
+                    },
+                });
+
+            model.Elements.Add(
+                PostgresModelFactory.CreateCompositeType(typeName, schema, attributeElements));
+        }
+    }
+
+    private async Task ExtractRangeTypesAsync(Model model, CancellationToken cancellationToken = default)
+    {
+        // Every declared range type with its subtype, operator class and collation.
+        //
+        // typtype = 'r' selects range types only. PostgreSQL creates a companion *multirange*
+        // type for each one, but that is typtype = 'm', so it is excluded by construction and
+        // never modeled as its own declared object.
+        //
+        // The catalog always reports a resolved operator class, so opcdefault distinguishes the
+        // one PostgreSQL picked from one the source named; only a non-default is stored, which
+        // is what lets a declared range hash-match an extracted one.
+        //
+        // Collation gets the same treatment for the same reason: a collatable subtype (text)
+        // resolves to the collation named "default" even when the source named none, so that
+        // one is normalized away — otherwise every text-based range would look changed on
+        // every deploy. rngcollation is 0 outright when the subtype is not collatable.
+        const string sql =
+            """
+            SELECT n.nspname AS schema_name,
+                   t.typname AS type_name,
+                   format_type(r.rngsubtype, NULL) AS subtype,
+                   CASE WHEN opc.opcdefault THEN NULL ELSE opc.opcname END AS opclass,
+                   CASE WHEN coll.collname = 'default' THEN NULL ELSE coll.collname END
+                       AS collation_name
+            FROM pg_range r
+            JOIN pg_type t ON t.oid = r.rngtypid
+            JOIN pg_namespace n ON n.oid = t.typnamespace
+            JOIN pg_opclass opc ON opc.oid = r.rngsubopc
+            LEFT JOIN pg_collation coll ON coll.oid = r.rngcollation
+            WHERE t.typtype = 'r'
+              AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+              AND NOT EXISTS (SELECT 1 FROM pg_depend d
+                              WHERE d.objid = t.oid AND d.deptype = 'e')
+            ORDER BY n.nspname COLLATE "C", t.typname COLLATE "C";
+            """;
+
+        var ranges = new List<Element>();
+
+        await using (var reader = await _database.RunScriptReaderAsync(sql, cancellationToken: cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var opclassOrdinal = reader.GetOrdinal("opclass");
+                var collationOrdinal = reader.GetOrdinal("collation_name");
+
+                ranges.Add(PostgresModelFactory.CreateRangeType(
+                    SqlName.Object(reader.GetString("type_name")),
+                    reader.GetString("schema_name"),
+                    reader.GetString("subtype"),
+                    reader.IsDBNull(opclassOrdinal) ? null : reader.GetString("opclass"),
+                    reader.IsDBNull(collationOrdinal) ? null : reader.GetString("collation_name")));
+            }
+        }
+
+        foreach (var range in ranges)
+        {
+            model.Elements.Add(range);
         }
     }
 
@@ -529,9 +676,13 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 JOIN pg_language l ON l.oid = p.prolang
                 WHERE p.prokind = 'f'
                   AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+                  -- 'e' excludes extension-owned functions. 'i' excludes functions
+                  -- PostgreSQL creates internally for another object — notably the
+                  -- constructor functions of a range type, which are not declared and
+                  -- cannot be dropped independently of the type (issue #122).
                   AND NOT EXISTS (
                       SELECT 1 FROM pg_depend d
-                      WHERE d.objid = p.oid AND d.deptype = 'e')
+                      WHERE d.objid = p.oid AND d.deptype IN ('e', 'i'))
             )
             SELECT * FROM (
             SELECT r.schema_name,

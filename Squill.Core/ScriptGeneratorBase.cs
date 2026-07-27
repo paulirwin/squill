@@ -46,6 +46,8 @@ public abstract class ScriptGeneratorBase : IScriptGenerator
         AlterEnumTypeDelta alterEnum => GenerateAlterEnumTypeScript(alterEnum),
         AlterDomainTypeDelta alterDomain => GenerateAlterDomainTypeScript(alterDomain),
         AlterSequenceDelta alterSequence => GenerateAlterSequenceScript(alterSequence),
+        AlterCompositeTypeDelta alterComposite => GenerateAlterCompositeTypeScript(alterComposite),
+        AlterRangeTypeDelta alterRange => GenerateAlterRangeTypeScript(alterRange),
         AddConstraintDelta addConstraint => GenerateAddConstraintScript(addConstraint),
         _ => throw new NotImplementedException(
             $"Generating a script for {delta.GetType().Name} is not supported."),
@@ -87,6 +89,16 @@ public abstract class ScriptGeneratorBase : IScriptGenerator
     protected virtual string GenerateAlterSequenceScript(AlterSequenceDelta delta)
         => throw new NotImplementedException(
             $"This provider does not support {nameof(AlterSequenceDelta)}.");
+
+    // Composite and range types are Postgres-only, so these follow the same base-throws
+    // pattern (issue #122).
+    protected virtual string GenerateAlterCompositeTypeScript(AlterCompositeTypeDelta delta)
+        => throw new NotImplementedException(
+            $"This provider does not support {nameof(AlterCompositeTypeDelta)}.");
+
+    protected virtual string GenerateAlterRangeTypeScript(AlterRangeTypeDelta delta)
+        => throw new NotImplementedException(
+            $"This provider does not support {nameof(AlterRangeTypeDelta)}.");
 
     // ---- Shared rebuild orchestration ----
     //

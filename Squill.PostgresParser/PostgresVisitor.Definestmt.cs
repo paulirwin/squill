@@ -5,23 +5,142 @@ namespace Squill.PostgresParser;
 public partial class PostgresVisitor
 {
     // definestmt covers many DEFINE-family objects (AGGREGATE, OPERATOR, TYPE, TEXT SEARCH,
-    // COLLATION). Only `CREATE TYPE name AS ENUM (...)` is modeled today; every other branch
-    // is reported as unsupported rather than silently dropped.
+    // COLLATION). The modeled CREATE TYPE forms are AS ENUM, AS (...) (composite) and
+    // AS RANGE (...) — see issue #122. Shell types, base types, operators, text-search
+    // objects and collations are reported as unsupported rather than silently dropped.
     public override SyntaxNode VisitDefinestmt(PostgreSQLParser.DefinestmtContext context)
     {
-        if (context.TYPE_P() is not null && context.ENUM_P() is not null)
-        {
-            return VisitCreateEnumType(context);
-        }
-
         if (context.AGGREGATE() is not null)
         {
             return VisitCreateAggregate(context);
         }
 
+        if (context.TYPE_P() is not null)
+        {
+            if (context.ENUM_P() is not null)
+            {
+                return VisitCreateEnumType(context);
+            }
+
+            if (context.RANGE() is not null)
+            {
+                return VisitCreateRangeType(context);
+            }
+
+            // `CREATE TYPE name AS ( ... )`. The composite alternative is the only remaining
+            // one carrying an AS with a parenthesized element list; a bare `CREATE TYPE name`
+            // (shell) or `CREATE TYPE name (...)` (base type) has no AS and falls through.
+            if (context.AS() is not null)
+            {
+                return VisitCreateCompositeType(context);
+            }
+
+            throw new NotImplementedException(
+                "Only CREATE TYPE ... AS ENUM, AS (...) and AS RANGE are supported; a shell "
+                + "type or a base type (CREATE TYPE name (INPUT = ..., OUTPUT = ...)) is not");
+        }
+
         throw new NotImplementedException(
-            "Only CREATE TYPE ... AS ENUM and CREATE AGGREGATE are supported among the "
-            + "DEFINE-family statements");
+            "Only CREATE TYPE and CREATE AGGREGATE are supported among the DEFINE-family "
+            + "statements");
+    }
+
+    // definestmt: CREATE TYPE_P any_name AS OPEN_PAREN opttablefuncelementlist CLOSE_PAREN
+    // tablefuncelement : colid typename opt_collate_clause — so each attribute is a name and a
+    // type, parsed exactly as a table column's would be. Attribute order is significant (it is
+    // the field order of the type's row values), so the declared order is preserved.
+    private CreateCompositeTypeStatement VisitCreateCompositeType(
+        PostgreSQLParser.DefinestmtContext context)
+    {
+        var statement = At(
+            new CreateCompositeTypeStatement(ParseAnyName(context.any_name()[0])), context);
+
+        var elementList = context.opttablefuncelementlist()?.tablefuncelementlist();
+
+        if (elementList is null)
+        {
+            // `CREATE TYPE name AS ()` — PostgreSQL allows an attribute-less composite type.
+            return statement;
+        }
+
+        foreach (var element in elementList.tablefuncelement())
+        {
+            if (VisitColid(element.colid()) is not Identifier attributeName)
+            {
+                throw new PostgresParseException("Unable to parse composite type attribute name");
+            }
+
+            if (VisitTypename(element.typename()) is not DataType dataType)
+            {
+                throw new PostgresParseException(
+                    $"Unable to parse the type of composite type attribute '{attributeName.Name}'");
+            }
+
+            statement.Attributes.Add(
+                At(new CompositeTypeAttribute(attributeName, dataType), element));
+        }
+
+        return statement;
+    }
+
+    // definestmt: CREATE TYPE_P any_name AS RANGE definition
+    // The definition is the same name=value def_list an aggregate uses. SUBTYPE is required —
+    // it is what gives the range its identity — and the rest are optional refinements.
+    private CreateRangeTypeStatement VisitCreateRangeType(PostgreSQLParser.DefinestmtContext context)
+    {
+        var name = ParseAnyName(context.any_name()[0]);
+
+        DataType? subtype = null;
+        string? operatorClass = null;
+        string? collation = null;
+
+        foreach (var defElem in context.definition().def_list().def_elem())
+        {
+            switch (defElem.collabel().GetText().ToUpperInvariant())
+            {
+                case "SUBTYPE":
+                    subtype = ParseRangeSubtype(defElem);
+                    break;
+                case "SUBTYPE_OPCLASS":
+                    operatorClass = DefArgText(defElem).Trim('"').ToLowerInvariant();
+                    break;
+                case "COLLATION":
+                    // A collation name is case-sensitive and conventionally quoted ("C"), so
+                    // the quotes are stripped but the case is kept.
+                    collation = DefArgText(defElem).Trim('"');
+                    break;
+                // CANONICAL, SUBTYPE_DIFF and MULTIRANGE_TYPE_NAME are recognized but not
+                // modeled: they reference functions or an implicitly created companion type,
+                // neither of which takes part in the range type's identity here.
+            }
+        }
+
+        if (subtype is null)
+        {
+            throw new PostgresParseException(
+                "A CREATE TYPE ... AS RANGE must declare a SUBTYPE");
+        }
+
+        var statement = At(new CreateRangeTypeStatement(name, subtype), context)
+            as CreateRangeTypeStatement;
+
+        statement!.SubtypeOperatorClass = operatorClass;
+        statement.Collation = collation;
+
+        return statement;
+    }
+
+    // SUBTYPE is a type name; parsing it through the typename visitor yields the same DataType
+    // a column would get, so the model builder normalizes it identically.
+    private DataType ParseRangeSubtype(PostgreSQLParser.Def_elemContext context)
+    {
+        if (context.def_arg()?.func_type()?.typename() is not { } typename
+            || VisitTypename(typename) is not DataType dataType)
+        {
+            throw new PostgresParseException("Unable to parse the range type's SUBTYPE");
+        }
+
+        return dataType;
     }
 
     // definestmt (aggregate alternatives):

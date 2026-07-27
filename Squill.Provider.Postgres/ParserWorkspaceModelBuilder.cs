@@ -303,6 +303,14 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         {
             model.Elements.Add(MakeCreateSequenceElement(createSequenceStatement));
         }
+        else if (statement is CreateCompositeTypeStatement createCompositeTypeStatement)
+        {
+            model.Elements.Add(MakeCreateCompositeTypeElement(createCompositeTypeStatement));
+        }
+        else if (statement is CreateRangeTypeStatement createRangeTypeStatement)
+        {
+            model.Elements.Add(MakeCreateRangeTypeElement(createRangeTypeStatement));
+        }
         else if (statement is CreateFunctionStatement createFunctionStatement)
         {
             validator.AddCreateFunction(file, createFunctionStatement);
@@ -1602,6 +1610,82 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         var (schema, name) = SplitSchema(createEnumTypeStatement.Name);
 
         return PostgresModelFactory.CreateEnumType(name, schema, createEnumTypeStatement.Labels);
+    }
+
+    // A composite type (issue #122). Its attributes are modeled as SqlSimpleColumn elements —
+    // the same shape a table's columns take — so the existing type-specifier machinery carries
+    // each attribute's type, modifiers included, and both model builders agree by construction.
+    private static Element MakeCreateCompositeTypeElement(
+        CreateCompositeTypeStatement createCompositeTypeStatement)
+    {
+        var (schema, name) = SplitSchema(createCompositeTypeStatement.Name);
+
+        var attributes = new List<Element>();
+
+        foreach (var attribute in createCompositeTypeStatement.Attributes)
+        {
+            var element = new Element(PostgresElementTypes.SqlSimpleColumn)
+            {
+                Name = name.Child(attribute.Name.Name),
+                Relationships =
+                {
+                    new Relationship(PostgresRelationshipNames.TypeSpecifier)
+                    {
+                        BuildTypeSpecifier(attribute.DataType),
+                    },
+                },
+            };
+
+            attributes.Add(element);
+        }
+
+        return PostgresModelFactory.CreateCompositeType(name, schema, attributes);
+    }
+
+    // A range type (issue #122). The subtype is normalized to its canonical name so a declared
+    // `float8` matches the `double precision` the catalog reports.
+    private static Element MakeCreateRangeTypeElement(
+        CreateRangeTypeStatement createRangeTypeStatement)
+    {
+        var (schema, name) = SplitSchema(createRangeTypeStatement.Name);
+
+        return PostgresModelFactory.CreateRangeType(
+            name,
+            schema,
+            CanonicalRangeSubtypeName(createRangeTypeStatement.Subtype),
+            createRangeTypeStatement.SubtypeOperatorClass,
+            createRangeTypeStatement.Collation);
+    }
+
+    // The internal type-name aliases PostgreSQL accepts, mapped to the canonical names
+    // format_type() reports. The grammar recognizes only the spelled-out forms (DOUBLE
+    // PRECISION, INTEGER, …), so an alias parses as an UnresolvedDataType and would otherwise
+    // reach the model uncanonicalized — making a declared range type differ from the extracted
+    // one on every deploy. This matters here in particular because PostgreSQL's own
+    // CREATE TYPE ... AS RANGE documentation writes SUBTYPE = float8.
+    private static readonly Dictionary<string, string> TypeNameAliases =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["int2"] = "smallint",
+            ["int4"] = "integer",
+            ["int"] = "integer",
+            ["int8"] = "bigint",
+            ["float4"] = "real",
+            ["float8"] = "double precision",
+            ["bool"] = "boolean",
+            ["varbit"] = "bit varying",
+            ["timestamptz"] = "timestamp with time zone",
+            ["timetz"] = "time with time zone",
+        };
+
+    // A range type's SUBTYPE, canonicalized. Only the alias mapping is applied on top of the
+    // normal canonical-name rules; the aliases are a general parser gap (a table column has
+    // the same limitation) and are handled here rather than broadened in this change.
+    private static string CanonicalRangeSubtypeName(DataType dataType)
+    {
+        var canonical = CanonicalTypeName(dataType);
+
+        return TypeNameAliases.TryGetValue(canonical, out var mapped) ? mapped : canonical;
     }
 
     // A standalone sequence (issue #122). The declared options are handed to the factory
