@@ -61,7 +61,14 @@ jobs:
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          # PRs build amd64 only: the arm64 leg runs under QEMU emulation and
+          # dominates the job's wall-clock, but a PR build is throwaway
+          # validation of the Dockerfile — nothing consumes the image. Pushes to
+          # main still build both arches, so the published multi-arch manifest is
+          # unchanged. A Dockerfile change that breaks *only* arm64 therefore
+          # isn't caught until it lands on main; that's the accepted trade, as
+          # the Dockerfile is arch-agnostic (no arch-conditional logic).
+          platforms: ${{ github.event_name == 'pull_request' && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
