@@ -19,17 +19,49 @@ namespace Squill.Provider.Postgres;
 ///   <item>boolean → <c>true</c> / <c>false</c></item>
 ///   <item>string → <c>'value'</c> (single-quoted, <c>''</c>-escaped)</item>
 /// </list>
-/// A function default (e.g. <c>now()</c>, the <c>nextval(...)</c> of a serial column) or
-/// any other non-constant expression is not modeled — <see cref="FromExpression"/> and
+/// A small allowlist of well-known niladic function defaults is also modeled (issue #124),
+/// covering the <c>now()</c> that Pagila's <c>last_update</c> columns use. Postgres stores
+/// such a default with the spelling it was written with — <c>now()</c> stays <c>now()</c> and
+/// <c>CURRENT_TIMESTAMP</c> stays <c>CURRENT_TIMESTAMP</c>; it is not rewritten into the other
+/// — while normalizing case, whitespace and an explicit <c>pg_catalog.</c> prefix. So each
+/// supported spelling maps to its own canonical token rather than being folded together.
+///
+/// The allowlist is deliberately narrow: it holds only argument-less functions whose stored
+/// form is known to be reproduced verbatim. An arbitrary call is left unmodeled because
+/// Postgres may rewrite it (adding argument casts, resolving the schema), which would break
+/// the round trip. The <c>nextval(...)</c> of a serial column is excluded for the same reason
+/// and because serial-ness is already modeled on the column. Any other non-constant
+/// expression, and <c>DEFAULT NULL</c>, remain unmodeled — <see cref="FromExpression"/> and
 /// <see cref="FromDatabaseText"/> return <c>null</c>, so the default is left off the model
-/// rather than modeled as something that could not round-trip. A <c>DEFAULT NULL</c> is
-/// likewise not modeled, since Postgres stores no default for it.
+/// rather than modeled as something that could not round-trip.
 /// </summary>
 internal static class PostgresDefaultValue
 {
     /// <summary>
+    /// Argument-less function defaults that Postgres stores verbatim, mapped from the
+    /// lower-cased name to the canonical token. Each entry has been verified against a live
+    /// server to come back exactly as spelled here, which is what lets the parsed and
+    /// extracted models hash identically.
+    ///
+    /// Keyword forms such as <c>CURRENT_TIMESTAMP</c> are recognized on the database side
+    /// (see <see cref="FromDatabaseText"/>) but cannot yet be written in source: the parser
+    /// does not implement the <c>func_expr_common_subexpr</c> grammar rule they take. They
+    /// are listed here so the extractor recognizes a database that already has one.
+    /// </summary>
+    private static readonly Dictionary<string, string> SupportedFunctionDefaults =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["now()"] = "now()",
+            ["gen_random_uuid()"] = "gen_random_uuid()",
+            ["current_timestamp"] = "CURRENT_TIMESTAMP",
+            ["current_date"] = "CURRENT_DATE",
+            ["current_time"] = "CURRENT_TIME",
+            ["localtimestamp"] = "LOCALTIMESTAMP",
+        };
+
+    /// <summary>
     /// The canonical form of a parsed <c>DEFAULT</c> expression, or <c>null</c> if it is
-    /// not a modeled constant literal.
+    /// neither a modeled constant literal nor an allowlisted function default.
     /// </summary>
     public static string? FromExpression(Expression expression)
     {
@@ -37,6 +69,14 @@ internal static class PostgresDefaultValue
         {
             case LiteralExpression literal:
                 return FromLiteralValue(literal.Value);
+
+            // An allowlisted argument-less function default, e.g. DEFAULT now(). Postgres
+            // resolves an explicit pg_catalog. prefix away when it stores the default, so
+            // strip it here to match.
+            case FunctionApplicationExpression { Arguments.Count: 0 } function
+                when SupportedFunctionDefaults.TryGetValue(
+                    StripCatalogPrefix(function.Name) + "()", out var canonical):
+                return canonical;
 
             // A negated numeric literal, e.g. DEFAULT -5. (The b_expr parser does not yet
             // produce a unary sign in a DEFAULT position, so this arm is currently reached
@@ -67,7 +107,17 @@ internal static class PostgresDefaultValue
             return null;
         }
 
-        var text = StripCast(columnDefault.Trim());
+        var trimmed = columnDefault.Trim();
+
+        // Checked before the cast strip, which is only meaningful for a constant and would
+        // otherwise mangle a function call. Postgres normalizes case, inner whitespace and the
+        // pg_catalog. prefix itself, so a direct allowlist lookup suffices.
+        if (SupportedFunctionDefaults.TryGetValue(StripCatalogPrefix(trimmed), out var function))
+        {
+            return function;
+        }
+
+        var text = StripCast(trimmed);
 
         // A string literal survives the cast strip as a single-quoted token.
         if (text.Length >= 2 && text[0] == '\'' && text[^1] == '\'')
@@ -101,6 +151,13 @@ internal static class PostgresDefaultValue
         string s => "'" + s.Replace("'", "''") + "'",
         _ => null,
     };
+
+    // Removes an explicit pg_catalog. schema qualifier, which Postgres resolves away when it
+    // stores a default: a source DEFAULT pg_catalog.now() comes back as plain now().
+    private static string StripCatalogPrefix(string name) =>
+        name.StartsWith("pg_catalog.", StringComparison.OrdinalIgnoreCase)
+            ? name["pg_catalog.".Length..]
+            : name;
 
     // The canonical form of a numeric literal (possibly wrapped in an outer sign), or null.
     private static string? FromNumericValue(Expression expression) =>

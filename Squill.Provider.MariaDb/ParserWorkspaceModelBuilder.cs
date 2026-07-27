@@ -418,13 +418,28 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         + "deployed or compared.",
                         file.Name, line, column));
                 }
-                else if (constraint is DefaultColumnConstraint defaultConstraint
-                    && MariaDbDefaultValue.FromSourceToken(defaultConstraint.Token) is null)
+                else if (constraint is DefaultColumnConstraint defaultConstraint)
                 {
-                    warnings.Add(new SqlSourceDiagnostic(
-                        $"DEFAULT on column '{table}.{columnDefinition.Name.Name}' is not a "
-                        + "constant literal and is not modeled; it will not be deployed or compared.",
-                        file.Name, line, column));
+                    if (MariaDbDefaultValue.FromSourceToken(defaultConstraint.Token) is null)
+                    {
+                        warnings.Add(new SqlSourceDiagnostic(
+                            $"DEFAULT on column '{table}.{columnDefinition.Name.Name}' is not a "
+                            + "constant literal and is not modeled; it will not be deployed or compared.",
+                            file.Name, line, column));
+                    }
+
+                    // An ON UPDATE clause the provider cannot model — a precision-carrying
+                    // CURRENT_TIMESTAMP(n), or one of the other time functions the grammar
+                    // admits — is reported rather than silently dropped (issue #144).
+                    if (defaultConstraint.OnUpdateToken is { } onUpdate
+                        && !MariaDbDefaultValue.IsCurrentTimestamp(onUpdate))
+                    {
+                        warnings.Add(new SqlSourceDiagnostic(
+                            $"ON UPDATE on column '{table}.{columnDefinition.Name.Name}' is not a "
+                            + "whole-second CURRENT_TIMESTAMP and is not modeled; it will not be "
+                            + "deployed or compared.",
+                            file.Name, line, column));
+                    }
                 }
             }
         }
@@ -1077,6 +1092,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             bool? isNullable = null;
             bool isAutoIncrement = false;
             string? defaultValue = null;
+            var onUpdateCurrentTimestamp = false;
             string? generatedExpression = null;
             var generatedIsStored = false;
 
@@ -1108,6 +1124,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
                     case DefaultColumnConstraint defaultConstraint:
                         defaultValue = MariaDbDefaultValue.FromSourceToken(defaultConstraint.Token);
+
+                        // Only the whole-second form is modeled; a precision-carrying
+                        // ON UPDATE CURRENT_TIMESTAMP(n) is left unmodeled and warned about,
+                        // rather than silently deployed without its precision (issue #144).
+                        onUpdateCurrentTimestamp =
+                            MariaDbDefaultValue.IsCurrentTimestamp(defaultConstraint.OnUpdateToken);
                         break;
 
                     case ForeignKeyColumnConstraint fk:
@@ -1150,6 +1172,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             if (defaultValue != null)
             {
                 element.Properties.Add(new Property(MariaDbPropertyNames.DefaultValue, defaultValue));
+            }
+
+            if (onUpdateCurrentTimestamp)
+            {
+                element.Properties.Add(
+                    new Property(MariaDbPropertyNames.OnUpdateCurrentTimestamp, true));
             }
 
             // Emitted last, matching the DB-extraction builder's property order.

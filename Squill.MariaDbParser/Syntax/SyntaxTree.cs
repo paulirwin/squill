@@ -111,10 +111,24 @@ public sealed class UniqueKeyColumnConstraint : ColumnConstraint;
 public sealed class AutoIncrementColumnConstraint : ColumnConstraint;
 
 /// <summary>A DEFAULT clause carrying the raw literal token as written in source.</summary>
-public sealed class DefaultColumnConstraint(string? token) : ColumnConstraint
+public sealed class DefaultColumnConstraint(string? token, string? onUpdateToken = null)
+    : ColumnConstraint
 {
     /// <summary>The raw default token (e.g. <c>5</c>, <c>'active'</c>, <c>CURRENT_TIMESTAMP</c>).</summary>
     public string? Token { get; } = token;
+
+    /// <summary>
+    /// The raw token of a trailing <c>ON UPDATE</c> clause, which refreshes the column on every
+    /// row update — or <c>null</c> if the default had none. The grammar makes this part of the
+    /// same <c>defaultValue</c> production as the default itself
+    /// (<c>currentTimestamp (ON UPDATE currentTimestamp)?</c>), so it is surfaced here rather
+    /// than as a separate constraint.
+    ///
+    /// Kept as the written token rather than a flag: the rule admits a fractional-seconds
+    /// precision (<c>CURRENT_TIMESTAMP(3)</c>) and several function spellings, so which of them
+    /// can be modeled is a provider decision.
+    /// </summary>
+    public string? OnUpdateToken { get; } = onUpdateToken;
 }
 
 /// <summary>An inline column REFERENCES clause (a single-column foreign key).</summary>

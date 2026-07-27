@@ -71,6 +71,73 @@ CREATE TABLE settings
         }
     }
 
+    /// <summary>
+    /// Issue #124: a <c>now()</c> function default — the one Pagila's <c>last_update</c>
+    /// columns use — must round-trip too. Postgres stores such a default with the spelling it
+    /// was written with, normalizing case and an explicit <c>pg_catalog.</c> prefix, so the
+    /// parsed and extracted models must agree on one canonical token or every deploy would see
+    /// a phantom column change. A serial column is included deliberately: its default is a
+    /// <c>nextval(...)</c> call that must stay unmodeled.
+    /// </summary>
+    [Fact]
+    public async Task FunctionDefaults_RoundTrip_ModelHashesMatchAfterPublish()
+    {
+        const string schema = """
+CREATE TABLE audit_entry
+(
+    id          serial PRIMARY KEY,
+    created_at  timestamp NOT NULL DEFAULT now(),
+    modified_at timestamp NOT NULL DEFAULT NOW(),
+    catalog_at  timestamp NOT NULL DEFAULT pg_catalog.now(),
+    label       varchar(20) NOT NULL DEFAULT 'new'
+);
+""";
+
+        var ct = TestContext.Current.CancellationToken;
+        IDatabaseProvider provider = new PostgresDatabaseProvider(ConnectionString);
+
+        var workspace = new Workspace();
+        workspace.Files.Add(new InMemoryStringFile("AuditEntry.sql", FileKind.Compile, schema));
+        var buildResult = await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
+            .ExtractModelAsync(ct);
+
+        // The whole point of the issue: these defaults no longer warn as unmodeled.
+        Assert.Empty(buildResult.Warnings);
+
+        var model = buildResult.Model;
+        var testDb = await provider.CreateDatabaseAsync($"squill_test_{Guid.NewGuid():n}", ct);
+        var dbModelBuilder = provider.CreateDatabaseModelBuilder(testDb);
+
+        try
+        {
+            var emptyModel = await dbModelBuilder.ExtractModelAsync(ct);
+            await testDb.PublishAsync(SchemaCompare.Compare(provider, model, emptyModel), ct);
+
+            var publishedModel = await dbModelBuilder.ExtractModelAsync(ct);
+
+            Assert.True(
+                HashUtility.HashesEqual(model.Hash, publishedModel.Hash),
+                "Parsed and extracted model hashes do not match — a function default did not "
+                + "canonicalize identically on both sides.");
+
+            // Redeploying the same source must be a no-op; a default that canonicalized
+            // differently on the two sides would show up here as a perpetual diff.
+            var redeploy = SchemaCompare.Compare(provider, model, publishedModel);
+            Assert.Empty(redeploy.Deltas);
+
+            // The default must actually apply on INSERT.
+            await using var conn = await OpenAsync(testDb.Name, ct);
+            await ExecuteAsync(conn, "INSERT INTO audit_entry DEFAULT VALUES;", ct);
+
+            Assert.NotNull(await ScalarAsync(conn, "SELECT created_at FROM audit_entry;"));
+            Assert.Equal("new", await ScalarAsync(conn, "SELECT label FROM audit_entry;"));
+        }
+        finally
+        {
+            await testDb.DropAsync(ct);
+        }
+    }
+
     [Fact]
     public async Task ChangeDefault_AltersInPlace_AndAppliesToNewRows()
     {

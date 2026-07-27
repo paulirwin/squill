@@ -551,7 +551,7 @@ CREATE TABLE prices
     }
 
     [Fact]
-    public async Task GenerateScript_FunctionDefault_IsNotModeled()
+    public async Task GenerateScript_AllowlistedFunctionDefault_IsEmitted()
     {
         var comparison = await CompareToEmptyAsync("""
 CREATE TABLE events
@@ -563,7 +563,25 @@ CREATE TABLE events
 
         var sql = new PostgresScriptGenerator().GenerateScript(comparison);
 
-        // A function default is out of scope: it must not be emitted (and must not crash).
+        // An allowlisted function default is modeled and deployed verbatim (issue #124).
+        Assert.Contains("DEFAULT now()", sql);
+    }
+
+    [Fact]
+    public async Task GenerateScript_UnsupportedFunctionDefault_IsNotModeled()
+    {
+        var comparison = await CompareToEmptyAsync("""
+CREATE TABLE events
+(
+    id         integer PRIMARY KEY,
+    created_at integer NOT NULL DEFAULT some_custom_fn(1)
+);
+""");
+
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        // A default that is not allowlisted stays out of scope: it must not be emitted (and
+        // must not crash).
         Assert.DoesNotContain("DEFAULT", sql);
     }
 

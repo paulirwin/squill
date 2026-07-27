@@ -304,7 +304,7 @@ CREATE TABLE book
 CREATE TABLE Event
 (
     id integer PRIMARY KEY,
-    created_at timestamp DEFAULT now()
+    created_at integer DEFAULT some_custom_fn(1)
 );
 """;
         var tempDir = Directory.CreateTempSubdirectory("squill-buildtask-warn");

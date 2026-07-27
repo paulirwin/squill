@@ -14,6 +14,12 @@ public sealed class MariaDbPropertyNames : SqlPropertyNames
     public const string IsUnsigned = nameof(IsUnsigned);
     public const string IsAutoIncrement = nameof(IsAutoIncrement);
 
+    // ON UPDATE CURRENT_TIMESTAMP (issue #124): a timestamp/datetime column the engine
+    // refreshes to the current time on every row update. Both engines report it in
+    // information_schema.COLUMNS.EXTRA, though with different spellings, so it is modeled as a
+    // simple flag. Omitted when absent, per the omit-when-default convention.
+    public const string OnUpdateCurrentTimestamp = nameof(OnUpdateCurrentTimestamp);
+
     // The parenthesized value list of an enum/set column, e.g. ('G','PG'). Stored verbatim
     // so it can be reproduced when scripting, and read identically from both the parser and
     // the DB extractor (information_schema.COLUMN_TYPE) so the two sides hash-match.
