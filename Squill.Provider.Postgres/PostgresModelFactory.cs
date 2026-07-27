@@ -298,6 +298,87 @@ public static class PostgresModelFactory
     }
 
     /// <summary>
+    /// Builds a composite-type element (issue #122) — <c>CREATE TYPE name AS (field type, ...)</c>.
+    ///
+    /// The attributes are carried in a <c>Columns</c> relationship, the same shape a table's
+    /// columns use, so the existing column-type machinery (type specifiers, Length /
+    /// Precision / Scale properties) applies unchanged to both model builders and to scripting.
+    /// Attribute order is significant — it is the field order of the type's row values — so
+    /// the declared order is preserved rather than sorted.
+    /// </summary>
+    public static Element CreateCompositeType(SqlName name, string schema,
+        IEnumerable<Element> attributes)
+    {
+        var columns = new Relationship(SqlRelationshipNames.Columns);
+
+        foreach (var attribute in attributes)
+        {
+            columns.Add(attribute);
+        }
+
+        return new Element(PostgresElementTypes.SqlCompositeType)
+        {
+            Name = name,
+            Relationships =
+            {
+                new Relationship(PostgresRelationshipNames.Schema)
+                {
+                    new Reference(schema) { ExternalSource = "BuiltIns" },
+                },
+                columns,
+            },
+        };
+    }
+
+    /// <summary>
+    /// Reads a composite type's attributes, in declaration order. Centralized here so the
+    /// model builders, the diff and the script generator agree on where they live.
+    /// </summary>
+    public static IReadOnlyList<Element> GetCompositeTypeAttributes(Element element)
+        => element.GetRelationship(SqlRelationshipNames.Columns)
+            ?.Entries.OfType<Element>().ToList() ?? [];
+
+    /// <summary>
+    /// Builds a range-type element (issue #122) — <c>CREATE TYPE name AS RANGE (SUBTYPE = ...)</c>.
+    ///
+    /// <paramref name="subtype"/> is the canonical subtype name and is what gives the type its
+    /// identity. The operator class and collation are stored only when given: PostgreSQL
+    /// resolves an omitted opclass to the subtype's default and the catalog then always
+    /// reports one, so storing a default would stop a declared range from hash-matching an
+    /// extracted one — the same omit-when-default convention used elsewhere.
+    /// </summary>
+    public static Element CreateRangeType(SqlName name, string schema, string subtype,
+        string? subtypeOperatorClass, string? collation)
+    {
+        var element = new Element(PostgresElementTypes.SqlRangeType)
+        {
+            Name = name,
+            Relationships =
+            {
+                new Relationship(PostgresRelationshipNames.Schema)
+                {
+                    new Reference(schema) { ExternalSource = "BuiltIns" },
+                },
+            },
+        };
+
+        element.Properties.Add(new Property(PostgresPropertyNames.Subtype, subtype));
+
+        if (subtypeOperatorClass is not null)
+        {
+            element.Properties.Add(
+                new Property(PostgresPropertyNames.SubtypeOperatorClass, subtypeOperatorClass));
+        }
+
+        if (collation is not null)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.Collation, collation));
+        }
+
+        return element;
+    }
+
+    /// <summary>
     /// Builds a standalone sequence element (issue #122) — <c>CREATE SEQUENCE name [options]</c>.
     ///
     /// Only options that differ from the PostgreSQL default are stored, and the defaults are

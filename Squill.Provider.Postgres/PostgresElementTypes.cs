@@ -23,4 +23,11 @@ public sealed class PostgresElementTypes : SqlElementTypes
     // creates implicitly behind a serial or identity column, which belongs to that column
     // and is modeled as part of it — only an independently declared sequence is an element.
     public const string SqlSequence = nameof(SqlSequence);
+    // CREATE TYPE beyond the AS ENUM form (issue #122). A composite type carries an ordered
+    // attribute list (as a Columns relationship, the same shape a table uses); a range type
+    // carries the subtype it is built over. Both are top-level declared objects a column may
+    // be typed as. The row type PostgreSQL creates implicitly for every table is NOT one of
+    // these — only an independently declared type is an element.
+    public const string SqlCompositeType = nameof(SqlCompositeType);
+    public const string SqlRangeType = nameof(SqlRangeType);
 }

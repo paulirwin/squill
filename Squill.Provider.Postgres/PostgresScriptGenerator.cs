@@ -105,6 +105,12 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             PostgresElementTypes.SqlSequence =>
                 $"DROP SEQUENCE IF EXISTS {SchemaQualified(element, parsed)};{Environment.NewLine}",
 
+            // A composite or range type is dropped like an enum: RESTRICT (the default) so the
+            // drop fails loudly if a column still uses it. Dropping a range type also removes
+            // the multirange type PostgreSQL created alongside it.
+            PostgresElementTypes.SqlCompositeType or PostgresElementTypes.SqlRangeType =>
+                $"DROP TYPE IF EXISTS {SchemaQualified(element, parsed)};{Environment.NewLine}",
+
             // A trigger is dropped by name qualified with the table it is on (a trigger's name
             // is unique per table, not per schema). IF EXISTS keeps it idempotent.
             PostgresElementTypes.SqlTrigger =>
@@ -753,6 +759,16 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             return GenerateCreateSequenceScript(createDelta.Element);
         }
 
+        if (createDelta.Element.Type == PostgresElementTypes.SqlCompositeType)
+        {
+            return GenerateCreateCompositeTypeScript(createDelta.Element);
+        }
+
+        if (createDelta.Element.Type == PostgresElementTypes.SqlRangeType)
+        {
+            return GenerateCreateRangeTypeScript(createDelta.Element);
+        }
+
         if (createDelta.Element.Type == PostgresElementTypes.SqlTrigger)
         {
             return GenerateCreateTriggerScript(createDelta.Element);
@@ -1075,6 +1091,83 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
         var labelList = string.Join(", ", labels.Select(l => $"'{l.Replace("'", "''")}'"));
 
         return $"CREATE TYPE {qualifiedName} AS ENUM ({labelList});{Environment.NewLine}";
+    }
+
+    // CREATE TYPE name AS (attribute type, ...) — issue #122. The attributes are rendered by
+    // the same column-type renderer a CREATE TABLE uses, so a composite attribute and a table
+    // column of the same declared type always script identically.
+    private string GenerateCreateCompositeTypeScript(Element compositeType)
+    {
+        if (compositeType.Name is not string name)
+        {
+            throw new ArgumentException("Composite types must have names");
+        }
+
+        var attributes = PostgresModelFactory.GetCompositeTypeAttributes(compositeType);
+
+        var sb = new StringBuilder();
+
+        sb.Append("CREATE TYPE ").Append(SchemaQualified(compositeType, SqlName.Parse(name)))
+            .Append(" AS (");
+
+        // An attribute-less composite type is legal, and renders as an empty list.
+        if (attributes.Count > 0)
+        {
+            sb.AppendLine();
+
+            for (var i = 0; i < attributes.Count; i++)
+            {
+                sb.Append("    ").Append(CompositeAttributeClause(attributes[i]));
+
+                if (i < attributes.Count - 1)
+                {
+                    sb.Append(',');
+                }
+
+                sb.AppendLine();
+            }
+        }
+
+        return sb.Append(");").Append(Environment.NewLine).ToString();
+    }
+
+    // `"name" type` — one attribute of a composite type's declaration.
+    private string CompositeAttributeClause(Element attribute)
+    {
+        if (attribute.Name is not string name)
+        {
+            throw new ArgumentException("Composite type attributes must have names");
+        }
+
+        return $"{SqlName.Parse(name).QuotedUnqualified} {GetTypeStringForColumn(attribute)}";
+    }
+
+    // CREATE TYPE name AS RANGE (SUBTYPE = ..., [SUBTYPE_OPCLASS = ...], [COLLATION = ...])
+    private static string GenerateCreateRangeTypeScript(Element rangeType)
+    {
+        if (rangeType.Name is not string name)
+        {
+            throw new ArgumentException("Range types must have names");
+        }
+
+        var sb = new StringBuilder();
+
+        sb.Append("CREATE TYPE ").Append(SchemaQualified(rangeType, SqlName.Parse(name)))
+            .Append(" AS RANGE (SUBTYPE = ")
+            .Append(rangeType.GetRequiredProperty<string>(PostgresPropertyNames.Subtype));
+
+        if (rangeType.GetProperty<string>(PostgresPropertyNames.SubtypeOperatorClass) is { } opclass)
+        {
+            sb.Append(", SUBTYPE_OPCLASS = ").Append(opclass);
+        }
+
+        // A collation name is case-sensitive, so it is quoted as an identifier.
+        if (rangeType.GetProperty<string>(PostgresPropertyNames.Collation) is { } collation)
+        {
+            sb.Append(", COLLATION = ").Append(SqlName.Object(collation).QuotedUnqualified);
+        }
+
+        return sb.Append(");").Append(Environment.NewLine).ToString();
     }
 
     // CREATE SEQUENCE name [AS type] [INCREMENT BY n] [MINVALUE n] [MAXVALUE n]
@@ -1525,6 +1618,101 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
         {
             sb.Append(clause);
         }
+    }
+
+    /// <summary>
+    /// Emits the <c>ALTER TYPE ... ADD/DROP ATTRIBUTE</c> statements that bring a deployed
+    /// composite type to its declared shape (issue #122).
+    ///
+    /// Attributes are added and dropped in place because <c>DROP TYPE</c> fails whenever a
+    /// table column is typed as the composite. A changed attribute <em>type</em> is a
+    /// different matter: PostgreSQL refuses <c>ALTER ATTRIBUTE ... TYPE</c> while any column
+    /// uses the composite type — even with <c>CASCADE</c> — so those are reported rather than
+    /// scripted into SQL that would fail at deploy.
+    /// </summary>
+    protected override string GenerateAlterCompositeTypeScript(AlterCompositeTypeDelta delta)
+    {
+        if (delta.SourceElement.Name is not string name)
+        {
+            throw new ArgumentException("Composite types must have names");
+        }
+
+        var qualifiedName = SchemaQualified(delta.SourceElement, SqlName.Parse(name));
+
+        if (delta.RetypedAttributes.Count > 0)
+        {
+            var details = delta.RetypedAttributes
+                .Select(attributeName => $"'{attributeName}' "
+                    + $"({DescribeAttributeType(delta.TargetElement, attributeName)} -> "
+                    + $"{DescribeAttributeType(delta.SourceElement, attributeName)})");
+
+            throw new NotSupportedException(
+                $"The composite type {qualifiedName} cannot be altered: the type of "
+                + $"{string.Join(", ", details)} changed. PostgreSQL cannot alter a composite "
+                + "type's attribute while any column uses the type, even with CASCADE, and "
+                + "Squill will not rewrite those columns automatically. Add the change as a "
+                + "pre-deployment script, or keep the attribute's declared type.");
+        }
+
+        var sb = new StringBuilder();
+
+        // Drops come first so an attribute can be replaced by one of the same name in a single
+        // deploy without the add colliding with the existing attribute.
+        foreach (var attributeName in delta.DroppedAttributes)
+        {
+            sb.Append("ALTER TYPE ").Append(qualifiedName)
+                .Append(" DROP ATTRIBUTE ").Append(SqlName.Object(attributeName).QuotedUnqualified)
+                .AppendLine(";");
+        }
+
+        foreach (var attribute in delta.AddedAttributes)
+        {
+            sb.Append("ALTER TYPE ").Append(qualifiedName)
+                .Append(" ADD ATTRIBUTE ").Append(CompositeAttributeClause(attribute))
+                .AppendLine(";");
+        }
+
+        return sb.ToString();
+    }
+
+    // The rendered type of one named attribute of a composite type, for the reported message.
+    private string DescribeAttributeType(Element compositeType, string attributeName)
+    {
+        var attribute = PostgresModelFactory.GetCompositeTypeAttributes(compositeType)
+            .FirstOrDefault(i => i.Name is { } name
+                && string.Equals(SqlName.Parse(name).UnqualifiedName, attributeName,
+                    StringComparison.Ordinal));
+
+        return attribute is null ? "unknown" : GetTypeStringForColumn(attribute);
+    }
+
+    /// <summary>
+    /// Reports a changed range type (issue #122). PostgreSQL has no <c>ALTER TYPE</c> form
+    /// that changes a range's subtype, operator class or collation, and the type cannot be
+    /// dropped and recreated while a column uses it — so this always throws, naming what
+    /// changed rather than emitting SQL that could not achieve the declared state.
+    /// </summary>
+    protected override string GenerateAlterRangeTypeScript(AlterRangeTypeDelta delta)
+    {
+        if (delta.SourceElement.Name is not string name)
+        {
+            throw new ArgumentException("Range types must have names");
+        }
+
+        var qualifiedName = SchemaQualified(delta.SourceElement, SqlName.Parse(name));
+
+        var sourceSubtype = delta.SourceElement.GetProperty<string>(PostgresPropertyNames.Subtype);
+        var targetSubtype = delta.TargetElement.GetProperty<string>(PostgresPropertyNames.Subtype);
+
+        var detail = string.Equals(sourceSubtype, targetSubtype, StringComparison.Ordinal)
+            ? "its operator class or collation changed"
+            : $"its subtype changed from {targetSubtype} to {sourceSubtype}";
+
+        throw new NotSupportedException(
+            $"The range type {qualifiedName} cannot be altered: {detail}. PostgreSQL has no "
+            + "ALTER TYPE form for a range type, and it cannot be dropped and recreated while "
+            + "a column uses it. Add the change as a pre-deployment script, or keep the "
+            + "declared definition.");
     }
 
     protected override string GenerateAlterEnumTypeScript(AlterEnumTypeDelta delta)
