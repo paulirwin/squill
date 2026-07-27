@@ -42,9 +42,9 @@ public partial class PostgresVisitor
             }
         }
 
-        if (context.optinherit()?.INHERITS() is not null)
+        if (context.optinherit() is { } optinherit)
         {
-            foreach (var inheritQualName in context.optinherit().qualified_name_list().qualified_name())
+            foreach (var inheritQualName in optinherit.qualified_name_list().qualified_name())
             {
                 if (VisitQualified_name(inheritQualName) is not QualifiedName inherits)
                 {

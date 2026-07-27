@@ -1,12 +1,48 @@
-using System.Text;
+/*
+PostgreSQL grammar.
+The MIT License (MIT).
+Copyright (c) 2021-2023, Oleksii Kovalov (Oleksii.Kovalov@outlook.com).
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+*/
+
 using Antlr4.Runtime;
 using Antlr4.Runtime.Tree;
+using Antlr4.Runtime.Atn;
+using System.IO;
+using System.Linq;
+using System.Text;
+
+// <squill> Vendored from antlr/grammars-v4 (sql/postgresql/CSharp) alongside the .g4
+// files; re-copied verbatim by RegenerateAntlr.ps1 -Revendor, so it is not hand-edited.
+// It is not nullable-annotated and trips CS8600/CS8602, which TreatWarningsAsErrors
+// would turn into build errors, so nullable analysis is disabled for this file. </squill>
+#nullable disable
 
 namespace Squill.PostgresParser;
 
+
 public abstract class PostgreSQLParserBase : Parser
 {
-    protected PostgreSQLParserBase(ITokenStream input, TextWriter output, TextWriter errorOutput) 
+    public PostgreSQLParserBase(ITokenStream input)
+        : base(input)
+    {
+    }
+
+    public PostgreSQLParserBase(ITokenStream input, TextWriter output, TextWriter errorOutput)
         : base(input, output, errorOutput)
     {
     }
@@ -18,8 +54,9 @@ public abstract class PostgreSQLParserBase : Parser
         return result;
     }
 
-    internal void ParseRoutineBody(PostgreSQLParser.Createfunc_opt_listContext _localctx)
+    internal void ParseRoutineBody()
     {
+        PostgreSQLParser.Createfunc_opt_listContext _localctx = this.Context as PostgreSQLParser.Createfunc_opt_listContext;
         var lang =
             _localctx
                 .createfunc_opt_item()
@@ -31,16 +68,21 @@ public abstract class PostgreSQLParserBase : Parser
         if (func_as != null)
         {
             var txt = GetRoutineBodyString(func_as.func_as().sconst(0));
-            var line = func_as.func_as()
-                .sconst(0).Start.Line;
-            var ph = getPostgreSQLParser(txt);
             switch (lang)
             {
                 case "plpgsql":
-                    func_as.func_as().Definition = ph.plsqlroot();
+                    // Mutate tree.
+                    // NB: cannot use locals this way because
+                    // it does not work with ToStringTree().
+                    // var ph = getPostgreSQLParser(txt);
+                    // func_as.func_as().Definition = ph.plsqlroot();
                     break;
                 case "sql":
-                    func_as.func_as().Definition = ph.root();
+                    // Mutate tree.
+                    // NB: cannot use locals this way because
+                    // it does not work with ToStringTree().
+                    // func_as.func_as().Definition = ph.root();
+                    // ph.root();
                     break;
             }
         }
@@ -51,7 +93,7 @@ public abstract class PostgreSQLParserBase : Parser
         return string.IsNullOrEmpty(s) ? s : s.Substring(1, s.Length - 2);
     }
 
-    public string unquote(string s)
+    private string unquote(string s)
     {
         var r = new StringBuilder(s.Length);
         var i = 0;
@@ -65,7 +107,7 @@ public abstract class PostgreSQLParserBase : Parser
         return r.ToString();
     }
 
-    public string GetRoutineBodyString(PostgreSQLParser.SconstContext rule)
+    private string GetRoutineBodyString(PostgreSQLParser.SconstContext rule)
     {
         var anysconst = rule.anysconst();
         var StringConstant = anysconst.StringConstant();
@@ -83,7 +125,7 @@ public abstract class PostgreSQLParserBase : Parser
         return result;
     }
 
-    public PostgreSQLParser getPostgreSQLParser(string script)
+    private PostgreSQLParser getPostgreSQLParser(string script)
     {
         var charStream = CharStreams.fromString(script);
         var lexer = new PostgreSQLLexer(charStream);
@@ -91,10 +133,19 @@ public abstract class PostgreSQLParserBase : Parser
         var parser = new PostgreSQLParser(tokens);
         lexer.RemoveErrorListeners();
         parser.RemoveErrorListeners();
-        var listener_lexer = new LexerDispatchingErrorListener((this.InputStream as CommonTokenStream)?.TokenSource as Lexer);
+        var listener_lexer = new LexerDispatchingErrorListener((this.InputStream as CommonTokenStream).TokenSource as Lexer);
         var listener_parser = new ParserDispatchingErrorListener(this);
         lexer.AddErrorListener(listener_lexer);
         parser.AddErrorListener(listener_parser);
         return parser;
+    }
+
+    public bool OnlyAcceptableOps()
+    {
+        var c = ((CommonTokenStream)this.InputStream).LT(1);
+        var text = c.Text;
+        return text == "!" || text == "!!"
+            || text == "!=-" // Code for specific example.
+            ;
     }
 }

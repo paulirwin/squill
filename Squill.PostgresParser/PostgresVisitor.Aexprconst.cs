@@ -67,7 +67,7 @@ public partial class PostgresVisitor
         // `interval '1 day'`, with an optional trailing qualifier (`interval '1' DAY`).
         if (context.constinterval() is { } constinterval)
         {
-            var modifier = context.opt_interval();
+            var modifier = context.interval_();
 
             // opt_interval also matches empty, which is the common case (`interval '1 day'`
             // carries its units inside the literal). GetText() is the reliable emptiness

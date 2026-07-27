@@ -34,7 +34,7 @@ public partial class PostgresVisitor
                 // identifier form for correct quote handling; for the keyword form, fold to
                 // lower case as Postgres does for an unquoted identifier, so a mixed-case
                 // segment matches the (lowercased) name the DB-extraction builder produces.
-                var collabel = attrName.collabel();
+                var collabel = attrName.colLabel();
 
                 var segment = collabel?.identifier() is { } identifierContext
                     && VisitIdentifier(identifierContext) is Identifier parsed

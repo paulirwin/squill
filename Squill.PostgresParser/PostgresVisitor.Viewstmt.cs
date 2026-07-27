@@ -42,7 +42,7 @@ public partial class PostgresVisitor
             new CreateViewStatement(name, context.REPLACE() is not null),
             context);
 
-        foreach (var column in ParseViewColumnList(context.opt_column_list()))
+        foreach (var column in ParseViewColumnList(context.column_list_()))
         {
             statement.ColumnNames.Add(column);
         }
@@ -65,7 +65,7 @@ public partial class PostgresVisitor
     }
 
     private IEnumerable<Identifier> ParseViewColumnList(
-        PostgreSQLParser.Opt_column_listContext? context)
+        PostgreSQLParser.Column_list_Context? context)
     {
         var columnList = context?.columnlist();
 
@@ -98,7 +98,7 @@ public partial class PostgresVisitor
                 + "only a SELECT with an explicit target list is modeled");
         }
 
-        var targetList = simple.opt_target_list()?.target_list()
+        var targetList = simple.target_list_()?.target_list()
             ?? simple.target_list();
 
         if (targetList is null)
@@ -115,8 +115,8 @@ public partial class PostgresVisitor
 
     private ViewSelectColumn ParseTargetElement(PostgreSQLParser.Target_elContext target)
     {
-        // target_el : a_expr (AS collabel | identifier |) # target_label
-        //           | STAR                               # target_star
+        // target_el : a_expr (AS colLabel | bareColLabel |) # target_label
+        //           | STAR                                 # target_star
         if (target is PostgreSQLParser.Target_starContext)
         {
             return ViewSelectColumn.Wildcard();
@@ -128,20 +128,25 @@ public partial class PostgresVisitor
         }
 
         // An explicit alias always wins, whatever the expression is.
-        if (label.collabel() is { } collabel)
+        if (label.colLabel() is { } collabel)
         {
             return ViewSelectColumn.Aliased(ParseCollabel(collabel));
         }
 
-        if (label.identifier() is { } identifier)
+        // The bare (no AS) alias form. Like colLabel it is either a real identifier or a
+        // keyword usable as a label.
+        if (label.bareColLabel() is { } bareLabel)
         {
-            return ViewSelectColumn.Aliased(ParseIdentifierName(identifier));
+            return ViewSelectColumn.Aliased(
+                bareLabel.identifier() is { } identifier
+                    ? ParseIdentifierName(identifier)
+                    : bareLabel.GetText());
         }
 
         return ParseUnaliasedTarget(label.a_expr());
     }
 
-    private string ParseCollabel(PostgreSQLParser.CollabelContext collabel)
+    private string ParseCollabel(PostgreSQLParser.ColLabelContext collabel)
         => collabel.identifier() is { } identifier
             ? ParseIdentifierName(identifier)
             // A keyword used as a label carries no quoting to strip.
@@ -200,7 +205,7 @@ public partial class PostgresVisitor
 
         if (element.attr_name() is { } attribute)
         {
-            return ViewSelectColumn.Named(ParseCollabel(attribute.collabel()), name);
+            return ViewSelectColumn.Named(ParseCollabel(attribute.colLabel()), name);
         }
 
         return ViewSelectColumn.Unnamed();
@@ -256,11 +261,11 @@ public partial class PostgresVisitor
     }
 
     // The first simple_select in a (possibly parenthesized, possibly set-operation) query.
-    private static PostgreSQLParser.Simple_selectContext? FirstSimpleSelect(IParseTree node)
+    private static PostgreSQLParser.Simple_select_pramaryContext? FirstSimpleSelect(IParseTree node)
     {
         switch (node)
         {
-            case PostgreSQLParser.Simple_selectContext simple:
+            case PostgreSQLParser.Simple_select_pramaryContext simple:
                 return simple;
 
             // A CTE's inner query must not be mistaken for the outer select list.

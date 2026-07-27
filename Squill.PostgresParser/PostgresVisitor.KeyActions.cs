@@ -60,7 +60,7 @@ public partial class PostgresVisitor
     }
 
     // opt_column_list is an optional parenthesized columnlist; absent -> empty list.
-    private IReadOnlyList<Identifier> ParseOptColumnList(PostgreSQLParser.Opt_column_listContext? context)
+    private IReadOnlyList<Identifier> ParseOptColumnList(PostgreSQLParser.Column_list_Context? context)
         => context?.columnlist() is { } columnlist
             ? ParseColumnList(columnlist)
             : Array.Empty<Identifier>();

@@ -6,19 +6,21 @@ public partial class PostgresVisitor
 {
     public override SyntaxNode VisitIndexstmt(PostgreSQLParser.IndexstmtContext context)
     {
-        if (context.opt_include().INCLUDE() is not null)
+        // These clauses are optional in the grammar, so an absent one is a null context
+        // rather than a rule matching empty.
+        if (context.include_() is not null)
         {
             throw new NotImplementedException("Support for INCLUDE on CREATE INDEX not yet implemented");
         }
 
-        if (context.opttablespace().TABLESPACE() is not null)
+        if (context.opttablespace()?.TABLESPACE() is not null)
         {
             throw new NotImplementedException("Support for TABLESPACE on CREATE INDEX not yet implemented");
         }
 
-        bool unique = context.opt_unique()?.UNIQUE() is not null;
-        bool concurrently = context.opt_concurrently()?.CONCURRENTLY() is not null;
-        bool ifNotExists = context.EXISTS() is not null;
+        bool unique = context.unique_()?.UNIQUE() is not null;
+        bool concurrently = context.concurrently_()?.CONCURRENTLY() is not null;
+        bool ifNotExists = context.if_not_exists_() is not null;
 
         Identifier? name = null;
 
@@ -31,7 +33,7 @@ public partial class PostgresVisitor
 
             name = ifNotExistsName;
         }
-        else if (context.opt_index_name()?.name() is { } nameContext)
+        else if (context.index_name_()?.name() is { } nameContext)
         {
             if (VisitName(nameContext) is not Identifier optName)
             {
@@ -81,7 +83,7 @@ public partial class PostgresVisitor
 
         // WITH (...) storage parameters, e.g. HNSW's m / ef_construction. Each element is
         // a name with an optional value; the value text is captured verbatim.
-        if (context.opt_reloptions()?.reloptions()?.reloption_list() is { } reloptionList)
+        if (context.reloptions_()?.reloptions()?.reloption_list() is { } reloptionList)
         {
             foreach (var reloptionElem in reloptionList.reloption_elem())
             {
@@ -93,7 +95,7 @@ public partial class PostgresVisitor
                         "Namespaced index storage parameters (namespace.option) are not yet supported");
                 }
 
-                var optionName = reloptionElem.collabel(0).GetText();
+                var optionName = reloptionElem.colLabel(0).GetText();
                 var optionValue = reloptionElem.def_arg()?.GetText();
 
                 createIndex.WithOptions.Add(new IndexWithOption(optionName, optionValue));

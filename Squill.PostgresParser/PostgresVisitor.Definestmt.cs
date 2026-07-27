@@ -96,7 +96,7 @@ public partial class PostgresVisitor
 
         foreach (var defElem in context.definition().def_list().def_elem())
         {
-            switch (defElem.collabel().GetText().ToUpperInvariant())
+            switch (defElem.colLabel().GetText().ToUpperInvariant())
             {
                 case "SUBTYPE":
                     subtype = ParseRangeSubtype(defElem);
@@ -159,7 +159,7 @@ public partial class PostgresVisitor
 
         var name = ParseFunctionName(context.func_name());
 
-        var statement = At(new CreateAggregateStatement(name, context.opt_or_replace()?.REPLACE() is not null),
+        var statement = At(new CreateAggregateStatement(name, context.or_replace_()?.REPLACE() is not null),
             context);
 
         foreach (var parameter in ParseAggregateArguments(context.aggr_args()))
@@ -190,7 +190,7 @@ public partial class PostgresVisitor
     {
         foreach (var defElem in context.def_list().def_elem())
         {
-            var itemName = defElem.collabel().GetText().ToUpperInvariant();
+            var itemName = defElem.colLabel().GetText().ToUpperInvariant();
 
             switch (itemName)
             {
@@ -236,7 +236,7 @@ public partial class PostgresVisitor
         if (context.def_arg() is not { } defArg)
         {
             throw new PostgresParseException(
-                $"The CREATE AGGREGATE item '{context.collabel().GetText()}' requires a value");
+                $"The CREATE AGGREGATE item '{context.colLabel().GetText()}' requires a value");
         }
 
         return defArg.Start.InputStream.GetText(
@@ -281,7 +281,7 @@ public partial class PostgresVisitor
 
         var labels = new List<string>();
 
-        if (context.opt_enum_val_list()?.enum_val_list() is { } enumValList)
+        if (context.enum_val_list_()?.enum_val_list() is { } enumValList)
         {
             foreach (var sconst in enumValList.sconst())
             {
@@ -313,7 +313,7 @@ public partial class PostgresVisitor
         {
             foreach (var attrName in attrs.attr_name())
             {
-                segments.Add(ParseNameSegment(attrName.collabel(), attrName));
+                segments.Add(ParseNameSegment(attrName.colLabel(), attrName));
             }
         }
 

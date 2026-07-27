@@ -52,7 +52,7 @@ public partial class PostgresVisitor
 
             if (character_c.VARCHAR() is not null
                 || (character_c.CHARACTER() is not null
-                    && character_c.opt_varying()?.VARYING() is not null))
+                    && character_c.varying_()?.VARYING() is not null))
             {
                 var type = new BuiltInDataType(PostgresBuiltInDataType.Varchar, character_c.GetText());
 
@@ -113,7 +113,7 @@ public partial class PostgresVisitor
             {
                 var numericType = new BuiltInDataType(PostgresBuiltInDataType.Decimal, numeric.GetText());
 
-                if (numeric.opt_type_modifiers()?.expr_list() is { } numericModifiers)
+                if (numeric.type_modifiers_()?.expr_list() is { } numericModifiers)
                 {
                     foreach (var numericModifierExpr in numericModifiers.a_expr())
                     {
@@ -137,7 +137,7 @@ public partial class PostgresVisitor
 
         if (simpletypenameContext.constdatetime() is { } constdatetime)
         {
-            bool withTimeZone = constdatetime.opt_timezone()?.WITH() != null;
+            bool withTimeZone = constdatetime.timezone_()?.WITH() != null;
 
             if (constdatetime.iconst() is not null)
             {
@@ -171,7 +171,7 @@ public partial class PostgresVisitor
             // modifiers via this path. Parse them once and attach to the resulting type.
             var typeModifiers = new List<Expression>();
 
-            if (generictype.opt_type_modifiers()?.expr_list() is { } modifierList)
+            if (generictype.type_modifiers_()?.expr_list() is { } modifierList)
             {
                 foreach (var modifierExpr in modifierList.a_expr())
                 {
@@ -249,8 +249,8 @@ public partial class PostgresVisitor
             // (aka varbit) is unbounded unless a length is given. The optional length is
             // an expr_list on bitwithlength.
             // See https://www.postgresql.org/docs/current/datatype-bit.html.
-            var varying = bit.bitwithlength()?.opt_varying()?.VARYING() is not null
-                          || bit.bitwithoutlength()?.opt_varying()?.VARYING() is not null;
+            var varying = bit.bitwithlength()?.varying_()?.VARYING() is not null
+                          || bit.bitwithoutlength()?.varying_()?.VARYING() is not null;
 
             var bitType = new BuiltInDataType(
                 varying ? PostgresBuiltInDataType.BitVarying : PostgresBuiltInDataType.Bit,
@@ -280,6 +280,16 @@ public partial class PostgresVisitor
             // is how format_type() renders a bare interval column.
             // See https://www.postgresql.org/docs/current/datatype-datetime.html#DATATYPE-INTERVAL-INPUT.
             dataType = new BuiltInDataType(PostgresBuiltInDataType.Interval, simpletypenameContext.GetText());
+        }
+
+        // simpletypename gained a dedicated `jsonType : JSON` alternative, so `json` no
+        // longer arrives as a generictype. It is carried as an unresolved type name, which
+        // is exactly where the generic path used to leave it — `json` has no
+        // PostgresBuiltInDataType member, and the SQL/JSON constructs that the new grammar
+        // rules also cover (JSON_OBJECT, JSON_QUERY, …) are not modeled.
+        if (dataType == null && simpletypenameContext.jsonType() is { } jsonType)
+        {
+            dataType = new UnresolvedDataType(jsonType.GetText());
         }
 
         if (dataType == null)

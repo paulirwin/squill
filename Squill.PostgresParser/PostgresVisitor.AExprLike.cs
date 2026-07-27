@@ -5,8 +5,7 @@ namespace Squill.PostgresParser;
 public partial class PostgresVisitor
 {
     // a_expr_like
-    //   : a_expr_qual_op (NOT? (LIKE | ILIKE | SIMILAR TO | BETWEEN SYMMETRIC?)
-    //                     a_expr_qual_op opt_escape)?
+    //   : a_expr_qual_op (NOT? (LIKE | ILIKE | SIMILAR TO) a_expr_qual_op escape_?)?
     //   ;
     public override SyntaxNode VisitA_expr_like(PostgreSQLParser.A_expr_likeContext context)
     {
@@ -21,26 +20,15 @@ public partial class PostgresVisitor
             || VisitA_expr_qual_op(operands[1]) is not Expression right)
         {
             throw new PostgresParseException(
-                "Unable to parse operand of a pattern-match or range expression");
+                "Unable to parse operand of a pattern-match expression");
         }
 
-        bool negated = context.NOT() is not null;
-
-        // BETWEEN's upper bound is not in this rule: `c BETWEEN 1 AND 5` parses as
-        // `(c BETWEEN 1) AND 5`, so only the lower bound is available here. Hand a partial
-        // node up to VisitA_expr_and, which owns the `AND 5` and completes it.
-        if (context.BETWEEN() is not null)
-        {
-            return new PartialBetweenExpression(
-                left, right, negated, context.SYMMETRIC() is not null);
-        }
-
-        var op = MapPatternMatchOperator(context, negated);
+        var op = MapPatternMatchOperator(context, context.NOT() is not null);
 
         // ESCAPE names the character that escapes a wildcard in the pattern, so it changes
         // what the predicate matches and cannot be dropped. Only the form that has one needs
         // the dedicated node; without it a plain binary expression says everything.
-        if (context.opt_escape()?.a_expr() is { } escape)
+        if (context.escape_()?.a_expr() is { } escape)
         {
             if (VisitA_expr(escape) is not Expression escapeExpression)
             {
