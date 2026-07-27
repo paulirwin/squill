@@ -1,6 +1,7 @@
 using System.Reflection;
 using Squill.Core;
 using Squill.MariaDbParser;
+using Squill.MariaDbParser.Syntax;
 
 namespace Squill.Provider.MariaDb.Tests;
 
@@ -149,6 +150,55 @@ CREATE TABLE event
         Assert.Null(await OnUpdateOfAsync("timestamp DEFAULT CURRENT_TIMESTAMP"));
     }
 
+    /// <summary>
+    /// The grammar's <c>ON UPDATE currentTimestamp</c> takes a whole <c>currentTimestamp</c>
+    /// rule, so it can carry a fractional-seconds precision. The model has no place to put one
+    /// yet (issue #144), so a precision-carrying clause must be left unmodeled and warned about
+    /// rather than flattened into the bare flag — which would deploy
+    /// <c>ON UPDATE CURRENT_TIMESTAMP</c> in place of the <c>(3)</c> the user wrote, and
+    /// re-diff forever besides.
+    /// </summary>
+    [Fact]
+    public async Task OnUpdateWithPrecision_IsNotModeledAndWarns()
+    {
+        Assert.Null(await OnUpdateOfAsync(
+            "datetime(3) DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP(3)"));
+
+        var workspace = new Workspace();
+        workspace.Files.Add(new InMemoryStringFile("T.sql", FileKind.Compile, """
+CREATE TABLE t
+(
+    id int PRIMARY KEY,
+    a  datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP(3)
+);
+"""));
+
+        var result = await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser())
+            .ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        var warning = Assert.Single(result.Warnings);
+        Assert.Equal("SQ1002", warning.Code);
+        Assert.Contains("ON UPDATE", warning.Message);
+    }
+
+    /// <summary>
+    /// The parser must carry the ON UPDATE token through verbatim rather than reducing it to a
+    /// flag, so the provider is the one deciding what it can model.
+    /// </summary>
+    [Fact]
+    public void Parser_CarriesOnUpdateTokenVerbatim()
+    {
+        var root = new AntlrMariaDbParser().Parse(
+            "CREATE TABLE t (a datetime(3) DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3));");
+
+        var column = ((CreateTableStatement)root.Statements[0])
+            .Elements.OfType<ColumnDefinition>().Single();
+        var @default = column.Constraints.OfType<DefaultColumnConstraint>().Single();
+
+        Assert.Equal("CURRENT_TIMESTAMP(3)", @default.Token);
+        Assert.Equal("CURRENT_TIMESTAMP(3)", @default.OnUpdateToken);
+    }
+
     [Fact]
     public async Task DefaultWithOnUpdate_NoLongerWarns()
     {
@@ -165,6 +215,36 @@ CREATE TABLE actor
             .ExtractModelAsync(TestContext.Current.CancellationToken);
 
         Assert.Empty(result.Warnings);
+    }
+
+    /// <summary>
+    /// The grammar's <c>currentTimestamp</c> rule also admits <c>LOCALTIME</c>,
+    /// <c>LOCALTIMESTAMP</c>, <c>CURDATE</c> and <c>CURTIME</c>, but those are not synonyms for
+    /// the current timestamp and must not fold into its canonical token. Measured against a
+    /// live MariaDB, <c>DEFAULT LOCALTIME</c> is stored as <c>curtime()</c> — a time of day,
+    /// not a timestamp — and <c>DEFAULT LOCALTIMESTAMP</c> as <c>localtimestamp()</c>. Folding
+    /// either in would produce a parsed default that never matches the extracted one, i.e. a
+    /// column that re-diffs on every deploy forever.
+    /// </summary>
+    [Theory]
+    [InlineData("datetime DEFAULT LOCALTIME")]
+    [InlineData("datetime DEFAULT LOCALTIMESTAMP")]
+    [InlineData("date DEFAULT CURDATE()")]
+    [InlineData("time DEFAULT CURTIME()")]
+    public async Task NonSynonymTimeFunctions_AreNotFoldedIntoCurrentTimestamp(string columnSql)
+    {
+        Assert.Null(await DefaultOfAsync(columnSql));
+    }
+
+    [Theory]
+    // The forms MariaDB actually stores for those defaults — none may canonicalize to the
+    // current-timestamp token.
+    [InlineData("curtime()")]
+    [InlineData("localtimestamp()")]
+    [InlineData("curdate()")]
+    public void NonSynonymStoredForms_DoNotCanonicalizeToCurrentTimestamp(string stored)
+    {
+        Assert.NotEqual("CURRENT_TIMESTAMP", FromDatabaseText(stored));
     }
 
     /// <summary>

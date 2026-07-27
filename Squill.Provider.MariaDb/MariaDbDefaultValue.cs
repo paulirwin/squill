@@ -40,8 +40,18 @@ internal static class MariaDbDefaultValue
 
     /// <summary>
     /// The spellings — across source, MySQL's catalog and MariaDB's catalog — that all mean
-    /// "the current timestamp, to whole seconds". Compared case-insensitively; a form carrying
-    /// a fractional-seconds precision is deliberately absent, so it stays unmodeled.
+    /// "the current timestamp, to whole seconds". Compared case-insensitively.
+    ///
+    /// Deliberately narrow, and narrower than the grammar's <c>currentTimestamp</c> rule, which
+    /// also admits <c>LOCALTIME</c>, <c>LOCALTIMESTAMP</c>, <c>CURDATE</c> and <c>CURTIME</c>.
+    /// Those are *not* synonyms here: MariaDB stores <c>DEFAULT LOCALTIME</c> as
+    /// <c>curtime()</c> (a time of day, not a timestamp) and <c>DEFAULT LOCALTIMESTAMP</c> as
+    /// <c>localtimestamp()</c>, neither of which comes back as <c>current_timestamp()</c>.
+    /// Folding them in here would mean a parsed default that never matches the extracted one —
+    /// a permanent phantom diff. They are left unmodeled instead (issue #147).
+    ///
+    /// A form carrying a fractional-seconds precision is likewise absent and stays unmodeled
+    /// (issue #144).
     /// </summary>
     private static readonly HashSet<string> CurrentTimestampSpellings =
         new(StringComparer.OrdinalIgnoreCase)
@@ -49,18 +59,15 @@ internal static class MariaDbDefaultValue
             "CURRENT_TIMESTAMP",
             "CURRENT_TIMESTAMP()",
             "NOW()",
-            "LOCALTIME",
-            "LOCALTIME()",
-            "LOCALTIMESTAMP",
-            "LOCALTIMESTAMP()",
         };
 
     /// <summary>
     /// Whether a default text, from either source or a catalog, is a whole-second
     /// current-timestamp default. Inner whitespace is ignored so <c>now( )</c> matches.
     /// </summary>
-    private static bool IsCurrentTimestamp(string text) =>
-        CurrentTimestampSpellings.Contains(
+    internal static bool IsCurrentTimestamp(string? text) =>
+        text is not null
+        && CurrentTimestampSpellings.Contains(
             string.Concat(text.Where(c => !char.IsWhiteSpace(c))));
 
     /// <summary>

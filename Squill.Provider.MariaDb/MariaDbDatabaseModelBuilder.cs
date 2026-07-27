@@ -569,10 +569,12 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
 
             // ON UPDATE CURRENT_TIMESTAMP (issue #124). Both engines report it in EXTRA but
             // spell it differently — MySQL "on update CURRENT_TIMESTAMP", MariaDB
-            // "on update current_timestamp()" — so match the invariant prefix. Emitted after
-            // the default to match the parser builder's property order (the hash is
+            // "on update current_timestamp()". Only the whole-second form is modeled: a
+            // precision-carrying "on update current_timestamp(3)" is left off, matching the
+            // parser side, which warns rather than modeling it (issue #144). Emitted after the
+            // default to match the parser builder's property order (the hash is
             // order-sensitive).
-            if (extra.Contains("on update", StringComparison.OrdinalIgnoreCase))
+            if (MariaDbDefaultValue.IsCurrentTimestamp(OnUpdateToken(extra)))
             {
                 column.Properties.Add(
                     new Property(MariaDbPropertyNames.OnUpdateCurrentTimestamp, true));
@@ -599,6 +601,19 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
 
             columns.Entries.Add(column);
         }
+    }
+
+    /// <summary>
+    /// The function token of an <c>ON UPDATE</c> clause reported in
+    /// <c>information_schema.COLUMNS.EXTRA</c>, or <c>null</c> if there is none. EXTRA may
+    /// carry other flags alongside it (MySQL prefixes <c>DEFAULT_GENERATED</c>), so the token
+    /// is taken as the remainder after "on update".
+    /// </summary>
+    private static string? OnUpdateToken(string extra)
+    {
+        var index = extra.IndexOf("on update", StringComparison.OrdinalIgnoreCase);
+
+        return index < 0 ? null : extra[(index + "on update".Length)..].Trim();
     }
 
     private async Task ExtractPrimaryKeyAsync(Model model, TableRef table, CancellationToken cancellationToken = default)

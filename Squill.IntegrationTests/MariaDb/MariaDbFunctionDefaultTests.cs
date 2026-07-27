@@ -143,6 +143,36 @@ public abstract class MariaDbFunctionDefaultTests
     }
 
     /// <summary>
+    /// <c>LOCALTIME</c> is admitted by the same grammar rule as <c>CURRENT_TIMESTAMP</c> but is
+    /// not a synonym for it: MariaDB stores <c>DEFAULT LOCALTIME</c> as <c>curtime()</c>, a time
+    /// of day. Folding it into the current-timestamp token would give a parsed default that
+    /// never matches the extracted one — a column re-diffing on every deploy forever. It must
+    /// stay unmodeled, and the round trip must still be clean.
+    ///
+    /// MariaDB-only: MySQL rejects <c>DEFAULT LOCALTIME</c> on a datetime column outright.
+    /// </summary>
+    [Fact]
+    public async Task LocalTimeDefault_IsNotFoldedAndStillRoundTrips()
+    {
+        if (Fixture.EngineName != "MariaDB")
+        {
+            return;
+        }
+
+        var model = await AssertRoundTripAsync("""
+            CREATE TABLE local_stamp
+            (
+                id      int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                at_time datetime NOT NULL DEFAULT LOCALTIME
+            );
+            """, TestContext.Current.CancellationToken);
+
+        // Unmodeled rather than mis-folded: the redeploy-no-op assertion inside the harness is
+        // what proves this does not become a perpetual diff.
+        Assert.Null(Column(model, "at_time").GetProperty<string>(MariaDbPropertyNames.DefaultValue));
+    }
+
+    /// <summary>
     /// A column that merely has a current-timestamp default must not be mistaken for a
     /// generated column. MySQL reports <c>DEFAULT_GENERATED</c> in <c>EXTRA</c> for exactly
     /// such a column — a string that contains "GENERATED" without being either of the

@@ -195,12 +195,15 @@ internal static class MariaDbStatementMapper
         var timestamps = defaultValue.currentTimestamp();
 
         // The `currentTimestamp (ON UPDATE currentTimestamp)?` alternative: the first is the
-        // default, a second (present only with ON UPDATE) is the auto-refresh clause.
+        // default, a second (present only with ON UPDATE) is the auto-refresh clause. Both are
+        // carried verbatim — the rule admits a precision (CURRENT_TIMESTAMP(3)) and several
+        // function spellings, and it is the provider's job to decide which of those it can
+        // model, not the parser's to discard them.
         if (timestamps.Length > 0)
         {
             return new DefaultColumnConstraint(
                 timestamps[0].GetText(),
-                onUpdateCurrentTimestamp: timestamps.Length > 1);
+                onUpdateToken: timestamps.Length > 1 ? timestamps[1].GetText() : null);
         }
 
         return new DefaultColumnConstraint(defaultValue.GetText());
