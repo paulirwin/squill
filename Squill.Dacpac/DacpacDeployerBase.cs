@@ -211,6 +211,7 @@ public abstract class DacpacDeployerBase
         "SqlAggregate" => "aggregate",
         "SqlEnumType" => "type",
         "SqlDomain" => "domain",
+        "SqlSequence" => "sequence",
         _ => elementType,
     };
 }

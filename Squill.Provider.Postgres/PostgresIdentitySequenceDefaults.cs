@@ -1,10 +1,15 @@
 namespace Squill.Provider.Postgres;
 
 /// <summary>
-/// The default sequence-option values Postgres applies to an identity column, by the
-/// column's canonical type name and the sequence direction (see CREATE SEQUENCE: an
-/// ascending sequence defaults to minvalue 1, maxvalue = type max, start = minvalue; a
-/// descending one to maxvalue -1, minvalue = type min, start = maxvalue).
+/// The default sequence-option values Postgres applies to a sequence, by its canonical type
+/// name and direction (see CREATE SEQUENCE: an ascending sequence defaults to minvalue 1,
+/// maxvalue = type max, start = minvalue; a descending one to maxvalue -1, minvalue = type
+/// min, start = maxvalue).
+///
+/// Shared by identity columns (issue #13) and standalone sequences (issue #122), which obey
+/// the same rules — the one difference being the type they default to when none is written:
+/// an identity column's sequence takes the column's type, while a declared sequence defaults
+/// to <see cref="DefaultSequenceTypeName"/>.
 ///
 /// Both model builders share these so they agree on which options are worth storing:
 /// the parser builder omits options equal to the default, and the DB builder omits
@@ -17,6 +22,13 @@ internal static class PostgresIdentitySequenceDefaults
     public const long Increment = 1;
     public const long CacheSize = 1;
     public const bool IsCycling = false;
+
+    /// <summary>
+    /// The type a standalone <c>CREATE SEQUENCE</c> takes when its <c>AS</c> clause is
+    /// omitted. Note this is <c>bigint</c>, not the <c>integer</c> a bare <c>serial</c>
+    /// column produces — the two defaults genuinely differ.
+    /// </summary>
+    public const string DefaultSequenceTypeName = "bigint";
 
     /// <summary>
     /// The default START/MINVALUE/MAXVALUE for an identity column of the given canonical

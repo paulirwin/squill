@@ -171,4 +171,39 @@ public class DacpacSerializationTests
         Assert.Equal("integer", typeRef.Name);
         Assert.Equal("BuiltIns", typeRef.ExternalSource);
     }
+
+    // A sequence's options are Int64 and Boolean properties (issue #122) — the first elements
+    // to carry Int64. A long that came back as an int, or a bool as a string, would change the
+    // element's hash and make every deploy from a DACPAC re-alter the sequence.
+    [Fact]
+    public async Task DacpacSerializer_RoundTrip_PreservesSequenceOptionTypes()
+    {
+        var metadata = new ModelMetadata { ProviderName = "Postgresql" };
+
+        var model = new Model();
+
+        var sequence = new Element("SqlSequence") { Name = "order_number" };
+        sequence.Properties.Add(new Property("Increment", 5L));
+        sequence.Properties.Add(new Property("MaxValue", 9223372036854775807L));
+        sequence.Properties.Add(new Property("IsCycling", true));
+        model.Elements.Add(sequence);
+
+        var originalHash = model.Hash;
+
+        await using var stream = new MemoryStream();
+        await DacpacSerializer.Serialize(metadata, model, stream, TestContext.Current.CancellationToken);
+
+        stream.Position = 0;
+        var (_, result) = await DacpacSerializer.Deserialize(stream, TestContext.Current.CancellationToken);
+
+        var roundTripped = Assert.Single(result.Elements);
+
+        Assert.Equal(5L, roundTripped.GetProperty<long?>("Increment"));
+        Assert.Equal(9223372036854775807L, roundTripped.GetProperty<long?>("MaxValue"));
+        Assert.Equal(true, roundTripped.GetProperty<bool?>("IsCycling"));
+
+        // And so the model hashes identically, which is what makes a redeploy a no-op.
+        Assert.True(HashUtility.HashesEqual(originalHash, result.Hash),
+            "A sequence's options must survive a DACPAC round trip without changing the hash.");
+    }
 }

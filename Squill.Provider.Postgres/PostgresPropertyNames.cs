@@ -22,6 +22,11 @@ public sealed class PostgresPropertyNames : SqlPropertyNames
     public const string MaxValue = nameof(MaxValue);
     public const string CacheSize = nameof(CacheSize);
     public const string IsCycling = nameof(IsCycling);
+    // A standalone sequence's AS type (issue #122), stored only when it is not the bigint
+    // default. It shares StartValue/Increment/MinValue/MaxValue/CacheSize/IsCycling above
+    // with identity columns, but needs its own type property: an identity column's sequence
+    // takes the column's type, while a declared sequence names its own.
+    public const string SequenceDataType = nameof(SequenceDataType);
     public const string FilterPredicate = nameof(FilterPredicate);
     public const string Version = nameof(Version);
     // PostgreSQL terminology: an index element may specify an operator class (opclass),

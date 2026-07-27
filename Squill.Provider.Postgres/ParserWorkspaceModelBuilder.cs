@@ -299,6 +299,10 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         {
             model.Elements.Add(MakeCreateDomainElement(createDomainStatement));
         }
+        else if (statement is CreateSequenceStatement createSequenceStatement)
+        {
+            model.Elements.Add(MakeCreateSequenceElement(createSequenceStatement));
+        }
         else if (statement is CreateFunctionStatement createFunctionStatement)
         {
             validator.AddCreateFunction(file, createFunctionStatement);
@@ -1599,6 +1603,39 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
         return PostgresModelFactory.CreateEnumType(name, schema, createEnumTypeStatement.Labels);
     }
+
+    // A standalone sequence (issue #122). The declared options are handed to the factory
+    // exactly as written; it decides which are worth storing by comparing each against the
+    // PostgreSQL default for the sequence's type and direction.
+    private static Element MakeCreateSequenceElement(CreateSequenceStatement createSequenceStatement)
+    {
+        var (schema, name) = SplitSchema(createSequenceStatement.Name);
+
+        return PostgresModelFactory.CreateSequence(
+            name,
+            schema,
+            SequenceTypeName(createSequenceStatement.DataType),
+            createSequenceStatement.StartValue,
+            createSequenceStatement.Increment,
+            createSequenceStatement.MinValue,
+            createSequenceStatement.MaxValue,
+            createSequenceStatement.CacheSize,
+            createSequenceStatement.IsCycling);
+    }
+
+    // The canonical spelling of a sequence's AS type, so `int4` and `integer` produce the same
+    // model and both match what the catalog reports. The parser has already rejected anything
+    // that is not one of the three integer types.
+    private static string? SequenceTypeName(DataType? dataType) => dataType switch
+    {
+        null => null,
+        BuiltInDataType { Type: PostgresBuiltInDataType.SmallInt } => "smallint",
+        BuiltInDataType { Type: PostgresBuiltInDataType.Integer } => "integer",
+        BuiltInDataType { Type: PostgresBuiltInDataType.BigInt } => "bigint",
+        _ => throw new NotImplementedException(
+            $"A sequence may only be declared AS smallint, integer or bigint, not "
+            + $"'{dataType.TypeName}'"),
+    };
 
     // In a domain CHECK, VALUE is the keyword for the value being checked, so it is rendered
     // bare rather than double-quoted.
