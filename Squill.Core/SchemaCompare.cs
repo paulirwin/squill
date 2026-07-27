@@ -458,8 +458,9 @@ public class SchemaCompare
     }
 
     // Produces the delta for an element present in both models whose definitions differ.
-    // Currently only tables support in-place alteration; other element types (indexes,
-    // extensions, foreign keys) are not yet diffable and throw so the gap is explicit
+    // Tables alter in place or rebuild; an extension updates its version; a provider may
+    // supply an in-place alter for its own object kinds (a Postgres enum or domain); and a
+    // replaceable object is redefined wholesale. Anything else throws, so a gap is explicit
     // rather than silently skipped.
     private static SchemaDelta? DiffExistingElement(
         IDatabaseProvider provider,
@@ -491,6 +492,15 @@ public class SchemaCompare
             }
 
             return null;
+        }
+
+        // Some object kinds change in place but need more than a wholesale redefinition — a
+        // PostgreSQL enum gaining a label, or a domain changing base type. Neither can be
+        // dropped and recreated while a column still uses it, so the provider supplies the
+        // in-place delta (issue #122).
+        if (analyzer.GetInPlaceAlterDelta(sourceElement, targetElement) is { } inPlaceDelta)
+        {
+            return inPlaceDelta;
         }
 
         // An object that is redefined wholesale (a procedure) needs no facet-by-facet diff:

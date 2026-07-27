@@ -31,6 +31,20 @@ public interface IDatabaseDependencyAnalyzer : IModelIdentityRules
     bool IsReplaceableElementType(string type);
 
     /// <summary>
+    /// The delta that alters <paramref name="source"/> in place to match the target's current
+    /// state, or <c>null</c> when this element type has no in-place alteration and should fall
+    /// through to the generic handling (replace-wholesale, or an error).
+    ///
+    /// This is the seam for object kinds a database can change without a rebuild but that need
+    /// more than a wholesale redefinition — a PostgreSQL enum gaining a label
+    /// (<c>ALTER TYPE ... ADD VALUE</c>) or a domain changing base type
+    /// (<c>ALTER DOMAIN ... TYPE</c>), neither of which can be dropped and recreated while a
+    /// column still uses them. Which kinds those are is database-specific, so the decision
+    /// lives behind the provider (issue #122).
+    /// </summary>
+    SchemaDelta? GetInPlaceAlterDelta(Element source, Element target);
+
+    /// <summary>
     /// Whether dropping an element of this type destroys data (e.g. a table's rows), as
     /// opposed to a metadata-only object like an index or extension. Used to decide
     /// whether a drop is blocked by <see cref="DeployOptions.BlockOnPossibleDataLoss"/>.

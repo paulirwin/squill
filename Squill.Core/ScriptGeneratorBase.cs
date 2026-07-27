@@ -10,9 +10,10 @@ namespace Squill.Core;
 /// CREATE OR REPLACE vs DROP+CREATE, …), so every emitter is an abstract hook the provider
 /// supplies.
 ///
-/// <see cref="GenerateAlterExtensionScript"/> is the one delta a provider may not handle
-/// (extensions are Postgres-only); its base implementation throws, matching the original
-/// fall-through, and only Postgres overrides it.
+/// <see cref="GenerateAlterExtensionScript"/>, <see cref="GenerateAlterEnumTypeScript"/> and
+/// <see cref="GenerateAlterDomainTypeScript"/> are the deltas a provider may not handle
+/// (extensions, enums and domains are Postgres-only); their base implementations throw,
+/// matching the original fall-through, and only Postgres overrides them.
 /// </summary>
 public abstract class ScriptGeneratorBase : IScriptGenerator
 {
@@ -41,6 +42,8 @@ public abstract class ScriptGeneratorBase : IScriptGenerator
         DropDelta drop => GenerateDropScript(drop),
         RecreateDelta recreate => GenerateRecreateScript(recreate),
         AlterExtensionVersionDelta alterExtension => GenerateAlterExtensionScript(alterExtension),
+        AlterEnumTypeDelta alterEnum => GenerateAlterEnumTypeScript(alterEnum),
+        AlterDomainTypeDelta alterDomain => GenerateAlterDomainTypeScript(alterDomain),
         AddConstraintDelta addConstraint => GenerateAddConstraintScript(addConstraint),
         _ => throw new NotImplementedException(
             $"Generating a script for {delta.GetType().Name} is not supported."),
@@ -66,6 +69,16 @@ public abstract class ScriptGeneratorBase : IScriptGenerator
     protected virtual string GenerateAlterExtensionScript(AlterExtensionVersionDelta delta)
         => throw new NotImplementedException(
             $"This provider does not support {nameof(AlterExtensionVersionDelta)}.");
+
+    // Enum types and domains are Postgres-only, so — like extensions above — the base throws
+    // and only Postgres overrides (issue #122).
+    protected virtual string GenerateAlterEnumTypeScript(AlterEnumTypeDelta delta)
+        => throw new NotImplementedException(
+            $"This provider does not support {nameof(AlterEnumTypeDelta)}.");
+
+    protected virtual string GenerateAlterDomainTypeScript(AlterDomainTypeDelta delta)
+        => throw new NotImplementedException(
+            $"This provider does not support {nameof(AlterDomainTypeDelta)}.");
 
     // ---- Shared rebuild orchestration ----
     //

@@ -48,6 +48,10 @@ public abstract class DatabaseDependencyAnalyzerBase : IDatabaseDependencyAnalyz
     // No extension version to normalize by default (Postgres overrides).
     public virtual Element NormalizeForComparison(Element source, Element target) => source;
 
+    // No in-place alteration beyond the generic handling by default (Postgres overrides for
+    // enums and domains, which cannot be dropped while a column uses them — issue #122).
+    public virtual SchemaDelta? GetInPlaceAlterDelta(Element source, Element target) => null;
+
     // Almost every property is part of its element's identity; the exceptions are properties
     // carrying text the engine rewrites when it stores it, which could therefore never match
     // what a comparison reads back (issue #122). A view's query is one on every engine —

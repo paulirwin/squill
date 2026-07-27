@@ -19,10 +19,93 @@ public class PostgresDatabaseDependencyAnalyzer : DatabaseDependencyAnalyzerBase
     // A procedure's body is replaced wholesale. A view is here too, but its recreate is
     // scripted as DROP + CREATE: PostgreSQL will not replace a view whose column list changed,
     // and a changed column list is the only thing that makes a view differ.
+    //
+    // An aggregate and a trigger are also DROP + CREATE (issue #122): PostgreSQL has no
+    // CREATE OR REPLACE AGGREGATE at all, and CREATE OR REPLACE TRIGGER only exists from
+    // PG 14, so dropping first is the portable spelling. Including triggers also aligns this
+    // provider with MariaDB, which has always treated them as replaceable — before this, the
+    // same trigger change deployed on MariaDB but threw on Postgres.
     public override bool IsReplaceableElementType(string type)
         => type is PostgresElementTypes.SqlProcedure
             or PostgresElementTypes.SqlView
-            or PostgresElementTypes.SqlFunction;
+            or PostgresElementTypes.SqlFunction
+            or PostgresElementTypes.SqlAggregate
+            or PostgresElementTypes.SqlTrigger;
+
+    // An enum and a domain are altered in place rather than replaced: DROP TYPE / DROP DOMAIN
+    // fails whenever a column is typed as them, so a rebuild would break any schema that
+    // actually uses the type (issue #122).
+    public override SchemaDelta? GetInPlaceAlterDelta(Element source, Element target)
+    {
+        if (source.Type == PostgresElementTypes.SqlEnumType)
+        {
+            return new AlterEnumTypeDelta(source, target, DiffEnumLabels(source, target));
+        }
+
+        if (source.Type == PostgresElementTypes.SqlDomain)
+        {
+            return new AlterDomainTypeDelta(source, target);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The labels present in <paramref name="source"/> but not in <paramref name="target"/>,
+    /// each paired with the existing label it must precede (or null to append).
+    ///
+    /// Returns an empty list when the change is not purely additive — a removed or reordered
+    /// label. PostgreSQL can express neither, so the script generator reports those rather
+    /// than emitting SQL that would not achieve the declared state.
+    /// </summary>
+    private static IReadOnlyList<AddedEnumLabel> DiffEnumLabels(Element source, Element target)
+    {
+        var sourceLabels = PostgresModelFactory.GetEnumLabels(source);
+        var targetLabels = PostgresModelFactory.GetEnumLabels(target);
+
+        // Every existing label must survive, in its existing relative order: an enum's order
+        // is its sort order, and ALTER TYPE cannot remove or move a label. If the target's
+        // labels are not a subsequence of the source's, the change is not additive.
+        if (!IsSubsequence(targetLabels, sourceLabels))
+        {
+            return [];
+        }
+
+        var existing = targetLabels.ToHashSet(StringComparer.Ordinal);
+        var added = new List<AddedEnumLabel>();
+
+        for (var i = 0; i < sourceLabels.Count; i++)
+        {
+            if (existing.Contains(sourceLabels[i]))
+            {
+                continue;
+            }
+
+            // A new label goes before the next label that already exists in the target;
+            // when there is none, it belongs at the end and is appended.
+            var successor = sourceLabels.Skip(i + 1).FirstOrDefault(existing.Contains);
+
+            added.Add(new AddedEnumLabel(sourceLabels[i], successor));
+        }
+
+        return added;
+    }
+
+    // Whether every element of `inner` appears in `outer` in the same relative order.
+    private static bool IsSubsequence(IReadOnlyList<string> inner, IReadOnlyList<string> outer)
+    {
+        var index = 0;
+
+        foreach (var candidate in outer)
+        {
+            if (index < inner.Count && string.Equals(inner[index], candidate, StringComparison.Ordinal))
+            {
+                index++;
+            }
+        }
+
+        return index == inner.Count;
+    }
 
     public override string? GetElementSchema(Element element)
     {
