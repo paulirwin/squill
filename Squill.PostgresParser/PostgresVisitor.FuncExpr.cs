@@ -11,6 +11,11 @@ public partial class PostgresVisitor
             return VisitFunc_application(funcApplication);
         }
 
-        throw new NotImplementedException("Support for func_expr_common_subexpr not yet implemented");
+        if (context.func_expr_common_subexpr() is { } commonSubexpr)
+        {
+            return VisitFunc_expr_common_subexpr(commonSubexpr);
+        }
+
+        throw new PostgresParseException("Unable to parse function expression");
     }
 }
