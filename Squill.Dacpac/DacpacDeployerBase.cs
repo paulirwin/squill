@@ -214,6 +214,8 @@ public abstract class DacpacDeployerBase
         "SqlSequence" => "sequence",
         "SqlCompositeType" => "type",
         "SqlRangeType" => "type",
+        // MariaDB/MySQL-only: a scheduled event. PostgreSQL has no in-server scheduler.
+        "SqlEvent" => "event",
         _ => elementType,
     };
 }

@@ -33,6 +33,29 @@ internal static class DataReaderExtensions
     }
 
     /// <summary>
+    /// Reads a nullable string column, returning null for a SQL NULL and coercing whatever
+    /// CLR type the driver returns. The coercion matters for columns the two engines type
+    /// differently — information_schema.EVENTS.INTERVAL_VALUE comes back as a string on one
+    /// engine and a number on the other — so a plain <c>GetString</c> would throw on one.
+    /// An empty string is returned as null: both engines report an absent event comment that
+    /// way, and the model omits a facet that was never declared.
+    /// </summary>
+    public static string? GetStringOrNull(this DbDataReader reader, string name)
+    {
+        var ordinal = reader.GetOrdinal(name);
+
+        if (reader.IsDBNull(ordinal))
+        {
+            return null;
+        }
+
+        var value = Convert.ToString(
+            reader.GetValue(ordinal), System.Globalization.CultureInfo.InvariantCulture);
+
+        return string.IsNullOrEmpty(value) ? null : value;
+    }
+
+    /// <summary>
     /// Reads a nullable 64-bit integer column, coercing whatever numeric CLR type the driver
     /// returns. MariaDB and MySQL disagree on the signedness of information_schema numeric
     /// columns (MariaDB returns them as <c>ulong</c>, MySQL as <c>long</c>), so a fixed

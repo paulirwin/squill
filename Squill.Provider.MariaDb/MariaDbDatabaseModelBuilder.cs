@@ -86,8 +86,86 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
         // else. Ordered by name so the two builders agree (the Merkle hash is order-sensitive).
         await ExtractTriggersAsync(model, cancellationToken);
 
+        // Events come after triggers, matching the parser-based builder. An event is bound to
+        // no table, but its body may touch anything, so it is created last. Ordered by name
+        // so the two builders agree (the Merkle hash is order-sensitive).
+        await ExtractEventsAsync(model, cancellationToken);
+
         return model;
     }
+
+    private async Task ExtractEventsAsync(Model model, CancellationToken cancellationToken = default)
+    {
+        // An event's identity is its name, its schedule and its body. EVENT_TYPE selects which
+        // schedule columns are populated: EXECUTE_AT for a ONE TIME event, or
+        // INTERVAL_VALUE/INTERVAL_FIELD plus STARTS/ENDS for a RECURRING one.
+        //
+        // The timestamps are read as strings in the catalog's own 'YYYY-MM-DD HH:MM:SS' shape
+        // rather than as DateTime, so an extracted value is byte-comparable with the literal
+        // written in source — going through DateTime would re-render it in the host's format
+        // and no declared event would ever match.
+        const string sql =
+            """
+            SELECT EVENT_NAME, EVENT_TYPE,
+                   DATE_FORMAT(EXECUTE_AT, '%Y-%m-%d %H:%i:%s') AS EXECUTE_AT,
+                   INTERVAL_VALUE, INTERVAL_FIELD,
+                   DATE_FORMAT(STARTS, '%Y-%m-%d %H:%i:%s') AS STARTS,
+                   DATE_FORMAT(ENDS, '%Y-%m-%d %H:%i:%s') AS ENDS,
+                   STATUS, ON_COMPLETION, EVENT_COMMENT, EVENT_DEFINITION
+            FROM information_schema.EVENTS
+            WHERE EVENT_SCHEMA = @db
+            ORDER BY EVENT_NAME;
+            """;
+
+        var dbParam = new[] { new DatabaseParameter<string>("@db", _database.Name) };
+
+        var events = new List<Element>();
+
+        await using (var reader = await _database.RunScriptReaderAsync(sql, dbParam, cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                events.Add(MariaDbModelFactory.CreateEvent(
+                    reader.GetString("EVENT_NAME"),
+                    reader.GetString("EVENT_TYPE").ToUpperInvariant(),
+                    reader.GetString("EVENT_DEFINITION"),
+                    reader.GetStringOrNull("EXECUTE_AT"),
+                    NormalizeIntervalValue(reader.GetStringOrNull("INTERVAL_VALUE")),
+                    reader.GetStringOrNull("INTERVAL_FIELD")?.ToUpperInvariant(),
+                    reader.GetStringOrNull("STARTS"),
+                    reader.GetStringOrNull("ENDS"),
+                    NormalizeEventStatus(reader.GetString("STATUS")),
+                    // ON_COMPLETION is reported as 'PRESERVE' or 'NOT PRESERVE'.
+                    reader.GetString("ON_COMPLETION").Equals(
+                        "PRESERVE", StringComparison.OrdinalIgnoreCase),
+                    // Both engines report an absent comment as the empty string, which the
+                    // factory omits, matching a declaration that wrote no COMMENT.
+                    reader.GetStringOrNull("EVENT_COMMENT")));
+            }
+        }
+
+        foreach (var element in events)
+        {
+            model.Elements.Add(element);
+        }
+    }
+
+    // A compound interval (EVERY '2:3' DAY_HOUR) is stored by both engines with its quotes
+    // included — INTERVAL_VALUE literally reads '2 3', apostrophes and all — while a simple
+    // count (EVERY 1 DAY) is stored bare. The quotes are stripped so an extracted value
+    // matches the unquoted form the parser records.
+    private static string? NormalizeIntervalValue(string? intervalValue)
+        => intervalValue is { Length: >= 2 } value && value[0] == '\'' && value[^1] == '\''
+            ? value[1..^1]
+            : intervalValue;
+
+    // MySQL renamed the DISABLE ON SLAVE status to REPLICA_SIDE_DISABLED, while MariaDB still
+    // reports SLAVESIDE_DISABLED for the identical clause. Normalizing onto the MariaDB
+    // spelling — the one the parser records — lets a single declaration match on both engines.
+    private static string NormalizeEventStatus(string status)
+        => status.Equals("REPLICA_SIDE_DISABLED", StringComparison.OrdinalIgnoreCase)
+            ? "SLAVESIDE_DISABLED"
+            : status.ToUpperInvariant();
 
     private async Task ExtractViewsAsync(Model model, CancellationToken cancellationToken = default)
     {

@@ -51,6 +51,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
         MoveRoutinesToEnd(model);
         MoveTriggersToEnd(model);
+        MoveEventsToEnd(model);
 
         return new BuildResult(model, warnings);
     }
@@ -134,6 +135,39 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     /// the trigger's own name — held in <see cref="MariaDbPropertyNames.RoutineName"/> — not
     /// the element Name, which folds in the table (table.trigger) and would sort differently.
     /// </summary>
+    /// <summary>
+    /// Moves every scheduled event to the end of the model, ordered by name — the order
+    /// information_schema.EVENTS is read in, which has no notion of declaration order. Runs
+    /// after <see cref="MoveTriggersToEnd"/> so events land last, matching the extraction
+    /// order (tables, views, routines, triggers, then events). The Merkle hash is
+    /// order-sensitive, so the two builders must agree.
+    ///
+    /// Unlike a trigger, an event's element Name is its own bare name (it is bound to no
+    /// table), so it is ordered on that directly.
+    /// </summary>
+    private static void MoveEventsToEnd(Model model)
+    {
+        var events = model.Elements
+            .Where(i => i.Type == MariaDbElementTypes.SqlEvent)
+            .ToList();
+
+        if (events.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var element in events)
+        {
+            model.Elements.Remove(element);
+        }
+
+        // Ordinal, to match the database's byte-wise ordering of the same names.
+        foreach (var element in events.OrderBy(i => (string)i.Name!, StringComparer.Ordinal))
+        {
+            model.Elements.Add(element);
+        }
+    }
+
     private static void MoveTriggersToEnd(Model model)
     {
         var triggers = model.Elements
@@ -303,6 +337,17 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         model.Elements.Add(MakeCreateTriggerElement(createTrigger));
                         break;
 
+                    case CreateEventStatement createEvent:
+                        validator.AddCreateEvent(file, createEvent);
+
+                        if (validator.IsDuplicateEvent(createEvent))
+                        {
+                            break;
+                        }
+
+                        model.Elements.Add(MakeCreateEventElement(createEvent));
+                        break;
+
                     // Recognized but not modeled (CREATE VIEW, ALTER, …). Not fatal — the
                     // rest of the project still builds — but the construct will not reach
                     // the DACPAC, so say so rather than dropping it silently.
@@ -408,6 +453,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         private readonly Dictionary<string, Origin> _procedureOrigins = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Origin> _functionOrigins = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Origin> _triggerOrigins = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, Origin> _eventOrigins = new(StringComparer.OrdinalIgnoreCase);
 
         // An index name only has to be unique within its table in MariaDB, unlike Postgres
         // where constraints and indexes share a per-schema namespace.
@@ -420,6 +466,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         private readonly HashSet<CreateProcedureStatement> _duplicateProcedures = [];
         private readonly HashSet<CreateFunctionStatement> _duplicateFunctions = [];
         private readonly HashSet<CreateTriggerStatement> _duplicateTriggers = [];
+        private readonly HashSet<CreateEventStatement> _duplicateEvents = [];
 
         // The base tracks unique column sets and the FK backing-index check; the rationale for
         // recording only unique sets is MariaDB/MySQL-specific and lives at each call site
@@ -508,6 +555,31 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 file.Name, createTrigger.Line, createTrigger.Column,
                 $"Trigger '{name}'",
                 triggerTable, triggerTable, []));
+        }
+
+        public bool IsDuplicateEvent(CreateEventStatement createEvent)
+            => _duplicateEvents.Contains(createEvent);
+
+        public void AddCreateEvent(IFile file, CreateEventStatement createEvent)
+        {
+            // An event name is unique within the database (schema), the same as a routine or
+            // a trigger. Unlike a trigger it references no table, so there is no reference to
+            // resolve — an event body may query anything, and bodies are not parsed.
+            var name = createEvent.Name.Name;
+
+            if (_eventOrigins.TryGetValue(name, out var existing))
+            {
+                AddError(new SqlSourceException(
+                    $"Event '{name}' is already defined in {DescribeOrigin(existing)}.",
+                    file.Name, createEvent.Line, createEvent.Column,
+                    SqlSourceException.DuplicateDefinition));
+
+                _duplicateEvents.Add(createEvent);
+
+                return;
+            }
+
+            _eventOrigins[name] = new Origin(file.Name, createEvent.Line);
         }
 
         public void AddCreateTable(IFile file, CreateTableStatement createTable)
@@ -1361,6 +1433,97 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             createTrigger.Event,
             body);
     }
+
+    private static Element MakeCreateEventElement(CreateEventStatement createEvent)
+    {
+        if (createEvent.Body is not { } body)
+        {
+            throw new InvalidOperationException("An event must declare a body");
+        }
+
+        ValidateEventSchedule(createEvent);
+
+        // An event is not schema-scoped within a database, so a leading db qualifier is
+        // dropped from its name, exactly as for a table or a trigger.
+        return MariaDbModelFactory.CreateEvent(
+            createEvent.Name.Name,
+            createEvent.EventType,
+            body,
+            createEvent.ExecuteAt,
+            createEvent.IntervalValue,
+            createEvent.IntervalField,
+            createEvent.Starts,
+            createEvent.Ends,
+            createEvent.Status,
+            createEvent.PreserveOnCompletion,
+            createEvent.Comment);
+    }
+
+    // Rejects the schedule forms the engines accept but Squill cannot model. Both engines
+    // resolve a schedule against the wall clock when the event is created and store only the
+    // resulting absolute timestamps, so any form that is not already constant would differ
+    // from its declaration the moment it is deployed — and every later deploy would script a
+    // spurious change. These are reported here rather than in the parser so the builder can
+    // attach the source file and position (issue #122).
+    private static void ValidateEventSchedule(CreateEventStatement createEvent)
+    {
+        var name = createEvent.Name.Name;
+
+        if (createEvent.ExecuteAt is { } executeAt)
+        {
+            RequireConstantTimestamp(name, "AT", executeAt);
+
+            return;
+        }
+
+        if (createEvent.IntervalValue is { } intervalValue
+            && !IsConstantIntervalValue(intervalValue))
+        {
+            throw new NotSupportedException(
+                $"Event '{name}' uses a computed EVERY interval ('{intervalValue}'), which "
+                + "cannot be compared against a deployed event; write a constant interval "
+                + "instead.");
+        }
+
+        // A recurring event with no STARTS is rejected even though both engines accept it:
+        // they record the moment the event was created as its start, which moves on every
+        // deploy, so the deployed event could never match the declaration again.
+        if (createEvent.Starts is not { } starts)
+        {
+            throw new NotSupportedException(
+                $"Event '{name}' has no STARTS clause. The server records the time the event "
+                + "was created as its start, which changes on every deploy and so can never "
+                + "match the declaration; add an explicit STARTS timestamp.");
+        }
+
+        RequireConstantTimestamp(name, "STARTS", starts);
+
+        if (createEvent.Ends is { } ends)
+        {
+            RequireConstantTimestamp(name, "ENDS", ends);
+        }
+    }
+
+    private static void RequireConstantTimestamp(string name, string clause, string value)
+    {
+        // The parser unquotes a constant timestamp to the value the catalog reports, and
+        // keeps anything else verbatim — so a value that still looks like an expression
+        // (CURRENT_TIMESTAMP, NOW(), or one carrying a + INTERVAL offset) is not constant.
+        if (!value.Contains('+') && DateTime.TryParse(value, out _))
+        {
+            return;
+        }
+
+        throw new NotSupportedException(
+            $"Event '{name}' uses a non-constant {clause} value ('{value}'), which the server "
+            + "resolves when the event is created, so it cannot be compared against a deployed "
+            + "event; write a constant timestamp instead.");
+    }
+
+    // A constant EVERY value is a plain count (1) or a compound interval the parser has
+    // normalized to the catalog's space-separated form (2 3).
+    private static bool IsConstantIntervalValue(string intervalValue)
+        => intervalValue.Split(' ').All(i => i.Length > 0 && i.All(char.IsAsciiDigit));
 
     private static string RenderParameterMode(ParameterMode mode) => mode switch
     {
