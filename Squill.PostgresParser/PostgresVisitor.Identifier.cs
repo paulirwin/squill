@@ -8,11 +8,6 @@ public partial class PostgresVisitor
     {
         if (context.Identifier() is { } identifierName)
         {
-            if (context.opt_uescape()?.UESCAPE() is not null)
-            {
-                throw new NotImplementedException("Support for UESCAPE not yet implemented");
-            }
-
             return new SimpleIdentifier(identifierName.GetText());
         }
 
@@ -21,7 +16,10 @@ public partial class PostgresVisitor
         if (context.QuotedIdentifier() is not null
             || unicodeQuoted is not null)
         {
-            string text = context.GetText();
+            // Taken from the token rather than GetText(), which would also pull in a
+            // trailing UESCAPE clause. (In practice the grammar rejects `UESCAPE` after an
+            // identifier before the visitor is reached, so this is belt-and-braces.)
+            string text = (context.QuotedIdentifier() ?? unicodeQuoted!).GetText();
 
             if (text.StartsWith("U&"))
             {

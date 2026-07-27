@@ -64,4 +64,47 @@ public class ExpressionSqlRendererTests
     {
         Assert.Equal(expected, RenderPredicate(predicate));
     }
+
+    /// <summary>
+    /// Issue #141: the remaining expression operators. Rendering matters as much as parsing
+    /// here — a CHECK or index predicate is carried into the model as text, so an operator
+    /// that parses but renders back wrong would deploy a differently-meaning predicate.
+    /// </summary>
+    [Theory]
+    [InlineData("c LIKE 'a%'", "\"c\" LIKE 'a%'")]
+    [InlineData("c NOT LIKE 'a%'", "\"c\" NOT LIKE 'a%'")]
+    [InlineData("c ILIKE 'a%'", "\"c\" ILIKE 'a%'")]
+    [InlineData("c NOT ILIKE 'a%'", "\"c\" NOT ILIKE 'a%'")]
+    [InlineData("c SIMILAR TO 'a%'", "\"c\" SIMILAR TO 'a%'")]
+    [InlineData("c NOT SIMILAR TO 'a%'", "\"c\" NOT SIMILAR TO 'a%'")]
+    [InlineData("c LIKE 'a!%b' ESCAPE '!'", "\"c\" LIKE 'a!%b' ESCAPE '!'")]
+    [InlineData("c BETWEEN 1 AND 5", "\"c\" BETWEEN 1 AND 5")]
+    [InlineData("c NOT BETWEEN 1 AND 5", "\"c\" NOT BETWEEN 1 AND 5")]
+    [InlineData("c BETWEEN SYMMETRIC 1 AND 5", "\"c\" BETWEEN SYMMETRIC 1 AND 5")]
+    [InlineData("c BETWEEN 1 AND 5 AND d = 2", "\"c\" BETWEEN 1 AND 5 AND \"d\" = 2")]
+    [InlineData("c BETWEEN 1 AND 5 AND d BETWEEN 2 AND 6",
+        "\"c\" BETWEEN 1 AND 5 AND \"d\" BETWEEN 2 AND 6")]
+    [InlineData("c COLLATE \"C\" > 'a'", "\"c\" COLLATE \"C\" > 'a'")]
+    [InlineData("c AT TIME ZONE 'UTC' > d", "\"c\" AT TIME ZONE 'UTC' > \"d\"")]
+    [InlineData("c ^ 2 > 4", "\"c\" ^ 2 > 4")]
+    [InlineData("@ c > 1", "@ \"c\" > 1")]
+    public void Render_Operators_ProducesExpectedSql(string predicate, string expected)
+    {
+        Assert.Equal(expected, RenderPredicate(predicate));
+    }
+
+    /// <summary>
+    /// The tight operators (<c>^</c>, <c>AT TIME ZONE</c>) must not absorb a lower-precedence
+    /// operator to their right — the grammar's tail recurses to a full <c>a_expr</c>, so
+    /// without rebalancing <c>c ^ 2 &gt; 4</c> would parse as <c>c ^ (2 &gt; 4)</c> and mean
+    /// something different. Explicit parentheses must still be honoured.
+    /// </summary>
+    [Theory]
+    [InlineData("c ^ 2 + 1 > 4", "\"c\" ^ 2 + 1 > 4")]
+    [InlineData("c ^ (2 > 4)", "\"c\" ^ (2 > 4)")]
+    [InlineData("c AT TIME ZONE 'UTC' + 1 > d", "\"c\" AT TIME ZONE 'UTC' + 1 > \"d\"")]
+    public void Render_TightOperators_DoNotOverCapture(string predicate, string expected)
+    {
+        Assert.Equal(expected, RenderPredicate(predicate));
+    }
 }

@@ -4,14 +4,22 @@ namespace Squill.PostgresParser;
 
 public partial class PostgresVisitor
 {
+    // sconst : anysconst opt_uescape
     public override SyntaxNode VisitSconst(PostgreSQLParser.SconstContext context)
     {
-        if (context.opt_uescape() is not null && context.opt_uescape().UESCAPE() is not null)
+        var literal = VisitAnysconst(context.anysconst());
+
+        // U&'d!0061t' UESCAPE '!' — the UESCAPE clause names the escape character used inside
+        // the preceding unicode literal, so dropping it would change what the string means.
+        // Like the literal itself it is carried verbatim.
+        if (context.opt_uescape()?.UESCAPE() is null)
         {
-            throw new NotImplementedException("UESCAPE not yet supported");
+            return literal;
         }
 
-        return VisitAnysconst(context.anysconst());
+        var text = SourceText(context);
+
+        return new LiteralExpression(text, text);
     }
 
     public override SyntaxNode VisitIconst(PostgreSQLParser.IconstContext context)
@@ -40,6 +48,16 @@ public partial class PostgresVisitor
             return new LiteralExpression(text, stringValue);
         }
 
-        throw new NotImplementedException("Support for other string constant types not yet implemented");
+        // The remaining forms — U&'d\0061t', E'a\nb', $$text$$ — each have their own escape
+        // rules. Squill only needs to reproduce a constant, never to interpret it, so the
+        // source spelling is carried verbatim as both text and value: it is already valid SQL
+        // and renders back out unchanged. Decoding them here would risk changing the value,
+        // which is the one thing a literal must not do.
+        //
+        // Note the text is taken from the source rather than GetText(), which for a
+        // dollar-quoted string concatenates its DollarText tokens without their whitespace.
+        var sourceText = SourceText(context);
+
+        return new LiteralExpression(sourceText, sourceText);
     }
 }

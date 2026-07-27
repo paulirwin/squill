@@ -60,20 +60,85 @@ public static class ExpressionSqlRenderer
                 sb.Append(literal.Text);
                 break;
 
+            // `interval '1 day'` — the type prefix is part of the constant's meaning, so it
+            // renders back out with it.
+            case TypedLiteralExpression typedLiteral:
+                sb.Append(typedLiteral.TypeName).Append(' ').Append(typedLiteral.Literal.Text);
+                if (typedLiteral.Modifier is { } modifier)
+                {
+                    sb.Append(' ').Append(modifier);
+                }
+                break;
+
             case ParenthesizedExpression parenthesized:
                 sb.Append('(');
                 Write(sb, parenthesized.Expression, bareIdentifiers);
                 sb.Append(')');
                 break;
 
+            // The parentheses are required by the syntax rather than optional grouping, so
+            // they are always written back out.
+            case IndirectionExpression indirection:
+                sb.Append('(');
+                Write(sb, indirection.Expression, bareIdentifiers);
+                sb.Append(')');
+                foreach (var element in indirection.Elements)
+                {
+                    sb.Append(element);
+                }
+                break;
+
             case UnaryExpression unary:
                 WriteUnary(sb, unary, bareIdentifiers);
+                break;
+
+            // Must precede BinaryExpression — LikeExpression derives from it, and the
+            // trailing ESCAPE would otherwise be dropped.
+            case LikeExpression like:
+                Write(sb, like.Left, bareIdentifiers);
+                sb.Append(' ').Append(BinaryOperatorText(like.Operator)).Append(' ');
+                Write(sb, like.Right, bareIdentifiers);
+                if (like.Escape is { } escape)
+                {
+                    sb.Append(" ESCAPE ");
+                    Write(sb, escape, bareIdentifiers);
+                }
                 break;
 
             case BinaryExpression binary:
                 Write(sb, binary.Left, bareIdentifiers);
                 sb.Append(' ').Append(BinaryOperatorText(binary.Operator)).Append(' ');
                 Write(sb, binary.Right, bareIdentifiers);
+                break;
+
+            case BetweenExpression between:
+                Write(sb, between.Operand, bareIdentifiers);
+                sb.Append(between.IsNegated ? " NOT BETWEEN" : " BETWEEN");
+                if (between.IsSymmetric)
+                {
+                    sb.Append(" SYMMETRIC");
+                }
+                sb.Append(' ');
+                Write(sb, between.Lower, bareIdentifiers);
+                sb.Append(" AND ");
+                Write(sb, between.Upper, bareIdentifiers);
+                break;
+
+            case CollateExpression collate:
+                Write(sb, collate.Expression, bareIdentifiers);
+                sb.Append(" COLLATE ");
+                WriteQualifiedName(sb, collate.Collation);
+                break;
+
+            case AtTimeZoneExpression atTimeZone:
+                Write(sb, atTimeZone.Expression, bareIdentifiers);
+                sb.Append(" AT TIME ZONE ");
+                Write(sb, atTimeZone.TimeZone, bareIdentifiers);
+                break;
+
+            case CustomUnaryExpression customUnary:
+                sb.Append(customUnary.Operator.Symbol).Append(' ');
+                Write(sb, customUnary.Expression, bareIdentifiers);
                 break;
 
             case FunctionApplicationExpression function:
@@ -312,6 +377,21 @@ public static class ExpressionSqlRenderer
         sb.Append(')');
     }
 
+    // A collation name is an identifier, and a collation such as "C" is case-sensitive, so
+    // each segment is quoted the same way a column reference is.
+    private static void WriteQualifiedName(StringBuilder sb, QualifiedName name)
+    {
+        for (var i = 0; i < name.Segments.Count; i++)
+        {
+            if (i > 0)
+            {
+                sb.Append('.');
+            }
+
+            sb.Append('"').Append(name.Segments[i].Name).Append('"');
+        }
+    }
+
     private static string BinaryOperatorText(Operator op)
     {
         // A general operator (`||`, `->>`, a user-defined one) is carried verbatim, so it
@@ -347,6 +427,12 @@ public static class ExpressionSqlRenderer
             PostgresBuiltInBinaryOperator.NotIn => "NOT IN",
             PostgresBuiltInBinaryOperator.LeftShift => "<<",
             PostgresBuiltInBinaryOperator.RightShift => ">>",
+            PostgresBuiltInBinaryOperator.Like => "LIKE",
+            PostgresBuiltInBinaryOperator.NotLike => "NOT LIKE",
+            PostgresBuiltInBinaryOperator.ILike => "ILIKE",
+            PostgresBuiltInBinaryOperator.NotILike => "NOT ILIKE",
+            PostgresBuiltInBinaryOperator.SimilarTo => "SIMILAR TO",
+            PostgresBuiltInBinaryOperator.NotSimilarTo => "NOT SIMILAR TO",
             _ => throw new NotImplementedException(
                 $"Rendering binary operator {builtIn.Operator} to SQL is not yet implemented"),
         };
