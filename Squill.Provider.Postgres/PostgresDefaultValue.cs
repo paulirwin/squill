@@ -78,14 +78,14 @@ internal static class PostgresDefaultValue
                     StripCatalogPrefix(function.Name) + "()", out var canonical):
                 return canonical;
 
-            // A negated numeric literal, e.g. DEFAULT -5. (The b_expr parser does not yet
-            // produce a unary sign in a DEFAULT position, so this arm is currently reached
-            // only from the database side; it is kept so a future parser change works.)
+            // A negated numeric literal, e.g. DEFAULT -5. Postgres stores this as the cast
+            // '-5'::integer, which FromDatabaseText reduces to the same token.
             case UnaryExpression { Operator: PostgresBuiltInUnaryOperator.Negate } negate
                 when FromNumericValue(negate.Expression) is { } inner:
                 return "-" + inner;
 
-            // A leading + is a no-op sign on a numeric literal, e.g. DEFAULT +5.
+            // A leading + is a no-op sign on a numeric literal, e.g. DEFAULT +5. Postgres
+            // stores that one as the parenthesized (+ 5) rather than as a cast.
             case UnaryExpression { Operator: PostgresBuiltInUnaryOperator.Plus } plus
                 when FromNumericValue(plus.Expression) is { } inner:
                 return inner;
@@ -115,6 +115,14 @@ internal static class PostgresDefaultValue
         if (SupportedFunctionDefaults.TryGetValue(StripCatalogPrefix(trimmed), out var function))
         {
             return function;
+        }
+
+        // A source DEFAULT +5 is stored as the parenthesized, space-separated (+ 5) rather than
+        // as the '5'::integer cast an unsigned constant gets (issue #139). DEFAULT -5 does take
+        // the cast form, but handle the (- 5) spelling too so both signs normalize identically.
+        if (StripOuterSign(trimmed) is { } signed)
+        {
+            return signed;
         }
 
         var text = StripCast(trimmed);
@@ -164,6 +172,31 @@ internal static class PostgresDefaultValue
         expression is LiteralExpression { Value: long or int or decimal } literal
             ? FromLiteralValue(literal.Value)
             : null;
+
+    // The canonical form of Postgres's parenthesized signed-operand spelling, e.g. (+ 5) → 5 and
+    // (- 5) → -5, or null if this isn't that shape. Only a bare numeric operand is accepted: a
+    // sign applied to anything else is an expression we don't model.
+    private static string? StripOuterSign(string text)
+    {
+        if (text.Length < 4 || text[0] != '(' || text[^1] != ')')
+        {
+            return null;
+        }
+
+        var inner = text[1..^1].TrimStart();
+
+        if (inner.Length < 2 || (inner[0] != '+' && inner[0] != '-'))
+        {
+            return null;
+        }
+
+        if (NormalizeNumericText(inner[1..].Trim()) is not { } number)
+        {
+            return null;
+        }
+
+        return inner[0] == '-' ? "-" + number : number;
+    }
 
     // Removes a trailing ::type cast that Postgres adds to a stored default, e.g.
     // 'active'::character varying → 'active', '-5'::integer → -5. A cast only follows a

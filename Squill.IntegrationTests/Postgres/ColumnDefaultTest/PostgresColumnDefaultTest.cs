@@ -138,6 +138,75 @@ CREATE TABLE audit_entry
         }
     }
 
+    /// <summary>
+    /// Issue #139: a signed numeric default — <c>DEFAULT -5</c>, <c>DEFAULT -1.5</c>,
+    /// <c>DEFAULT +5</c> — must round-trip. These previously failed the build outright, because
+    /// the parser threw on a leading sign in <c>b_expr</c> position. The two signs are stored
+    /// differently by Postgres (<c>-5</c> as the cast <c>'-5'::integer</c>, <c>+5</c> as the
+    /// parenthesized <c>(+ 5)</c>), so both spellings have to reduce to the same canonical token
+    /// the parser produces or a redeploy would see a phantom column change. A <c>CHECK</c> with
+    /// a negative literal is included because it takes the same grammar path.
+    /// </summary>
+    [Fact]
+    public async Task SignedNumericDefaults_RoundTrip_ModelHashesMatchAfterPublish()
+    {
+        const string schema = """
+CREATE TABLE reading
+(
+    id       integer PRIMARY KEY,
+    offset_c integer NOT NULL DEFAULT -5,
+    delta    numeric(6, 2) NOT NULL DEFAULT -1.5,
+    boost    integer NOT NULL DEFAULT +5,
+    level    integer NOT NULL DEFAULT 0 CHECK (level > -1)
+);
+""";
+
+        var ct = TestContext.Current.CancellationToken;
+        IDatabaseProvider provider = new PostgresDatabaseProvider(ConnectionString);
+
+        var workspace = new Workspace();
+        workspace.Files.Add(new InMemoryStringFile("Reading.sql", FileKind.Compile, schema));
+        var buildResult = await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
+            .ExtractModelAsync(ct);
+
+        // The whole point of the issue: these no longer fail the build, nor warn as unmodeled.
+        Assert.Empty(buildResult.Warnings);
+
+        var model = buildResult.Model;
+        var testDb = await provider.CreateDatabaseAsync($"squill_test_{Guid.NewGuid():n}", ct);
+        var dbModelBuilder = provider.CreateDatabaseModelBuilder(testDb);
+
+        try
+        {
+            var emptyModel = await dbModelBuilder.ExtractModelAsync(ct);
+            await testDb.PublishAsync(SchemaCompare.Compare(provider, model, emptyModel), ct);
+
+            var publishedModel = await dbModelBuilder.ExtractModelAsync(ct);
+
+            Assert.True(
+                HashUtility.HashesEqual(model.Hash, publishedModel.Hash),
+                "Parsed and extracted model hashes do not match — a signed default did not "
+                + "canonicalize identically on both sides.");
+
+            // Redeploying the same source must be a no-op; a sign that canonicalized
+            // differently on the two sides would show up here as a perpetual diff.
+            var redeploy = SchemaCompare.Compare(provider, model, publishedModel);
+            Assert.Empty(redeploy.Deltas);
+
+            // The defaults must actually apply on INSERT, with the sign intact.
+            await using var conn = await OpenAsync(testDb.Name, ct);
+            await ExecuteAsync(conn, "INSERT INTO reading (id) VALUES (1);", ct);
+
+            Assert.Equal(-5, await ScalarAsync(conn, "SELECT offset_c FROM reading WHERE id = 1;"));
+            Assert.Equal(-1.50m, await ScalarAsync(conn, "SELECT delta FROM reading WHERE id = 1;"));
+            Assert.Equal(5, await ScalarAsync(conn, "SELECT boost FROM reading WHERE id = 1;"));
+        }
+        finally
+        {
+            await testDb.DropAsync(ct);
+        }
+    }
+
     [Fact]
     public async Task ChangeDefault_AltersInPlace_AndAppliesToNewRows()
     {

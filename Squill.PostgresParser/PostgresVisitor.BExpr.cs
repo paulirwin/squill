@@ -26,6 +26,23 @@ public partial class PostgresVisitor
             return new TypecastExpression(expression, dataType);
         }
 
+        // A leading sign on a single operand, e.g. DEFAULT -5 (issue #139). Checked before the
+        // binary arm, which the two-operand forms take; here there is only one b_expr child.
+        if (context.b_expr() is { Length: 1 } signedExpression
+            && (context.MINUS() is not null || context.PLUS() is not null))
+        {
+            if (VisitB_expr(signedExpression[0]) is not Expression operand)
+            {
+                throw new PostgresParseException("Unable to parse unary expression");
+            }
+
+            var unaryOperator = context.MINUS() is not null
+                ? PostgresBuiltInUnaryOperator.Negate
+                : PostgresBuiltInUnaryOperator.Plus;
+
+            return new UnaryExpression(unaryOperator, operand);
+        }
+
         if (context.b_expr() is { Length: 2 } binaryExpression)
         {
             if (VisitB_expr(binaryExpression[0]) is not Expression left)
