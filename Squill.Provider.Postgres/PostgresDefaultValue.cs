@@ -43,10 +43,10 @@ internal static class PostgresDefaultValue
     /// server to come back exactly as spelled here, which is what lets the parsed and
     /// extracted models hash identically.
     ///
-    /// Keyword forms such as <c>CURRENT_TIMESTAMP</c> are recognized on the database side
-    /// (see <see cref="FromDatabaseText"/>) but cannot yet be written in source: the parser
-    /// does not implement the <c>func_expr_common_subexpr</c> grammar rule they take. They
-    /// are listed here so the extractor recognizes a database that already has one.
+    /// Keyword forms such as <c>CURRENT_TIMESTAMP</c> are niladic keywords rather than calls;
+    /// since issue #140 implemented the <c>func_expr_common_subexpr</c> grammar rule they take,
+    /// they are reachable from source as well as from the database side. They are keyed here
+    /// without parentheses, which is how both the parser and the catalog spell them.
     /// </summary>
     private static readonly Dictionary<string, string> SupportedFunctionDefaults =
         new(StringComparer.OrdinalIgnoreCase)
@@ -76,6 +76,15 @@ internal static class PostgresDefaultValue
             case FunctionApplicationExpression { Arguments.Count: 0 } function
                 when SupportedFunctionDefaults.TryGetValue(
                     StripCatalogPrefix(function.Name) + "()", out var canonical):
+                return canonical;
+
+            // An allowlisted niladic keyword default, e.g. DEFAULT CURRENT_TIMESTAMP (issue
+            // #140). A keyword written with an explicit fractional-seconds precision
+            // (CURRENT_TIMESTAMP(3)) is a different value and is deliberately not matched: it
+            // is not on the allowlist, so it stays unmodeled rather than being flattened to
+            // the bare keyword.
+            case KeywordExpression { Precision: null } keyword
+                when SupportedFunctionDefaults.TryGetValue(keyword.Keyword, out var canonical):
                 return canonical;
 
             // A negated numeric literal, e.g. DEFAULT -5. Postgres stores this as the cast

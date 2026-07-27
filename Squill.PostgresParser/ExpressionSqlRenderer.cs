@@ -85,6 +85,65 @@ public static class ExpressionSqlRenderer
                 sb.Append("::").Append(typecast.DataType.TypeName);
                 break;
 
+            // The func_expr_common_subexpr forms (issue #140). Each renders with the keyword
+            // spelling it was written with rather than being rewritten into a call, since
+            // Postgres itself preserves these spellings.
+            case KeywordExpression keyword:
+                sb.Append(keyword.Keyword);
+                if (keyword.Precision is { } precision)
+                {
+                    sb.Append('(').Append(precision).Append(')');
+                }
+                break;
+
+            case CastExpression cast:
+                sb.Append(cast.IsTreat ? "TREAT(" : "CAST(");
+                Write(sb, cast.Expression, bareIdentifiers);
+                sb.Append(" AS ").Append(cast.DataType.TypeName).Append(')');
+                break;
+
+            case ExtractExpression extract:
+                sb.Append("EXTRACT(").Append(extract.Field).Append(" FROM ");
+                Write(sb, extract.Source, bareIdentifiers);
+                sb.Append(')');
+                break;
+
+            case SubstringExpression substring:
+                WriteSubstring(sb, substring, bareIdentifiers);
+                break;
+
+            case TrimExpression trim:
+                WriteTrim(sb, trim, bareIdentifiers);
+                break;
+
+            case PositionExpression position:
+                sb.Append("POSITION(");
+                Write(sb, position.Substring, bareIdentifiers);
+                sb.Append(" IN ");
+                Write(sb, position.Source, bareIdentifiers);
+                sb.Append(')');
+                break;
+
+            case OverlayExpression overlay:
+                WriteOverlay(sb, overlay, bareIdentifiers);
+                break;
+
+            case NormalizeExpression normalize:
+                sb.Append("NORMALIZE(");
+                Write(sb, normalize.Expression, bareIdentifiers);
+                if (normalize.Form is { } form)
+                {
+                    sb.Append(", ").Append(form);
+                }
+                sb.Append(')');
+                break;
+
+            case CollationForExpression collation:
+                sb.Append("COLLATION FOR (");
+                Write(sb, collation.Expression, bareIdentifiers);
+                sb.Append(')');
+                break;
+
             default:
                 throw new NotImplementedException(
                     $"Rendering expression type {expression.GetType().Name} to SQL is not yet implemented");
@@ -157,6 +216,82 @@ public static class ExpressionSqlRenderer
                 throw new NotImplementedException(
                     $"Rendering unary operator {unary.Operator} to SQL is not yet implemented");
         }
+    }
+
+    private static void WriteSubstring(StringBuilder sb, SubstringExpression substring,
+        IReadOnlySet<string> bareIdentifiers)
+    {
+        sb.Append("SUBSTRING(");
+        Write(sb, substring.Source, bareIdentifiers);
+
+        if (substring.Similar is { } similar)
+        {
+            sb.Append(" SIMILAR ");
+            Write(sb, similar, bareIdentifiers);
+            sb.Append(" ESCAPE ");
+            Write(sb, substring.Escape!, bareIdentifiers);
+            sb.Append(')');
+            return;
+        }
+
+        // FROM before FOR — the grammar admits either order, but this one is canonical and
+        // means the same thing.
+        if (substring.From is { } from)
+        {
+            sb.Append(" FROM ");
+            Write(sb, from, bareIdentifiers);
+        }
+
+        if (substring.For is { } forLength)
+        {
+            sb.Append(" FOR ");
+            Write(sb, forLength, bareIdentifiers);
+        }
+
+        sb.Append(')');
+    }
+
+    private static void WriteTrim(StringBuilder sb, TrimExpression trim,
+        IReadOnlySet<string> bareIdentifiers)
+    {
+        sb.Append("TRIM(").Append(trim.Side.ToString().ToUpperInvariant()).Append(' ');
+
+        if (trim.Characters is { } characters)
+        {
+            Write(sb, characters, bareIdentifiers);
+            sb.Append(" FROM ");
+        }
+
+        for (var i = 0; i < trim.Sources.Count; i++)
+        {
+            if (i > 0)
+            {
+                sb.Append(", ");
+            }
+
+            Write(sb, trim.Sources[i], bareIdentifiers);
+        }
+
+        sb.Append(')');
+    }
+
+    private static void WriteOverlay(StringBuilder sb, OverlayExpression overlay,
+        IReadOnlySet<string> bareIdentifiers)
+    {
+        sb.Append("OVERLAY(");
+        Write(sb, overlay.Source, bareIdentifiers);
+        sb.Append(" PLACING ");
+        Write(sb, overlay.Replacement, bareIdentifiers);
+        sb.Append(" FROM ");
+        Write(sb, overlay.From, bareIdentifiers);
+
+        if (overlay.For is { } forLength)
+        {
+            sb.Append(" FOR ");
+            Write(sb, forLength, bareIdentifiers);
+        }
+
+        sb.Append(')');
     }
 
     private static void WriteFunction(StringBuilder sb, FunctionApplicationExpression function,

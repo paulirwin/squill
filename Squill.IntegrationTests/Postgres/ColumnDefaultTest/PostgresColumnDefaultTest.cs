@@ -207,6 +207,177 @@ CREATE TABLE reading
         }
     }
 
+    /// <summary>
+    /// Issue #140: the niladic keyword defaults — <c>CURRENT_TIMESTAMP</c>, <c>CURRENT_DATE</c>,
+    /// <c>CURRENT_TIME</c>, <c>LOCALTIMESTAMP</c> — could not be written in Postgres source at
+    /// all before <c>func_expr_common_subexpr</c> was implemented; the build threw.
+    ///
+    /// The round trip is the real check. Postgres stores each keyword with the spelling it was
+    /// given and does *not* rewrite it into <c>now()</c>, so a keyword default and a
+    /// <c>now()</c> default must canonicalize to different tokens. Modeling them as the same
+    /// thing would make one of the two re-diff on every deploy, which is what the redeploy
+    /// assertion below catches.
+    /// </summary>
+    [Fact]
+    public async Task KeywordDefaults_RoundTrip_ModelHashesMatchAfterPublish()
+    {
+        const string schema = """
+CREATE TABLE keyword_default
+(
+    id           integer PRIMARY KEY,
+    stamped_at   timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    lowered_at   timestamp NOT NULL DEFAULT current_timestamp,
+    local_at     timestamp NOT NULL DEFAULT LOCALTIMESTAMP,
+    stamped_on   date NOT NULL DEFAULT CURRENT_DATE,
+    stamped_time time NOT NULL DEFAULT CURRENT_TIME,
+    -- A now() default alongside, to prove the two spellings stay distinct rather than
+    -- being folded into one canonical token.
+    created_at   timestamp NOT NULL DEFAULT now()
+);
+""";
+
+        var ct = TestContext.Current.CancellationToken;
+        IDatabaseProvider provider = new PostgresDatabaseProvider(ConnectionString);
+
+        var workspace = new Workspace();
+        workspace.Files.Add(new InMemoryStringFile("KeywordDefault.sql", FileKind.Compile, schema));
+        var buildResult = await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
+            .ExtractModelAsync(ct);
+
+        Assert.Empty(buildResult.Warnings);
+
+        var model = buildResult.Model;
+        var testDb = await provider.CreateDatabaseAsync($"squill_test_{Guid.NewGuid():n}", ct);
+        var dbModelBuilder = provider.CreateDatabaseModelBuilder(testDb);
+
+        try
+        {
+            var emptyModel = await dbModelBuilder.ExtractModelAsync(ct);
+            await testDb.PublishAsync(SchemaCompare.Compare(provider, model, emptyModel), ct);
+
+            var publishedModel = await dbModelBuilder.ExtractModelAsync(ct);
+
+            Assert.True(
+                HashUtility.HashesEqual(model.Hash, publishedModel.Hash),
+                "Parsed and extracted model hashes do not match — a keyword default did not "
+                + "canonicalize identically on both sides.");
+
+            // A keyword default that canonicalized differently on the two sides would show up
+            // here as a perpetual diff.
+            var redeploy = SchemaCompare.Compare(provider, model, publishedModel);
+            Assert.Empty(redeploy.Deltas);
+
+            // The defaults must actually apply on INSERT.
+            await using var conn = await OpenAsync(testDb.Name, ct);
+            await ExecuteAsync(conn, "INSERT INTO keyword_default (id) VALUES (1);", ct);
+
+            Assert.NotNull(await ScalarAsync(conn, "SELECT stamped_at FROM keyword_default;"));
+            Assert.NotNull(await ScalarAsync(conn, "SELECT local_at FROM keyword_default;"));
+            Assert.NotNull(await ScalarAsync(conn, "SELECT stamped_on FROM keyword_default;"));
+            Assert.NotNull(await ScalarAsync(conn, "SELECT stamped_time FROM keyword_default;"));
+            Assert.NotNull(await ScalarAsync(conn, "SELECT created_at FROM keyword_default;"));
+        }
+        finally
+        {
+            await testDb.DropAsync(ct);
+        }
+    }
+
+    /// <summary>
+    /// Issue #140: the same constructs in a <c>CHECK</c> predicate, which is the other position
+    /// where they show up most. A CHECK is carried into the model as rendered SQL text, so this
+    /// proves <c>ExpressionSqlRenderer</c> emits valid, executable Postgres for each form — not
+    /// just something that round-trips through our own code.
+    /// </summary>
+    [Fact]
+    public async Task CommonSubexprInCheck_RoundTrips_AndEnforcesConstraint()
+    {
+        const string schema = """
+CREATE TABLE reservation
+(
+    id         integer PRIMARY KEY,
+    code       varchar(20) NOT NULL,
+    quantity   integer NOT NULL,
+    spare      integer,
+    booked_on  date NOT NULL,
+    CONSTRAINT ck_booked_not_future CHECK (booked_on <= CURRENT_DATE),
+    CONSTRAINT ck_code_prefix CHECK (SUBSTRING(code FROM 1 FOR 2) = 'RS'),
+    CONSTRAINT ck_code_trimmed CHECK (TRIM(BOTH ' ' FROM code) = code),
+    CONSTRAINT ck_quantity_positive CHECK (COALESCE(spare, quantity) > 0),
+    CONSTRAINT ck_quantity_cast CHECK (CAST(quantity AS bigint) < 1000),
+    CONSTRAINT ck_booked_year CHECK (EXTRACT(YEAR FROM booked_on) >= 2000)
+);
+""";
+
+        var ct = TestContext.Current.CancellationToken;
+        IDatabaseProvider provider = new PostgresDatabaseProvider(ConnectionString);
+
+        var workspace = new Workspace();
+        workspace.Files.Add(new InMemoryStringFile("Reservation.sql", FileKind.Compile, schema));
+        var buildResult = await new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser())
+            .ExtractModelAsync(ct);
+
+        var model = buildResult.Model;
+        var testDb = await provider.CreateDatabaseAsync($"squill_test_{Guid.NewGuid():n}", ct);
+        var dbModelBuilder = provider.CreateDatabaseModelBuilder(testDb);
+
+        try
+        {
+            var emptyModel = await dbModelBuilder.ExtractModelAsync(ct);
+
+            // Publishing at all proves the rendered predicates are valid, executable Postgres.
+            await testDb.PublishAsync(SchemaCompare.Compare(provider, model, emptyModel), ct);
+
+            var publishedModel = await dbModelBuilder.ExtractModelAsync(ct);
+            var redeploy = SchemaCompare.Compare(provider, model, publishedModel);
+            Assert.Empty(redeploy.Deltas);
+
+            await using var conn = await OpenAsync(testDb.Name, ct);
+
+            // A conforming row is accepted.
+            await ExecuteAsync(
+                conn,
+                "INSERT INTO reservation (id, code, quantity, booked_on) "
+                + "VALUES (1, 'RS-001', 5, DATE '2020-01-01');",
+                ct);
+
+            Assert.Equal(1, await ScalarAsync(conn, "SELECT COUNT(*)::int FROM reservation;"));
+
+            // Each constraint actually bites.
+            await AssertCheckViolationAsync(
+                conn,
+                "INSERT INTO reservation (id, code, quantity, booked_on) "
+                + "VALUES (2, 'XX-001', 5, DATE '2020-01-01');",
+                "ck_code_prefix", ct);
+
+            await AssertCheckViolationAsync(
+                conn,
+                "INSERT INTO reservation (id, code, quantity, booked_on) "
+                + "VALUES (3, 'RS-002', 0, DATE '2020-01-01');",
+                "ck_quantity_positive", ct);
+
+            await AssertCheckViolationAsync(
+                conn,
+                "INSERT INTO reservation (id, code, quantity, booked_on) "
+                + "VALUES (4, 'RS-003', 5, DATE '1999-01-01');",
+                "ck_booked_year", ct);
+        }
+        finally
+        {
+            await testDb.DropAsync(ct);
+        }
+    }
+
+    private static async Task AssertCheckViolationAsync(
+        NpgsqlConnection conn, string sql, string constraintName, CancellationToken ct)
+    {
+        var ex = await Assert.ThrowsAsync<PostgresException>(() => ExecuteAsync(conn, sql, ct));
+
+        // 23514 is check_violation.
+        Assert.Equal("23514", ex.SqlState);
+        Assert.Equal(constraintName, ex.ConstraintName);
+    }
+
     [Fact]
     public async Task ChangeDefault_AltersInPlace_AndAppliesToNewRows()
     {

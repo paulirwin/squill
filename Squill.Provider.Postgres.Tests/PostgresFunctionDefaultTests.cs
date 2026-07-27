@@ -52,6 +52,47 @@ public class PostgresFunctionDefaultTests
         Assert.Equal(expected, await DefaultOfAsync(columnSql));
     }
 
+    /// <summary>
+    /// Issue #140: with <c>func_expr_common_subexpr</c> implemented, the keyword defaults are
+    /// finally reachable from source — before, <c>PostgresDefaultValue</c>'s allowlist entries
+    /// for them could only be hit from the database-extraction side. Postgres stores the
+    /// keyword spelling verbatim, so it must not be folded into <c>now()</c>.
+    /// </summary>
+    [Theory]
+    [InlineData("timestamp DEFAULT CURRENT_TIMESTAMP", "CURRENT_TIMESTAMP")]
+    [InlineData("timestamp DEFAULT current_timestamp", "CURRENT_TIMESTAMP")]
+    [InlineData("date DEFAULT CURRENT_DATE", "CURRENT_DATE")]
+    [InlineData("time DEFAULT CURRENT_TIME", "CURRENT_TIME")]
+    [InlineData("timestamp DEFAULT LOCALTIMESTAMP", "LOCALTIMESTAMP")]
+    public async Task KeywordDefault_IsModeledWithCanonicalToken(string columnSql, string expected)
+    {
+        Assert.Equal(expected, await DefaultOfAsync(columnSql));
+    }
+
+    /// <summary>
+    /// A keyword with an explicit fractional-seconds precision is a different value from the
+    /// bare keyword, and Postgres stores it in a form we do not canonicalize, so it stays
+    /// unmodeled rather than being silently flattened to the bare keyword.
+    /// </summary>
+    [Fact]
+    public async Task KeywordDefault_WithPrecision_IsNotModeled()
+    {
+        Assert.Null(await DefaultOfAsync("timestamp DEFAULT CURRENT_TIMESTAMP(3)"));
+    }
+
+    /// <summary>
+    /// <c>LOCALTIME</c> and the user/catalog keywords parse, but are not on the default
+    /// allowlist — they have not been verified to round-trip, so they stay unmodeled rather
+    /// than risking a perpetual diff.
+    /// </summary>
+    [Theory]
+    [InlineData("time DEFAULT LOCALTIME")]
+    [InlineData("text DEFAULT CURRENT_USER")]
+    public async Task UnverifiedKeywordDefault_IsNotModeled(string columnSql)
+    {
+        Assert.Null(await DefaultOfAsync(columnSql));
+    }
+
     [Fact]
     public async Task FunctionDefault_NoLongerWarns()
     {
