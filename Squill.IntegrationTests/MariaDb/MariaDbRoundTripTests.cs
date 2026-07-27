@@ -150,6 +150,40 @@ public abstract class MariaDbRoundTripTests
             """, TestContext.Current.CancellationToken);
     }
 
+    // MariaDB accepts USING either before the ON clause or after the column list. The grammar
+    // binds the two placements to different rules, and the trailing one used to be dropped
+    // (issue #123) — which scripted the index without its method. Both must round-trip.
+    [Theory]
+    [InlineData("CREATE INDEX ix_film_title USING BTREE ON film (title);")]
+    [InlineData("CREATE INDEX ix_film_title ON film (title) USING BTREE;")]
+    public async Task IndexWithMethod_RoundTrips(string createIndex)
+    {
+        await AssertRoundTripAsync($"""
+            CREATE TABLE film
+            (
+                film_id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                title   varchar(255) NOT NULL
+            );
+            {createIndex}
+            """, TestContext.Current.CancellationToken);
+    }
+
+    // The same two placements are accepted on an index declared inline in a CREATE TABLE body.
+    [Theory]
+    [InlineData("INDEX ix_film_title USING BTREE (title)")]
+    [InlineData("INDEX ix_film_title (title) USING BTREE")]
+    public async Task InlineIndexWithMethod_RoundTrips(string indexDeclaration)
+    {
+        await AssertRoundTripAsync($"""
+            CREATE TABLE film
+            (
+                film_id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                title   varchar(255) NOT NULL,
+                {indexDeclaration}
+            );
+            """, TestContext.Current.CancellationToken);
+    }
+
     [Fact]
     public async Task UniqueIndex_RoundTrips()
     {

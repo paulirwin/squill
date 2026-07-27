@@ -284,7 +284,12 @@ internal static class MariaDbStatementMapper
         if (index is MariaDBParser.SimpleIndexDeclarationContext simple)
         {
             var indexName = simple.uid() is { } uid ? UidText(uid) : null;
-            var method = MapIndexType(simple.indexType());
+            // As in CREATE INDEX, USING may be written either before the column list (bound
+            // to indexType()) or after it, where the grammar folds it into indexOption*.
+            var method = MapIndexType(simple.indexType())
+                ?? simple.indexOption()
+                    .Select(option => MapIndexType(option.indexType()))
+                    .FirstOrDefault(m => m is not null);
             var columns = MapIndexColumnNames(simple.indexColumnNames());
             return new IndexTableConstraint(indexName, method, columns);
         }
@@ -300,10 +305,19 @@ internal static class MariaDbStatementMapper
         var name = UidText(createIndex.uid());
         var onTable = MapQualifiedName(createIndex.tableName().fullId());
 
+        // MariaDB accepts USING either before the ON clause (`CREATE INDEX i USING BTREE ON
+        // t (a)`) or after the column list, where the grammar folds it into indexOption*
+        // (`CREATE INDEX i ON t (a) USING BTREE`). Only the first is bound to indexType(),
+        // so fall back to the trailing option; without it the method is silently dropped.
+        var indexMethod = MapIndexType(createIndex.indexType())
+            ?? createIndex.indexOption()
+                .Select(option => MapIndexType(option.indexType()))
+                .FirstOrDefault(method => method is not null);
+
         var statement = At(new CreateIndexStatement(name, onTable)
         {
             Unique = createIndex.UNIQUE() != null,
-            IndexMethod = MapIndexType(createIndex.indexType()),
+            IndexMethod = indexMethod,
         }, createIndex);
 
         foreach (var column in MapIndexColumnNames(createIndex.indexColumnNames()))
