@@ -192,9 +192,19 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
     }
 
     private static string DefaultClause(Element column)
-        => column.GetProperty<string>(MariaDbPropertyNames.DefaultValue) is { } value
+    {
+        var text = column.GetProperty<string>(MariaDbPropertyNames.DefaultValue) is { } value
             ? $" DEFAULT {MariaDbDefaultValue.ToSql(value)}"
             : string.Empty;
+
+        // ON UPDATE CURRENT_TIMESTAMP follows the DEFAULT clause (issue #124).
+        if (column.GetProperty<bool?>(MariaDbPropertyNames.OnUpdateCurrentTimestamp) == true)
+        {
+            text += " ON UPDATE CURRENT_TIMESTAMP";
+        }
+
+        return text;
+    }
 
     private static string RenderUniqueKeyClause(Element index)
     {

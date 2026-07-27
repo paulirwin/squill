@@ -24,11 +24,13 @@ public class BuildWarningTests
     [Fact]
     public async Task FunctionDefault_WarnsAndStillBuilds()
     {
+        // An arbitrary function call is not allowlisted (issue #124) and stays unmodeled,
+        // because Postgres may rewrite its stored form and it could not round-trip.
         const string sql = """
 CREATE TABLE event
 (
     id integer PRIMARY KEY,
-    created_at timestamp DEFAULT now()
+    created_at integer DEFAULT some_custom_fn(1)
 );
 """;
         var builder = BuilderFor(("Event.sql", sql));
@@ -52,8 +54,8 @@ CREATE TABLE event
 CREATE TABLE event
 (
     id integer PRIMARY KEY,
-    created_at timestamp DEFAULT now(),
-    updated_at timestamp DEFAULT now()
+    created_at integer DEFAULT some_custom_fn(1),
+    updated_at integer DEFAULT other_custom_fn(2)
 );
 """;
         var builder = BuilderFor(("Event.sql", sql));

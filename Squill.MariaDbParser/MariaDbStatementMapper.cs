@@ -144,7 +144,7 @@ internal static class MariaDbStatementMapper
                 return new AutoIncrementColumnConstraint();
 
             case MariaDBParser.DefaultColumnConstraintContext defaultConstraint:
-                return new DefaultColumnConstraint(defaultConstraint.defaultValue().GetText());
+                return MapDefault(defaultConstraint.defaultValue());
 
             case MariaDBParser.ReferenceColumnConstraintContext reference:
                 return At(MapInlineForeignKey(reference.referenceDefinition()), reference);
@@ -175,10 +175,35 @@ internal static class MariaDbStatementMapper
                     SourceText(generationExpression), isStored), generated);
             }
 
-            // COMMENT, COLLATE, VISIBLE, ON UPDATE, … are recognized but not modeled.
+            // COMMENT, COLLATE, VISIBLE, … are recognized but not modeled. (ON UPDATE
+            // CURRENT_TIMESTAMP is not among them: the grammar makes it part of the DEFAULT
+            // clause, handled by MapDefault above.)
             default:
                 return new IgnoredColumnConstraint();
         }
+    }
+
+    /// <summary>
+    /// Maps a <c>DEFAULT</c> clause. The grammar's <c>defaultValue</c> production covers the
+    /// value and an optional trailing <c>ON UPDATE CURRENT_TIMESTAMP</c> in one rule
+    /// (<c>currentTimestamp (ON UPDATE currentTimestamp)?</c>), so taking the whole rule's text
+    /// would run the two together into <c>CURRENT_TIMESTAMPONUPDATECURRENT_TIMESTAMP</c> — a
+    /// token no canonicalizer could recognize. Read the parts separately instead.
+    /// </summary>
+    private static DefaultColumnConstraint MapDefault(MariaDBParser.DefaultValueContext defaultValue)
+    {
+        var timestamps = defaultValue.currentTimestamp();
+
+        // The `currentTimestamp (ON UPDATE currentTimestamp)?` alternative: the first is the
+        // default, a second (present only with ON UPDATE) is the auto-refresh clause.
+        if (timestamps.Length > 0)
+        {
+            return new DefaultColumnConstraint(
+                timestamps[0].GetText(),
+                onUpdateCurrentTimestamp: timestamps.Length > 1);
+        }
+
+        return new DefaultColumnConstraint(defaultValue.GetText());
     }
 
     private static ForeignKeyColumnConstraint MapInlineForeignKey(

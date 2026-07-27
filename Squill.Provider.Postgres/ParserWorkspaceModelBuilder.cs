@@ -342,10 +342,11 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     /// <summary>
     /// Records a warning for every construct in a CREATE TABLE that is recognized but not
     /// carried into the model, so a declared-but-unmodeled construct is visible rather than
-    /// silently absent from the DACPAC (issue #61). Currently: column defaults that are not
-    /// constant literals (a function default like <c>now()</c>, or <c>DEFAULT NULL</c>) —
-    /// see <see cref="PostgresDefaultValue"/>. CHECK constraints were listed here until
-    /// issue #120 modeled them.
+    /// silently absent from the DACPAC (issue #61). Currently: column defaults that are
+    /// neither constant literals nor allowlisted function defaults (an arbitrary call like
+    /// <c>some_fn(1)</c>, or <c>DEFAULT NULL</c>) — see <see cref="PostgresDefaultValue"/>.
+    /// CHECK constraints were listed here until issue #120 modeled them, and non-constant
+    /// defaults such as <c>now()</c> until issue #124 modeled them.
     /// </summary>
     private static void AddUnmodeledTableWarnings(IFile file,
         CreateTableStatement createTableStatement,

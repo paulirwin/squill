@@ -59,11 +59,14 @@ public class BuildWarningTests
     [Fact]
     public async Task FunctionDefault_Warns()
     {
+        // A whole-second CURRENT_TIMESTAMP is modeled as of issue #124, but a fractional-
+        // seconds one is not: the two engines report it with differing spellings, so it could
+        // not be trusted to round-trip.
         const string sql = """
 CREATE TABLE event
 (
     id INT PRIMARY KEY,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3)
 );
 """;
         var builder = BuilderFor(("Event.sql", sql));

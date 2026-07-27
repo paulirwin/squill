@@ -111,10 +111,20 @@ public sealed class UniqueKeyColumnConstraint : ColumnConstraint;
 public sealed class AutoIncrementColumnConstraint : ColumnConstraint;
 
 /// <summary>A DEFAULT clause carrying the raw literal token as written in source.</summary>
-public sealed class DefaultColumnConstraint(string? token) : ColumnConstraint
+public sealed class DefaultColumnConstraint(string? token, bool onUpdateCurrentTimestamp = false)
+    : ColumnConstraint
 {
     /// <summary>The raw default token (e.g. <c>5</c>, <c>'active'</c>, <c>CURRENT_TIMESTAMP</c>).</summary>
     public string? Token { get; } = token;
+
+    /// <summary>
+    /// Whether the default carried a trailing <c>ON UPDATE CURRENT_TIMESTAMP</c>, which
+    /// refreshes the column on every row update. The grammar makes this part of the same
+    /// <c>defaultValue</c> production as the default itself
+    /// (<c>currentTimestamp (ON UPDATE currentTimestamp)?</c>), so it is surfaced here rather
+    /// than as a separate constraint.
+    /// </summary>
+    public bool OnUpdateCurrentTimestamp { get; } = onUpdateCurrentTimestamp;
 }
 
 /// <summary>An inline column REFERENCES clause (a single-column foreign key).</summary>

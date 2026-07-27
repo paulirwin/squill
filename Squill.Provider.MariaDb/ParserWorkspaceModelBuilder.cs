@@ -1077,6 +1077,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             bool? isNullable = null;
             bool isAutoIncrement = false;
             string? defaultValue = null;
+            var onUpdateCurrentTimestamp = false;
             string? generatedExpression = null;
             var generatedIsStored = false;
 
@@ -1108,6 +1109,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
                     case DefaultColumnConstraint defaultConstraint:
                         defaultValue = MariaDbDefaultValue.FromSourceToken(defaultConstraint.Token);
+                        onUpdateCurrentTimestamp = defaultConstraint.OnUpdateCurrentTimestamp;
                         break;
 
                     case ForeignKeyColumnConstraint fk:
@@ -1150,6 +1152,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             if (defaultValue != null)
             {
                 element.Properties.Add(new Property(MariaDbPropertyNames.DefaultValue, defaultValue));
+            }
+
+            if (onUpdateCurrentTimestamp)
+            {
+                element.Properties.Add(
+                    new Property(MariaDbPropertyNames.OnUpdateCurrentTimestamp, true));
             }
 
             // Emitted last, matching the DB-extraction builder's property order.

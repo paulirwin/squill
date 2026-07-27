@@ -567,9 +567,27 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
                 column.Properties.Add(new Property(MariaDbPropertyNames.DefaultValue, defaultValue));
             }
 
+            // ON UPDATE CURRENT_TIMESTAMP (issue #124). Both engines report it in EXTRA but
+            // spell it differently — MySQL "on update CURRENT_TIMESTAMP", MariaDB
+            // "on update current_timestamp()" — so match the invariant prefix. Emitted after
+            // the default to match the parser builder's property order (the hash is
+            // order-sensitive).
+            if (extra.Contains("on update", StringComparison.OrdinalIgnoreCase))
+            {
+                column.Properties.Add(
+                    new Property(MariaDbPropertyNames.OnUpdateCurrentTimestamp, true));
+            }
+
             // A generated column (issue #120). EXTRA carries "STORED GENERATED" or
             // "VIRTUAL GENERATED"; GENERATION_EXPRESSION is empty for an ordinary column.
-            if (extra.Contains("GENERATED", StringComparison.OrdinalIgnoreCase))
+            //
+            // Match those two forms specifically rather than a bare "GENERATED": MySQL also
+            // reports "DEFAULT_GENERATED" in EXTRA for an ordinary column that merely has a
+            // non-constant default such as CURRENT_TIMESTAMP, which would otherwise be
+            // misread as a generated column and given empty generation properties the parsed
+            // model does not have (issue #124).
+            if (extra.Contains("STORED GENERATED", StringComparison.OrdinalIgnoreCase)
+                || extra.Contains("VIRTUAL GENERATED", StringComparison.OrdinalIgnoreCase))
             {
                 var generationExpression = reader.IsDBNull(reader.GetOrdinal("GENERATION_EXPRESSION"))
                     ? null

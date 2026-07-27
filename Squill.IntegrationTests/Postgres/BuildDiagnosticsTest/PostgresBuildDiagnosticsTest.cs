@@ -124,11 +124,16 @@ public class PostgresBuildDiagnosticsTest : PostgresIntegrationTestBase
     [Fact]
     public async Task FunctionDefault_WarnsAtBuildAndIsAbsentFromTheModel()
     {
+        // An allowlisted function default such as now() is modeled as of issue #124. An
+        // arbitrary call is not: Postgres may rewrite its stored form, so it could not be
+        // trusted to round-trip and keeps the warning.
         const string sql = """
+CREATE FUNCTION warn_default_fn() RETURNS integer LANGUAGE sql IMMUTABLE AS 'SELECT 1';
+
 CREATE TABLE warn_event
 (
     id integer PRIMARY KEY,
-    created_at timestamp DEFAULT now()
+    created_at integer DEFAULT warn_default_fn()
 );
 """;
 
