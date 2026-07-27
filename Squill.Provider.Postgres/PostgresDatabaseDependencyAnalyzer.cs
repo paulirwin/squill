@@ -32,9 +32,9 @@ public class PostgresDatabaseDependencyAnalyzer : DatabaseDependencyAnalyzerBase
             or PostgresElementTypes.SqlAggregate
             or PostgresElementTypes.SqlTrigger;
 
-    // An enum and a domain are altered in place rather than replaced: DROP TYPE / DROP DOMAIN
-    // fails whenever a column is typed as them, so a rebuild would break any schema that
-    // actually uses the type (issue #122).
+    // An enum, a domain and a sequence are altered in place rather than replaced: DROP TYPE /
+    // DROP DOMAIN fails whenever a column is typed as them, so a rebuild would break any schema
+    // that actually uses the type, and dropping a sequence would reset its counter (issue #122).
     public override SchemaDelta? GetInPlaceAlterDelta(Element source, Element target)
     {
         if (source.Type == PostgresElementTypes.SqlEnumType)
@@ -45,6 +45,14 @@ public class PostgresDatabaseDependencyAnalyzer : DatabaseDependencyAnalyzerBase
         if (source.Type == PostgresElementTypes.SqlDomain)
         {
             return new AlterDomainTypeDelta(source, target);
+        }
+
+        // Every option of a sequence is alterable, and dropping one would reset its counter
+        // (and fail while a column default still calls nextval() on it), so a changed sequence
+        // is altered in place too.
+        if (source.Type == PostgresElementTypes.SqlSequence)
+        {
+            return new AlterSequenceDelta(source, target);
         }
 
         return null;
@@ -124,6 +132,7 @@ public class PostgresDatabaseDependencyAnalyzer : DatabaseDependencyAnalyzerBase
             or PostgresElementTypes.SqlView
             or PostgresElementTypes.SqlEnumType
             or PostgresElementTypes.SqlDomain
+            or PostgresElementTypes.SqlSequence
             or PostgresElementTypes.SqlFunction
             or PostgresElementTypes.SqlAggregate
             or PostgresElementTypes.SqlTrigger))
@@ -157,6 +166,9 @@ public class PostgresDatabaseDependencyAnalyzer : DatabaseDependencyAnalyzerBase
         // typed as it — same rank as an extension: after the schema, before tables.
         PostgresElementTypes.SqlEnumType => 1,
         PostgresElementTypes.SqlDomain => 1,
+        // A sequence must exist before a table whose column default draws from it via
+        // nextval(), so it shares the pre-table rank (issue #122).
+        PostgresElementTypes.SqlSequence => 1,
         // A function may reference any table in its body, so it is created after tables
         // (issue #81). It comes before views and aggregates, which may call it — a view that
         // uses group_concat or a plain function, or an aggregate's SFUNC, needs the function to

@@ -10,10 +10,11 @@ namespace Squill.Core;
 /// CREATE OR REPLACE vs DROP+CREATE, …), so every emitter is an abstract hook the provider
 /// supplies.
 ///
-/// <see cref="GenerateAlterExtensionScript"/>, <see cref="GenerateAlterEnumTypeScript"/> and
-/// <see cref="GenerateAlterDomainTypeScript"/> are the deltas a provider may not handle
-/// (extensions, enums and domains are Postgres-only); their base implementations throw,
-/// matching the original fall-through, and only Postgres overrides them.
+/// <see cref="GenerateAlterExtensionScript"/>, <see cref="GenerateAlterEnumTypeScript"/>,
+/// <see cref="GenerateAlterDomainTypeScript"/> and <see cref="GenerateAlterSequenceScript"/>
+/// are the deltas a provider may not handle (extensions, enums, domains and standalone
+/// sequences are Postgres-only); their base implementations throw, matching the original
+/// fall-through, and only Postgres overrides them.
 /// </summary>
 public abstract class ScriptGeneratorBase : IScriptGenerator
 {
@@ -44,6 +45,7 @@ public abstract class ScriptGeneratorBase : IScriptGenerator
         AlterExtensionVersionDelta alterExtension => GenerateAlterExtensionScript(alterExtension),
         AlterEnumTypeDelta alterEnum => GenerateAlterEnumTypeScript(alterEnum),
         AlterDomainTypeDelta alterDomain => GenerateAlterDomainTypeScript(alterDomain),
+        AlterSequenceDelta alterSequence => GenerateAlterSequenceScript(alterSequence),
         AddConstraintDelta addConstraint => GenerateAddConstraintScript(addConstraint),
         _ => throw new NotImplementedException(
             $"Generating a script for {delta.GetType().Name} is not supported."),
@@ -79,6 +81,12 @@ public abstract class ScriptGeneratorBase : IScriptGenerator
     protected virtual string GenerateAlterDomainTypeScript(AlterDomainTypeDelta delta)
         => throw new NotImplementedException(
             $"This provider does not support {nameof(AlterDomainTypeDelta)}.");
+
+    // Standalone sequences are modeled only by Postgres today (MariaDB has no CREATE SEQUENCE
+    // on MySQL, and models none), so this follows the same base-throws pattern (issue #122).
+    protected virtual string GenerateAlterSequenceScript(AlterSequenceDelta delta)
+        => throw new NotImplementedException(
+            $"This provider does not support {nameof(AlterSequenceDelta)}.");
 
     // ---- Shared rebuild orchestration ----
     //

@@ -44,6 +44,10 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         await ExtractEnumTypesAsync(model, cancellationToken);
         await ExtractDomainsAsync(model, cancellationToken);
 
+        // Standalone sequences (issue #122) likewise precede tables: a column default may draw
+        // from one via nextval(), so the CREATE SEQUENCE must run before the CREATE TABLE.
+        await ExtractSequencesAsync(model, cancellationToken);
+
         var tables = new List<TableRef>();
 
         await using (var reader = await _database.RunScriptReaderAsync(sql, cancellationToken: cancellationToken))
@@ -274,6 +278,71 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
             model.Elements.Add(
                 PostgresModelFactory.CreateDomain(SqlName.Object(name), schema, typeSpecifier, check));
+        }
+    }
+
+    private async Task ExtractSequencesAsync(Model model, CancellationToken cancellationToken = default)
+    {
+        // Every standalone sequence, with its options from pg_sequence (which always reports
+        // each one with the defaults filled in — the model factory drops those again).
+        //
+        // The load-bearing clause is the pg_depend exclusion. PostgreSQL creates a sequence
+        // behind every serial and identity column, and those are modeled as part of the column,
+        // not as elements: extracting them would put a sequence in the target model that no
+        // source declares, so every schema with a serial column would show a phantom drop (or,
+        // with DropObjectsNotInSource, actually lose the sequence its column depends on).
+        //
+        // Both kinds are found the same way: an identity column's sequence is an internal ('i')
+        // dependency, a serial column's an auto ('a') one. An explicitly declared OWNED BY
+        // sequence is indistinguishable from the serial case here — which is exactly why the
+        // parser rejects OWNED BY, so no declared sequence can land in this excluded set.
+        //
+        // Extension-owned sequences ('e') are excluded as for enums and domains, and ordered by
+        // schema then name (COLLATE "C") to match the parser builder's ordering.
+        const string sql =
+            """
+            SELECT n.nspname AS schema_name,
+                   c.relname AS sequence_name,
+                   format_type(s.seqtypid, NULL) AS data_type,
+                   s.seqstart AS start_value,
+                   s.seqincrement AS increment_by,
+                   s.seqmin AS min_value,
+                   s.seqmax AS max_value,
+                   s.seqcache AS cache_size,
+                   s.seqcycle AS is_cycling
+            FROM pg_sequence s
+            JOIN pg_class c ON c.oid = s.seqrelid
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
+              AND NOT EXISTS (SELECT 1 FROM pg_depend d
+                              WHERE d.objid = c.oid
+                                AND d.classid = 'pg_class'::regclass
+                                AND d.deptype IN ('a', 'i', 'e'))
+            ORDER BY n.nspname COLLATE "C", c.relname COLLATE "C";
+            """;
+
+        var sequences = new List<Element>();
+
+        await using (var reader = await _database.RunScriptReaderAsync(sql, cancellationToken: cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                sequences.Add(PostgresModelFactory.CreateSequence(
+                    SqlName.Object(reader.GetString("sequence_name")),
+                    reader.GetString("schema_name"),
+                    reader.GetString("data_type"),
+                    reader.GetInt64(reader.GetOrdinal("start_value")),
+                    reader.GetInt64(reader.GetOrdinal("increment_by")),
+                    reader.GetInt64(reader.GetOrdinal("min_value")),
+                    reader.GetInt64(reader.GetOrdinal("max_value")),
+                    reader.GetInt64(reader.GetOrdinal("cache_size")),
+                    reader.GetBoolean(reader.GetOrdinal("is_cycling"))));
+            }
+        }
+
+        foreach (var sequence in sequences)
+        {
+            model.Elements.Add(sequence);
         }
     }
 

@@ -100,6 +100,11 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             PostgresElementTypes.SqlDomain =>
                 $"DROP DOMAIN IF EXISTS {SchemaQualified(element, parsed)};{Environment.NewLine}",
 
+            // A sequence is dropped with RESTRICT (the default) so a drop fails loudly if a
+            // column default still draws from it, rather than silently cascading.
+            PostgresElementTypes.SqlSequence =>
+                $"DROP SEQUENCE IF EXISTS {SchemaQualified(element, parsed)};{Environment.NewLine}",
+
             // A trigger is dropped by name qualified with the table it is on (a trigger's name
             // is unique per table, not per schema). IF EXISTS keeps it idempotent.
             PostgresElementTypes.SqlTrigger =>
@@ -743,6 +748,11 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             return GenerateCreateDomainScript(createDelta.Element);
         }
 
+        if (createDelta.Element.Type == PostgresElementTypes.SqlSequence)
+        {
+            return GenerateCreateSequenceScript(createDelta.Element);
+        }
+
         if (createDelta.Element.Type == PostgresElementTypes.SqlTrigger)
         {
             return GenerateCreateTriggerScript(createDelta.Element);
@@ -1065,6 +1075,67 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
         var labelList = string.Join(", ", labels.Select(l => $"'{l.Replace("'", "''")}'"));
 
         return $"CREATE TYPE {qualifiedName} AS ENUM ({labelList});{Environment.NewLine}";
+    }
+
+    // CREATE SEQUENCE name [AS type] [INCREMENT BY n] [MINVALUE n] [MAXVALUE n]
+    //                      [START WITH n] [CACHE n] [CYCLE] — issue #122.
+    //
+    // Only the options the model stores are emitted; anything omitted was equal to the
+    // PostgreSQL default, so leaving it out deploys the same sequence the source declared.
+    private static string GenerateCreateSequenceScript(Element sequence)
+    {
+        if (sequence.Name is not string name)
+        {
+            throw new ArgumentException("Sequences must have names");
+        }
+
+        var sb = new StringBuilder();
+
+        sb.Append("CREATE SEQUENCE ").Append(SchemaQualified(sequence, SqlName.Parse(name)));
+
+        AppendSequenceOptions(sb, sequence);
+
+        return sb.Append(';').Append(Environment.NewLine).ToString();
+    }
+
+    // The option clauses shared by CREATE SEQUENCE and the ALTER that sets a changed option.
+    // Ordered as PostgreSQL documents them so generated scripts read consistently.
+    private static void AppendSequenceOptions(StringBuilder sb, Element sequence)
+    {
+        if (sequence.GetProperty<string>(PostgresPropertyNames.SequenceDataType) is { } dataType)
+        {
+            sb.Append(" AS ").Append(dataType);
+        }
+
+        if (sequence.GetProperty<long?>(PostgresPropertyNames.Increment) is { } increment)
+        {
+            sb.Append(" INCREMENT BY ").Append(increment);
+        }
+
+        if (sequence.GetProperty<long?>(PostgresPropertyNames.MinValue) is { } minValue)
+        {
+            sb.Append(" MINVALUE ").Append(minValue);
+        }
+
+        if (sequence.GetProperty<long?>(PostgresPropertyNames.MaxValue) is { } maxValue)
+        {
+            sb.Append(" MAXVALUE ").Append(maxValue);
+        }
+
+        if (sequence.GetProperty<long?>(PostgresPropertyNames.StartValue) is { } startValue)
+        {
+            sb.Append(" START WITH ").Append(startValue);
+        }
+
+        if (sequence.GetProperty<long?>(PostgresPropertyNames.CacheSize) is { } cacheSize)
+        {
+            sb.Append(" CACHE ").Append(cacheSize);
+        }
+
+        if (sequence.GetProperty<bool?>(PostgresPropertyNames.IsCycling) is true)
+        {
+            sb.Append(" CYCLE");
+        }
     }
 
     // CREATE DOMAIN name AS <base type> [CONSTRAINT ... CHECK (...)] — issue #75.
@@ -1391,6 +1462,71 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
 
     // ALTER TYPE ... ADD VALUE, one statement per added label (issue #122). An enum is never
     // dropped and recreated: DROP TYPE fails while any column is typed as it.
+    /// <summary>
+    /// Emits the <c>ALTER SEQUENCE</c> that brings a deployed sequence to its declared shape
+    /// (issue #122).
+    ///
+    /// Every clause the source states is emitted. The subtlety is the options the source no
+    /// longer states: the deployed sequence still carries the old value, so each one the
+    /// target has set but the source does not must be actively reset to its default —
+    /// <c>NO MINVALUE</c> / <c>NO MAXVALUE</c> / <c>NO CYCLE</c> for the bounds and cycling,
+    /// and an explicit default for <c>INCREMENT</c> and <c>CACHE</c>, which have no NO form.
+    ///
+    /// START is deliberately not reset: it only affects where a future RESTART begins, never
+    /// the sequence's current value, so resetting it cannot help and re-declaring it is
+    /// harmless. RESTART itself is never emitted — it would move a live counter backwards and
+    /// risk duplicate keys.
+    /// </summary>
+    protected override string GenerateAlterSequenceScript(AlterSequenceDelta delta)
+    {
+        var source = delta.SourceElement;
+        var target = delta.TargetElement;
+
+        if (source.Name is not string name)
+        {
+            throw new ArgumentException("Sequences must have names");
+        }
+
+        var sb = new StringBuilder();
+
+        sb.Append("ALTER SEQUENCE ").Append(SchemaQualified(source, SqlName.Parse(name)));
+
+        AppendSequenceOptions(sb, source);
+
+        // The AS type is reset explicitly, since it governs the default bounds. Only when the
+        // source omits it and the target has one does it need restating.
+        if (source.GetProperty<string>(PostgresPropertyNames.SequenceDataType) is null
+            && target.GetProperty<string>(PostgresPropertyNames.SequenceDataType) is not null)
+        {
+            sb.Append(" AS ").Append(PostgresIdentitySequenceDefaults.DefaultSequenceTypeName);
+        }
+
+        AppendSequenceOptionReset(sb, source, target, PostgresPropertyNames.Increment,
+            $" INCREMENT BY {PostgresIdentitySequenceDefaults.Increment}");
+        AppendSequenceOptionReset(sb, source, target, PostgresPropertyNames.MinValue, " NO MINVALUE");
+        AppendSequenceOptionReset(sb, source, target, PostgresPropertyNames.MaxValue, " NO MAXVALUE");
+        AppendSequenceOptionReset(sb, source, target, PostgresPropertyNames.CacheSize,
+            $" CACHE {PostgresIdentitySequenceDefaults.CacheSize}");
+        AppendSequenceOptionReset(sb, source, target, PostgresPropertyNames.IsCycling, " NO CYCLE");
+
+        return sb.Append(';').Append(Environment.NewLine).ToString();
+    }
+
+    private static bool HasProperty(Element element, string propertyName)
+        => element.Properties.Any(i => i.Name == propertyName);
+
+    // Appends `clause` when the target has the option set but the source no longer declares
+    // it, so the deployed sequence is actively returned to the default rather than keeping a
+    // value the source has dropped.
+    private static void AppendSequenceOptionReset(StringBuilder sb, Element source, Element target,
+        string propertyName, string clause)
+    {
+        if (!HasProperty(source, propertyName) && HasProperty(target, propertyName))
+        {
+            sb.Append(clause);
+        }
+    }
+
     protected override string GenerateAlterEnumTypeScript(AlterEnumTypeDelta delta)
     {
         if (delta.SourceElement.Name is not string name)

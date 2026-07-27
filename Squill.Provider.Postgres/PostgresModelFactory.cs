@@ -298,6 +298,76 @@ public static class PostgresModelFactory
     }
 
     /// <summary>
+    /// Builds a standalone sequence element (issue #122) — <c>CREATE SEQUENCE name [options]</c>.
+    ///
+    /// Only options that differ from the PostgreSQL default are stored, and the defaults are
+    /// resolved against the sequence's own type and direction (see
+    /// <see cref="PostgresIdentitySequenceDefaults"/>). This is what lets a parsed model
+    /// hash-match one extracted from <c>pg_sequence</c>, which always reports every option with
+    /// its defaults filled in — the same omit-when-default convention identity columns use.
+    ///
+    /// Pass the values exactly as declared (or as extracted); this method decides what to keep.
+    /// </summary>
+    public static Element CreateSequence(SqlName name, string schema,
+        string? dataTypeName, long? startValue, long? increment, long? minValue, long? maxValue,
+        long? cacheSize, bool? isCycling)
+    {
+        var element = new Element(PostgresElementTypes.SqlSequence)
+        {
+            Name = name,
+            Relationships =
+            {
+                new Relationship(PostgresRelationshipNames.Schema)
+                {
+                    new Reference(schema) { ExternalSource = "BuiltIns" },
+                },
+            },
+        };
+
+        // The type governs the default bounds, so it is resolved first and used below even
+        // when it is itself left at the default and therefore not stored.
+        var typeName = dataTypeName ?? PostgresIdentitySequenceDefaults.DefaultSequenceTypeName;
+
+        if (!string.Equals(typeName, PostgresIdentitySequenceDefaults.DefaultSequenceTypeName,
+                StringComparison.Ordinal))
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.SequenceDataType, typeName));
+        }
+
+        var effectiveIncrement = increment ?? PostgresIdentitySequenceDefaults.Increment;
+
+        var (defaultStart, defaultMin, defaultMax) =
+            PostgresIdentitySequenceDefaults.For(typeName, effectiveIncrement);
+
+        AddIfNotDefault(element, PostgresPropertyNames.Increment,
+            effectiveIncrement, PostgresIdentitySequenceDefaults.Increment);
+        AddIfNotDefault(element, PostgresPropertyNames.MinValue, minValue ?? defaultMin, defaultMin);
+        AddIfNotDefault(element, PostgresPropertyNames.MaxValue, maxValue ?? defaultMax, defaultMax);
+        AddIfNotDefault(element, PostgresPropertyNames.StartValue,
+            startValue ?? defaultStart, defaultStart);
+        AddIfNotDefault(element, PostgresPropertyNames.CacheSize,
+            cacheSize ?? PostgresIdentitySequenceDefaults.CacheSize,
+            PostgresIdentitySequenceDefaults.CacheSize);
+
+        if ((isCycling ?? PostgresIdentitySequenceDefaults.IsCycling)
+            != PostgresIdentitySequenceDefaults.IsCycling)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.IsCycling, true));
+        }
+
+        return element;
+    }
+
+    private static void AddIfNotDefault(Element element, string propertyName,
+        long value, long defaultValue)
+    {
+        if (value != defaultValue)
+        {
+            element.Properties.Add(new Property(propertyName, value));
+        }
+    }
+
+    /// <summary>
     /// Builds an enum-type element (issue #75) — <c>CREATE TYPE name AS ENUM (...)</c>. An enum
     /// is a top-level, standalone, declared object. Its labels are stored in declaration order
     /// (their significant sort order) as a canonical comma-joined, single-quoted string, so the
