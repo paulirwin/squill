@@ -483,6 +483,71 @@ public sealed class CreateTriggerStatement(
     public string? Body { get; set; }
 }
 
+// ---- CREATE EVENT ----
+
+/// <summary>
+/// A <c>CREATE EVENT name ON SCHEDULE ... DO body</c> statement (issue #122). An event is a
+/// scheduled routine: unlike a trigger it is bound to a clock rather than a table.
+///
+/// The schedule is modeled the way <c>information_schema.EVENTS</c> reports it, not the way
+/// it is written, so a model parsed from source hash-matches one extracted from a live
+/// database. A one-shot <c>AT</c> event is <see cref="EventType"/> <c>ONE TIME</c> and carries
+/// <see cref="ExecuteAt"/>; a recurring <c>EVERY</c> event is <c>RECURRING</c> and carries
+/// <see cref="IntervalValue"/>/<see cref="IntervalField"/> plus <see cref="Starts"/> and
+/// optionally <see cref="Ends"/>.
+///
+/// Two forms the engines accept are deliberately rejected by the mapper, because the catalog
+/// resolves both against the wall clock at creation time and so they could never round-trip:
+/// a recurring event with no <c>STARTS</c> (the catalog synthesizes one from "now"), and an
+/// <c>AT</c> whose value is not a constant (e.g. <c>CURRENT_TIMESTAMP + INTERVAL 1 DAY</c>).
+/// </summary>
+public sealed class CreateEventStatement(QualifiedName name, string eventType) : Statement
+{
+    public QualifiedName Name { get; } = name;
+
+    /// <summary>
+    /// <c>ONE TIME</c> for the <c>AT</c> form or <c>RECURRING</c> for the <c>EVERY</c> form,
+    /// matching <c>information_schema.EVENTS.EVENT_TYPE</c>.
+    /// </summary>
+    public string EventType { get; } = eventType;
+
+    /// <summary>The one-shot execution time, for the <c>AT</c> form; null for a recurring event.</summary>
+    public string? ExecuteAt { get; set; }
+
+    /// <summary>
+    /// The recurrence interval's value, as the catalog reports it. A compound interval is
+    /// space-separated (<c>EVERY '2:3' DAY_HOUR</c> is reported as <c>2 3</c>).
+    /// </summary>
+    public string? IntervalValue { get; set; }
+
+    /// <summary>The recurrence interval's unit (<c>DAY</c>, <c>HOUR</c>, …), upper-cased.</summary>
+    public string? IntervalField { get; set; }
+
+    /// <summary>The recurrence start time. Required for a recurring event; null for a one-shot.</summary>
+    public string? Starts { get; set; }
+
+    /// <summary>The recurrence end time, when <c>ENDS</c> was written.</summary>
+    public string? Ends { get; set; }
+
+    /// <summary>
+    /// Whether <c>ON COMPLETION PRESERVE</c> was written — i.e. the event survives after its
+    /// last run rather than dropping itself. <c>NOT PRESERVE</c> is the default on both engines.
+    /// </summary>
+    public bool PreserveOnCompletion { get; set; }
+
+    /// <summary>
+    /// The event's status as the catalog reports it: <c>ENABLED</c> (the default),
+    /// <c>DISABLED</c>, or <c>SLAVESIDE_DISABLED</c> for <c>DISABLE ON SLAVE</c>.
+    /// </summary>
+    public string Status { get; set; } = "ENABLED";
+
+    /// <summary>The <c>COMMENT</c> text, unquoted; null when none was written.</summary>
+    public string? Comment { get; set; }
+
+    /// <summary>The event body, verbatim as written in the source.</summary>
+    public string? Body { get; set; }
+}
+
 /// <summary>
 /// A DDL statement the parser recognized but Squill does not model (<c>CREATE VIEW</c>, a
 /// <c>CREATE TABLE ... AS SELECT</c>, <c>ALTER</c>, <c>DROP</c>, …). It is carried into the

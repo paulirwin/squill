@@ -43,6 +43,11 @@ internal static class MariaDbStatementMapper
             return MapCreateTrigger(createTrigger);
         }
 
+        if (ddl.createEvent() is { } createEvent)
+        {
+            return MapCreateEvent(createEvent);
+        }
+
         // Any other DDL (ALTER, DROP, …) is not modeled. It becomes a marker
         // statement rather than being dropped, so the model builder can warn that it will
         // not reach the DACPAC instead of the construct silently vanishing (issue #61).
@@ -724,6 +729,168 @@ internal static class MariaDbStatementMapper
         statement.Body = SourceText(createTrigger.routineBody());
 
         return statement;
+    }
+
+    // ---- CREATE EVENT ----
+
+    private static Statement MapCreateEvent(MariaDBParser.CreateEventContext createEvent)
+    {
+        var name = MapQualifiedName(createEvent.fullId());
+        var schedule = createEvent.scheduleExpression();
+
+        var statement = At(MapSchedule(schedule, name), createEvent);
+
+        // ON COMPLETION NOT PRESERVE is the default on both engines, so only the PRESERVE
+        // form sets the flag. The grammar hangs NOT off the createEvent rule itself.
+        statement.PreserveOnCompletion =
+            createEvent.PRESERVE() is not null && createEvent.NOT() is null;
+
+        if (createEvent.enableType() is { } enableType)
+        {
+            statement.Status = MapEnableType(enableType);
+        }
+
+        if (createEvent.STRING_LITERAL() is { } comment)
+        {
+            statement.Comment = TrimStringLiteral(comment.GetText());
+        }
+
+        // The body is held verbatim, exactly as EVENT_DEFINITION reports it, so a parsed
+        // model hash-matches an extracted one.
+        statement.Body = SourceText(createEvent.routineBody());
+
+        return statement;
+    }
+
+    // Builds the statement from its ON SCHEDULE clause, which decides whether the event is
+    // ONE TIME or RECURRING — the two forms carry disjoint schedule facets, and the catalog
+    // reports them in exactly those two shapes.
+    //
+    // Schedule values are recorded as written, including forms Squill cannot model (a
+    // non-constant timestamp, a missing STARTS). Rejecting them is the model builder's job,
+    // not the parser's: the builder catches per-statement failures and re-reports them with
+    // the source file and position, so the user gets a diagnostic that points at the
+    // offending statement instead of a bare exception.
+    private static CreateEventStatement MapSchedule(
+        MariaDBParser.ScheduleExpressionContext schedule,
+        QualifiedName name)
+    {
+        switch (schedule)
+        {
+            case MariaDBParser.PreciseScheduleContext precise:
+            {
+                // `AT <value> (+ INTERVAL ...)*`. A trailing + INTERVAL is folded into the
+                // recorded text so the builder can see — and reject — the whole expression.
+                var executeAt = TimestampText(precise.timestampValue());
+
+                foreach (var offset in precise.intervalExpr())
+                {
+                    executeAt += $" {SourceText(offset)}";
+                }
+
+                return new CreateEventStatement(name, "ONE TIME") { ExecuteAt = executeAt };
+            }
+
+            case MariaDBParser.IntervalScheduleContext interval:
+            {
+                // `EVERY <value> <unit> [STARTS ...] [ENDS ...]`.
+                var statement = new CreateEventStatement(name, "RECURRING")
+                {
+                    IntervalValue = MapIntervalValue(interval),
+                    // The catalog reports INTERVAL_FIELD upper-cased.
+                    IntervalField = interval.intervalType().GetText().ToUpperInvariant(),
+                };
+
+                if (interval.startTimestamp is { } startTimestamp)
+                {
+                    statement.Starts = TimestampText(
+                        startTimestamp, interval._startIntervals);
+                }
+
+                if (interval.endTimestamp is { } endTimestamp)
+                {
+                    statement.Ends = TimestampText(endTimestamp, interval._endIntervals);
+                }
+
+                return statement;
+            }
+
+            default:
+                throw new NotSupportedException(
+                    $"Event '{name.Name}' uses an unsupported ON SCHEDULE form");
+        }
+    }
+
+    // The EVERY value. A plain count is written bare (EVERY 1 DAY); a compound interval is
+    // written as a quoted, colon-separated literal (EVERY '2:3' DAY_HOUR) which the catalog
+    // reports space-separated ('2 3'), so it is normalized here to the catalog's spelling.
+    // A computed interval is recorded as written, for the builder to reject.
+    private static string MapIntervalValue(MariaDBParser.IntervalScheduleContext interval)
+    {
+        if (interval.decimalLiteral() is { } decimalLiteral)
+        {
+            return decimalLiteral.GetText();
+        }
+
+        var text = interval.expression().GetText();
+
+        return IsQuotedLiteral(text)
+            ? TrimStringLiteral(text).Replace(':', ' ')
+            : text;
+    }
+
+    // A schedule timestamp's text. A quoted literal is unquoted to the value the catalog
+    // reports; anything else (CURRENT_TIMESTAMP, an expression) is kept verbatim so the
+    // builder can reject it by name. Any + INTERVAL offsets are appended for the same reason.
+    private static string TimestampText(
+        MariaDBParser.TimestampValueContext timestamp,
+        IList<MariaDBParser.IntervalExprContext>? offsets = null)
+    {
+        var text = timestamp.GetText();
+
+        var result = timestamp.stringLiteral() is not null && IsQuotedLiteral(text)
+            ? TrimStringLiteral(text)
+            : text;
+
+        if (offsets is not null)
+        {
+            foreach (var offset in offsets)
+            {
+                result += $" {SourceText(offset)}";
+            }
+        }
+
+        return result;
+    }
+
+    private static string MapEnableType(MariaDBParser.EnableTypeContext enableType)
+    {
+        // The catalog spells these ENABLED / DISABLED / SLAVESIDE_DISABLED. MySQL reports
+        // DISABLE ON SLAVE as REPLICA_SIDE_DISABLED instead; the extractor normalizes that
+        // onto the MariaDB spelling recorded here, so one declaration matches both engines.
+        if (enableType.ENABLE() is not null)
+        {
+            return "ENABLED";
+        }
+
+        return enableType.SLAVE() is not null ? "SLAVESIDE_DISABLED" : "DISABLED";
+    }
+
+    private static bool IsQuotedLiteral(string text)
+        => text.Length >= 2
+            && ((text[0] == '\'' && text[^1] == '\'') || (text[0] == '"' && text[^1] == '"'));
+
+    // The text of a quoted string literal, with the quotes removed and doubled quotes
+    // unescaped.
+    private static string TrimStringLiteral(string text)
+    {
+        if (!IsQuotedLiteral(text))
+        {
+            return text;
+        }
+
+        var quote = text[0];
+        return text[1..^1].Replace($"{quote}{quote}", $"{quote}");
     }
 
     private static ParameterMode MapParameterMode(IToken? direction)

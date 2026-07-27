@@ -339,6 +339,82 @@ public static class MariaDbModelFactory
     }
 
     /// <summary>
+    /// Builds a scheduled event element (issue #122).
+    ///
+    /// An event's identity is its name plus the schedule it runs on and the body it runs. It
+    /// is not bound to a table — unlike a trigger it is driven by the clock — so its element
+    /// name is simply its own name and it carries no relationships.
+    ///
+    /// The schedule facets mirror what <c>information_schema.EVENTS</c> reports, and follow
+    /// the omit-when-default convention used throughout the model: the catalog always reports
+    /// every column with defaults filled in, so a facet equal to its default (ENABLED status,
+    /// NOT PRESERVE, no comment) is never stored. That is what lets a model parsed from
+    /// source hash-match one extracted from a live database.
+    ///
+    /// <paramref name="eventType"/> selects which schedule facets apply: a <c>ONE TIME</c>
+    /// event carries only <paramref name="executeAt"/>, while a <c>RECURRING</c> one carries
+    /// the interval and its start (and optionally its end).
+    /// </summary>
+    public static Element CreateEvent(
+        string eventName,
+        string eventType,
+        string body,
+        string? executeAt = null,
+        string? intervalValue = null,
+        string? intervalField = null,
+        string? starts = null,
+        string? ends = null,
+        string status = EnabledStatus,
+        bool preserveOnCompletion = false,
+        string? comment = null)
+    {
+        var element = new Element(MariaDbElementTypes.SqlEvent)
+        {
+            Name = SqlName.Object(eventName),
+            Properties =
+            {
+                new Property(MariaDbPropertyNames.EventType, eventType),
+                new Property(MariaDbPropertyNames.Body, body),
+            },
+        };
+
+        AddIfNotNull(element, MariaDbPropertyNames.ExecuteAt, executeAt);
+        AddIfNotNull(element, MariaDbPropertyNames.IntervalValue, intervalValue);
+        AddIfNotNull(element, MariaDbPropertyNames.IntervalField, intervalField);
+        AddIfNotNull(element, MariaDbPropertyNames.Starts, starts);
+        AddIfNotNull(element, MariaDbPropertyNames.Ends, ends);
+
+        // Omit-when-default: ENABLED, NOT PRESERVE and an empty comment are what the catalog
+        // reports for an event that declared none of them, so storing them would make a
+        // declaration that omits them differ from the deployed object.
+        if (status != EnabledStatus)
+        {
+            element.Properties.Add(new Property(MariaDbPropertyNames.Status, status));
+        }
+
+        if (preserveOnCompletion)
+        {
+            element.Properties.Add(
+                new Property(MariaDbPropertyNames.PreserveOnCompletion, true));
+        }
+
+        AddIfNotNull(element, MariaDbPropertyNames.Comment, comment);
+
+        return element;
+    }
+
+    /// <summary>The event status both engines report when none was declared.</summary>
+    public const string EnabledStatus = "ENABLED";
+
+    private static void AddIfNotNull(Element element, string name, string? value)
+    {
+        if (!string.IsNullOrEmpty(value))
+        {
+            element.Properties.Add(new Property(name, value));
+        }
+    }
+
+    /// <summary>
     /// Builds a trigger element (issue #100).
     ///
     /// A trigger's identity is its name, the table it fires on, and its behavior: the

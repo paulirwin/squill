@@ -72,6 +72,11 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
             return GenerateCreateTriggerScript(createDelta.Element);
         }
 
+        if (createDelta.Element.Type == MariaDbElementTypes.SqlEvent)
+        {
+            return GenerateCreateEventScript(createDelta.Element);
+        }
+
         throw new NotImplementedException(
             $"Creating an element of type {createDelta.Element.Type} is not supported.");
     }
@@ -344,6 +349,15 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
             return DropTriggerStatement(source) + GenerateCreateTriggerScript(source);
         }
 
+        // An event whose schedule or body changed is likewise dropped and recreated. MariaDB
+        // does have ALTER EVENT, but its clauses must appear in a fixed order and MySQL's
+        // partial-update semantics differ, so DROP + CREATE is the portable spelling and it
+        // restates the whole definition rather than diffing it facet by facet.
+        if (source.Type == MariaDbElementTypes.SqlEvent)
+        {
+            return DropEventStatement(source) + GenerateCreateEventScript(source);
+        }
+
         if (source.Type != MariaDbElementTypes.SqlIndex)
         {
             throw new NotImplementedException(
@@ -403,6 +417,8 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
             MariaDbElementTypes.SqlView => DropViewStatement(element),
 
             MariaDbElementTypes.SqlTrigger => DropTriggerStatement(element),
+
+            MariaDbElementTypes.SqlEvent => DropEventStatement(element),
 
             _ => throw new NotImplementedException(
                 $"Dropping an element of type {element.Type} is not supported."),
@@ -484,6 +500,107 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
         sb.AppendLine(body);
 
         return sb.ToString();
+    }
+
+    // Scripts a scheduled event: CREATE EVENT `name` ON SCHEDULE <schedule> [ON COMPLETION
+    // PRESERVE] [ENABLE|DISABLE|DISABLE ON SLAVE] [COMMENT '...'] DO <body>. The clause order
+    // is the one both engines' syntax requires. Facets equal to their default are absent from
+    // the model, so they are simply not emitted.
+    private static string GenerateCreateEventScript(Element element)
+    {
+        var name = SqlName.UnqualifiedOf((string)element.Name!);
+        var body = element.GetRequiredProperty<string>(MariaDbPropertyNames.Body);
+
+        var sb = new StringBuilder();
+
+        sb.Append("CREATE EVENT ").Append(SqlName.Object(name).Sql)
+            .Append(" ON SCHEDULE ").Append(EventScheduleClause(element));
+
+        // GetProperty<bool> would unbox a null Value, so the flag is read by presence: it is
+        // stored only when true (NOT PRESERVE is the default and is never recorded).
+        if (element.Properties.Any(i => i.Name == MariaDbPropertyNames.PreserveOnCompletion))
+        {
+            sb.Append(" ON COMPLETION PRESERVE");
+        }
+
+        // The catalog's status spellings map back onto the DDL clauses that produce them.
+        // ENABLED is the default and is never stored, so it never needs emitting.
+        if (element.GetProperty<string>(MariaDbPropertyNames.Status) is { } status)
+        {
+            sb.Append(status switch
+            {
+                "DISABLED" => " DISABLE",
+                "SLAVESIDE_DISABLED" => " DISABLE ON SLAVE",
+                _ => throw new NotSupportedException(
+                    $"Event status '{status}' is not supported."),
+            });
+        }
+
+        if (element.GetProperty<string>(MariaDbPropertyNames.Comment) is { } comment)
+        {
+            sb.Append(" COMMENT ").Append(QuoteLiteral(comment));
+        }
+
+        sb.Append(" DO").AppendLine();
+
+        // The body is emitted verbatim and the statement is not terminated with a semicolon:
+        // a BEGIN ... END body contains its own, and each delta is sent to the server as a
+        // single command, so no DELIMITER handling is needed.
+        sb.AppendLine(body);
+
+        return sb.ToString();
+    }
+
+    // The ON SCHEDULE clause. A ONE TIME event runs AT a fixed timestamp; a RECURRING one runs
+    // EVERY interval, with the STARTS the model always carries for it (a recurring event
+    // without one is rejected at build time, since the server would synthesize a start from
+    // the deploy clock and the event could never match its declaration again).
+    private static string EventScheduleClause(Element element)
+    {
+        var eventType = element.GetRequiredProperty<string>(MariaDbPropertyNames.EventType);
+
+        if (eventType == "ONE TIME")
+        {
+            var executeAt = element.GetRequiredProperty<string>(MariaDbPropertyNames.ExecuteAt);
+
+            return $"AT {QuoteLiteral(executeAt)}";
+        }
+
+        var intervalValue = element.GetRequiredProperty<string>(MariaDbPropertyNames.IntervalValue);
+        var intervalField = element.GetRequiredProperty<string>(MariaDbPropertyNames.IntervalField);
+        var starts = element.GetRequiredProperty<string>(MariaDbPropertyNames.Starts);
+
+        var sb = new StringBuilder();
+
+        sb.Append("EVERY ").Append(RenderIntervalValue(intervalValue))
+            .Append(' ').Append(intervalField)
+            .Append(" STARTS ").Append(QuoteLiteral(starts));
+
+        if (element.GetProperty<string>(MariaDbPropertyNames.Ends) is { } ends)
+        {
+            sb.Append(" ENDS ").Append(QuoteLiteral(ends));
+        }
+
+        return sb.ToString();
+    }
+
+    // A simple count is written bare (EVERY 1 DAY). A compound interval is stored the way the
+    // catalog reports it — space-separated, e.g. "2 3" for DAY_HOUR — but the CREATE syntax
+    // accepts only the quoted, colon-separated literal, so it is converted back here.
+    private static string RenderIntervalValue(string intervalValue)
+        => intervalValue.Contains(' ')
+            ? QuoteLiteral(intervalValue.Replace(' ', ':'))
+            : intervalValue;
+
+    // A single-quoted SQL string literal, with embedded quotes doubled.
+    private static string QuoteLiteral(string value)
+        => $"'{value.Replace("'", "''")}'";
+
+    private static string DropEventStatement(Element element)
+    {
+        var name = SqlName.UnqualifiedOf((string)element.Name!);
+
+        return $"DROP EVENT IF EXISTS {SqlName.Object(name).Sql};{Environment.NewLine}";
     }
 
     private static string DropTriggerStatement(Element trigger)

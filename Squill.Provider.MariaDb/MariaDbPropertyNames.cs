@@ -31,4 +31,22 @@ public sealed class MariaDbPropertyNames : SqlPropertyNames
     // (INSERT/UPDATE/DELETE) — which is what both engines return from
     // information_schema.TRIGGERS (EVENT_MANIPULATION).
     public const string Event = nameof(Event);
+
+    // Scheduled events (issue #122). These mirror the columns information_schema.EVENTS
+    // reports, so a declared event hash-matches an extracted one. EventType is
+    // "ONE TIME" or "RECURRING" and decides which of the other schedule facets apply:
+    // ExecuteAt for a one-shot, IntervalValue/IntervalField/Starts/Ends for a recurring one.
+    //
+    // Status, PreserveOnCompletion and Comment follow the omit-when-default convention used
+    // throughout: the catalog always reports them with defaults filled in, so a facet equal
+    // to its default (ENABLED, NOT PRESERVE, no comment) is never stored.
+    public const string EventType = nameof(EventType);
+    public const string ExecuteAt = nameof(ExecuteAt);
+    public const string IntervalValue = nameof(IntervalValue);
+    public const string IntervalField = nameof(IntervalField);
+    public const string Starts = nameof(Starts);
+    public const string Ends = nameof(Ends);
+    public const string Status = nameof(Status);
+    public const string PreserveOnCompletion = nameof(PreserveOnCompletion);
+    public const string Comment = nameof(Comment);
 }

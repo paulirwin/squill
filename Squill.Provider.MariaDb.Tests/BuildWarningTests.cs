@@ -22,6 +22,24 @@ public class BuildWarningTests
     }
 
     [Fact]
+    public async Task CreateEvent_IsModeledWithoutWarning()
+    {
+        var builder = BuilderFor(
+            ("Stats.sql", "CREATE TABLE stats (id INT PRIMARY KEY, n INT);"),
+            ("Event.sql",
+                "CREATE EVENT rollup ON SCHEDULE EVERY 1 DAY STARTS '2030-01-01 00:00:00' "
+                + "DO UPDATE stats SET n = n + 1;"));
+
+        var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        // A scheduled event is a modeled object as of issue #122, so it reaches the DACPAC
+        // and no longer warns that it will be dropped from the build.
+        Assert.Contains(result.Model.Elements, e => e.Type == MariaDbElementTypes.SqlEvent);
+
+        Assert.Empty(result.Warnings);
+    }
+
+    [Fact]
     public async Task CreateView_IsModeledWithoutWarning()
     {
         var builder = BuilderFor(
