@@ -23,14 +23,19 @@ public partial class PostgresVisitor
 
         if (context.a_expr() is { } aExpr)
         {
-            if (context.opt_indirection()?.ChildCount is > 0)
-            {
-                throw new NotImplementedException("Indirection after parenthesized expressions not yet supported");
-            }
-
             if (VisitA_expr(aExpr) is not Expression expression)
             {
                 throw new PostgresParseException("Unable to parse parenthesized expression");
+            }
+
+            // `(c).x`, `(a)[1]` — field selection or subscripting on the parenthesized
+            // expression. The parentheses belong to the accessor here rather than being
+            // grouping, so this is not wrapped in a ParenthesizedExpression.
+            if (context.opt_indirection()?.indirection_el() is { Length: > 0 } indirection)
+            {
+                return new IndirectionExpression(
+                    expression,
+                    indirection.Select(SourceText).ToList());
             }
 
             return new ParenthesizedExpression(expression);

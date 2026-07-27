@@ -19,5 +19,11 @@ public enum PostgresBuiltInBinaryOperator
     NotIn,
     In,
     LeftShift,
-    RightShift
+    RightShift,
+    Like,
+    NotLike,
+    ILike,
+    NotILike,
+    SimilarTo,
+    NotSimilarTo
 }
