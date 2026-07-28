@@ -13,18 +13,21 @@ namespace Squill.Provider.MariaDb;
 /// </summary>
 public static class DacpacBuilder
 {
-    private static Func<Workspace, IWorkspaceModelBuilder> CreateModelBuilder(MariaDbEngine engine) =>
-        workspace => new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), engine);
+    private static Func<Workspace, IWorkspaceModelBuilder> CreateModelBuilder(
+        MariaDbFamilyDatabaseSchemaProvider schemaProvider) =>
+        workspace => new ParserWorkspaceModelBuilder(
+            workspace, new AntlrMariaDbParser(), schemaProvider);
 
     /// <summary>
-    /// Which engine a DACPAC's recorded provider name selects. The two are one provider but not
-    /// one dialect: a handful of constructs canonicalize differently on each (issue #147), so
-    /// the build has to resolve this rather than assume.
+    /// The schema provider a DACPAC's recorded provider name and target version select. The two
+    /// engines are one provider but not one dialect: a handful of constructs canonicalize
+    /// differently on each (issue #147), and the schema provider is what declares which.
+    /// An unspecified target version resolves to the engine's latest supported major.
     /// </summary>
-    internal static MariaDbEngine EngineOf(string? providerName) =>
-        string.Equals(providerName, "MySql", StringComparison.OrdinalIgnoreCase)
-            ? MariaDbEngine.MySql
-            : MariaDbEngine.MariaDb;
+    internal static MariaDbFamilyDatabaseSchemaProvider SchemaProviderFor(
+        string providerName, int? targetMajorVersion) =>
+        (MariaDbFamilyDatabaseSchemaProvider)
+            DatabaseSchemaProviderRegistry.Resolve(providerName, targetMajorVersion);
 
     /// <inheritdoc cref="WorkspaceDacpacBuilder.BuildAsync"/>
     public static Task BuildAsync(
@@ -33,7 +36,8 @@ public static class DacpacBuilder
         Stream stream,
         CancellationToken cancellationToken = default) =>
         WorkspaceDacpacBuilder.BuildAsync(workspace, metadata, stream,
-            CreateModelBuilder(EngineOf(metadata.ProviderName)), cancellationToken);
+            CreateModelBuilder(SchemaProviderFor(metadata.ProviderName, metadata.TargetMajorVersion)),
+            cancellationToken);
 
     /// <inheritdoc cref="WorkspaceDacpacBuilder.BuildToFileAsync"/>
     public static Task BuildToFileAsync(
@@ -42,19 +46,21 @@ public static class DacpacBuilder
         string outputPath,
         CancellationToken cancellationToken = default) =>
         WorkspaceDacpacBuilder.BuildToFileAsync(workspace, metadata, outputPath,
-            CreateModelBuilder(EngineOf(metadata.ProviderName)), cancellationToken);
+            CreateModelBuilder(SchemaProviderFor(metadata.ProviderName, metadata.TargetMajorVersion)),
+            cancellationToken);
 
     /// <inheritdoc cref="WorkspaceDacpacBuilder.BuildModelAsync"/>
-    /// <param name="engine">
-    /// The target engine. Required for the same reason it is on
-    /// <see cref="ParserWorkspaceModelBuilder"/>: assuming the wrong one silently produces a
+    /// <param name="schemaProvider">
+    /// The target engine's schema provider. Required for the same reason it is on
+    /// <see cref="ParserWorkspaceModelBuilder"/>: assuming the wrong engine silently produces a
     /// model that re-diffs against its own database forever.
     /// </param>
     public static Task<BuildResult> BuildModelAsync(
         Workspace workspace,
-        MariaDbEngine engine,
+        MariaDbFamilyDatabaseSchemaProvider schemaProvider,
         CancellationToken cancellationToken = default) =>
-        WorkspaceDacpacBuilder.BuildModelAsync(workspace, CreateModelBuilder(engine), cancellationToken);
+        WorkspaceDacpacBuilder.BuildModelAsync(
+            workspace, CreateModelBuilder(schemaProvider), cancellationToken);
 
     /// <inheritdoc cref="WorkspaceDacpacBuilder.CreateWorkspace"/>
     public static Workspace CreateWorkspace(IEnumerable<string> sourceFilePaths) =>

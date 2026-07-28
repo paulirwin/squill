@@ -17,7 +17,7 @@ public class MariaDbCheckAndGeneratedTests
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
 
-        return (await new ParserWorkspaceModelBuilder(workspace, parser, MariaDbEngine.MariaDb).ExtractModelAsync()).Model;
+        return (await new ParserWorkspaceModelBuilder(workspace, parser, new MariaDb12DatabaseSchemaProvider()).ExtractModelAsync()).Model;
     }
 
     private static async Task<string> ScriptFromEmptyAsync(string sql)

@@ -3,6 +3,7 @@ using DotNet.Testcontainers.Images;
 using MySqlConnector;
 using Testcontainers.MariaDb;
 using Testcontainers.MySql;
+using Squill.Dacpac;
 using Xunit;
 
 namespace Squill.TestFramework;
@@ -41,6 +42,15 @@ public abstract class MariaDbLikeFixture : IAsyncLifetime
     /// the two would otherwise surface as a confusing dialect difference rather than a collision.
     /// </summary>
     protected abstract ContainerEngine Engine { get; }
+
+    /// <summary>
+    /// The schema provider for this fixture's engine, at its latest supported major. Tests use
+    /// it to build a model for the engine they are actually running against: every scenario
+    /// runs once per engine, and a model built for the wrong one would be canonicalized on the
+    /// wrong dialect, making the round-trip assertion compare two different things (issue #147).
+    /// </summary>
+    public DatabaseSchemaProvider SchemaProvider
+        => DatabaseSchemaProviderRegistry.ResolveLatest(ProviderName);
 
     /// <summary>A connection string to the running server (root credentials).</summary>
     public string ConnectionString => (_container ?? throw new InvalidOperationException(

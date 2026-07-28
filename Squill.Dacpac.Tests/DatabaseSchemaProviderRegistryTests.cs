@@ -54,4 +54,45 @@ public class DatabaseSchemaProviderRegistryTests
         Assert.EndsWith($"{providerName}{majorVersion}DatabaseSchemaProvider", provider.DspName);
         Assert.StartsWith("Squill.Provider.", provider.DspName);
     }
+
+    /// <summary>
+    /// A project that declares no target version still gets a schema provider — the engine's
+    /// latest supported major. Every build having one is what lets engine capabilities be read
+    /// without a null check or a fallback path anywhere downstream.
+    /// </summary>
+    [Theory]
+    [InlineData("Postgresql")]
+    [InlineData("MariaDb")]
+    [InlineData("MySql")]
+    public void ResolveLatest_ReturnsTheHighestSupportedMajor(string providerName)
+    {
+        var latest = DatabaseSchemaProviderRegistry.ResolveLatest(providerName);
+
+        var expected = DatabaseSchemaProviderRegistry.All
+            .Where(p => string.Equals(p.ProviderName, providerName, StringComparison.OrdinalIgnoreCase))
+            .Max(p => p.MajorVersion);
+
+        Assert.Equal(providerName, latest.ProviderName);
+        Assert.Equal(expected, latest.MajorVersion);
+    }
+
+    /// <summary>A null target version means "latest"; a given one is honoured exactly.</summary>
+    [Fact]
+    public void Resolve_WithOptionalVersion_DefaultsToLatestAndHonoursAnExplicitOne()
+    {
+        var unconstrained = DatabaseSchemaProviderRegistry.Resolve("MariaDb", (int?)null);
+        var pinned = DatabaseSchemaProviderRegistry.Resolve("MariaDb", (int?)10);
+
+        Assert.Equal(
+            DatabaseSchemaProviderRegistry.ResolveLatest("MariaDb").MajorVersion,
+            unconstrained.MajorVersion);
+        Assert.Equal(10, pinned.MajorVersion);
+    }
+
+    [Fact]
+    public void ResolveLatest_UnknownEngine_Throws()
+    {
+        Assert.Throws<UnsupportedTargetVersionException>(() =>
+            DatabaseSchemaProviderRegistry.ResolveLatest("NotAnEngine"));
+    }
 }

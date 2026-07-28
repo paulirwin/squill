@@ -34,14 +34,15 @@ public interface ISquillProvider
     /// The result also carries any non-fatal build warnings, which have no other channel out
     /// of a provider, for the host to report (issue #61). Errors are thrown.
     /// </summary>
-    /// <param name="providerName">
-    /// The name the project selected this provider by. A provider serving more than one engine
-    /// needs it to know which dialect to build for: <see cref="Matches"/> deliberately accepts
-    /// several names, and for MariaDB/MySQL the choice changes how some constructs are modeled
-    /// (issue #147). Providers serving a single engine ignore it.
+    /// <param name="metadata">
+    /// The build's target metadata. A provider serving more than one engine needs it to know
+    /// which dialect to build for: <see cref="Matches"/> deliberately accepts several names,
+    /// and for MariaDB/MySQL the choice changes how some constructs are modeled (issue #147).
+    /// The provider name and target version together select a
+    /// <see cref="DatabaseSchemaProvider"/>, which is what declares the engine's capabilities.
     /// </param>
     Task<BuildResult> BuildModelAsync(
-        Workspace workspace, string providerName, CancellationToken cancellationToken = default);
+        Workspace workspace, ModelMetadata metadata, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Deploys the DACPAC read from <paramref name="dacpacStream"/> to the target database:

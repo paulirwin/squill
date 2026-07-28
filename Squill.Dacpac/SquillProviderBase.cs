@@ -18,7 +18,7 @@ public abstract class SquillProviderBase : ISquillProvider
 
     /// <summary>Builds a model from the workspace using this provider's parser/model builder.</summary>
     protected abstract Task<BuildResult> BuildModelCoreAsync(
-        Workspace workspace, string providerName, CancellationToken cancellationToken);
+        Workspace workspace, ModelMetadata metadata, CancellationToken cancellationToken);
 
     /// <summary>Deploys (or, when <paramref name="dryRun"/>, scripts) the DACPAC via this provider's deployer.</summary>
     protected abstract Task<DeployResult> DeployCoreAsync(
@@ -31,8 +31,8 @@ public abstract class SquillProviderBase : ISquillProvider
         CancellationToken cancellationToken);
 
     public Task<BuildResult> BuildModelAsync(
-        Workspace workspace, string providerName, CancellationToken cancellationToken = default)
-        => BuildModelCoreAsync(workspace, providerName, cancellationToken);
+        Workspace workspace, ModelMetadata metadata, CancellationToken cancellationToken = default)
+        => BuildModelCoreAsync(workspace, metadata, cancellationToken);
 
     public Task<DeployResult> DeployAsync(
         Stream dacpacStream,

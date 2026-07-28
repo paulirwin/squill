@@ -33,9 +33,9 @@ namespace Squill.Provider.MariaDb;
 ///
 /// The rest of the time family — <c>LOCALTIME</c>, <c>LOCALTIMESTAMP</c>, <c>CURDATE()</c>,
 /// <c>CURTIME()</c> — is modeled as of issue #147, and is the reason every entry point here
-/// requires a <see cref="MariaDbEngine"/>. These are where the two engines stop agreeing, so
-/// there is no one canonical token that works for both; see <see cref="MariaDbEngine"/> for the
-/// measured matrix. On MariaDB each keeps its own token reflecting its own distinct stored form;
+/// requires a <see cref="MariaDbFamilyDatabaseSchemaProvider"/>. These are where the two engines
+/// stop agreeing, so there is no one canonical token that works for both; the schema provider
+/// declares which behaviour its engine has, rather than callers testing for one. On MariaDB each keeps its own token reflecting its own distinct stored form;
 /// on MySQL <c>LOCALTIME</c>/<c>LOCALTIMESTAMP</c> are true synonyms that fold into
 /// <c>CURRENT_TIMESTAMP</c>, and <c>CURDATE</c>/<c>CURTIME</c> are not valid defaults at all.
 ///
@@ -58,7 +58,7 @@ internal static class MariaDbDefaultValue
     ///
     /// Narrower than the grammar's <c>currentTimestamp</c> rule, which also admits
     /// <c>LOCALTIME</c>, <c>LOCALTIMESTAMP</c>, <c>CURDATE</c> and <c>CURTIME</c>. Those are
-    /// engine-dependent and handled separately (see <see cref="MySqlCurrentTimestampNames"/>
+    /// engine-dependent and handled separately (see <see cref="LocalTimeNames"/>
     /// and <see cref="MariaDbOwnTokenNames"/>), because on MariaDB they are not synonyms at
     /// all: it stores <c>DEFAULT LOCALTIME</c> as <c>curtime()</c> — a time of day, not a
     /// timestamp. Folding those in unconditionally would mean a parsed default that never
@@ -82,7 +82,7 @@ internal static class MariaDbDefaultValue
     /// <see href="https://dev.mysql.com/doc/refman/8.4/en/timestamp-initialization.html">MySQL's
     /// documented behaviour</see>. MariaDB does the opposite and gives each its own stored form.
     /// </summary>
-    private static readonly HashSet<string> MySqlCurrentTimestampNames =
+    private static readonly HashSet<string> LocalTimeNames =
         new(StringComparer.OrdinalIgnoreCase)
         {
             "LOCALTIME",
@@ -137,7 +137,7 @@ internal static class MariaDbDefaultValue
     /// column type drops its <c>(0)</c> as well), so keeping the <c>(0)</c> here would make that
     /// column re-diff on every deploy.
     /// </summary>
-    internal static string? CanonicalCurrentTimestamp(string? text, MariaDbEngine engine)
+    internal static string? CanonicalCurrentTimestamp(string? text, MariaDbFamilyDatabaseSchemaProvider schemaProvider)
     {
         if (text is null)
         {
@@ -155,7 +155,7 @@ internal static class MariaDbDefaultValue
         {
             return string.Equals(compact, CurrentTimestamp, StringComparison.OrdinalIgnoreCase)
                 ? CurrentTimestamp
-                : CanonicalBareKeyword(compact, engine);
+                : CanonicalBareKeyword(compact, schemaProvider);
         }
 
         if (compact[^1] != ')')
@@ -163,7 +163,7 @@ internal static class MariaDbDefaultValue
             return null;
         }
 
-        var canonicalName = CanonicalName(compact[..open], engine);
+        var canonicalName = CanonicalName(compact[..open], schemaProvider);
 
         if (canonicalName is null)
         {
@@ -191,11 +191,17 @@ internal static class MariaDbDefaultValue
     // The canonical token for a bare (unparenthesized) keyword other than CURRENT_TIMESTAMP
     // itself. On MySQL, LOCALTIME/LOCALTIMESTAMP are true synonyms and fold in. On MariaDB they
     // are distinct functions with their own stored forms, as are CURRENT_DATE/CURRENT_TIME.
-    private static string? CanonicalBareKeyword(string compact, MariaDbEngine engine)
+    private static string? CanonicalBareKeyword(string compact, MariaDbFamilyDatabaseSchemaProvider schemaProvider)
     {
-        if (engine == MariaDbEngine.MySql)
+        if (schemaProvider.LocalTimeIsCurrentTimestampSynonym
+            && LocalTimeNames.Contains(compact))
         {
-            return MySqlCurrentTimestampNames.Contains(compact) ? CurrentTimestamp : null;
+            return CurrentTimestamp;
+        }
+
+        if (!schemaProvider.SupportsDateAndTimeFunctionDefaults)
+        {
+            return null;
         }
 
         // MariaDB: each keeps its own token. CURDATE and CURTIME are excluded because they are
@@ -212,22 +218,25 @@ internal static class MariaDbDefaultValue
 
     // The canonical base name for a parenthesized call, or null if the function is not one this
     // engine models as a default.
-    private static string? CanonicalName(string name, MariaDbEngine engine)
+    private static string? CanonicalName(string name, MariaDbFamilyDatabaseSchemaProvider schemaProvider)
     {
         if (CurrentTimestampNames.Contains(name))
         {
             return CurrentTimestamp;
         }
 
-        if (engine == MariaDbEngine.MySql)
+        // Where LOCALTIME/LOCALTIMESTAMP are true synonyms they fold into the
+        // current-timestamp token, precision and all.
+        if (schemaProvider.LocalTimeIsCurrentTimestampSynonym && LocalTimeNames.Contains(name))
         {
-            // MySQL folds LOCALTIME()/LOCALTIMESTAMP() in, and rejects CURDATE()/CURTIME() as
-            // a default outright (a syntax error, not merely an invalid value), so those stay
-            // unmodeled and are reported at build time instead.
-            return MySqlCurrentTimestampNames.Contains(name) ? CurrentTimestamp : null;
+            return CurrentTimestamp;
         }
 
-        return MariaDbOwnTokenNames.GetValueOrDefault(name);
+        // Otherwise the wider time family is modeled only where the engine accepts it as a
+        // default at all; elsewhere it stays unmodeled and is reported at build time.
+        return schemaProvider.SupportsDateAndTimeFunctionDefaults
+            ? MariaDbOwnTokenNames.GetValueOrDefault(name)
+            : null;
     }
 
     // Renders the no-precision form of a canonical base name. CURRENT_TIMESTAMP is spelled as
@@ -238,11 +247,30 @@ internal static class MariaDbDefaultValue
         canonicalName == CurrentTimestamp ? CurrentTimestamp : $"{canonicalName}()";
 
     /// <summary>
+    /// Whether a default text names one of the date/time functions in this family — regardless
+    /// of whether the target engine accepts it as a default. Used only to phrase a build
+    /// warning accurately: an engine that rejects these should say so, rather than reporting
+    /// the generic "not a constant literal".
+    /// </summary>
+    internal static bool IsDateOrTimeFunction(string? text)
+    {
+        if (text is null)
+        {
+            return false;
+        }
+
+        var compact = string.Concat(text.Where(c => !char.IsWhiteSpace(c)));
+        var open = compact.IndexOf('(');
+
+        return MariaDbOwnTokenNames.ContainsKey(open < 0 ? compact : compact[..open]);
+    }
+
+    /// <summary>
     /// Whether a default text, from either source or a catalog, is a current-timestamp default
     /// in any of its modeled forms.
     /// </summary>
-    internal static bool IsCurrentTimestamp(string? text, MariaDbEngine engine) =>
-        CanonicalCurrentTimestamp(text, engine) is not null;
+    internal static bool IsCurrentTimestamp(string? text, MariaDbFamilyDatabaseSchemaProvider schemaProvider) =>
+        CanonicalCurrentTimestamp(text, schemaProvider) is not null;
 
     /// <summary>
     /// The canonical token for an <c>ON UPDATE</c> clause, or <c>null</c> if it is not one that
@@ -251,9 +279,9 @@ internal static class MariaDbDefaultValue
     /// <c>CURTIME()</c> and (on MariaDB) <c>LOCALTIME</c> are rejected outright, so accepting
     /// them here would model a clause that cannot be deployed.
     /// </summary>
-    internal static string? CanonicalOnUpdate(string? text, MariaDbEngine engine)
+    internal static string? CanonicalOnUpdate(string? text, MariaDbFamilyDatabaseSchemaProvider schemaProvider)
     {
-        if (CanonicalCurrentTimestamp(text, engine) is not { } canonical)
+        if (CanonicalCurrentTimestamp(text, schemaProvider) is not { } canonical)
         {
             return null;
         }
@@ -269,7 +297,7 @@ internal static class MariaDbDefaultValue
     /// A quoted string keeps its quotes; a bare number is normalized; anything else (a
     /// function call, NULL) returns <c>null</c>.
     /// </summary>
-    public static string? FromSourceToken(string? token, MariaDbEngine engine)
+    public static string? FromSourceToken(string? token, MariaDbFamilyDatabaseSchemaProvider schemaProvider)
     {
         if (string.IsNullOrWhiteSpace(token))
         {
@@ -280,7 +308,7 @@ internal static class MariaDbDefaultValue
 
         // Checked before the quoted-string and numeric paths, which it cannot be confused
         // with: an unquoted keyword or function call.
-        if (CanonicalCurrentTimestamp(text, engine) is { } currentTimestamp)
+        if (CanonicalCurrentTimestamp(text, schemaProvider) is { } currentTimestamp)
         {
             return currentTimestamp;
         }
@@ -321,7 +349,7 @@ internal static class MariaDbDefaultValue
     /// <c>'active'</c>).
     /// </summary>
     public static string? FromDatabaseText(
-        string? columnDefault, MariaDbEngine engine, bool isCharacterColumn = false)
+        string? columnDefault, MariaDbFamilyDatabaseSchemaProvider schemaProvider, bool isCharacterColumn = false)
     {
         if (string.IsNullOrWhiteSpace(columnDefault))
         {
@@ -340,7 +368,7 @@ internal static class MariaDbDefaultValue
         // Checked before the character-column path below, which would otherwise re-quote
         // MySQL's bare CURRENT_TIMESTAMP into a string literal, and before the expression
         // rejection, which discards anything containing parentheses.
-        if (CanonicalCurrentTimestamp(text, engine) is { } currentTimestamp)
+        if (CanonicalCurrentTimestamp(text, schemaProvider) is { } currentTimestamp)
         {
             return currentTimestamp;
         }

@@ -28,7 +28,7 @@ public abstract class MariaDbFunctionDefaultTests
         var provider = new MariaDbDatabaseProvider(Fixture.ConnectionString);
         var model = await WorkspaceModelBuilding.BuildModelAsync(
             sql,
-            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser(), Fixture.EngineOf()),
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser(), (MariaDbFamilyDatabaseSchemaProvider)Fixture.SchemaProvider),
             cancellationToken);
 
         return await RoundTripHarness.AssertRoundTripAsync(
@@ -417,7 +417,7 @@ public abstract class MariaDbFunctionDefaultTests
         workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
 
         var result = await new ParserWorkspaceModelBuilder(
-                workspace, new AntlrMariaDbParser(), MariaDbEngine.MySql)
+                workspace, new AntlrMariaDbParser(), new MySql9DatabaseSchemaProvider())
             .ExtractModelAsync(TestContext.Current.CancellationToken);
 
         foreach (var columnName in columnNames)

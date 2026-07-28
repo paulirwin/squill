@@ -27,7 +27,7 @@ public abstract class MariaDbCheckAndGeneratedTests
         var provider = new MariaDbDatabaseProvider(Fixture.ConnectionString);
         var model = await WorkspaceModelBuilding.BuildModelAsync(
             sql,
-            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser(), Fixture.EngineOf()),
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser(), (MariaDbFamilyDatabaseSchemaProvider)Fixture.SchemaProvider),
             cancellationToken);
 
         return await RoundTripHarness.AssertRoundTripAsync(

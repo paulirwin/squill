@@ -26,7 +26,7 @@ public abstract class MariaDbBuildDiagnosticsTests
         }
 
         return await DacpacBuilder.BuildModelAsync(
-            workspace, Fixture.EngineOf(), TestContext.Current.CancellationToken);
+            workspace, (MariaDbFamilyDatabaseSchemaProvider)Fixture.SchemaProvider, TestContext.Current.CancellationToken);
     }
 
     // Runs the statements in a throwaway database, so each test starts from a clean schema.

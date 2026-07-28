@@ -41,7 +41,7 @@ public class SameNamedIndexIdentityTests
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
 
-        return (await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), MariaDbEngine.MariaDb)
+        return (await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), new MariaDb12DatabaseSchemaProvider())
             .ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
     }
 

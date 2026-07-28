@@ -263,7 +263,7 @@ public abstract class MariaDbDeploymentScriptTests
             directory,
             SchemaSql,
             Fixture.ProviderName,
-            ws => new ParserWorkspaceModelBuilder(ws, new Squill.MariaDbParser.AntlrMariaDbParser(), Fixture.EngineOf()),
+            ws => new ParserWorkspaceModelBuilder(ws, new Squill.MariaDbParser.AntlrMariaDbParser(), (MariaDbFamilyDatabaseSchemaProvider)Fixture.SchemaProvider),
             ct,
             preDeploy: preDeploy,
             postDeploy: postDeploy);

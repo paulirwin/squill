@@ -11,22 +11,26 @@ namespace Squill.Provider.MariaDb;
 /// constraint names (a <c>PRIMARY</c> key, <c>&lt;table&gt;_ibfk_N</c> foreign keys) so a
 /// parsed model hash-matches one extracted from a live database.
 ///
-/// The target <see cref="MariaDbEngine"/> is required rather than defaulted: a handful of
-/// constructs — currently the time-function column <c>DEFAULT</c>s (issue #147) — canonicalize
-/// differently on each engine, and silently assuming the wrong one would produce a model that
-/// re-diffs against its own database on every deploy.
+/// The target <see cref="MariaDbFamilyDatabaseSchemaProvider"/> is required rather than
+/// defaulted: a handful of constructs — currently the time-function column <c>DEFAULT</c>s
+/// (issue #147) — canonicalize differently on each engine, and silently assuming the wrong one
+/// would produce a model that re-diffs against its own database on every deploy. The provider
+/// declares the relevant capabilities, so this builder never tests for a particular engine.
 /// </summary>
 public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 {
     private readonly Workspace _workspace;
     private readonly IMariaDbParser _parser;
-    private readonly MariaDbEngine _engine;
+    private readonly MariaDbFamilyDatabaseSchemaProvider _schemaProvider;
 
-    public ParserWorkspaceModelBuilder(Workspace workspace, IMariaDbParser parser, MariaDbEngine engine)
+    public ParserWorkspaceModelBuilder(
+        Workspace workspace,
+        IMariaDbParser parser,
+        MariaDbFamilyDatabaseSchemaProvider schemaProvider)
     {
         _workspace = workspace;
         _parser = parser;
-        _engine = engine;
+        _schemaProvider = schemaProvider;
     }
 
     public async Task<BuildResult> ExtractModelAsync(CancellationToken cancellationToken = default)
@@ -289,9 +293,9 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                             break;
                         }
 
-                        AddUnmodeledTableWarnings(file, createTable, warnings, _engine);
+                        AddUnmodeledTableWarnings(file, createTable, warnings, _schemaProvider);
 
-                        foreach (var element in MakeCreateTableElements(createTable, _engine))
+                        foreach (var element in MakeCreateTableElements(createTable, _schemaProvider))
                         {
                             model.Elements.Add(element);
                         }
@@ -386,7 +390,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     private static void AddUnmodeledTableWarnings(IFile file,
         CreateTableStatement createTable,
         List<SqlSourceDiagnostic> warnings,
-        MariaDbEngine engine)
+        MariaDbFamilyDatabaseSchemaProvider schemaProvider)
     {
         var table = createTable.Name.Name;
 
@@ -428,15 +432,17 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 }
                 else if (constraint is DefaultColumnConstraint defaultConstraint)
                 {
-                    if (MariaDbDefaultValue.FromSourceToken(defaultConstraint.Token, engine) is null)
+                    if (MariaDbDefaultValue.FromSourceToken(defaultConstraint.Token, schemaProvider) is null)
                     {
-                        // A time function that MariaDB models but MySQL rejects outright gets a
-                        // message naming the engine, since the same source builds fine for the
-                        // other one (issue #147).
-                        var reason = engine == MariaDbEngine.MySql
-                            && MariaDbDefaultValue.IsCurrentTimestamp(
-                                defaultConstraint.Token, MariaDbEngine.MariaDb)
-                            ? "is not a valid default on MySQL (it is MariaDB-only) and is not modeled"
+                        // A date/time function default that this engine does not accept — but
+                        // another in the family does — is called out as such, since the same
+                        // source builds cleanly for the other one (issue #147). Saying only
+                        // "not a constant literal" would send the reader looking for the wrong
+                        // problem.
+                        var reason = !schemaProvider.SupportsDateAndTimeFunctionDefaults
+                            && MariaDbDefaultValue.IsDateOrTimeFunction(defaultConstraint.Token)
+                            ? $"is a date/time function default, which {schemaProvider.ProviderName} "
+                              + "does not accept, and is not modeled"
                             : "is not a constant literal and is not modeled";
 
                         warnings.Add(new SqlSourceDiagnostic(
@@ -450,7 +456,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     // anyway — is reported rather than silently dropped. A fractional-seconds
                     // CURRENT_TIMESTAMP(n) is modeled as of issue #144 and does not warn.
                     if (defaultConstraint.OnUpdateToken is { } onUpdate
-                        && MariaDbDefaultValue.CanonicalOnUpdate(onUpdate, engine) is null)
+                        && MariaDbDefaultValue.CanonicalOnUpdate(onUpdate, schemaProvider) is null)
                     {
                         warnings.Add(new SqlSourceDiagnostic(
                             $"ON UPDATE on column '{table}.{columnDefinition.Name.Name}' is not a "
@@ -949,7 +955,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         ReferentialAction OnUpdate);
 
     private static IEnumerable<Element> MakeCreateTableElements(
-        CreateTableStatement createTable, MariaDbEngine engine)
+        CreateTableStatement createTable, MariaDbFamilyDatabaseSchemaProvider schemaProvider)
     {
         var tableName = TableName(createTable.Name);
 
@@ -961,7 +967,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         var checkConstraints = new List<(string Name, string Expression)>();
         var specialIndexes = new List<(string Name, string Kind, IReadOnlyList<IndexColumn> Columns)>();
 
-        AddColumns(engine, tableElement, tableName, createTable, primaryKeyColumns, foreignKeys,
+        AddColumns(schemaProvider, tableElement, tableName, createTable, primaryKeyColumns, foreignKeys,
             uniqueIndexes, checkConstraints);
         CollectTableLevelConstraints(createTable, tableName, primaryKeyColumns, foreignKeys,
             uniqueIndexes, checkConstraints, specialIndexes);
@@ -1112,7 +1118,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     }
 
     private static void AddColumns(
-        MariaDbEngine engine,
+        MariaDbFamilyDatabaseSchemaProvider schemaProvider,
         Element tableElement,
         SqlName tableName,
         CreateTableStatement createTable,
@@ -1168,7 +1174,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
                     case DefaultColumnConstraint defaultConstraint:
                         defaultValue = MariaDbDefaultValue.FromSourceToken(
-                            defaultConstraint.Token, engine);
+                            defaultConstraint.Token, schemaProvider);
 
                         // The canonical token carries any fractional-seconds precision through
                         // (issue #144), so ON UPDATE CURRENT_TIMESTAMP(3) deploys as written
@@ -1176,7 +1182,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         // current-timestamp family is valid in this position on either engine.
                         onUpdateCurrentTimestamp =
                             MariaDbDefaultValue.CanonicalOnUpdate(
-                                defaultConstraint.OnUpdateToken, engine);
+                                defaultConstraint.OnUpdateToken, schemaProvider);
                         break;
 
                     case ForeignKeyColumnConstraint fk:

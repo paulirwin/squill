@@ -10,7 +10,15 @@ namespace Squill.Provider.MariaDb;
 /// so it is not itself discovered; the concrete subclasses remain distinct types whose full
 /// names are recorded in DACPACs.
 /// </summary>
-public abstract class MySqlDatabaseSchemaProviderBase : DatabaseSchemaProvider
+public abstract class MySqlDatabaseSchemaProviderBase : MariaDbFamilyDatabaseSchemaProvider
 {
     public override string ProviderName => "MySql";
+
+    // Measured, and matching MySQL's documented behaviour: LOCALTIME / LOCALTIMESTAMP are true
+    // CURRENT_TIMESTAMP synonyms here and are reported as CURRENT_TIMESTAMP.
+    // https://dev.mysql.com/doc/refman/8.4/en/timestamp-initialization.html
+    public override bool LocalTimeIsCurrentTimestampSynonym => true;
+
+    // CURDATE()/CURTIME() are a syntax error in a DEFAULT on MySQL, so they are never modeled.
+    public override bool SupportsDateAndTimeFunctionDefaults => false;
 }

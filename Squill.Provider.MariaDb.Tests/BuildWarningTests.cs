@@ -11,10 +11,10 @@ namespace Squill.Provider.MariaDb.Tests;
 public class BuildWarningTests
 {
     private static ParserWorkspaceModelBuilder BuilderFor(params (string Name, string Sql)[] files)
-        => BuilderFor(MariaDbEngine.MariaDb, files);
+        => BuilderFor(new MariaDb12DatabaseSchemaProvider(), files);
 
     private static ParserWorkspaceModelBuilder BuilderFor(
-        MariaDbEngine engine, params (string Name, string Sql)[] files)
+        MariaDbFamilyDatabaseSchemaProvider engine, params (string Name, string Sql)[] files)
     {
         var workspace = new Workspace();
         foreach (var (name, sql) in files)
@@ -193,7 +193,7 @@ CREATE TABLE book
     public async Task OnMariaDb_TimeFunctionDefault_DoesNotWarn(string columnSql)
     {
         var builder = BuilderFor(
-            MariaDbEngine.MariaDb, ("T.sql", $"CREATE TABLE t (id INT PRIMARY KEY, c {columnSql});"));
+            new MariaDb12DatabaseSchemaProvider(), ("T.sql", $"CREATE TABLE t (id INT PRIMARY KEY, c {columnSql});"));
 
         var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
 
@@ -212,13 +212,14 @@ CREATE TABLE book
     public async Task OnMySql_UnsupportedTimeFunctionDefault_Warns(string columnSql)
     {
         var builder = BuilderFor(
-            MariaDbEngine.MySql, ("T.sql", $"CREATE TABLE t (id INT PRIMARY KEY, c {columnSql});"));
+            new MySql9DatabaseSchemaProvider(), ("T.sql", $"CREATE TABLE t (id INT PRIMARY KEY, c {columnSql});"));
 
         var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
 
         var warning = Assert.Single(result.Warnings);
         Assert.Equal("SQ1002", warning.Code);
-        Assert.Contains("MySQL", warning.Message);
+        // Names the engine, so the reader is not sent looking for a malformed literal.
+        Assert.Contains("MySql", warning.Message);
     }
 
     /// <summary>
@@ -231,7 +232,7 @@ CREATE TABLE book
     public async Task OnMySql_LocaltimeFamily_DoesNotWarn(string columnSql)
     {
         var builder = BuilderFor(
-            MariaDbEngine.MySql, ("T.sql", $"CREATE TABLE t (id INT PRIMARY KEY, c {columnSql});"));
+            new MySql9DatabaseSchemaProvider(), ("T.sql", $"CREATE TABLE t (id INT PRIMARY KEY, c {columnSql});"));
 
         var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
 

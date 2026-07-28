@@ -35,7 +35,7 @@ public abstract class MariaDbDacpacDeployTests
             directory,
             SchemaSql,
             Fixture.ProviderName,
-            ws => new ParserWorkspaceModelBuilder(ws, new Squill.MariaDbParser.AntlrMariaDbParser(), Fixture.EngineOf()),
+            ws => new ParserWorkspaceModelBuilder(ws, new Squill.MariaDbParser.AntlrMariaDbParser(), (MariaDbFamilyDatabaseSchemaProvider)Fixture.SchemaProvider),
             ct,
             targetMajorVersion: targetMajorVersion);
 

@@ -26,7 +26,7 @@ public abstract class MariaDbProcedureTests
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
 
-        return new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), Fixture.EngineOf())
+        return new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), (MariaDbFamilyDatabaseSchemaProvider)Fixture.SchemaProvider)
             .ExtractModelAsync(cancellationToken).GetAwaiter().GetResult().Model;
     }
 

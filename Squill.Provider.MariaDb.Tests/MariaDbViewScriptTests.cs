@@ -17,7 +17,7 @@ public class MariaDbViewScriptTests
     private static Task<Model> BuildModelAsync(string sql)
         => WorkspaceModelBuilding.BuildModelAsync(
             sql,
-            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser(), MariaDbEngine.MariaDb),
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser(), new MariaDb12DatabaseSchemaProvider()),
             TestContext.Current.CancellationToken);
 
     private static async Task<string> ScriptAgainstEmptyAsync(string sql)

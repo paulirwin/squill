@@ -27,20 +27,29 @@ public class MariaDbFunctionDefaultTests
         typeof(MariaDbElementTypes).Assembly
             .GetType("Squill.Provider.MariaDb.MariaDbDefaultValue", throwOnError: true)!;
 
+    // The engine under test defaults to MariaDB; the MySQL cases pass MySql explicitly.
+    private static readonly MariaDbFamilyDatabaseSchemaProvider MariaDb =
+        new MariaDb12DatabaseSchemaProvider();
+
+    private static readonly MariaDbFamilyDatabaseSchemaProvider MySql =
+        new MySql9DatabaseSchemaProvider();
+
     private static string? FromDatabaseText(
-        string? text, bool isCharacterColumn = false, MariaDbEngine engine = MariaDbEngine.MariaDb)
+        string? text,
+        bool isCharacterColumn = false,
+        MariaDbFamilyDatabaseSchemaProvider? engine = null)
         => (string?)DefaultValueType
             .GetMethod("FromDatabaseText", BindingFlags.Public | BindingFlags.Static)!
-            .Invoke(null, [text, engine, isCharacterColumn]);
+            .Invoke(null, [text, engine ?? MariaDb, isCharacterColumn]);
 
     private static async Task<Element> ColumnOfAsync(
-        string columnSql, MariaDbEngine engine = MariaDbEngine.MariaDb)
+        string columnSql, MariaDbFamilyDatabaseSchemaProvider? engine = null)
     {
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile,
             $"CREATE TABLE t (id int PRIMARY KEY, c {columnSql});"));
 
-        var result = await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), engine)
+        var result = await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), engine ?? MariaDb)
             .ExtractModelAsync(TestContext.Current.CancellationToken);
 
         var table = Assert.Single(result.Model.Elements, e => e.Type == MariaDbElementTypes.SqlTable);
@@ -52,7 +61,7 @@ public class MariaDbFunctionDefaultTests
     }
 
     private static async Task<string?> DefaultOfAsync(
-        string columnSql, MariaDbEngine engine = MariaDbEngine.MariaDb)
+        string columnSql, MariaDbFamilyDatabaseSchemaProvider? engine = null)
         => (await ColumnOfAsync(columnSql, engine))
             .GetProperty<string>(MariaDbPropertyNames.DefaultValue);
 
@@ -107,7 +116,7 @@ CREATE TABLE event
 );
 """));
 
-        var result = await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), MariaDbEngine.MariaDb)
+        var result = await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), MariaDb)
             .ExtractModelAsync(TestContext.Current.CancellationToken);
 
         Assert.Empty(result.Warnings);
@@ -185,7 +194,7 @@ CREATE TABLE t
 );
 """));
 
-        var result = await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), MariaDbEngine.MariaDb)
+        var result = await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), MariaDb)
             .ExtractModelAsync(TestContext.Current.CancellationToken);
 
         Assert.Empty(result.Warnings);
@@ -271,7 +280,7 @@ CREATE TABLE actor
 );
 """));
 
-        var result = await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), MariaDbEngine.MariaDb)
+        var result = await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), MariaDb)
             .ExtractModelAsync(TestContext.Current.CancellationToken);
 
         Assert.Empty(result.Warnings);
@@ -372,7 +381,7 @@ CREATE TABLE actor
     [InlineData("datetime DEFAULT LOCALTIMESTAMP")]
     public async Task OnMySql_LocaltimeFamily_FoldsIntoCurrentTimestamp(string columnSql)
     {
-        Assert.Equal("CURRENT_TIMESTAMP", await DefaultOfAsync(columnSql, MariaDbEngine.MySql));
+        Assert.Equal("CURRENT_TIMESTAMP", await DefaultOfAsync(columnSql, MySql));
     }
 
     /// <summary>
@@ -384,8 +393,8 @@ CREATE TABLE actor
     [InlineData("datetime DEFAULT LOCALTIMESTAMP", "LOCALTIMESTAMP()")]
     public async Task TheSameSource_CanonicalizesDifferentlyPerEngine(string columnSql, string onMariaDb)
     {
-        Assert.Equal(onMariaDb, await DefaultOfAsync(columnSql, MariaDbEngine.MariaDb));
-        Assert.Equal("CURRENT_TIMESTAMP", await DefaultOfAsync(columnSql, MariaDbEngine.MySql));
+        Assert.Equal(onMariaDb, await DefaultOfAsync(columnSql, MariaDb));
+        Assert.Equal("CURRENT_TIMESTAMP", await DefaultOfAsync(columnSql, MySql));
     }
 
     /// <summary>
@@ -399,7 +408,7 @@ CREATE TABLE actor
     [InlineData("date DEFAULT CURRENT_DATE")]
     public async Task OnMySql_CurdateAndCurtime_AreNotModeled(string columnSql)
     {
-        Assert.Null(await DefaultOfAsync(columnSql, MariaDbEngine.MySql));
+        Assert.Null(await DefaultOfAsync(columnSql, MySql));
     }
 
     /// <summary>
@@ -409,9 +418,9 @@ CREATE TABLE actor
     [Fact]
     public async Task OnMySql_ParsedAndStoredForms_Agree()
     {
-        var parsed = await DefaultOfAsync("datetime DEFAULT LOCALTIME", MariaDbEngine.MySql);
+        var parsed = await DefaultOfAsync("datetime DEFAULT LOCALTIME", MySql);
 
-        Assert.Equal(parsed, FromDatabaseText("CURRENT_TIMESTAMP", engine: MariaDbEngine.MySql));
+        Assert.Equal(parsed, FromDatabaseText("CURRENT_TIMESTAMP", engine: MySql));
     }
 
     /// <summary>
