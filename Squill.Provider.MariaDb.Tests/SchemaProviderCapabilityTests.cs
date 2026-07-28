@@ -91,4 +91,37 @@ public class SchemaProviderCapabilityTests
         Assert.IsAssignableFrom<MariaDbFamilyDatabaseSchemaProvider>(
             new MySql9DatabaseSchemaProvider());
     }
+
+    /// <summary>
+    /// A provider name this builder does not serve is rejected with a message naming it, rather
+    /// than surfacing as a bare InvalidCastException.
+    ///
+    /// Which exception depends on what is loaded, and both are correct: if the other engine's
+    /// provider assembly is absent the registry finds nothing and throws
+    /// <see cref="UnsupportedTargetVersionException"/>; if it is present the name resolves to
+    /// that engine's provider and this builder rejects it as not one it serves. The guarantee
+    /// under test is that neither path is an unexplained cast failure.
+    /// </summary>
+    [Fact]
+    public void SchemaProviderFor_ANonMariaDbFamilyName_ThrowsAClearError()
+    {
+        var ex = Assert.ThrowsAny<Exception>(
+            () => DacpacBuilder.SchemaProviderFor("Postgresql", null));
+
+        Assert.True(
+            ex is ArgumentException or UnsupportedTargetVersionException,
+            $"Expected a descriptive rejection, got {ex.GetType().Name}: {ex.Message}");
+
+        Assert.Contains("Postgresql", ex.Message);
+    }
+
+    [Theory]
+    [InlineData("MariaDb")]
+    [InlineData("MySql")]
+    public void SchemaProviderFor_AServedName_ResolvesTheFamilyProvider(string providerName)
+    {
+        var provider = DacpacBuilder.SchemaProviderFor(providerName, null);
+
+        Assert.Equal(providerName, provider.ProviderName);
+    }
 }

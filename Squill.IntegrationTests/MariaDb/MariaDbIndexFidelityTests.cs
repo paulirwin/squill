@@ -43,7 +43,7 @@ public abstract class MariaDbIndexFidelityTests
     private Model ParseModel(string sql, CancellationToken cancellationToken)
         => WorkspaceModelBuilding.BuildModelAsync(
                 sql,
-                ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser(), (MariaDbFamilyDatabaseSchemaProvider)Fixture.SchemaProvider),
+                ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser(), Fixture.SchemaProviderOf()),
                 cancellationToken)
             .GetAwaiter().GetResult();
 

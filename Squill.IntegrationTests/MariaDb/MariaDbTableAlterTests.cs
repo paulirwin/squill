@@ -32,7 +32,7 @@ public abstract class MariaDbTableAlterTests
     private Task<Model> ParseModelAsync(string sql, CancellationToken cancellationToken)
         => WorkspaceModelBuilding.BuildModelAsync(
             sql,
-            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser(), (MariaDbFamilyDatabaseSchemaProvider)Fixture.SchemaProvider),
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser(), Fixture.SchemaProviderOf()),
             cancellationToken);
 
     /// <summary>

@@ -24,10 +24,20 @@ public static class DacpacBuilder
     /// differently on each (issue #147), and the schema provider is what declares which.
     /// An unspecified target version resolves to the engine's latest supported major.
     /// </summary>
-    internal static MariaDbFamilyDatabaseSchemaProvider SchemaProviderFor(
-        string providerName, int? targetMajorVersion) =>
-        (MariaDbFamilyDatabaseSchemaProvider)
+    public static MariaDbFamilyDatabaseSchemaProvider SchemaProviderFor(
+        string providerName, int? targetMajorVersion)
+    {
+        var schemaProvider =
             DatabaseSchemaProviderRegistry.Resolve(providerName, targetMajorVersion);
+
+        // A name this builder does not serve resolves to some other engine's provider. Say so,
+        // rather than letting it surface as a bare InvalidCastException.
+        return schemaProvider as MariaDbFamilyDatabaseSchemaProvider
+            ?? throw new ArgumentException(
+                $"'{providerName}' is not a MariaDB or MySQL provider name; it resolves to "
+                + $"{schemaProvider.GetType().Name}. Use the provider that serves that engine.",
+                nameof(providerName));
+    }
 
     /// <inheritdoc cref="WorkspaceDacpacBuilder.BuildAsync"/>
     public static Task BuildAsync(

@@ -47,7 +47,7 @@ public abstract class SakilaSampleDeployTests
             directory,
             schema,
             Fixture.ProviderName,
-            ws => new ParserWorkspaceModelBuilder(ws, new Squill.MariaDbParser.AntlrMariaDbParser(), (MariaDbFamilyDatabaseSchemaProvider)Fixture.SchemaProvider),
+            ws => new ParserWorkspaceModelBuilder(ws, new Squill.MariaDbParser.AntlrMariaDbParser(), Fixture.SchemaProviderOf()),
             ct,
             name: "Sakila");
     }

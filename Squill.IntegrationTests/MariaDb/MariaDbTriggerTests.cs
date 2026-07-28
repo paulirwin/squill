@@ -23,7 +23,7 @@ public abstract class MariaDbTriggerTests
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
 
-        return new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), (MariaDbFamilyDatabaseSchemaProvider)Fixture.SchemaProvider)
+        return new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), Fixture.SchemaProviderOf())
             .ExtractModelAsync(cancellationToken).GetAwaiter().GetResult().Model;
     }
 

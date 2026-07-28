@@ -52,7 +52,7 @@ public abstract class MariaDbColumnFidelityTests
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
 
-        return await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), (MariaDbFamilyDatabaseSchemaProvider)Fixture.SchemaProvider)
+        return await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), Fixture.SchemaProviderOf())
             .ExtractModelAsync(cancellationToken);
     }
 
