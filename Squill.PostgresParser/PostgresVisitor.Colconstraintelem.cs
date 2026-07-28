@@ -42,7 +42,7 @@ public partial class PostgresVisitor
 
             // opt_column_list on an inline reference names a single referenced column;
             // omitting it defaults to the referenced table's primary key.
-            var referencedColumns = ParseOptColumnList(context.opt_column_list());
+            var referencedColumns = ParseOptColumnList(context.column_list_());
 
             if (referencedColumns.Count > 1)
             {

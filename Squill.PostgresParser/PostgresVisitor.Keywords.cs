@@ -10,12 +10,6 @@ public partial class PostgresVisitor
         return new SimpleIdentifier(context.GetText());
     }
 
-    public override SyntaxNode VisitPlsql_unreserved_keyword(PostgreSQLParser.Plsql_unreserved_keywordContext context)
-    {
-        // TODO: do PLSQL unreserved keywords deserve their own type?
-        return new SimpleIdentifier(context.GetText());
-    }
-
     public override SyntaxNode VisitCol_name_keyword(PostgreSQLParser.Col_name_keywordContext context)
     {
         // TODO: do col name keywords deserve their own type?

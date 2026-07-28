@@ -6,34 +6,36 @@ public partial class PostgresVisitor
 {
     public override SyntaxNode VisitIndex_elem(PostgreSQLParser.Index_elemContext context)
     {
+        // index_elem_options : collate_? class_? asc_desc_? nulls_order_?
+        //                    | collate_? any_name reloptions asc_desc_? nulls_order_?
+        // Each clause is optional, so an absent one is a null context rather than a rule
+        // matching empty.
+        var options = context.index_elem_options();
+
         IndexElementDirection? direction = null;
 
-        if (context.index_elem_options().opt_asc_desc().ASC() is not null)
+        if (options.asc_desc_() is { } ascDesc)
         {
-            direction = IndexElementDirection.Asc;
-        }
-        else if (context.index_elem_options().opt_asc_desc().DESC() is not null)
-        {
-            direction = IndexElementDirection.Desc;
+            direction = ascDesc.ASC() is not null
+                ? IndexElementDirection.Asc
+                : IndexElementDirection.Desc;
         }
 
         IndexElementNullOrder? nullOrder = null;
 
-        if (context.index_elem_options().opt_nulls_order().FIRST_P() is not null)
+        if (options.nulls_order_() is { } nullsOrder)
         {
-            nullOrder = IndexElementNullOrder.NullsFirst;
-        }
-        else if (context.index_elem_options().opt_nulls_order().LAST_P() is not null)
-        {
-            nullOrder = IndexElementNullOrder.NullsLast;
+            nullOrder = nullsOrder.FIRST_P() is not null
+                ? IndexElementNullOrder.NullsFirst
+                : IndexElementNullOrder.NullsLast;
         }
 
         // An operator class (e.g. vector_cosine_ops) may follow the column. The grammar
-        // exposes it as opt_class within index_elem_options; only the plain opt_class
-        // form (not the reloptions form) is supported here.
+        // exposes it as class_ within index_elem_options; only the plain class_ form (not
+        // the reloptions form) is supported here.
         Identifier? operatorClass = null;
 
-        if (context.index_elem_options().opt_class()?.any_name() is { } opClassName)
+        if (options.class_()?.any_name() is { } opClassName)
         {
             if (opClassName.attrs() is not null)
             {

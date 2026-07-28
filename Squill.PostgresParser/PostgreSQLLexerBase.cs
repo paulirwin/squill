@@ -1,32 +1,62 @@
-using System.Diagnostics;
-using Antlr4.Runtime;
+/*
+PostgreSQL grammar.
+The MIT License (MIT).
+Copyright (c) 2021-2023, Oleksii Kovalov (Oleksii.Kovalov@outlook.com).
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+*/
 
+using System;
+using Antlr4.Runtime;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+
+// <squill> Vendored from antlr/grammars-v4 (sql/postgresql/CSharp); re-copied verbatim
+// by RegenerateAntlr.ps1 -Revendor, so it is not hand-edited. </squill>
 namespace Squill.PostgresParser;
+
 
 public abstract class PostgreSQLLexerBase : Lexer
 {
-    protected static readonly Queue<string> tags = new();
+    protected Stack<string> tags = new Stack<string>();
 
-    protected PostgreSQLLexerBase(ICharStream input, TextWriter output, TextWriter errorOutput) 
+    public PostgreSQLLexerBase(ICharStream input)
+        : base(input)
+    {
+    }
+
+    public PostgreSQLLexerBase(ICharStream input, TextWriter output, TextWriter errorOutput)
         : base(input, output, errorOutput)
     {
     }
 
-    private IIntStream getInputStream() { return InputStream; }
-    
-    public override string[] RuleNames => throw new NotImplementedException();
-
-    public override IVocabulary Vocabulary => throw new NotImplementedException();
-
-    public override string GrammarFileName => throw new NotImplementedException();
-
-    public void pushTag() { tags.Enqueue(this.Text); }
-
-    public bool isTag() { return this.Text.Equals(tags.Peek()); }
-
-    public void popTag()
+    public void PushTag()
     {
-        tags.Dequeue();
+        tags.Push(this.Text);
+    }
+
+    public bool IsTag()
+    {
+        return this.Text.Equals(tags.Peek());
+    }
+
+    public void PopTag()
+    {
+        tags.Pop();
     }
 
     public void UnterminatedBlockCommentDebugAssert()
@@ -34,19 +64,24 @@ public abstract class PostgreSQLLexerBase : Lexer
         Debug.Assert(InputStream.LA(1) == -1 /*EOF*/);
     }
 
-    public bool checkLA(int c)
+    public bool CheckLaMinus()
     {
-        return getInputStream().LA(1) != c;
+        return this.InputStream.LA(1) != '-';
     }
 
-    public bool charIsLetter()
+    public bool CheckLaStar()
+    {
+        return this.InputStream.LA(1) != '*';
+    }
+
+    public bool CharIsLetter()
     {
         return Char.IsLetter((char)InputStream.LA(-1));
     }
 
     public void HandleNumericFail()
     {
-        InputStream.Seek(getInputStream().Index - 2);
+        InputStream.Seek(this.InputStream.Index - 2);
         Type = PostgreSQLLexer.Integral;
     }
 
@@ -58,9 +93,11 @@ public abstract class PostgreSQLLexerBase : Lexer
 
     public bool CheckIfUtf32Letter()
     {
-        return char.IsLetter(char.ConvertFromUtf32(char.ConvertToUtf32((char)InputStream.LA(-2),
-                (char)InputStream.LA(-1)))
-            .Substring(0)[0]);
+        return Char.IsLetter(Char.ConvertFromUtf32(Char.ConvertToUtf32((char)InputStream.LA(-2), (char)InputStream.LA(-1))).Substring(0)[0]);
     }
 
+    public bool IsSemiColon()
+    {
+        return  ';' == (char)InputStream.LA(1);
+    }
 }

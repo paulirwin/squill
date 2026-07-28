@@ -20,7 +20,7 @@ public partial class PostgresVisitor
 
         var name = ParseFunctionName(context.func_name());
 
-        var statement = At(new CreateProcedureStatement(name, context.opt_or_replace()?.REPLACE() is not null),
+        var statement = At(new CreateProcedureStatement(name, context.or_replace_()?.REPLACE() is not null),
             context);
 
         foreach (var parameter in ParseParameters(context.func_args_with_defaults()))
@@ -50,7 +50,7 @@ public partial class PostgresVisitor
     {
         var name = ParseFunctionName(context.func_name());
 
-        var statement = At(new CreateFunctionStatement(name, context.opt_or_replace()?.REPLACE() is not null),
+        var statement = At(new CreateFunctionStatement(name, context.or_replace_()?.REPLACE() is not null),
             context);
 
         foreach (var parameter in ParseParameters(context.func_args_with_defaults()))
@@ -294,7 +294,7 @@ public partial class PostgresVisitor
                             "Only dotted qualifiers are supported in a procedure name");
                     }
 
-                    segments.Add(ParseNameSegment(attrName.collabel(), attrName));
+                    segments.Add(ParseNameSegment(attrName.colLabel(), attrName));
                 }
             }
 
@@ -331,7 +331,7 @@ public partial class PostgresVisitor
             : new SimpleIdentifier(context.GetText().ToLowerInvariant());
 
     private Identifier ParseNameSegment(
-        PostgreSQLParser.CollabelContext? collabel,
+        PostgreSQLParser.ColLabelContext? collabel,
         PostgreSQLParser.Attr_nameContext attrName)
         => collabel?.identifier() is { } identifier && VisitIdentifier(identifier) is Identifier parsed
             ? parsed

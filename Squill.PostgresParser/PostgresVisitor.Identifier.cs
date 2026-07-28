@@ -16,9 +16,9 @@ public partial class PostgresVisitor
         if (context.QuotedIdentifier() is not null
             || unicodeQuoted is not null)
         {
-            // Taken from the token rather than GetText(), which would also pull in a
-            // trailing UESCAPE clause. (In practice the grammar rejects `UESCAPE` after an
-            // identifier before the visitor is reached, so this is belt-and-braces.)
+            // Taken from the token rather than GetText(), which would also pull in the
+            // trailing UESCAPE clause the grammar now admits after a unicode-quoted
+            // identifier (`U&"d!0061t" UESCAPE '!'`).
             string text = (context.QuotedIdentifier() ?? unicodeQuoted!).GetText();
 
             if (text.StartsWith("U&"))
@@ -36,14 +36,12 @@ public partial class PostgresVisitor
             return new SimpleIdentifier(name, isQuoted: true, isUnicodeQuoted: unicodeQuoted is not null);
         }
 
-        if (context.plsqlvariablename() is { } plsqlvariablename)
+        // A PL/pgSQL variable reference (`:name`). The grammar spells this as a bare token
+        // on `identifier` rather than routing through the `plsqlvariablename` rule, so the
+        // token is read directly; the leading colon is not part of the name.
+        if (context.PLSQLVARIABLENAME() is { } plsqlVariableName)
         {
-            return VisitPlsqlvariablename(plsqlvariablename);
-        }
-
-        if (context.plsql_unreserved_keyword() is { } plsqlUnreservedKeyword)
-        {
-            return VisitPlsql_unreserved_keyword(plsqlUnreservedKeyword);
+            return new PLSQLVariableName(plsqlVariableName.GetText().TrimStart(':'));
         }
 
         throw new NotImplementedException(

@@ -71,7 +71,15 @@ public partial class PostgresVisitor
 
         if (context.SUBSTRING() is not null)
         {
-            return VisitSubstring(context.substr_list());
+            // SUBSTRING OPEN_PAREN (substr_list | func_arg_list?) CLOSE_PAREN — the
+            // keyword-separated forms are a substr_list; the plain comma form
+            // SUBSTRING(s, start, count) is a func_arg_list and is an ordinary call.
+            if (context.substr_list() is { } substrList)
+            {
+                return VisitSubstring(substrList);
+            }
+
+            return CallOf("SUBSTRING", context.func_arg_list());
         }
 
         if (context.TRIM() is not null)
@@ -148,14 +156,10 @@ public partial class PostgresVisitor
             RequireExpression(operands[1]));
     }
 
+    // substr_list holds only the keyword-separated forms; the plain comma form
+    // SUBSTRING(s, start, count) reaches func_arg_list instead and is handled by the caller.
     private Expression VisitSubstring(PostgreSQLParser.Substr_listContext context)
     {
-        // The plain comma form SUBSTRING(s, start, count) is an ordinary call.
-        if (context.expr_list() is { } exprList)
-        {
-            return CallOf("SUBSTRING", exprList);
-        }
-
         var expressions = context.a_expr();
         var substring = new SubstringExpression(RequireExpression(expressions[0]));
 
@@ -209,6 +213,32 @@ public partial class PostgresVisitor
 
     private FunctionApplicationExpression CallOf(string name, PostgreSQLParser.Expr_listContext context)
         => CallOf(name, context.a_expr().Select(RequireExpression).ToArray());
+
+    // The comma-separated argument form. A named argument (`name => value`) is rejected
+    // rather than silently dropped, matching how func_application handles one.
+    private FunctionApplicationExpression CallOf(
+        string name, PostgreSQLParser.Func_arg_listContext? context)
+    {
+        if (context is null)
+        {
+            return CallOf(name);
+        }
+
+        var arguments = new List<Expression>();
+
+        foreach (var argument in context.func_arg_expr())
+        {
+            if (argument.param_name() is not null)
+            {
+                throw new NotImplementedException(
+                    "Support for named parameters is not yet implemented");
+            }
+
+            arguments.Add(RequireExpression(argument.a_expr()));
+        }
+
+        return CallOf(name, arguments.ToArray());
+    }
 
     private static FunctionApplicationExpression CallOf(string name, params Expression[] arguments)
     {

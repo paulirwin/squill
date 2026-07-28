@@ -8,12 +8,16 @@ public partial class PostgresVisitor
     /// Repairs the operand of a grammar rule that recurses to a full <c>a_expr</c> on its
     /// right and so captures more than it should (issue #141).
     ///
-    /// Both <c>a_expr_caret</c> (<c>a_expr_unary_sign (CARET a_expr)?</c>) and
-    /// <c>a_expr_at_time_zone</c> (<c>a_expr_collate (AT TIME ZONE a_expr)?</c>) are written
-    /// this way, so <c>c ^ 2 &gt; 4</c> parses as <c>c ^ (2 &gt; 4)</c> — the tail swallows the
-    /// lower-precedence comparison that should have stayed above it. Postgres binds both
-    /// <c>^</c> and <c>AT TIME ZONE</c> tighter than a comparison, so the parse tree is simply
-    /// wrong, and left alone would render back out as a differently-meaning predicate.
+    /// <c>a_expr_at_time_zone</c> (<c>a_expr_collate (AT TIME ZONE a_expr)?</c>) is the last
+    /// rule still written this way, so <c>c AT TIME ZONE 'UTC' &gt; d</c> parses as
+    /// <c>c AT TIME ZONE ('UTC' &gt; d)</c> — the tail swallows the lower-precedence comparison
+    /// that should have stayed above it. PostgreSQL binds <c>AT TIME ZONE</c> tighter than a
+    /// comparison (<c>gram.y</c> declares <c>%left AT</c> below the comparison operators), so
+    /// the parse tree is simply wrong; the over-captured form is one the engine rejects
+    /// outright with <c>function pg_catalog.timezone(boolean, ...) does not exist</c>.
+    ///
+    /// Every other tier of the ladder now recurses to the tier below it, so this is the only
+    /// remaining caller. See #153 — once the upstream fix lands, this whole file goes away.
     ///
     /// The shape is recoverable without touching the grammar: the operand that truly belongs
     /// to the tight operator is the leftmost leaf of the over-captured subtree, so this splits

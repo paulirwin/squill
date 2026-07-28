@@ -116,7 +116,7 @@ public partial class PostgresVisitor
             {
                 yield return GetRoutineBodyText(sconst);
             }
-            else if (argument.collabel() is { } collabel)
+            else if (argument.colLabel() is { } collabel)
             {
                 yield return collabel.GetText();
             }

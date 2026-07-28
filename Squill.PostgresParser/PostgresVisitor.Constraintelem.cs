@@ -53,7 +53,7 @@ public partial class PostgresVisitor
                 throw new PostgresParseException("Unable to parse FOREIGN KEY target table");
             }
 
-            var referencedColumns = ParseOptColumnList(context.opt_column_list());
+            var referencedColumns = ParseOptColumnList(context.column_list_());
 
             var (onDelete, onUpdate) = ParseKeyActions(context.key_actions());
 

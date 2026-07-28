@@ -12,7 +12,7 @@ public partial class PostgresVisitor
         // U&'d!0061t' UESCAPE '!' — the UESCAPE clause names the escape character used inside
         // the preceding unicode literal, so dropping it would change what the string means.
         // Like the literal itself it is carried verbatim.
-        if (context.opt_uescape()?.UESCAPE() is null)
+        if (context.uescape_()?.UESCAPE() is null)
         {
             return literal;
         }
