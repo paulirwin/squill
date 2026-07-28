@@ -197,10 +197,11 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
             ? $" DEFAULT {MariaDbDefaultValue.ToSql(value)}"
             : string.Empty;
 
-        // ON UPDATE CURRENT_TIMESTAMP follows the DEFAULT clause (issue #124).
-        if (column.GetProperty<bool?>(MariaDbPropertyNames.OnUpdateCurrentTimestamp) == true)
+        // ON UPDATE CURRENT_TIMESTAMP follows the DEFAULT clause (issue #124). The stored token
+        // carries any fractional-seconds precision (issue #144) and is already valid DDL.
+        if (column.GetProperty<string>(MariaDbPropertyNames.OnUpdateCurrentTimestamp) is { } onUpdate)
         {
-            text += " ON UPDATE CURRENT_TIMESTAMP";
+            text += $" ON UPDATE {onUpdate}";
         }
 
         return text;
@@ -962,6 +963,10 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
                 => $"{typeName}({maxLength})",
             "decimal" or "numeric" when precision != null => $"{typeName}({precision}, {scale ?? 0})",
             "enum" or "set" when collectionValues != null => $"{typeName}{collectionValues}",
+            // A fractional-seconds precision, e.g. datetime(3) (issue #144). Omitted when
+            // absent, which is how a plain `datetime` is modeled.
+            _ when precision != null && MariaDbTypeCategories.IsTemporalPrecisionType(typeName)
+                => $"{typeName}({precision})",
             _ => typeName,
         };
 

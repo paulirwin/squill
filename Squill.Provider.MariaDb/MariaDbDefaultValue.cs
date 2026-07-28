@@ -24,11 +24,16 @@ namespace Squill.Provider.MariaDb;
 /// Merkle hash must match either way, all of those spellings fold to the single canonical
 /// token <c>CURRENT_TIMESTAMP</c>.
 ///
-/// A fractional-seconds variant (<c>CURRENT_TIMESTAMP(3)</c>) is deliberately excluded: the
-/// engines report it with differing spellings and no sample schema needs it, so it keeps
-/// warning rather than risking a phantom diff. Any other function default, and
-/// <c>DEFAULT NULL</c>, likewise stay unmodeled — the methods return <c>null</c>, so the
-/// default is left off the model rather than modeled as something that could not round-trip.
+/// The fractional-seconds variant (<c>CURRENT_TIMESTAMP(3)</c>) is modeled too (issue #144),
+/// as the canonical token with its precision appended — <c>CURRENT_TIMESTAMP(3)</c>. The same
+/// case-folding and synonym-folding applies, so MySQL's <c>CURRENT_TIMESTAMP(3)</c>, MariaDB's
+/// <c>current_timestamp(3)</c> and a source <c>NOW(3)</c> all reduce to it. The precision is
+/// kept rather than dropped because the two are not interchangeable: MySQL rejects an
+/// <c>ON UPDATE</c> precision that disagrees with its column's.
+///
+/// Any other function default, and <c>DEFAULT NULL</c>, stay unmodeled — the methods return
+/// <c>null</c>, so the default is left off the model rather than modeled as something that
+/// could not round-trip.
 /// </summary>
 internal static class MariaDbDefaultValue
 {
@@ -50,25 +55,78 @@ internal static class MariaDbDefaultValue
     /// Folding them in here would mean a parsed default that never matches the extracted one —
     /// a permanent phantom diff. They are left unmodeled instead (issue #147).
     ///
-    /// A form carrying a fractional-seconds precision is likewise absent and stays unmodeled
-    /// (issue #144).
+    /// A form carrying a fractional-seconds precision folds to the same base name and keeps its
+    /// precision (issue #144); see <see cref="CanonicalCurrentTimestamp"/>.
     /// </summary>
-    private static readonly HashSet<string> CurrentTimestampSpellings =
+    private static readonly HashSet<string> CurrentTimestampNames =
         new(StringComparer.OrdinalIgnoreCase)
         {
             "CURRENT_TIMESTAMP",
-            "CURRENT_TIMESTAMP()",
-            "NOW()",
+            "NOW",
         };
 
     /// <summary>
-    /// Whether a default text, from either source or a catalog, is a whole-second
-    /// current-timestamp default. Inner whitespace is ignored so <c>now( )</c> matches.
+    /// The canonical current-timestamp token for a default text from either source or a
+    /// catalog — <c>CURRENT_TIMESTAMP</c>, or <c>CURRENT_TIMESTAMP(n)</c> for the
+    /// fractional-seconds form — or <c>null</c> if the text is not one at all.
+    ///
+    /// Inner whitespace is ignored so <c>now( )</c> and <c>current_timestamp (3)</c> match.
+    ///
+    /// A precision of <c>0</c> folds to the bare token, and empty parentheses do too. That is
+    /// measured behaviour, not tidiness: a <c>datetime(0)</c> column declaring
+    /// <c>CURRENT_TIMESTAMP(0)</c> is reported by both engines exactly as the bare form is (the
+    /// column type drops its <c>(0)</c> as well), so keeping the <c>(0)</c> here would make that
+    /// column re-diff on every deploy.
+    /// </summary>
+    internal static string? CanonicalCurrentTimestamp(string? text)
+    {
+        if (text is null)
+        {
+            return null;
+        }
+
+        var compact = string.Concat(text.Where(c => !char.IsWhiteSpace(c)));
+
+        var open = compact.IndexOf('(');
+
+        if (open < 0)
+        {
+            // A bare keyword: CURRENT_TIMESTAMP. NOW is a function and is never valid without
+            // parentheses, so it is not accepted in this form.
+            return string.Equals(compact, CurrentTimestamp, StringComparison.OrdinalIgnoreCase)
+                ? CurrentTimestamp
+                : null;
+        }
+
+        if (compact[^1] != ')' || !CurrentTimestampNames.Contains(compact[..open]))
+        {
+            return null;
+        }
+
+        var precision = compact[(open + 1)..^1];
+
+        // "current_timestamp()" / "now()" — no precision at all.
+        if (precision.Length == 0)
+        {
+            return CurrentTimestamp;
+        }
+
+        // Only a plain non-negative integer is a precision either engine produces; anything
+        // else is left unmodeled rather than echoed back.
+        if (!int.TryParse(precision, NumberStyles.None, CultureInfo.InvariantCulture, out var digits))
+        {
+            return null;
+        }
+
+        return digits == 0 ? CurrentTimestamp : $"{CurrentTimestamp}({digits})";
+    }
+
+    /// <summary>
+    /// Whether a default text, from either source or a catalog, is a current-timestamp default
+    /// in any of its modeled forms.
     /// </summary>
     internal static bool IsCurrentTimestamp(string? text) =>
-        text is not null
-        && CurrentTimestampSpellings.Contains(
-            string.Concat(text.Where(c => !char.IsWhiteSpace(c))));
+        CanonicalCurrentTimestamp(text) is not null;
 
     /// <summary>
     /// The canonical form of a default written as a raw literal token in source (already
@@ -86,10 +144,10 @@ internal static class MariaDbDefaultValue
         var text = token.Trim();
 
         // Checked before the quoted-string and numeric paths, which it cannot be confused
-        // with: an unquoted keyword or niladic call.
-        if (IsCurrentTimestamp(text))
+        // with: an unquoted keyword or function call.
+        if (CanonicalCurrentTimestamp(text) is { } currentTimestamp)
         {
-            return CurrentTimestamp;
+            return currentTimestamp;
         }
 
         // boolean is an alias for tinyint(1) on both engines, and a TRUE/FALSE default is
@@ -146,9 +204,9 @@ internal static class MariaDbDefaultValue
         // Checked before the character-column path below, which would otherwise re-quote
         // MySQL's bare CURRENT_TIMESTAMP into a string literal, and before the expression
         // rejection, which discards anything containing parentheses.
-        if (IsCurrentTimestamp(text))
+        if (CanonicalCurrentTimestamp(text) is { } currentTimestamp)
         {
-            return CurrentTimestamp;
+            return currentTimestamp;
         }
 
         // A string default already wrapped in single quotes (MariaDB's information_schema

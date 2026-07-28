@@ -621,6 +621,54 @@ public abstract class MariaDbTableAlterTests
     }
 
     /// <summary>
+    /// Changing the fractional-seconds precision of a <c>CURRENT_TIMESTAMP</c> default and its
+    /// <c>ON UPDATE</c> clause (issue #144). Since the precision is part of the canonical token,
+    /// a change to it must be seen as a real diff and restated — if it were dropped, this would
+    /// silently deploy the wrong precision. MySQL additionally requires the <c>ON UPDATE</c>
+    /// precision to match the column's, so both move together here.
+    /// </summary>
+    [Fact]
+    public async Task ChangeCurrentTimestampPrecision_IsApplied()
+    {
+        const string precision3 = """
+            CREATE TABLE actor
+            (
+                actor_id    int NOT NULL PRIMARY KEY,
+                last_update datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+                                ON UPDATE CURRENT_TIMESTAMP(3)
+            );
+            """;
+        const string precision6 = """
+            CREATE TABLE actor
+            (
+                actor_id    int NOT NULL PRIMARY KEY,
+                last_update datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                ON UPDATE CURRENT_TIMESTAMP(6)
+            );
+            """;
+
+        await RunMigrationAsync(
+            precision3,
+            [(precision6, null)],
+            seedSql: "INSERT INTO actor (actor_id) VALUES (1);",
+            assertions:
+            [
+                async connection =>
+                {
+                    Assert.Contains(
+                        "(6)",
+                        await ColumnDefaultAsync(connection, "actor", "last_update") ?? "");
+                    Assert.Contains("(6)", await ExtraAsync(connection, "actor", "last_update"));
+
+                    // The row survived the restatement.
+                    Assert.Equal(1L, Convert.ToInt64(
+                        await ScalarAsync(connection, "SELECT count(*) FROM actor;")));
+                },
+            ],
+            TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>
     /// A column inserted between two existing ones cannot be appended, so
     /// <c>TableDiffAnalyzerBase.RequiresRebuild</c> forces a full create-copy-drop-rename
     /// rebuild — the most destructive path in the tool, and one that had never run against a

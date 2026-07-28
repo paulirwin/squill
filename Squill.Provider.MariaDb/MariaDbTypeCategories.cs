@@ -19,4 +19,13 @@ internal static class MariaDbTypeCategories
     // decimal (and its dec/fixed/numeric synonyms) carry a precision/scale modifier.
     public static bool IsDecimalType(string typeName)
         => typeName is "decimal" or "numeric" or "dec" or "fixed";
+
+    // The temporal types that carry a fractional-seconds precision, e.g. datetime(3)
+    // (issue #144). information_schema reports it in DATETIME_PRECISION rather than
+    // NUMERIC_PRECISION, so it is modeled separately from the decimal precision above.
+    //
+    // `date` is absent deliberately: it has no time part and takes no precision. `year` takes a
+    // display-width modifier that is not a fractional-seconds precision, so it is absent too.
+    public static bool IsTemporalPrecisionType(string typeName)
+        => typeName is "datetime" or "timestamp" or "time";
 }

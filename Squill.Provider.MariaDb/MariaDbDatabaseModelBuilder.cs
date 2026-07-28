@@ -445,6 +445,9 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
                 CHARACTER_MAXIMUM_LENGTH,
                 NUMERIC_PRECISION,
                 NUMERIC_SCALE,
+                -- The fractional-seconds precision of a datetime/timestamp/time column
+                -- (issue #144). Reported here rather than in NUMERIC_PRECISION.
+                DATETIME_PRECISION,
                 EXTRA,
                 COLUMN_DEFAULT,
                 -- A generated (computed) column (issue #120). Both engines report the
@@ -481,6 +484,7 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
             var maxLength = reader.GetNullableInt64("CHARACTER_MAXIMUM_LENGTH");
             var numericPrecision = reader.GetNullableInt64("NUMERIC_PRECISION");
             var numericScale = reader.GetNullableInt64("NUMERIC_SCALE");
+            var datetimePrecision = reader.GetNullableInt64("DATETIME_PRECISION") ?? 0;
             var extra = reader.GetString("EXTRA");
             var isAutoIncrement = extra.Contains("auto_increment", StringComparison.OrdinalIgnoreCase);
             var isUnsigned = columnType.Contains("unsigned", StringComparison.Ordinal);
@@ -512,6 +516,17 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
                     new Property(MariaDbPropertyNames.Precision, (long)numericPrecision.Value));
                 typeElement.Properties.Add(
                     new Property(MariaDbPropertyNames.Scale, (long)(numericScale ?? 0)));
+            }
+            else if (MariaDbTypeCategories.IsTemporalPrecisionType(dataType)
+                     && datetimePrecision > 0)
+            {
+                // A fractional-seconds precision, e.g. datetime(3) (issue #144). Reported in
+                // DATETIME_PRECISION, not NUMERIC_PRECISION, but stored under the same
+                // Precision property the parser builder uses — these types never carry a
+                // decimal precision. Omitted when 0, matching the parser side: both engines
+                // report a `datetime(0)` column as plain `datetime`.
+                typeElement.Properties.Add(
+                    new Property(MariaDbPropertyNames.Precision, (long)datetimePrecision));
             }
 
             if (isUnsigned)
@@ -569,15 +584,14 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
 
             // ON UPDATE CURRENT_TIMESTAMP (issue #124). Both engines report it in EXTRA but
             // spell it differently — MySQL "on update CURRENT_TIMESTAMP", MariaDB
-            // "on update current_timestamp()". Only the whole-second form is modeled: a
-            // precision-carrying "on update current_timestamp(3)" is left off, matching the
-            // parser side, which warns rather than modeling it (issue #144). Emitted after the
-            // default to match the parser builder's property order (the hash is
-            // order-sensitive).
-            if (MariaDbDefaultValue.IsCurrentTimestamp(OnUpdateToken(extra)))
+            // "on update current_timestamp()". The fractional-seconds form is modeled too
+            // (issue #144): "on update current_timestamp(3)" canonicalizes with its precision
+            // intact, matching the parser side. Emitted after the default to match the parser
+            // builder's property order (the hash is order-sensitive).
+            if (MariaDbDefaultValue.CanonicalCurrentTimestamp(OnUpdateToken(extra)) is { } onUpdate)
             {
                 column.Properties.Add(
-                    new Property(MariaDbPropertyNames.OnUpdateCurrentTimestamp, true));
+                    new Property(MariaDbPropertyNames.OnUpdateCurrentTimestamp, onUpdate));
             }
 
             // A generated column (issue #120). EXTRA carries "STORED GENERATED" or

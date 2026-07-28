@@ -428,15 +428,16 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                             file.Name, line, column));
                     }
 
-                    // An ON UPDATE clause the provider cannot model — a precision-carrying
-                    // CURRENT_TIMESTAMP(n), or one of the other time functions the grammar
-                    // admits — is reported rather than silently dropped (issue #144).
+                    // An ON UPDATE clause the provider cannot model — one of the other time
+                    // functions the grammar admits, which both engines reject in this position
+                    // anyway — is reported rather than silently dropped. A fractional-seconds
+                    // CURRENT_TIMESTAMP(n) is modeled as of issue #144 and does not warn.
                     if (defaultConstraint.OnUpdateToken is { } onUpdate
                         && !MariaDbDefaultValue.IsCurrentTimestamp(onUpdate))
                     {
                         warnings.Add(new SqlSourceDiagnostic(
                             $"ON UPDATE on column '{table}.{columnDefinition.Name.Name}' is not a "
-                            + "whole-second CURRENT_TIMESTAMP and is not modeled; it will not be "
+                            + "CURRENT_TIMESTAMP and is not modeled; it will not be "
                             + "deployed or compared.",
                             file.Name, line, column));
                     }
@@ -1092,7 +1093,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             bool? isNullable = null;
             bool isAutoIncrement = false;
             string? defaultValue = null;
-            var onUpdateCurrentTimestamp = false;
+            string? onUpdateCurrentTimestamp = null;
             string? generatedExpression = null;
             var generatedIsStored = false;
 
@@ -1125,11 +1126,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     case DefaultColumnConstraint defaultConstraint:
                         defaultValue = MariaDbDefaultValue.FromSourceToken(defaultConstraint.Token);
 
-                        // Only the whole-second form is modeled; a precision-carrying
-                        // ON UPDATE CURRENT_TIMESTAMP(n) is left unmodeled and warned about,
-                        // rather than silently deployed without its precision (issue #144).
+                        // The canonical token carries any fractional-seconds precision through
+                        // (issue #144), so ON UPDATE CURRENT_TIMESTAMP(3) deploys as written
+                        // rather than being flattened to the whole-second form.
                         onUpdateCurrentTimestamp =
-                            MariaDbDefaultValue.IsCurrentTimestamp(defaultConstraint.OnUpdateToken);
+                            MariaDbDefaultValue.CanonicalCurrentTimestamp(
+                                defaultConstraint.OnUpdateToken);
                         break;
 
                     case ForeignKeyColumnConstraint fk:
@@ -1174,10 +1176,10 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 element.Properties.Add(new Property(MariaDbPropertyNames.DefaultValue, defaultValue));
             }
 
-            if (onUpdateCurrentTimestamp)
+            if (onUpdateCurrentTimestamp != null)
             {
-                element.Properties.Add(
-                    new Property(MariaDbPropertyNames.OnUpdateCurrentTimestamp, true));
+                element.Properties.Add(new Property(
+                    MariaDbPropertyNames.OnUpdateCurrentTimestamp, onUpdateCurrentTimestamp));
             }
 
             // Emitted last, matching the DB-extraction builder's property order.
@@ -1227,6 +1229,20 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
             typeSpec.Properties.Add(new Property(MariaDbPropertyNames.Precision, precision));
             typeSpec.Properties.Add(new Property(MariaDbPropertyNames.Scale, scale));
+        }
+        else if (MariaDbTypeCategories.IsTemporalPrecisionType(canonicalTypeName)
+                 && dataType.Modifiers.Count == 1)
+        {
+            // A fractional-seconds precision, e.g. datetime(3) (issue #144). Reuses the
+            // Precision property — these types never carry a decimal precision, so there is no
+            // ambiguity — and is omitted when 0, which both engines treat as no precision at
+            // all: they report a `datetime(0)` column as plain `datetime`.
+            var precision = dataType.Modifiers[0];
+
+            if (precision > 0)
+            {
+                typeSpec.Properties.Add(new Property(MariaDbPropertyNames.Precision, precision));
+            }
         }
 
         if (dataType.IsUnsigned)
