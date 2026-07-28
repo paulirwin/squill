@@ -1532,6 +1532,15 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             sb.Append(" VERSION '").Append(version).Append('\'');
         }
 
+        // CASCADE installs the extension's own dependencies (issue #143). Emitted as declared
+        // so `CREATE EXTENSION earthdistance CASCADE` deploys the way it reads; it is not part
+        // of the element's identity, so it never causes a re-diff.
+        // bool? rather than bool: GetProperty unboxes, so a missing property would throw.
+        if (extension.GetProperty<bool?>(PostgresPropertyNames.Cascade) == true)
+        {
+            sb.Append(" CASCADE");
+        }
+
         sb.AppendLine(";");
 
         return sb.ToString();

@@ -29,6 +29,12 @@ public sealed class PostgresPropertyNames : SqlPropertyNames
     public const string SequenceDataType = nameof(SequenceDataType);
     public const string FilterPredicate = nameof(FilterPredicate);
     public const string Version = nameof(Version);
+    // CASCADE on CREATE EXTENSION (issue #143): install this extension's own dependencies
+    // along with it. Deploy-time behaviour rather than state — the catalog records no trace
+    // of how an extension came to be installed — so it is scripted but excluded from the
+    // element's identity, or every comparison against a real database would see a difference
+    // that can never be reconciled.
+    public const string Cascade = nameof(Cascade);
     // PostgreSQL terminology: an index element may specify an operator class (opclass),
     // and CREATE INDEX ... WITH (...) carries storage parameters. See
     // https://www.postgresql.org/docs/current/sql-createindex.html

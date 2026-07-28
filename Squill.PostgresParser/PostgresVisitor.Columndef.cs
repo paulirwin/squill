@@ -20,7 +20,18 @@ public partial class PostgresVisitor
 
         var columnDef = new ColumnDefinition(name, dataType);
 
-        if (context.colquallist() is { } colquallist
+        AddColumnConstraints(columnDef, context.colquallist());
+
+        return columnDef;
+    }
+
+    /// <summary>
+    /// Parses a <c>colquallist</c> onto a column. Shared by an ordinary <c>columnDef</c> and a
+    /// typed table's <c>columnOptions</c>, which carries constraints but no type.
+    /// </summary>
+    private void AddColumnConstraints(ColumnDefinition columnDef, PostgreSQLParser.ColquallistContext? context)
+    {
+        if (context is { } colquallist
             && colquallist.colconstraint() is { Length: > 0 } colconstraints)
         {
             foreach (var colconstraint in colconstraints)
@@ -51,12 +62,11 @@ public partial class PostgresVisitor
                 }
                 else
                 {
-                    // TODO: support these constraint types
+                    // COLLATE and DEFERRABLE / INITIALLY DEFERRED land here. Tracked by
+                    // issue #159, not #143.
                     throw new NotImplementedException("DEFERRABLE, DEFERRED, IMMEDIATE, and COLLATE not yet supported");
                 }
             }
         }
-
-        return columnDef;
     }
 }

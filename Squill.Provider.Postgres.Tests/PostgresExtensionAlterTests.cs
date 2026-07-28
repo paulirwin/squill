@@ -101,4 +101,46 @@ public class PostgresExtensionAlterTests
         Assert.Contains("CREATE EXTENSION IF NOT EXISTS \"citext\" VERSION '1.7';", sql);
         Assert.DoesNotContain("ALTER EXTENSION", sql);
     }
+
+    /// <summary>
+    /// CASCADE is deploy-time behaviour, so it is re-emitted rather than modeled away
+    /// (issue #143) — without it, an extension whose dependency is undeclared fails on deploy.
+    /// </summary>
+    [Fact]
+    public void NewExtension_WithCascade_EmitsCascade()
+    {
+        var source = new Model();
+        source.Elements.Add(
+            PostgresModelFactory.CreateExtension(SqlName.Object("earthdistance"), cascade: true));
+
+        var comparison = SchemaCompare.Compare(Provider, source, new Model());
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        Assert.Contains("CREATE EXTENSION IF NOT EXISTS \"earthdistance\" CASCADE;", sql);
+    }
+
+    [Fact]
+    public void NewExtension_WithVersionAndCascade_EmitsBothInOrder()
+    {
+        var source = new Model();
+        source.Elements.Add(
+            PostgresModelFactory.CreateExtension(SqlName.Object("earthdistance"), "1.1", cascade: true));
+
+        var comparison = SchemaCompare.Compare(Provider, source, new Model());
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        Assert.Contains("CREATE EXTENSION IF NOT EXISTS \"earthdistance\" VERSION '1.1' CASCADE;", sql);
+    }
+
+    [Fact]
+    public void NewExtension_WithoutCascade_DoesNotEmitCascade()
+    {
+        var source = new Model();
+        source.Elements.Add(PostgresModelFactory.CreateExtension(SqlName.Object("citext")));
+
+        var comparison = SchemaCompare.Compare(Provider, source, new Model());
+        var sql = new PostgresScriptGenerator().GenerateScript(comparison);
+
+        Assert.DoesNotContain("CASCADE", sql);
+    }
 }

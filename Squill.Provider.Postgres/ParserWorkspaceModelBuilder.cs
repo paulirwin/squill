@@ -227,6 +227,31 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     {
         if (statement is CreateTableStatement createTableStatement)
         {
+            // A typed table (OF a_type) and a partition child (PARTITION OF parent) declare no
+            // column set of their own — it belongs to the type or the parent, neither of which
+            // the model can express. So the table is not modeled at all, and is not registered
+            // with the validator either: a columnless table would make every reference to it
+            // look unresolved (issue #143).
+            if (createTableStatement.OfType is not null || createTableStatement.PartitionOf is not null)
+            {
+                AddUnmodeledTableStatementWarning(file, createTableStatement, warnings);
+                return;
+            }
+
+            // A partitioned parent *does* declare its own columns, so unlike the two forms
+            // above it would model and deploy quite happily — as an ordinary, unpartitioned
+            // table. Silently deploying different semantics than the source declares is the
+            // failure mode #141 called out for typed literals, and a warning is not enough
+            // here: partitioning is the whole point of the declaration. Rejected until
+            // partitioning is modeled properly (issue #143).
+            if (createTableStatement.PartitionBy is not null)
+            {
+                throw new NotSupportedException(
+                    $"PARTITION BY on table '{SplitSchema(createTableStatement.Name).Name.UnqualifiedName}' "
+                    + "is not yet supported: Squill cannot model partitioning, and deploying the "
+                    + "table unpartitioned would not match what is declared.");
+            }
+
             validator.AddCreateTable(file, createTableStatement);
 
             // A duplicate table would otherwise contribute a second set of elements for the
@@ -254,12 +279,39 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         }
         else if (statement is CreateExtensionStatement createExtensionStatement)
         {
+            // CASCADE is carried through and re-emitted on deploy (issue #143) rather than
+            // warned about: dropping it would build cleanly and then fail on deploy, since the
+            // extension's dependency would be missing. It is deliberately not part of the
+            // element's identity — see PostgresPropertyNames.Cascade.
+            //
+            // FROM is different: it upgrades a pre-9.1 unpackaged module into an extension, so
+            // it only means anything against a database that already contains that module. It
+            // cannot be reproduced from a declarative model and stays unmodeled.
+            if (createExtensionStatement.FromVersion is { } fromVersion)
+            {
+                warnings.Add(new SqlSourceDiagnostic(
+                    $"FROM '{fromVersion}' on extension '{createExtensionStatement.Name.Name}' is not "
+                    + "modeled; the extension will be created directly rather than upgraded from an "
+                    + "unpackaged module.",
+                    file.Name, statement.Line, statement.Column));
+            }
+
             var element = MakeCreateExtensionElement(createExtensionStatement);
 
             model.Elements.Add(element);
         }
         else if (statement is CreateSchemaStatement createSchemaStatement)
         {
+            // The schema is modeled; only its owning role is not, since Squill does not
+            // manage roles (issue #143).
+            if (createSchemaStatement.Authorization is { } role)
+            {
+                warnings.Add(new SqlSourceDiagnostic(
+                    $"AUTHORIZATION {role} on schema '{createSchemaStatement.Name.Name}' is not "
+                    + "modeled; the schema will be owned by the deploying role.",
+                    file.Name, statement.Line, statement.Column));
+            }
+
             validator.AddSchema(createSchemaStatement.Name.Name);
 
             // 'public' exists in every database by default and is not a declared
@@ -348,11 +400,61 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     /// CHECK constraints were listed here until issue #120 modeled them, and non-constant
     /// defaults such as <c>now()</c> until issue #124 modeled them.
     /// </summary>
+    /// <summary>
+    /// The warning for a CREATE TABLE that is not modeled *at all* — the typed-table
+    /// (<c>OF a_type</c>) and partition-child (<c>PARTITION OF parent</c>) forms, whose column
+    /// set belongs to another object (issue #143). Unlike the per-construct warnings below,
+    /// this one stands in for the entire table.
+    /// </summary>
+    private static void AddUnmodeledTableStatementWarning(IFile file,
+        CreateTableStatement createTableStatement,
+        List<SqlSourceDiagnostic> warnings)
+    {
+        var table = SplitSchema(createTableStatement.Name).Name.UnqualifiedName;
+
+        var reason = createTableStatement.PartitionOf is { } parent
+            ? $"is declared PARTITION OF '{parent}'"
+            : $"is declared OF type '{createTableStatement.OfType}'";
+
+        warnings.Add(new SqlSourceDiagnostic(
+            $"Table '{table}' {reason} and is not modeled; it takes its columns from that "
+            + "object, which Squill cannot express, so it will not be deployed or compared.",
+            file.Name,
+            createTableStatement.Line,
+            createTableStatement.Column));
+    }
+
     private static void AddUnmodeledTableWarnings(IFile file,
         CreateTableStatement createTableStatement,
         List<SqlSourceDiagnostic> warnings)
     {
         var table = SplitSchema(createTableStatement.Name).Name.UnqualifiedName;
+
+        foreach (var tableConstraint in createTableStatement.Elements.OfType<TableConstraint>())
+        {
+            var constraint = tableConstraint is NamedTableConstraint named
+                ? named.Constraint
+                : tableConstraint;
+
+            // PRIMARY KEY / UNIQUE USING INDEX names an existing index to promote. The model
+            // cannot bind a constraint to one specific index, so the constraint is dropped.
+            var usingIndex = constraint switch
+            {
+                PrimaryKeyTableConstraint { UsingIndex: { } ix } => ix.Name,
+                UniqueTableConstraint { UsingIndex: { } ix } => ix.Name,
+                _ => null,
+            };
+
+            if (usingIndex is not null)
+            {
+                warnings.Add(new SqlSourceDiagnostic(
+                    $"A USING INDEX constraint on table '{table}' (backed by index "
+                    + $"'{usingIndex}') is not modeled; it will not be deployed or compared.",
+                    file.Name,
+                    constraint.Line ?? createTableStatement.Line,
+                    constraint.Column ?? createTableStatement.Column));
+            }
+        }
 
         foreach (var columnDefinition in createTableStatement.Elements.OfType<ColumnDefinition>())
         {
@@ -646,6 +748,15 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
                 var line = constraint.Line ?? createTableStatement.Line;
                 var column = constraint.Column ?? createTableStatement.Column;
+
+                // A USING INDEX constraint declares no columns of its own and is not modeled
+                // (issue #143), so there is nothing to validate — and validating it would
+                // reject valid SQL for having an empty column list.
+                if (constraint is PrimaryKeyTableConstraint { UsingIndex: not null }
+                    or UniqueTableConstraint { UsingIndex: not null })
+                {
+                    continue;
+                }
 
                 // Only an index-backed constraint (PRIMARY KEY, UNIQUE) takes a name in the
                 // schema's relation namespace. A FOREIGN KEY or CHECK name is scoped to its
@@ -1091,6 +1202,14 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             var (constraint, explicitName) = tableConstraint is NamedTableConstraint named
                 ? (named.Constraint, named.Name.Name)
                 : (tableConstraint, (string?)null);
+
+            // Not modeled: the constraint's columns live on the index it names, which the
+            // model has no way to bind to. Warned about as SQ1002 (issue #143).
+            if (constraint is PrimaryKeyTableConstraint { UsingIndex: not null }
+                or UniqueTableConstraint { UsingIndex: not null })
+            {
+                continue;
+            }
 
             if (constraint is PrimaryKeyTableConstraint pk)
             {
@@ -1600,7 +1719,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         // The declared version (if any) is carried through; SCHEMA is not yet modeled.
         var extensionName = SqlName.Object(createExtensionStatement.Name.Name);
 
-        return PostgresModelFactory.CreateExtension(extensionName, createExtensionStatement.Version);
+        return PostgresModelFactory.CreateExtension(
+            extensionName, createExtensionStatement.Version, createExtensionStatement.Cascade);
     }
 
     // An enum type (issue #75) is a standalone declared object; its labels are carried in
