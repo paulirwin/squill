@@ -29,6 +29,26 @@ public class CreateIndexTests
         Assert.Null(column.IsAscending);
     }
 
+    // FULLTEXT / SPATIAL occupy the same grammar slot as UNIQUE, and are captured as the index
+    // kind rather than as an access method (issue #146).
+    [Theory]
+    [InlineData("CREATE FULLTEXT INDEX idx_t ON film_text (title);", "FULLTEXT")]
+    [InlineData("CREATE SPATIAL INDEX idx_g ON geo (location);", "SPATIAL")]
+    public void CreateIndex_SpecialKind_CapturesTheKind(string sql, string expectedKind)
+    {
+        var index = ParseOne(sql);
+
+        Assert.Equal(expectedKind, index.IndexKind);
+        Assert.False(index.Unique);
+        Assert.Null(index.IndexMethod);
+    }
+
+    [Fact]
+    public void CreateIndex_OrdinaryKind_HasNoIndexKind()
+    {
+        Assert.Null(ParseOne("CREATE INDEX idx_a ON actor (last_name);").IndexKind);
+    }
+
     [Fact]
     public void CreateIndex_Unique_CapturesUniqueFlag()
     {

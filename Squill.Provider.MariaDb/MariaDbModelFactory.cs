@@ -130,7 +130,8 @@ public static class MariaDbModelFactory
         SqlName indexedObject,
         bool isUnique,
         string? indexMethod,
-        IEnumerable<IndexedColumn> columns)
+        IEnumerable<IndexedColumn> columns,
+        string? indexKind = null)
     {
         var columnSpecs = new Relationship(MariaDbRelationshipNames.ColumnSpecifications);
 
@@ -157,6 +158,14 @@ public static class MariaDbModelFactory
         if (indexMethod is not null)
         {
             element.Properties.Add(new Property(MariaDbPropertyNames.IndexMethod, indexMethod));
+        }
+
+        // Emitted after the method so both builders agree on property order (the hash is
+        // order-sensitive). A FULLTEXT/SPATIAL index carries a kind and no method; an ordinary
+        // one the reverse, so the two are never both present in practice.
+        if (indexKind is not null)
+        {
+            element.Properties.Add(new Property(MariaDbPropertyNames.IndexKind, indexKind));
         }
 
         return element;

@@ -489,28 +489,21 @@ public abstract class MariaDbIndexFidelityTests
     // ---- 4. FULLTEXT ----
 
     /// <summary>
-    /// A declared FULLTEXT index is dropped from the source model but read back from the
-    /// catalog — an asymmetry with a data-integrity consequence.
-    /// <c>MapCreateDefinition</c> returns <c>IgnoredTableConstraint</c> for a FULLTEXT/SPATIAL
-    /// inline index (with an SQ-class build warning), while
-    /// <c>MariaDbDatabaseModelBuilder.ExtractIndexesAsync</c> reads every row of
-    /// <c>information_schema.STATISTICS</c> including <c>INDEX_TYPE = 'FULLTEXT'</c> and models
-    /// it as a <c>SqlIndex</c>.
+    /// An inline FULLTEXT index is modeled on both sides and survives a redeploy with drops
+    /// enabled (issue #146).
     ///
     /// <para>
-    /// The consequence: after the very first deploy the target database contains an index the
-    /// source model does not, so with <c>DropObjectsNotInSource</c> enabled the next deploy
-    /// scripts a DROP of an index the user explicitly declared. This test asserts the source
-    /// model's blindness, deploys the FULLTEXT index by hand (Squill cannot deploy it), and
-    /// then asserts what the comparison does with it. Sakila's <c>film_text</c> uses
-    /// <c>FULLTEXT KEY</c>, so this is on the sample-project path — <c>SakilaSampleDeployTests</c>
-    /// gets away with it only because it never re-compares with drops enabled.
+    /// It previously was not: the mapper returned <c>IgnoredTableConstraint</c> for a
+    /// FULLTEXT/SPATIAL inline index, so the source model had none, while
+    /// <c>MariaDbDatabaseModelBuilder.ExtractIndexesAsync</c> read it back from
+    /// <c>information_schema.STATISTICS</c> as a <c>SqlIndex</c>. After the first deploy the
+    /// target held an index the source model did not, so with <c>DropObjectsNotInSource</c>
+    /// enabled the next deploy scripted a DROP of an index the user had explicitly declared.
+    /// Sakila's <c>film_text</c> uses <c>FULLTEXT KEY</c>, so this is on the sample-project
+    /// path.
     /// </para>
     /// </summary>
-    [Fact(Skip = "Blocked by issue #163: MapCreateDefinition returns IgnoredTableConstraint for "
-                 + "an inline FULLTEXT index so the source model has none, while the extractor "
-                 + "reads it back — the asymmetry makes DropObjectsNotInSource script a DROP of "
-                 + "an index the user declared.")]
+    [Fact]
     public async Task FulltextIndex_IsModeledAndDeployedAndNotDropped()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -559,6 +552,94 @@ public abstract class MariaDbIndexFidelityTests
         {
             await testDb.DropAsync(ct);
         }
+    }
+
+    /// <summary>
+    /// The SPATIAL half of issue #146, which goes through the same code path as FULLTEXT but
+    /// differs in two measured ways: the catalog reports its column ascending
+    /// (<c>COLLATION = 'A'</c>, where a FULLTEXT column reports NULL), and the indexed column
+    /// must be <c>NOT NULL</c> for either engine to accept the index at all.
+    /// </summary>
+    [Fact]
+    public async Task SpatialIndex_IsModeledAndDeployedAndNotDropped()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        const string sql = """
+            CREATE TABLE geo
+            (
+                geo_id int NOT NULL PRIMARY KEY,
+                location geometry NOT NULL,
+                SPATIAL KEY idx_location (location)
+            );
+            """;
+
+        var parsedModel = ParseModel(sql, ct);
+
+        var sourceIndex = Assert.Single(
+            parsedModel.Elements, e => e.Type == MariaDbElementTypes.SqlIndex);
+        Assert.Equal("idx_location", sourceIndex.Name?.ToString());
+
+        var provider = new MariaDbDatabaseProvider(Fixture.ConnectionString);
+        var databaseName = $"squill_test_{Guid.NewGuid():n}";
+        var testDb = await provider.CreateDatabaseAsync(databaseName, ct);
+        var modelBuilder = provider.CreateDatabaseModelBuilder(testDb);
+
+        try
+        {
+            var empty = await modelBuilder.ExtractModelAsync(ct);
+            await testDb.PublishAsync(SchemaCompare.Compare(provider, parsedModel, empty), ct);
+
+            var deployedKeys = await QueryIndexKeysAsync(databaseName, ct);
+            Assert.Contains(deployedKeys, k => k.IndexType == "SPATIAL" && k.IndexName == "idx_location");
+
+            var extracted = await modelBuilder.ExtractModelAsync(ct);
+
+            var withDrops = SchemaCompare.Compare(
+                provider, parsedModel, extracted,
+                new DeployOptions { DropObjectsNotInSource = true });
+
+            Assert.Empty(withDrops.Deltas.OfType<DropDelta>());
+        }
+        finally
+        {
+            await testDb.DropAsync(ct);
+        }
+    }
+
+    /// <summary>
+    /// A FULLTEXT index declared with the standalone <c>CREATE FULLTEXT INDEX</c> spelling must
+    /// model identically to the inline <c>FULLTEXT KEY</c> form — measured against both engines,
+    /// the two produce the same catalog rows, so they must produce the same model or one of the
+    /// two would re-diff on every deploy.
+    /// </summary>
+    [Fact]
+    public async Task StandaloneFulltextIndex_ModelsSameAsInlineForm()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var inline = ParseModel("""
+            CREATE TABLE film_text
+            (
+                film_id int NOT NULL PRIMARY KEY,
+                title   varchar(255) NOT NULL,
+                FULLTEXT KEY idx_title (title)
+            );
+            """, ct);
+
+        var standalone = ParseModel("""
+            CREATE TABLE film_text
+            (
+                film_id int NOT NULL PRIMARY KEY,
+                title   varchar(255) NOT NULL
+            );
+            CREATE FULLTEXT INDEX idx_title ON film_text (title);
+            """, ct);
+
+        var inlineIndex = Assert.Single(inline.Elements, e => e.Type == MariaDbElementTypes.SqlIndex);
+        var standaloneIndex = Assert.Single(standalone.Elements, e => e.Type == MariaDbElementTypes.SqlIndex);
+
+        Assert.True(HashUtility.HashesEqual(inlineIndex.Hash, standaloneIndex.Hash));
     }
 
     // ---- 5. Identifier length ----

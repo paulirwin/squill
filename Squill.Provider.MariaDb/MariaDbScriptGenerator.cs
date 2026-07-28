@@ -259,6 +259,13 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
             sb.Append("UNIQUE ");
         }
 
+        // FULLTEXT/SPATIAL are written as a prefix keyword, not as a USING method: both engines
+        // reject `USING FULLTEXT` as a syntax error (issue #146).
+        if (index.GetProperty<string>(MariaDbPropertyNames.IndexKind) is { } indexKind)
+        {
+            sb.Append(indexKind).Append(' ');
+        }
+
         sb.Append("INDEX ").Append(quotedIndexName).Append(" ON ").Append(quotedTableName);
 
         // BTREE is the implicit method; only emit USING for a non-default method (e.g. HASH).

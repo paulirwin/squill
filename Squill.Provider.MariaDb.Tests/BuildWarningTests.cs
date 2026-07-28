@@ -21,6 +21,35 @@ public class BuildWarningTests
         return new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser());
     }
 
+    /// <summary>
+    /// A FULLTEXT / SPATIAL index is modeled as of issue #146, so it no longer warns. This was
+    /// the last unmodeled construct in the Sakila sample — its <c>film_text</c> table declares
+    /// <c>FULLTEXT KEY idx_title_description (title, description)</c> — so the sample now builds
+    /// with zero SQ1002 warnings.
+    /// </summary>
+    [Theory]
+    [InlineData("FULLTEXT KEY idx_t (title)")]
+    [InlineData("FULLTEXT INDEX idx_t (title)")]
+    [InlineData("SPATIAL KEY idx_t (g)")]
+    [InlineData("SPATIAL INDEX idx_t (g)")]
+    public async Task SpecialIndex_IsModeledWithoutWarning(string indexClause)
+    {
+        var builder = BuilderFor(("FilmText.sql", $"""
+CREATE TABLE film_text
+(
+    film_id int NOT NULL PRIMARY KEY,
+    title   varchar(255) NOT NULL,
+    g       geometry NOT NULL,
+    {indexClause}
+);
+"""));
+
+        var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        Assert.Empty(result.Warnings);
+        Assert.Contains(result.Model.Elements, e => e.Type == MariaDbElementTypes.SqlIndex);
+    }
+
     [Fact]
     public async Task CreateEvent_IsModeledWithoutWarning()
     {

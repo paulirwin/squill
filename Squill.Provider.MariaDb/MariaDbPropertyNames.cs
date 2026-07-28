@@ -14,6 +14,14 @@ public sealed class MariaDbPropertyNames : SqlPropertyNames
     public const string IsUnsigned = nameof(IsUnsigned);
     public const string IsAutoIncrement = nameof(IsAutoIncrement);
 
+    // A FULLTEXT or SPATIAL index (issue #146), held as the keyword itself. Both engines report
+    // it in information_schema.STATISTICS.INDEX_TYPE, where it appears in place of the
+    // BTREE/HASH access method — but it is not one: `USING FULLTEXT` is a syntax error on both,
+    // and the kind must be written as a prefix (`CREATE FULLTEXT INDEX …`). So it is modeled
+    // apart from IndexMethod rather than sharing its slot. Omitted for an ordinary index, per
+    // the omit-when-default convention.
+    public const string IndexKind = nameof(IndexKind);
+
     // ON UPDATE CURRENT_TIMESTAMP (issue #124): a timestamp/datetime column the engine
     // refreshes to the current time on every row update. Both engines report it in
     // information_schema.COLUMNS.EXTRA, though with different spellings.

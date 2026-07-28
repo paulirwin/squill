@@ -425,17 +425,35 @@ public class CreateTableTests
         Assert.Equal(new[] { "a" }, index.Columns.Select(c => c.Column.Name));
     }
 
-    // FULLTEXT and SPATIAL indexes are recognized but deliberately not modeled; they must not
-    // fail the parse of the table that declares them.
+    // FULLTEXT and SPATIAL indexes are carried as an ordinary index constraint tagged with the
+    // kind (issue #146). The kind is kept apart from the index method because it is not one:
+    // both engines reject `USING FULLTEXT`, so it is written as a leading keyword instead.
     [Theory]
-    [InlineData("FULLTEXT KEY ft_a (a)")]
-    [InlineData("SPATIAL KEY sp_a (a)")]
-    public void TableIndex_UnmodeledKind_IsIgnored(string declaration)
+    [InlineData("FULLTEXT KEY ft_a (a)", "FULLTEXT", "ft_a")]
+    [InlineData("FULLTEXT INDEX ft_a (a)", "FULLTEXT", "ft_a")]
+    [InlineData("SPATIAL KEY sp_a (a)", "SPATIAL", "sp_a")]
+    [InlineData("SPATIAL INDEX sp_a (a)", "SPATIAL", "sp_a")]
+    public void TableIndex_SpecialKind_IsCarriedWithItsKind(
+        string declaration, string expectedKind, string expectedName)
     {
         var table = ParseOne($"CREATE TABLE t (a text, {declaration});");
 
-        Assert.Empty(table.Elements.OfType<IndexTableConstraint>());
-        Assert.Single(table.Elements.OfType<IgnoredTableConstraint>());
+        Assert.Empty(table.Elements.OfType<IgnoredTableConstraint>());
+
+        var index = Assert.Single(table.Elements.OfType<IndexTableConstraint>());
+        Assert.Equal(expectedKind, index.IndexKind);
+        Assert.Equal(expectedName, index.IndexName);
+        Assert.Null(index.IndexMethod);
+        Assert.Equal(new[] { "a" }, index.Columns.Select(c => c.Column.Name));
+    }
+
+    // An ordinary index carries no kind, so the two forms stay distinguishable.
+    [Fact]
+    public void TableIndex_OrdinaryKind_HasNoIndexKind()
+    {
+        var table = ParseOne("CREATE TABLE t (a text, KEY k_a (a));");
+
+        Assert.Null(Assert.Single(table.Elements.OfType<IndexTableConstraint>()).IndexKind);
     }
 
     // ---- Source positions ----
