@@ -1,5 +1,6 @@
 using DotNet.Testcontainers.Containers;
 using DotNet.Testcontainers.Images;
+using MySqlConnector;
 using Testcontainers.MariaDb;
 using Testcontainers.MySql;
 using Xunit;
@@ -34,6 +35,13 @@ public abstract class MariaDbLikeFixture : IAsyncLifetime
     /// <summary>Builds (but does not start) the engine's container.</summary>
     protected abstract IDatabaseContainer BuildContainer();
 
+    /// <summary>
+    /// Which engine this fixture's container must actually be running, checked once at startup
+    /// (issue #145). MariaDB and MySQL are distinguished here because a reused host port between
+    /// the two would otherwise surface as a confusing dialect difference rather than a collision.
+    /// </summary>
+    protected abstract ContainerEngine Engine { get; }
+
     /// <summary>A connection string to the running server (root credentials).</summary>
     public string ConnectionString => (_container ?? throw new InvalidOperationException(
         "The container has not been started.")).GetConnectionString();
@@ -42,6 +50,8 @@ public abstract class MariaDbLikeFixture : IAsyncLifetime
     {
         _container = BuildContainer();
         await _container.StartAsync();
+
+        await ContainerIdentity.VerifyAsync(() => new MySqlConnection(ConnectionString), Engine);
     }
 
     public async ValueTask DisposeAsync()
@@ -65,6 +75,8 @@ public sealed class MariaDbFixture : MariaDbLikeFixture
     // Oldest supported MariaDB major (see MariaDb*DatabaseSchemaProvider).
     public override int LowestSupportedMajor => 10;
 
+    protected override ContainerEngine Engine => ContainerEngine.MariaDb;
+
     // Squill's deploy path creates and drops databases and reads information_schema, so the
     // test connection must be the root account — the default per-database user the container
     // provisions cannot CREATE DATABASE. WithUsername("root") makes GetConnectionString()
@@ -85,6 +97,8 @@ public sealed class MySqlFixture : MariaDbLikeFixture
     // Oldest supported MySQL major (see MySql*DatabaseSchemaProvider).
     public override int LowestSupportedMajor => 8;
 
+    protected override ContainerEngine Engine => ContainerEngine.MySql;
+
     protected override IDatabaseContainer BuildContainer() =>
         new MySqlBuilder(new DockerImage("mysql:latest"))
             .WithUsername("root")
@@ -98,6 +112,8 @@ public sealed class MariaDb10Fixture : MariaDbLikeFixture
     public override string ProviderName => "MariaDb";
     public override int LowestSupportedMajor => 10;
 
+    protected override ContainerEngine Engine => ContainerEngine.MariaDb;
+
     protected override IDatabaseContainer BuildContainer() =>
         new MariaDbBuilder(new DockerImage("mariadb:10"))
             .WithUsername("root")
@@ -110,6 +126,8 @@ public sealed class MySql8Fixture : MariaDbLikeFixture
     public override string EngineName => "MySQL";
     public override string ProviderName => "MySql";
     public override int LowestSupportedMajor => 8;
+
+    protected override ContainerEngine Engine => ContainerEngine.MySql;
 
     protected override IDatabaseContainer BuildContainer() =>
         new MySqlBuilder(new DockerImage("mysql:8.0"))
