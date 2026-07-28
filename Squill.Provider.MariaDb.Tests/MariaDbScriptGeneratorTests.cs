@@ -172,6 +172,33 @@ public class MariaDbScriptGeneratorTests
         Assert.Contains("CREATE INDEX `ix_film_title` ON `film` (`title`);", sql);
     }
 
+    /// <summary>
+    /// A FULLTEXT / SPATIAL index is written with its kind as a leading keyword (issue #146).
+    /// The kind must never be emitted as a <c>USING</c> access method: both engines reject
+    /// <c>USING FULLTEXT</c> as a syntax error, so getting this wrong produces DDL that fails at
+    /// deploy time rather than merely diffing oddly.
+    /// </summary>
+    [Theory]
+    [InlineData("FULLTEXT KEY idx_title (title)", "CREATE FULLTEXT INDEX `idx_title` ON `film` (`title`);")]
+    [InlineData("SPATIAL KEY idx_geo (geo)", "CREATE SPATIAL INDEX `idx_geo` ON `film` (`geo`);")]
+    public async Task GenerateScript_SpecialIndex_EmitsKindAsPrefixKeyword(
+        string indexClause, string expected)
+    {
+        var sql = await ScriptAsync($"""
+            CREATE TABLE film
+            (
+                film_id int NOT NULL PRIMARY KEY,
+                title   varchar(255) NOT NULL,
+                geo     geometry NOT NULL,
+                {indexClause}
+            );
+            """);
+
+        Assert.Contains(expected, sql);
+        Assert.DoesNotContain("USING FULLTEXT", sql);
+        Assert.DoesNotContain("USING SPATIAL", sql);
+    }
+
     [Fact]
     public async Task GenerateScript_EnumColumn_PreservesValueList()
     {

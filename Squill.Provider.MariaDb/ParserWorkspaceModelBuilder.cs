@@ -941,11 +941,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         var foreignKeys = new List<ForeignKeySpec>();
         var uniqueIndexes = new List<(string? Name, IReadOnlyList<string> Columns)>();
         var checkConstraints = new List<(string Name, string Expression)>();
+        var specialIndexes = new List<(string Name, string Kind, IReadOnlyList<IndexColumn> Columns)>();
 
         AddColumns(tableElement, tableName, createTable, primaryKeyColumns, foreignKeys,
             uniqueIndexes, checkConstraints);
         CollectTableLevelConstraints(createTable, tableName, primaryKeyColumns, foreignKeys,
-            uniqueIndexes, checkConstraints);
+            uniqueIndexes, checkConstraints, specialIndexes);
 
         yield return tableElement;
 
@@ -994,6 +995,20 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 tableName.Sibling(indexName), tableName, isUnique: true, indexMethod: "BTREE", indexedColumns);
         }
 
+        // Inline FULLTEXT/SPATIAL indexes (issue #146). These become ordinary SqlIndex elements
+        // carrying an IndexKind and no access method — the catalog reports none for them, and
+        // `USING FULLTEXT` is a syntax error on both engines.
+        foreach (var (name, kind, columns) in specialIndexes)
+        {
+            var indexedColumns = columns.Select(c =>
+                new MariaDbModelFactory.IndexedColumn(
+                    tableName.Child(c.Column.Name), IndexColumnIsAscending(c, kind)));
+
+            yield return MariaDbModelFactory.CreateIndex(
+                tableName.Sibling(name), tableName, isUnique: false, indexMethod: null,
+                indexedColumns, indexKind: kind);
+        }
+
         // CHECK constraints come last, matching the DB-extraction builder's per-table order
         // (issue #120). Every one has an explicit name — an unnamed CHECK is a build error,
         // since MariaDB and MySQL derive different names for one.
@@ -1027,7 +1042,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         List<MariaDbModelFactory.IndexedColumn> primaryKeyColumns,
         List<ForeignKeySpec> foreignKeys,
         List<(string? Name, IReadOnlyList<string> Columns)> uniqueIndexes,
-        List<(string Name, string Expression)> checkConstraints)
+        List<(string Name, string Expression)> checkConstraints,
+        List<(string Name, string Kind, IReadOnlyList<IndexColumn> Columns)> specialIndexes)
     {
         foreach (var tableElement in createTable.Elements.OfType<TableConstraint>())
         {
@@ -1058,6 +1074,14 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         fk.ReferencedColumns.Select(c => c.Name).ToList(),
                         fk.OnDelete ?? ReferentialAction.Restrict,
                         fk.OnUpdate ?? ReferentialAction.Restrict));
+                    break;
+
+                // A FULLTEXT/SPATIAL index declared inline (issue #146). Like an unnamed CHECK,
+                // an unnamed one is rejected by the validator and skipped here rather than
+                // modeled under a name only the engine can assign.
+                case IndexTableConstraint { IndexKind: { } kind } special
+                    when (explicitName ?? special.IndexName) is { } specialName:
+                    specialIndexes.Add((specialName, kind, special.Columns));
                     break;
 
                 // An unnamed CHECK is rejected by the validator, so it is skipped here
@@ -1261,6 +1285,18 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         return new Relationship(MariaDbRelationshipNames.TypeSpecifier) { typeSpec };
     }
 
+    /// <summary>
+    /// The ascending flag to model for one index column, matching what the catalog reports in
+    /// <c>information_schema.STATISTICS.COLLATION</c> so a parsed index hash-matches an
+    /// extracted one.
+    ///
+    /// A standard index column is recorded ascending ('A') when no direction is written, and so
+    /// is a SPATIAL one. A FULLTEXT index is unordered — both engines report <c>COLLATION</c>
+    /// NULL for its columns — so it must carry no flag at all (issue #146).
+    /// </summary>
+    private static bool? IndexColumnIsAscending(IndexColumn column, string? indexKind)
+        => indexKind == "FULLTEXT" ? null : column.IsAscending ?? true;
+
     private static Element MakeCreateIndexElement(CreateIndexStatement createIndex)
     {
         if (createIndex.Name is null)
@@ -1271,21 +1307,22 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         var tableName = TableName(createIndex.OnTable);
         var indexName = tableName.Sibling(createIndex.Name);
 
-        // BTREE is the default index method for the common storage engines when USING is
-        // omitted; defaulting to it matches the DB extractor, which reads BTREE from
+        // A FULLTEXT/SPATIAL index takes no USING method, and the catalog reports none for it
+        // (issue #146). BTREE is the default index method for the common storage engines when
+        // USING is omitted; defaulting to it matches the DB extractor, which reads BTREE from
         // information_schema for a standard index.
-        var indexMethod = createIndex.IndexMethod ?? "BTREE";
+        var indexMethod = createIndex.IndexKind is not null
+            ? null
+            : createIndex.IndexMethod ?? "BTREE";
 
         var columns = createIndex.Columns.Select(c =>
-        {
-            // MariaDB records a standard b-tree index column as ascending ('A') when no
-            // direction is written; fill that in so a parsed index matches the extracted one.
-            var isAscending = c.IsAscending ?? true;
-            return new MariaDbModelFactory.IndexedColumn(tableName.Child(c.Column.Name), isAscending);
-        });
+            new MariaDbModelFactory.IndexedColumn(
+                tableName.Child(c.Column.Name),
+                IndexColumnIsAscending(c, createIndex.IndexKind)));
 
         return MariaDbModelFactory.CreateIndex(
-            indexName, tableName, createIndex.Unique, indexMethod, columns);
+            indexName, tableName, createIndex.Unique, indexMethod, columns,
+            indexKind: createIndex.IndexKind);
     }
 
     /// <summary>

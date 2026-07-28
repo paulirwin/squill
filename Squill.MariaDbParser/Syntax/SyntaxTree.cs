@@ -209,11 +209,23 @@ public sealed class ForeignKeyTableConstraint(
 public sealed class IndexTableConstraint(
     string? indexName,
     string? indexMethod,
-    IReadOnlyList<IndexColumn> columns) : TableConstraint
+    IReadOnlyList<IndexColumn> columns,
+    string? indexKind = null) : TableConstraint
 {
     public string? IndexName { get; } = indexName;
     public string? IndexMethod { get; } = indexMethod;
     public IReadOnlyList<IndexColumn> Columns { get; } = columns;
+
+    /// <summary>
+    /// The index kind written as a leading keyword — <c>FULLTEXT</c> or <c>SPATIAL</c> — or
+    /// <c>null</c> for an ordinary index (issue #146).
+    ///
+    /// Distinct from <see cref="IndexMethod"/>, which is the <c>USING</c> access method
+    /// (<c>BTREE</c>/<c>HASH</c>). The two are not interchangeable: both engines reject
+    /// <c>USING FULLTEXT</c> as a syntax error, and the kind must be written as a prefix
+    /// (<c>CREATE FULLTEXT INDEX …</c>) instead.
+    /// </summary>
+    public string? IndexKind { get; } = indexKind;
 }
 
 /// <summary>
@@ -236,6 +248,15 @@ public sealed class CreateIndexStatement(string? name, QualifiedName onTable) : 
     public QualifiedName OnTable { get; } = onTable;
     public bool Unique { get; set; }
     public string? IndexMethod { get; set; }
+
+    /// <summary>
+    /// The index kind written before <c>INDEX</c> — <c>FULLTEXT</c> or <c>SPATIAL</c> — or
+    /// <c>null</c> for an ordinary index (issue #146). See
+    /// <see cref="IndexTableConstraint.IndexKind"/> for why this is separate from
+    /// <see cref="IndexMethod"/>.
+    /// </summary>
+    public string? IndexKind { get; set; }
+
     public IList<IndexColumn> Columns { get; } = new List<IndexColumn>();
 }
 

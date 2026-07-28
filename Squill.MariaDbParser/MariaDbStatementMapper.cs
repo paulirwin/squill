@@ -322,7 +322,19 @@ internal static class MariaDbStatementMapper
             return new IndexTableConstraint(indexName, method, columns);
         }
 
-        // FULLTEXT / SPATIAL indexes are recognized but not modeled.
+        // A FULLTEXT / SPATIAL index (issue #146). The kind is carried as its own token rather
+        // than folded into the index method: both engines reject `USING FULLTEXT` outright, so
+        // the two cannot share a slot.
+        if (index is MariaDBParser.SpecialIndexDeclarationContext special)
+        {
+            var kind = special.FULLTEXT() != null ? "FULLTEXT" : "SPATIAL";
+            var indexName = special.uid() is { } specialUid ? UidText(specialUid) : null;
+            var columns = MapIndexColumnNames(special.indexColumnNames());
+
+            // No index method: these kinds take no USING clause.
+            return new IndexTableConstraint(indexName, indexMethod: null, columns, kind);
+        }
+
         return new IgnoredTableConstraint();
     }
 
@@ -342,10 +354,17 @@ internal static class MariaDbStatementMapper
                 .Select(option => MapIndexType(option.indexType()))
                 .FirstOrDefault(method => method is not null);
 
+        // FULLTEXT / SPATIAL are alternatives of the same `indexCategory` slot as UNIQUE, so at
+        // most one of the three is ever written (issue #146).
+        var indexKind = createIndex.FULLTEXT() != null ? "FULLTEXT"
+            : createIndex.SPATIAL() != null ? "SPATIAL"
+            : null;
+
         var statement = At(new CreateIndexStatement(name, onTable)
         {
             Unique = createIndex.UNIQUE() != null,
             IndexMethod = indexMethod,
+            IndexKind = indexKind,
         }, createIndex);
 
         foreach (var column in MapIndexColumnNames(createIndex.indexColumnNames()))

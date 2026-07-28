@@ -741,8 +741,16 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
 
             var (isUnique, method, columns) = indexRows[indexName];
 
+            // INDEX_TYPE reports FULLTEXT/SPATIAL in the same slot as the BTREE/HASH access
+            // method, but they are index *kinds*, not methods: `USING FULLTEXT` is a syntax
+            // error on both engines, so scripting one as a method would emit invalid DDL. Split
+            // them apart here (issue #146).
+            var isSpecialKind = method is "FULLTEXT" or "SPATIAL";
+
             model.Elements.Add(MariaDbModelFactory.CreateIndex(
-                SqlName.Object(indexName), tableSqlName, isUnique, method, columns));
+                SqlName.Object(indexName), tableSqlName, isUnique,
+                isSpecialKind ? null : method, columns,
+                indexKind: isSpecialKind ? method : null));
         }
     }
 
