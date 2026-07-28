@@ -282,7 +282,7 @@ public static class PostgresModelFactory
     /// usually omits the version) hash-matches one extracted from the database (whose
     /// installed version is not part of the desired-state identity).
     /// </summary>
-    public static Element CreateExtension(SqlName name, string? version = null)
+    public static Element CreateExtension(SqlName name, string? version = null, bool cascade = false)
     {
         var element = new Element(PostgresElementTypes.SqlExtension)
         {
@@ -292,6 +292,15 @@ public static class PostgresModelFactory
         if (version is not null)
         {
             element.Properties.Add(new Property(PostgresPropertyNames.Version, version));
+        }
+
+        // Scripted but never compared — see PostgresPropertyNames.Cascade. A model extracted
+        // from a database can never set this, so hashing it would make the two sides disagree
+        // forever.
+        if (cascade)
+        {
+            element.Properties.Add(
+                new Property(PostgresPropertyNames.Cascade, true, participatesInIdentity: false));
         }
 
         return element;

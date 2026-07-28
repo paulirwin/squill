@@ -118,4 +118,192 @@ CREATE TABLE product
 
         Assert.Empty(result.Warnings);
     }
+
+    // Issue #143: statement forms that now parse but are deliberately not carried into the
+    // model. Each warns rather than throwing, so the rest of the project still builds — and
+    // rather than deploying something that differs from what was declared.
+
+    /// <summary>
+    /// A typed table's columns belong to its composite type, which the model has no way to
+    /// express, so the table is not emitted at all — only the warning.
+    /// </summary>
+    [Fact]
+    public async Task TypedTable_WarnsAndIsNotModeled()
+    {
+        const string sql = """
+CREATE TYPE employee_type AS (id integer, name text);
+CREATE TABLE employees OF employee_type;
+""";
+        var builder = BuilderFor(("Employees.sql", sql));
+
+        var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        var warning = Assert.Single(result.Warnings);
+        Assert.Equal("SQ1002", warning.Code);
+        Assert.Equal("Employees.sql", warning.SourceFile);
+        Assert.Contains("employees", warning.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("OF", warning.Message, StringComparison.Ordinal);
+
+        Assert.DoesNotContain(result.Model.Elements,
+            e => e.Type == PostgresElementTypes.SqlTable && e.Name?.Contains("employees") == true);
+    }
+
+    [Fact]
+    public async Task PartitionChild_WarnsAndIsNotModeled()
+    {
+        const string sql = """
+CREATE TABLE measurement_y2024 PARTITION OF measurement
+    FOR VALUES FROM ('2024-01-01') TO ('2025-01-01');
+""";
+        var builder = BuilderFor(("Measurement.sql", sql));
+
+        var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        var warning = Assert.Single(result.Warnings);
+        Assert.Equal("SQ1002", warning.Code);
+        Assert.Contains("PARTITION OF", warning.Message, StringComparison.Ordinal);
+
+        Assert.DoesNotContain(result.Model.Elements,
+            e => e.Type == PostgresElementTypes.SqlTable && e.Name?.Contains("measurement_y2024") == true);
+    }
+
+    /// <summary>
+    /// A partitioned *parent* is different from the child: it declares its own columns, so it
+    /// would model and deploy quite happily — as an ordinary, unpartitioned table. A warning
+    /// is not enough for a divergence that large, so it is a build error until partitioning is
+    /// modeled (issue #143).
+    /// </summary>
+    [Fact]
+    public async Task PartitionedParent_IsABuildError()
+    {
+        const string sql =
+            "CREATE TABLE measurement (logdate date NOT NULL, peaktemp integer) PARTITION BY RANGE (logdate);";
+        var builder = BuilderFor(("Measurement.sql", sql));
+
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(
+            () => builder.ExtractModelAsync(TestContext.Current.CancellationToken));
+
+        Assert.Contains("PARTITION BY", ex.Message, StringComparison.Ordinal);
+        Assert.Equal("Measurement.sql", ex.SourceFile);
+    }
+
+    [Fact]
+    public async Task PrimaryKeyUsingIndex_WarnsAndTheConstraintIsNotModeled()
+    {
+        const string sql = """
+CREATE TABLE t
+(
+    id integer,
+    CONSTRAINT pk_t PRIMARY KEY USING INDEX ix_t_id
+);
+""";
+        var builder = BuilderFor(("T.sql", sql));
+
+        var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        var warning = Assert.Single(result.Warnings);
+        Assert.Equal("SQ1002", warning.Code);
+        Assert.Contains("USING INDEX", warning.Message, StringComparison.Ordinal);
+
+        // The table itself is still modeled — only the constraint is dropped.
+        Assert.Contains(result.Model.Elements, e => e.Type == PostgresElementTypes.SqlTable);
+        Assert.DoesNotContain(result.Model.Elements, e => e.Type == PostgresElementTypes.SqlPrimaryKeyConstraint);
+    }
+
+    [Fact]
+    public async Task UniqueUsingIndex_Warns()
+    {
+        const string sql = """
+CREATE TABLE t
+(
+    email text,
+    UNIQUE USING INDEX ix_t_email
+);
+""";
+        var builder = BuilderFor(("T.sql", sql));
+
+        var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        var warning = Assert.Single(result.Warnings);
+        Assert.Equal("SQ1002", warning.Code);
+        Assert.Contains("USING INDEX", warning.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The schema is modeled as usual; only the role is dropped, since Squill does not manage
+    /// roles.
+    /// </summary>
+    [Fact]
+    public async Task SchemaAuthorization_WarnsButTheSchemaIsStillModeled()
+    {
+        var builder = BuilderFor(("Staging.sql", "CREATE SCHEMA staging AUTHORIZATION joe;"));
+
+        var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        var warning = Assert.Single(result.Warnings);
+        Assert.Equal("SQ1002", warning.Code);
+        Assert.Contains("AUTHORIZATION", warning.Message, StringComparison.Ordinal);
+
+        Assert.Contains(result.Model.Elements, e => e.Type == PostgresElementTypes.SqlSchema);
+    }
+
+    /// <summary>
+    /// CASCADE is honored on deploy rather than dropped (issue #143), so it does not warn.
+    /// Dropping it would build cleanly and then fail on deploy, because the dependency it
+    /// exists to install would be missing.
+    /// </summary>
+    [Fact]
+    public async Task ExtensionCascade_DoesNotWarnAndIsCarried()
+    {
+        var builder = BuilderFor(("Ext.sql", "CREATE EXTENSION earthdistance CASCADE;"));
+
+        var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        Assert.Empty(result.Warnings);
+
+        var extension = Assert.Single(result.Model.Elements,
+            e => e.Type == PostgresElementTypes.SqlExtension);
+
+        Assert.True(extension.GetProperty<bool?>(PostgresPropertyNames.Cascade));
+    }
+
+    /// <summary>
+    /// CASCADE describes how to deploy, not what was deployed — the catalog records no trace
+    /// of it — so it must not contribute to the element's hash. If it did, a source model with
+    /// CASCADE would never match the same extension extracted from a database, and the
+    /// extension would be redeployed forever.
+    /// </summary>
+    [Fact]
+    public async Task ExtensionCascade_DoesNotAffectTheElementHash()
+    {
+        var withCascade = await BuilderFor(("Ext.sql", "CREATE EXTENSION cube CASCADE;"))
+            .ExtractModelAsync(TestContext.Current.CancellationToken);
+        var without = await BuilderFor(("Ext.sql", "CREATE EXTENSION cube;"))
+            .ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(HashUtility.HashesEqual(withCascade.Model.Hash, without.Model.Hash));
+    }
+
+    [Fact]
+    public async Task ExtensionFromVersion_Warns()
+    {
+        var builder = BuilderFor(("Ext.sql", "CREATE EXTENSION hstore FROM unpackaged;"));
+
+        var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        var warning = Assert.Single(result.Warnings);
+        Assert.Equal("SQ1002", warning.Code);
+        Assert.Contains("FROM", warning.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>An ordinary extension must not warn.</summary>
+    [Fact]
+    public async Task PlainExtension_DoesNotWarn()
+    {
+        var builder = BuilderFor(("Ext.sql", "CREATE EXTENSION citext WITH SCHEMA public VERSION '1.6';"));
+
+        var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        Assert.Empty(result.Warnings);
+    }
 }

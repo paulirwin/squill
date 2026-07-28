@@ -32,11 +32,14 @@ public partial class PostgresVisitor
             }
             else if (optItem.FROM() is not null)
             {
-                throw new NotImplementedException("FROM clause on CREATE EXTENSION is not yet supported");
+                // Both FROM and CASCADE describe how the extension is installed rather than
+                // what the installed extension is, so they are carried for fidelity but left
+                // unmodeled — the provider warns (SQ1002) instead of throwing (issue #143).
+                statement.FromVersion = GetNonReservedWordOrSconstText(optItem.nonreservedword_or_sconst());
             }
             else if (optItem.CASCADE() is not null)
             {
-                throw new NotImplementedException("CASCADE on CREATE EXTENSION is not yet supported");
+                statement.Cascade = true;
             }
         }
 

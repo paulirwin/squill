@@ -18,11 +18,15 @@ public partial class PostgresVisitor
 
         if (context.PRIMARY() is not null && context.KEY() is not null)
         {
-            // PRIMARY KEY (columnlist) — the parenthesized form. The USING-index form
-            // (existingindex) has no columnlist and is not yet supported.
+            // Two spellings: PRIMARY KEY (columnlist), or PRIMARY KEY USING INDEX ix, which
+            // promotes an existing unique index and so declares no columns of its own. The
+            // latter is carried but not modeled — the provider warns (issue #143).
             if (context.columnlist() is not { } columnlist)
             {
-                throw new NotImplementedException("PRIMARY KEY USING INDEX form not yet supported");
+                return At(new PrimaryKeyTableConstraint([])
+                {
+                    UsingIndex = ParseExistingIndexName(context.existingindex()),
+                }, context);
             }
 
             return At(new PrimaryKeyTableConstraint(ParseColumnList(columnlist)), context);
@@ -30,12 +34,13 @@ public partial class PostgresVisitor
 
         if (context.UNIQUE() is not null)
         {
-            // UNIQUE (columnlist) — the parenthesized form. The USING-index form
-            // (existingindex) has no columnlist and is not yet supported, mirroring
-            // PRIMARY KEY above.
+            // UNIQUE (columnlist) or UNIQUE USING INDEX ix, mirroring PRIMARY KEY above.
             if (context.columnlist() is not { } uniqueColumnlist)
             {
-                throw new NotImplementedException("UNIQUE USING INDEX form not yet supported");
+                return At(new UniqueTableConstraint([])
+                {
+                    UsingIndex = ParseExistingIndexName(context.existingindex()),
+                }, context);
             }
 
             return At(new UniqueTableConstraint(ParseColumnList(uniqueColumnlist)), context);
@@ -66,5 +71,23 @@ public partial class PostgresVisitor
         }
 
         throw new NotImplementedException("Table constraint type not yet implemented");
+    }
+
+    // existingindex : USING INDEX name
+    private Identifier ParseExistingIndexName(PostgreSQLParser.ExistingindexContext? context)
+    {
+        if (context?.name() is not { } name)
+        {
+            throw new PostgresParseException(
+                "Expected a PRIMARY KEY / UNIQUE constraint to declare either a column list or "
+                + "USING INDEX");
+        }
+
+        if (VisitName(name) is not Identifier indexName)
+        {
+            throw new PostgresParseException("Unable to parse USING INDEX index name");
+        }
+
+        return indexName;
     }
 }

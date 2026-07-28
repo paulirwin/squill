@@ -12,4 +12,12 @@ public class PrimaryKeyTableConstraint : TableConstraint
     }
 
     public IReadOnlyList<Identifier> Columns { get; }
+
+    /// <summary>
+    /// The existing index this constraint is built from (<c>PRIMARY KEY USING INDEX ix</c>),
+    /// or null for the ordinary parenthesized form. When set, <see cref="Columns"/> is empty —
+    /// the key columns belong to the index, not the constraint. Carried but not modeled
+    /// (issue #143): the model cannot express a constraint bound to one specific index.
+    /// </summary>
+    public Identifier? UsingIndex { get; set; }
 }
