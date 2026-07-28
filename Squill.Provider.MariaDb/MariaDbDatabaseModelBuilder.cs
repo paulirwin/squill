@@ -14,9 +14,35 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
 {
     private readonly IDatabase _database;
 
+    /// <summary>
+    /// Which engine the connected server actually is, detected from <c>VERSION()</c> during
+    /// extraction. Not a constructor parameter: a few catalog forms — the time-function column
+    /// defaults of issue #147 — mean different things on each engine, and the only trustworthy
+    /// answer is the server being read, not what a caller believed it was connecting to.
+    /// </summary>
+    private MariaDbEngine _engine = MariaDbEngine.MariaDb;
+
     public MariaDbDatabaseModelBuilder(IDatabase database)
     {
         _database = database;
+    }
+
+    /// <summary>
+    /// Reads the server's version banner and classifies it. MariaDB always carries
+    /// <c>MariaDB</c> in <c>VERSION()</c> (e.g. <c>11.4.2-MariaDB</c>); MySQL never does.
+    /// </summary>
+    private async Task<MariaDbEngine> DetectEngineAsync(CancellationToken cancellationToken)
+    {
+        await using var reader = await _database.RunScriptReaderAsync(
+            "SELECT VERSION();", [], cancellationToken);
+
+        var version = await reader.ReadAsync(cancellationToken)
+            ? reader.GetString(0)
+            : string.Empty;
+
+        return version.Contains("MariaDB", StringComparison.OrdinalIgnoreCase)
+            ? MariaDbEngine.MariaDb
+            : MariaDbEngine.MySql;
     }
 
     // MariaDB information_schema stores bare identifiers; we store the canonical SqlName on
@@ -28,6 +54,8 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
         var model = new Model();
 
         await _database.ConnectAsync(cancellationToken);
+
+        _engine = await DetectEngineAsync(cancellationToken);
 
         const string sql =
             "SELECT TABLE_NAME FROM information_schema.TABLES "
@@ -577,7 +605,8 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
             // it does for char/varchar), so they need the same re-quoting to match the parser.
             var defaultIsStringLiteral = IsCharacterType(dataType) || dataType is "enum" or "set";
 
-            if (MariaDbDefaultValue.FromDatabaseText(columnDefault, defaultIsStringLiteral) is { } defaultValue)
+            if (MariaDbDefaultValue.FromDatabaseText(columnDefault, _engine, defaultIsStringLiteral)
+                is { } defaultValue)
             {
                 column.Properties.Add(new Property(MariaDbPropertyNames.DefaultValue, defaultValue));
             }
@@ -588,7 +617,7 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
             // (issue #144): "on update current_timestamp(3)" canonicalizes with its precision
             // intact, matching the parser side. Emitted after the default to match the parser
             // builder's property order (the hash is order-sensitive).
-            if (MariaDbDefaultValue.CanonicalCurrentTimestamp(OnUpdateToken(extra)) is { } onUpdate)
+            if (MariaDbDefaultValue.CanonicalOnUpdate(OnUpdateToken(extra), _engine) is { } onUpdate)
             {
                 column.Properties.Add(
                     new Property(MariaDbPropertyNames.OnUpdateCurrentTimestamp, onUpdate));

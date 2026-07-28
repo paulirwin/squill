@@ -21,12 +21,12 @@ public abstract class MariaDbProcedureTests
 {
     protected abstract MariaDbLikeFixture Fixture { get; }
 
-    private static Model ParseModel(string sql, CancellationToken cancellationToken)
+    private Model ParseModel(string sql, CancellationToken cancellationToken)
     {
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
 
-        return new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser())
+        return new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), Fixture.EngineOf())
             .ExtractModelAsync(cancellationToken).GetAwaiter().GetResult().Model;
     }
 

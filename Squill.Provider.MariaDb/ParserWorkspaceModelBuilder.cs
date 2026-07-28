@@ -10,16 +10,23 @@ namespace Squill.Provider.MariaDb;
 /// <see cref="MariaDbModelFactory"/> and named to match MariaDB's own auto-generated
 /// constraint names (a <c>PRIMARY</c> key, <c>&lt;table&gt;_ibfk_N</c> foreign keys) so a
 /// parsed model hash-matches one extracted from a live database.
+///
+/// The target <see cref="MariaDbEngine"/> is required rather than defaulted: a handful of
+/// constructs — currently the time-function column <c>DEFAULT</c>s (issue #147) — canonicalize
+/// differently on each engine, and silently assuming the wrong one would produce a model that
+/// re-diffs against its own database on every deploy.
 /// </summary>
 public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 {
     private readonly Workspace _workspace;
     private readonly IMariaDbParser _parser;
+    private readonly MariaDbEngine _engine;
 
-    public ParserWorkspaceModelBuilder(Workspace workspace, IMariaDbParser parser)
+    public ParserWorkspaceModelBuilder(Workspace workspace, IMariaDbParser parser, MariaDbEngine engine)
     {
         _workspace = workspace;
         _parser = parser;
+        _engine = engine;
     }
 
     public async Task<BuildResult> ExtractModelAsync(CancellationToken cancellationToken = default)
@@ -282,9 +289,9 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                             break;
                         }
 
-                        AddUnmodeledTableWarnings(file, createTable, warnings);
+                        AddUnmodeledTableWarnings(file, createTable, warnings, _engine);
 
-                        foreach (var element in MakeCreateTableElements(createTable))
+                        foreach (var element in MakeCreateTableElements(createTable, _engine))
                         {
                             model.Elements.Add(element);
                         }
@@ -378,7 +385,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     /// </summary>
     private static void AddUnmodeledTableWarnings(IFile file,
         CreateTableStatement createTable,
-        List<SqlSourceDiagnostic> warnings)
+        List<SqlSourceDiagnostic> warnings,
+        MariaDbEngine engine)
     {
         var table = createTable.Name.Name;
 
@@ -420,11 +428,20 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 }
                 else if (constraint is DefaultColumnConstraint defaultConstraint)
                 {
-                    if (MariaDbDefaultValue.FromSourceToken(defaultConstraint.Token) is null)
+                    if (MariaDbDefaultValue.FromSourceToken(defaultConstraint.Token, engine) is null)
                     {
+                        // A time function that MariaDB models but MySQL rejects outright gets a
+                        // message naming the engine, since the same source builds fine for the
+                        // other one (issue #147).
+                        var reason = engine == MariaDbEngine.MySql
+                            && MariaDbDefaultValue.IsCurrentTimestamp(
+                                defaultConstraint.Token, MariaDbEngine.MariaDb)
+                            ? "is not a valid default on MySQL (it is MariaDB-only) and is not modeled"
+                            : "is not a constant literal and is not modeled";
+
                         warnings.Add(new SqlSourceDiagnostic(
-                            $"DEFAULT on column '{table}.{columnDefinition.Name.Name}' is not a "
-                            + "constant literal and is not modeled; it will not be deployed or compared.",
+                            $"DEFAULT on column '{table}.{columnDefinition.Name.Name}' {reason}; "
+                            + "it will not be deployed or compared.",
                             file.Name, line, column));
                     }
 
@@ -433,7 +450,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     // anyway — is reported rather than silently dropped. A fractional-seconds
                     // CURRENT_TIMESTAMP(n) is modeled as of issue #144 and does not warn.
                     if (defaultConstraint.OnUpdateToken is { } onUpdate
-                        && !MariaDbDefaultValue.IsCurrentTimestamp(onUpdate))
+                        && MariaDbDefaultValue.CanonicalOnUpdate(onUpdate, engine) is null)
                     {
                         warnings.Add(new SqlSourceDiagnostic(
                             $"ON UPDATE on column '{table}.{columnDefinition.Name.Name}' is not a "
@@ -931,7 +948,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         ReferentialAction OnDelete,
         ReferentialAction OnUpdate);
 
-    private static IEnumerable<Element> MakeCreateTableElements(CreateTableStatement createTable)
+    private static IEnumerable<Element> MakeCreateTableElements(
+        CreateTableStatement createTable, MariaDbEngine engine)
     {
         var tableName = TableName(createTable.Name);
 
@@ -943,7 +961,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         var checkConstraints = new List<(string Name, string Expression)>();
         var specialIndexes = new List<(string Name, string Kind, IReadOnlyList<IndexColumn> Columns)>();
 
-        AddColumns(tableElement, tableName, createTable, primaryKeyColumns, foreignKeys,
+        AddColumns(engine, tableElement, tableName, createTable, primaryKeyColumns, foreignKeys,
             uniqueIndexes, checkConstraints);
         CollectTableLevelConstraints(createTable, tableName, primaryKeyColumns, foreignKeys,
             uniqueIndexes, checkConstraints, specialIndexes);
@@ -1094,6 +1112,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     }
 
     private static void AddColumns(
+        MariaDbEngine engine,
         Element tableElement,
         SqlName tableName,
         CreateTableStatement createTable,
@@ -1148,14 +1167,16 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         break;
 
                     case DefaultColumnConstraint defaultConstraint:
-                        defaultValue = MariaDbDefaultValue.FromSourceToken(defaultConstraint.Token);
+                        defaultValue = MariaDbDefaultValue.FromSourceToken(
+                            defaultConstraint.Token, engine);
 
                         // The canonical token carries any fractional-seconds precision through
                         // (issue #144), so ON UPDATE CURRENT_TIMESTAMP(3) deploys as written
-                        // rather than being flattened to the whole-second form.
+                        // rather than being flattened to the whole-second form. Only the
+                        // current-timestamp family is valid in this position on either engine.
                         onUpdateCurrentTimestamp =
-                            MariaDbDefaultValue.CanonicalCurrentTimestamp(
-                                defaultConstraint.OnUpdateToken);
+                            MariaDbDefaultValue.CanonicalOnUpdate(
+                                defaultConstraint.OnUpdateToken, engine);
                         break;
 
                     case ForeignKeyColumnConstraint fk:

@@ -11,6 +11,10 @@ namespace Squill.Provider.MariaDb.Tests;
 public class BuildWarningTests
 {
     private static ParserWorkspaceModelBuilder BuilderFor(params (string Name, string Sql)[] files)
+        => BuilderFor(MariaDbEngine.MariaDb, files);
+
+    private static ParserWorkspaceModelBuilder BuilderFor(
+        MariaDbEngine engine, params (string Name, string Sql)[] files)
     {
         var workspace = new Workspace();
         foreach (var (name, sql) in files)
@@ -18,7 +22,7 @@ public class BuildWarningTests
             workspace.Files.Add(new InMemoryStringFile(name, FileKind.Compile, sql));
         }
 
-        return new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser());
+        return new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), engine);
     }
 
     /// <summary>
@@ -171,6 +175,63 @@ CREATE TABLE book
         var builder = BuilderFor(
             ("Author.sql", "CREATE TABLE author (id INT PRIMARY KEY, name VARCHAR(50) NOT NULL);"),
             ("Book.sql", "CREATE TABLE book (id INT PRIMARY KEY, author_id INT, FOREIGN KEY (author_id) REFERENCES author (id));"));
+
+        var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        Assert.Empty(result.Warnings);
+    }
+
+    /// <summary>
+    /// The time-function defaults are modeled on MariaDB as of issue #147, so they no longer
+    /// warn there — each gets its own canonical token rather than being dropped.
+    /// </summary>
+    [Theory]
+    [InlineData("datetime DEFAULT LOCALTIME")]
+    [InlineData("datetime DEFAULT LOCALTIMESTAMP")]
+    [InlineData("date DEFAULT CURDATE()")]
+    [InlineData("time DEFAULT CURTIME()")]
+    public async Task OnMariaDb_TimeFunctionDefault_DoesNotWarn(string columnSql)
+    {
+        var builder = BuilderFor(
+            MariaDbEngine.MariaDb, ("T.sql", $"CREATE TABLE t (id INT PRIMARY KEY, c {columnSql});"));
+
+        var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        Assert.Empty(result.Warnings);
+    }
+
+    /// <summary>
+    /// The same source targeting MySQL, where <c>CURDATE()</c>/<c>CURTIME()</c> are not valid
+    /// defaults at all (measured: a syntax error), warns rather than silently deploying a
+    /// script the server would reject. The message names the engine, since the identical source
+    /// builds cleanly for MariaDB.
+    /// </summary>
+    [Theory]
+    [InlineData("date DEFAULT CURDATE()")]
+    [InlineData("time DEFAULT CURTIME()")]
+    public async Task OnMySql_UnsupportedTimeFunctionDefault_Warns(string columnSql)
+    {
+        var builder = BuilderFor(
+            MariaDbEngine.MySql, ("T.sql", $"CREATE TABLE t (id INT PRIMARY KEY, c {columnSql});"));
+
+        var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        var warning = Assert.Single(result.Warnings);
+        Assert.Equal("SQ1002", warning.Code);
+        Assert.Contains("MySQL", warning.Message);
+    }
+
+    /// <summary>
+    /// LOCALTIME/LOCALTIMESTAMP are true CURRENT_TIMESTAMP synonyms on MySQL, so they are
+    /// modeled there and must not warn.
+    /// </summary>
+    [Theory]
+    [InlineData("datetime DEFAULT LOCALTIME")]
+    [InlineData("datetime DEFAULT LOCALTIMESTAMP")]
+    public async Task OnMySql_LocaltimeFamily_DoesNotWarn(string columnSql)
+    {
+        var builder = BuilderFor(
+            MariaDbEngine.MySql, ("T.sql", $"CREATE TABLE t (id INT PRIMARY KEY, c {columnSql});"));
 
         var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
 

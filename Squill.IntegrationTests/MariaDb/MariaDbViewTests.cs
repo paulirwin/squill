@@ -26,12 +26,12 @@ public abstract class MariaDbViewTests
     private const string Users =
         "CREATE TABLE users (id int NOT NULL PRIMARY KEY, name varchar(50), active tinyint(1));";
 
-    private static Model ParseModel(string sql, CancellationToken cancellationToken)
+    private Model ParseModel(string sql, CancellationToken cancellationToken)
     {
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
 
-        return new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser())
+        return new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), Fixture.EngineOf())
             .ExtractModelAsync(cancellationToken).GetAwaiter().GetResult().Model;
     }
 

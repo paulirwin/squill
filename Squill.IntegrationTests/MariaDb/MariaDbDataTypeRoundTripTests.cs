@@ -22,7 +22,7 @@ public abstract class MariaDbDataTypeRoundTripTests
     private async Task AssertColumnRoundTripsAsync(string columnType, CancellationToken cancellationToken)
         => await RoundTripHarness.AssertRoundTripAsync(
             new MariaDbDatabaseProvider(Fixture.ConnectionString),
-            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser()),
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser(), Fixture.EngineOf()),
             $"CREATE TABLE t (c {columnType});",
             Fixture.EngineName,
             assertRedeployNoOp: true,

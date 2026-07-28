@@ -26,7 +26,7 @@ public abstract class MariaDbRoundTripTests
         var provider = new MariaDbDatabaseProvider(Fixture.ConnectionString);
         var model = await WorkspaceModelBuilding.BuildModelAsync(
             sql,
-            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser()),
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser(), Fixture.EngineOf()),
             cancellationToken);
         return await RoundTripHarness.AssertRoundTripAsync(
             provider, model, Fixture.EngineName, cancellationToken: cancellationToken);

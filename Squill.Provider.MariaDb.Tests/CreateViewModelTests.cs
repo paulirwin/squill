@@ -12,7 +12,7 @@ public class CreateViewModelTests
     private static Task<Model> BuildModelAsync(string sql)
         => WorkspaceModelBuilding.BuildModelAsync(
             sql,
-            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser()),
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser(), MariaDbEngine.MariaDb),
             TestContext.Current.CancellationToken);
 
     private static async Task<Element> BuildViewAsync(string sql)

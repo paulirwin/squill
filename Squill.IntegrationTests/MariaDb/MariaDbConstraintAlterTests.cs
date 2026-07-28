@@ -47,10 +47,10 @@ public abstract class MariaDbConstraintAlterTests
 {
     protected abstract MariaDbLikeFixture Fixture { get; }
 
-    private static Model ParseModel(string sql, CancellationToken cancellationToken)
+    private Model ParseModel(string sql, CancellationToken cancellationToken)
         => WorkspaceModelBuilding.BuildModelAsync(
             sql,
-            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser()),
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser(), Fixture.EngineOf()),
             cancellationToken).GetAwaiter().GetResult();
 
     /// <summary>

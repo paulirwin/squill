@@ -29,10 +29,10 @@ public abstract class MariaDbTableAlterTests
 {
     protected abstract MariaDbLikeFixture Fixture { get; }
 
-    private static Task<Model> ParseModelAsync(string sql, CancellationToken cancellationToken)
+    private Task<Model> ParseModelAsync(string sql, CancellationToken cancellationToken)
         => WorkspaceModelBuilding.BuildModelAsync(
             sql,
-            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser()),
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser(), Fixture.EngineOf()),
             cancellationToken);
 
     /// <summary>

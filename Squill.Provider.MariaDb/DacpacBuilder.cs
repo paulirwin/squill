@@ -13,8 +13,18 @@ namespace Squill.Provider.MariaDb;
 /// </summary>
 public static class DacpacBuilder
 {
-    private static IWorkspaceModelBuilder CreateModelBuilder(Workspace workspace) =>
-        new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser());
+    private static Func<Workspace, IWorkspaceModelBuilder> CreateModelBuilder(MariaDbEngine engine) =>
+        workspace => new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), engine);
+
+    /// <summary>
+    /// Which engine a DACPAC's recorded provider name selects. The two are one provider but not
+    /// one dialect: a handful of constructs canonicalize differently on each (issue #147), so
+    /// the build has to resolve this rather than assume.
+    /// </summary>
+    internal static MariaDbEngine EngineOf(string? providerName) =>
+        string.Equals(providerName, "MySql", StringComparison.OrdinalIgnoreCase)
+            ? MariaDbEngine.MySql
+            : MariaDbEngine.MariaDb;
 
     /// <inheritdoc cref="WorkspaceDacpacBuilder.BuildAsync"/>
     public static Task BuildAsync(
@@ -22,7 +32,8 @@ public static class DacpacBuilder
         ModelMetadata metadata,
         Stream stream,
         CancellationToken cancellationToken = default) =>
-        WorkspaceDacpacBuilder.BuildAsync(workspace, metadata, stream, CreateModelBuilder, cancellationToken);
+        WorkspaceDacpacBuilder.BuildAsync(workspace, metadata, stream,
+            CreateModelBuilder(EngineOf(metadata.ProviderName)), cancellationToken);
 
     /// <inheritdoc cref="WorkspaceDacpacBuilder.BuildToFileAsync"/>
     public static Task BuildToFileAsync(
@@ -30,13 +41,20 @@ public static class DacpacBuilder
         ModelMetadata metadata,
         string outputPath,
         CancellationToken cancellationToken = default) =>
-        WorkspaceDacpacBuilder.BuildToFileAsync(workspace, metadata, outputPath, CreateModelBuilder, cancellationToken);
+        WorkspaceDacpacBuilder.BuildToFileAsync(workspace, metadata, outputPath,
+            CreateModelBuilder(EngineOf(metadata.ProviderName)), cancellationToken);
 
     /// <inheritdoc cref="WorkspaceDacpacBuilder.BuildModelAsync"/>
+    /// <param name="engine">
+    /// The target engine. Required for the same reason it is on
+    /// <see cref="ParserWorkspaceModelBuilder"/>: assuming the wrong one silently produces a
+    /// model that re-diffs against its own database forever.
+    /// </param>
     public static Task<BuildResult> BuildModelAsync(
         Workspace workspace,
+        MariaDbEngine engine,
         CancellationToken cancellationToken = default) =>
-        WorkspaceDacpacBuilder.BuildModelAsync(workspace, CreateModelBuilder, cancellationToken);
+        WorkspaceDacpacBuilder.BuildModelAsync(workspace, CreateModelBuilder(engine), cancellationToken);
 
     /// <inheritdoc cref="WorkspaceDacpacBuilder.CreateWorkspace"/>
     public static Workspace CreateWorkspace(IEnumerable<string> sourceFilePaths) =>
