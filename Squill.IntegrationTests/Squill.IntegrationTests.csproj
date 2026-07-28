@@ -38,4 +38,13 @@
       <EmbeddedResource Include="**\*.sql" />
     </ItemGroup>
 
+    <ItemGroup>
+      <!-- xunit.runner.json caps maxParallelThreads (issue #145). Every test class here owns a
+           database container, so unconstrained parallelism means one container per core: a full
+           run cycles ~70 of them, and that churn lets the OS hand a just-released ephemeral port
+           to a container of a different engine, so a client connects to the wrong server. JSON
+           takes no comments, hence the explanation here. -->
+      <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
 </Project>

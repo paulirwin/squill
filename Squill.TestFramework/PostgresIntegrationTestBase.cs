@@ -1,4 +1,5 @@
 using DotNet.Testcontainers.Images;
+using Npgsql;
 using Testcontainers.PostgreSql;
 using Xunit;
 
@@ -21,7 +22,16 @@ public abstract class PostgresIntegrationTestBase : IAsyncLifetime
 
     protected string ConnectionString => Container.GetConnectionString();
 
-    public async ValueTask InitializeAsync() => await Container.StartAsync();
+    public async ValueTask InitializeAsync()
+    {
+        await Container.StartAsync();
+
+        // Confirm the assigned host port really is serving Postgres before any test uses it, so a
+        // port reused by another engine's container fails here by name rather than as a cryptic
+        // SSL-handshake error in an unrelated test (issue #145).
+        await ContainerIdentity.VerifyAsync(
+            () => new NpgsqlConnection(ConnectionString), ContainerEngine.Postgres);
+    }
 
     public async ValueTask DisposeAsync()
     {
