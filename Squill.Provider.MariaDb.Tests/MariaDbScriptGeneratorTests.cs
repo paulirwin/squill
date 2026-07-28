@@ -67,6 +67,48 @@ public class MariaDbScriptGeneratorTests
         Assert.Contains("`status` varchar(20) NOT NULL DEFAULT 'active'", sql);
     }
 
+    /// <summary>
+    /// A fractional-seconds <c>CURRENT_TIMESTAMP</c> default and its <c>ON UPDATE</c> clause
+    /// (issue #144). The column's own precision has to be emitted alongside them: MySQL rejects
+    /// an <c>ON UPDATE</c> precision that disagrees with the column's, so scripting a bare
+    /// <c>datetime</c> here would produce DDL the engine refuses.
+    /// </summary>
+    [Fact]
+    public async Task GenerateScript_FractionalPrecisionTimestamp_EmitsPrecisionEverywhere()
+    {
+        var sql = await ScriptAsync("""
+            CREATE TABLE film
+            (
+                updated datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+                            ON UPDATE CURRENT_TIMESTAMP(3)
+            );
+            """);
+
+        Assert.Contains(
+            "`updated` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) "
+            + "ON UPDATE CURRENT_TIMESTAMP(3)",
+            sql);
+    }
+
+    /// <summary>
+    /// The whole-second form takes no parentheses in either position, and the column type keeps
+    /// none either — matching how both engines report it.
+    /// </summary>
+    [Fact]
+    public async Task GenerateScript_WholeSecondTimestamp_EmitsNoPrecision()
+    {
+        var sql = await ScriptAsync("""
+            CREATE TABLE film
+            (
+                updated timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            );
+            """);
+
+        Assert.Contains(
+            "`updated` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+            sql);
+    }
+
     [Fact]
     public async Task GenerateScript_Decimal_EmitsPrecisionAndScale()
     {

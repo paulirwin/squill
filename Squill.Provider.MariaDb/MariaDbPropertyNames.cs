@@ -16,8 +16,12 @@ public sealed class MariaDbPropertyNames : SqlPropertyNames
 
     // ON UPDATE CURRENT_TIMESTAMP (issue #124): a timestamp/datetime column the engine
     // refreshes to the current time on every row update. Both engines report it in
-    // information_schema.COLUMNS.EXTRA, though with different spellings, so it is modeled as a
-    // simple flag. Omitted when absent, per the omit-when-default convention.
+    // information_schema.COLUMNS.EXTRA, though with different spellings.
+    //
+    // Holds the canonical token rather than a flag (issue #144), because the clause may carry a
+    // fractional-seconds precision — "CURRENT_TIMESTAMP" or "CURRENT_TIMESTAMP(3)" — and the two
+    // are not interchangeable: MySQL rejects an ON UPDATE precision that disagrees with its
+    // column's. Omitted when absent, per the omit-when-default convention.
     public const string OnUpdateCurrentTimestamp = nameof(OnUpdateCurrentTimestamp);
 
     // The parenthesized value list of an enum/set column, e.g. ('G','PG'). Stored verbatim

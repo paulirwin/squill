@@ -119,7 +119,84 @@ public abstract class MariaDbFunctionDefaultTests
 
         var lastUpdate = Column(model, "last_update");
         Assert.Equal("CURRENT_TIMESTAMP", lastUpdate.GetProperty<string>(MariaDbPropertyNames.DefaultValue));
-        Assert.True(lastUpdate.GetProperty<bool?>(MariaDbPropertyNames.OnUpdateCurrentTimestamp));
+        Assert.Equal("CURRENT_TIMESTAMP",
+            lastUpdate.GetProperty<string>(MariaDbPropertyNames.OnUpdateCurrentTimestamp));
+    }
+
+    /// <summary>
+    /// The fractional-seconds form (issue #144). Both engines keep the precision in what they
+    /// report, spelled differently — MySQL <c>CURRENT_TIMESTAMP(3)</c> /
+    /// <c>DEFAULT_GENERATED on update CURRENT_TIMESTAMP(3)</c>, MariaDB
+    /// <c>current_timestamp(3)</c> / <c>on update current_timestamp(3)</c> — so the canonical
+    /// token has to carry it through for the hashes to match on both.
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    [InlineData(6)]
+    public async Task FractionalPrecisionDefaultAndOnUpdate_RoundTrip(int precision)
+    {
+        var model = await AssertRoundTripAsync($"""
+            CREATE TABLE precise_stamp
+            (
+                id      int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                created datetime({precision}) NOT NULL DEFAULT CURRENT_TIMESTAMP({precision}),
+                updated datetime({precision}) NOT NULL DEFAULT CURRENT_TIMESTAMP({precision})
+                            ON UPDATE CURRENT_TIMESTAMP({precision})
+            );
+            """, TestContext.Current.CancellationToken);
+
+        var expected = $"CURRENT_TIMESTAMP({precision})";
+
+        Assert.Equal(expected, DefaultOf(model, "created"));
+        Assert.Null(Column(model, "created")
+            .GetProperty<string>(MariaDbPropertyNames.OnUpdateCurrentTimestamp));
+
+        Assert.Equal(expected, DefaultOf(model, "updated"));
+        Assert.Equal(expected, Column(model, "updated")
+            .GetProperty<string>(MariaDbPropertyNames.OnUpdateCurrentTimestamp));
+    }
+
+    /// <summary>
+    /// <c>NOW(3)</c> is the same stored default as <c>CURRENT_TIMESTAMP(3)</c> on both engines,
+    /// so it must fold to the same canonical token — precision included.
+    /// </summary>
+    [Fact]
+    public async Task NowWithPrecision_RoundTripsToTheSameToken()
+    {
+        var model = await AssertRoundTripAsync("""
+            CREATE TABLE now_precise
+            (
+                id      int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                created datetime(3) NOT NULL DEFAULT NOW(3)
+            );
+            """, TestContext.Current.CancellationToken);
+
+        Assert.Equal("CURRENT_TIMESTAMP(3)", DefaultOf(model, "created"));
+    }
+
+    /// <summary>
+    /// Precision zero is not a distinct stored form. Measured on both engines, a
+    /// <c>datetime(0)</c> column declaring <c>CURRENT_TIMESTAMP(0)</c> is reported exactly as
+    /// the bare form is — the column type drops its <c>(0)</c> too — so the canonical token has
+    /// to fold it, or this column would re-diff on every deploy. The round-trip assertion
+    /// (which redeploys and requires a no-op) is what actually pins that down.
+    /// </summary>
+    [Fact]
+    public async Task PrecisionZero_FoldsToTheBareTokenAndRedeploysCleanly()
+    {
+        var model = await AssertRoundTripAsync("""
+            CREATE TABLE zero_precision
+            (
+                id      int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                updated datetime(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0)
+                            ON UPDATE CURRENT_TIMESTAMP(0)
+            );
+            """, TestContext.Current.CancellationToken);
+
+        Assert.Equal("CURRENT_TIMESTAMP", DefaultOf(model, "updated"));
+        Assert.Equal("CURRENT_TIMESTAMP", Column(model, "updated")
+            .GetProperty<string>(MariaDbPropertyNames.OnUpdateCurrentTimestamp));
     }
 
     /// <summary>
@@ -139,7 +216,7 @@ public abstract class MariaDbFunctionDefaultTests
             """, TestContext.Current.CancellationToken);
 
         Assert.Null(Column(model, "stamped")
-            .GetProperty<bool?>(MariaDbPropertyNames.OnUpdateCurrentTimestamp));
+            .GetProperty<string>(MariaDbPropertyNames.OnUpdateCurrentTimestamp));
     }
 
     /// <summary>
