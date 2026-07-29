@@ -61,9 +61,11 @@ public static class MariaDbTypeNormalizer
             || typeName.Equals("boolean", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Maps a type name to its canonical spelling, without modifiers. <c>integer</c> is an
-    /// alias both engines report as <c>int</c>, and MariaDB stores a JSON column or
-    /// parameter as <c>longtext</c>.
+    /// Maps a type name to its canonical spelling, without modifiers: the type the engines
+    /// actually store, rather than the alias that was written. <c>integer</c> is an alias both
+    /// engines report as <c>int</c>, MariaDB stores a JSON column or parameter as
+    /// <c>longtext</c>, and the national-character and <c>real</c> aliases resolve to the
+    /// <c>varchar</c>/<c>char</c>/<c>double</c> both engines were measured to record.
     /// </summary>
     public static string Canonicalize(string typeName)
     {
@@ -75,6 +77,21 @@ public static class MariaDbTypeNormalizer
             "bool" or "boolean" => "tinyint",
             "json" => "longtext",
             "dec" or "fixed" or "numeric" => "decimal",
+            // The national-character types are stored as ordinary varchar/char with the utf8
+            // character set, which both engines were measured to report as DATA_TYPE varchar and
+            // char (issue #162). Squill does not model a column's character set, so the name is
+            // all that is left to fold — and folding it is what puts an nvarchar back among the
+            // length-carrying types, without which the generated DDL is a bare `nvarchar` that
+            // both engines reject as a syntax error.
+            "nvarchar" => "varchar",
+            "nchar" => "char",
+            // CHARACTER is a plain synonym for CHAR; the VARYING spellings are resolved to
+            // varchar/nvarchar earlier, by the parser.
+            "character" => "char",
+            // REAL is a documented synonym for DOUBLE unless REAL_AS_FLOAT is set, which is not
+            // the default on either engine — so a column written REAL comes back as double and
+            // would otherwise re-diff on every deploy (issue #162).
+            "real" => "double",
             _ => name,
         };
     }

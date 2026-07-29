@@ -125,4 +125,42 @@ public class CreateTableDataTypeTests
         Assert.Equal("int", type.TypeName);
         Assert.True(type.IsUnsigned);
     }
+
+    /// <summary>
+    /// The national-character types and their many spellings (issue #162). The parser keeps the
+    /// written name, as everywhere else here — the fold to what the engines store
+    /// (<c>varchar</c>/<c>char</c>) belongs to the model builder.
+    ///
+    /// The point of the test is the length: it lands on a different grammar alternative for each
+    /// spelling, and the VARYING spellings used to fall through to the raw-type-name default,
+    /// which discards modifiers. A national type whose length is dropped generates a bare
+    /// <c>nvarchar</c> that both engines reject as a syntax error.
+    ///
+    /// The VARYING spellings report <c>nvarchar</c> rather than the <c>char</c>/<c>nchar</c> the
+    /// grammar labels them with: they are varying types, and reporting the non-varying name would
+    /// fold a varchar column down to a fixed-width char.
+    /// </summary>
+    [Theory]
+    [InlineData("nvarchar(45)", "nvarchar", 45)]
+    [InlineData("NATIONAL VARCHAR(45)", "varchar", 45)]
+    [InlineData("NATIONAL CHARACTER VARYING(45)", "nvarchar", 45)]
+    [InlineData("NATIONAL CHAR VARYING(45)", "nvarchar", 45)]
+    [InlineData("NCHAR VARYING(45)", "nvarchar", 45)]
+    [InlineData("nchar(10)", "nchar", 10)]
+    [InlineData("NATIONAL CHAR(10)", "char", 10)]
+    [InlineData("NATIONAL CHARACTER(10)", "character", 10)]
+    public void NationalCharacterColumn_CapturesTypeNameAndLength(
+        string declared, string expectedName, long expectedLength)
+    {
+        var type = ColumnType(ParseOne($"CREATE TABLE t (c {declared});"), "c");
+
+        Assert.Equal(expectedName, type.TypeName);
+        Assert.Equal(expectedLength, Assert.Single(type.Modifiers));
+    }
+
+    // REAL is a floating-point synonym; the parser keeps the written word and the model builder
+    // folds it to the `double` both engines store (issue #162).
+    [Fact]
+    public void RealColumn_CapturesTypeName()
+        => Assert.Equal("real", ColumnType(ParseOne("CREATE TABLE t (c REAL);"), "c").TypeName);
 }

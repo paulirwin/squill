@@ -1086,7 +1086,10 @@ internal static class MariaDbStatementMapper
         switch (dataType)
         {
             case MariaDBParser.StringDataTypeContext s:
-                return (s.typeName.Text, Dimensions(s.lengthOneDimension()), false);
+                return (
+                    VaryingTypeName(s.typeName.Text, s.VARYING() != null),
+                    Dimensions(s.lengthOneDimension()),
+                    false);
 
             case MariaDBParser.DimensionDataTypeContext d:
             {
@@ -1104,13 +1107,44 @@ internal static class MariaDbStatementMapper
             case MariaDBParser.NationalStringDataTypeContext n:
                 return (n.typeName.Text, Dimensions(n.lengthOneDimension()), false);
 
-            // Spatial, collection, national-varying, long-varchar, uuid, etc.: use the raw
-            // text of the type, without modifiers. These are carried verbatim so the DB
-            // extractor (which reads the same canonical name) can still hash-match for the
-            // simple cases; complex ones are out of the modeled scope.
+            // NATIONAL CHAR VARYING / NATIONAL CHARACTER VARYING (issue #162). The grammar labels
+            // this alternative's typeName CHAR or CHARACTER and carries the VARYING separately, so
+            // the token alone would name a fixed-width type — it is reported as nvarchar instead,
+            // which is what the varying form means. Falling through to the default below would
+            // have discarded the length as well, and a national type without its length generates
+            // DDL both engines reject.
+            case MariaDBParser.NationalVaryingStringDataTypeContext v:
+                return ("nvarchar", Dimensions(v.lengthOneDimension()), false);
+
+            // Spatial, collection, long-varchar, uuid, etc.: use the raw text of the type,
+            // without modifiers. These are carried verbatim so the DB extractor (which reads
+            // the same canonical name) can still hash-match for the simple cases; complex ones
+            // are out of the modeled scope.
             default:
                 return (FirstTypeToken(dataType), Array.Empty<long>(), false);
         }
+    }
+
+    // A trailing VARYING turns a fixed-width character type into its varying counterpart, which
+    // the grammar carries as a separate token rather than folding into typeName (issue #162).
+    // Measured on both engines: CHAR VARYING(30) and CHARACTER VARYING(30) store as varchar(30),
+    // and NCHAR VARYING(30) as a national varchar(30). Reporting the bare typeName here would
+    // model a varying column as fixed-width char.
+    private static string VaryingTypeName(string typeName, bool isVarying)
+    {
+        if (!isVarying)
+        {
+            return typeName;
+        }
+
+        return typeName.ToLowerInvariant() switch
+        {
+            "char" or "character" => "varchar",
+            "nchar" => "nvarchar",
+            // Every other type the alternative admits (VARCHAR, the TEXT family, LONG) either is
+            // already varying or takes no meaning from VARYING, so the written name stands.
+            _ => typeName,
+        };
     }
 
     private static string FirstTypeToken(MariaDBParser.DataTypeContext dataType)
