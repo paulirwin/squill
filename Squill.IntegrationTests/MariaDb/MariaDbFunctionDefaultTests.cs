@@ -21,12 +21,14 @@ public abstract class MariaDbFunctionDefaultTests
 {
     protected abstract MariaDbLikeFixture Fixture { get; }
 
+    private bool IsMySql => Fixture.EngineName == "MySQL";
+
     private async Task<Model> AssertRoundTripAsync(string sql, CancellationToken cancellationToken)
     {
         var provider = new MariaDbDatabaseProvider(Fixture.ConnectionString);
         var model = await WorkspaceModelBuilding.BuildModelAsync(
             sql,
-            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser()),
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser(), Fixture.SchemaProviderOf()),
             cancellationToken);
 
         return await RoundTripHarness.AssertRoundTripAsync(
@@ -220,36 +222,6 @@ public abstract class MariaDbFunctionDefaultTests
     }
 
     /// <summary>
-    /// <c>LOCALTIME</c> is admitted by the same grammar rule as <c>CURRENT_TIMESTAMP</c> but is
-    /// not a synonym for it: MariaDB stores <c>DEFAULT LOCALTIME</c> as <c>curtime()</c>, a time
-    /// of day. Folding it into the current-timestamp token would give a parsed default that
-    /// never matches the extracted one — a column re-diffing on every deploy forever. It must
-    /// stay unmodeled, and the round trip must still be clean.
-    ///
-    /// MariaDB-only: MySQL rejects <c>DEFAULT LOCALTIME</c> on a datetime column outright.
-    /// </summary>
-    [Fact]
-    public async Task LocalTimeDefault_IsNotFoldedAndStillRoundTrips()
-    {
-        if (Fixture.EngineName != "MariaDB")
-        {
-            return;
-        }
-
-        var model = await AssertRoundTripAsync("""
-            CREATE TABLE local_stamp
-            (
-                id      int NOT NULL AUTO_INCREMENT PRIMARY KEY,
-                at_time datetime NOT NULL DEFAULT LOCALTIME
-            );
-            """, TestContext.Current.CancellationToken);
-
-        // Unmodeled rather than mis-folded: the redeploy-no-op assertion inside the harness is
-        // what proves this does not become a perpetual diff.
-        Assert.Null(Column(model, "at_time").GetProperty<string>(MariaDbPropertyNames.DefaultValue));
-    }
-
-    /// <summary>
     /// A column that merely has a current-timestamp default must not be mistaken for a
     /// generated column. MySQL reports <c>DEFAULT_GENERATED</c> in <c>EXTRA</c> for exactly
     /// such a column — a string that contains "GENERATED" without being either of the
@@ -279,6 +251,182 @@ public abstract class MariaDbFunctionDefaultTests
         var fahrenheit = Column(model, "fahrenheit");
         Assert.NotNull(fahrenheit.GetProperty<string>(MariaDbPropertyNames.GeneratedExpression));
         Assert.True(fahrenheit.GetProperty<bool?>(MariaDbPropertyNames.IsStored));
+    }
+
+    /// <summary>
+    /// The rest of the time family (issue #147). These are the forms where the two engines stop
+    /// agreeing, so the expected token depends on which one this fixture is running.
+    ///
+    /// On MariaDB each keeps its own token: measured, <c>DEFAULT LOCALTIME</c> is stored as
+    /// <c>curtime()</c> — a <em>time of day</em>, not a timestamp — and <c>LOCALTIMESTAMP</c> as
+    /// <c>localtimestamp()</c>. On MySQL both are true <c>CURRENT_TIMESTAMP</c> synonyms and are
+    /// reported as such. Folding them together would give one of the two engines a default that
+    /// never matches what its own catalog reports back, i.e. a permanent phantom diff — which is
+    /// exactly what <c>assertRedeployNoOp</c> here proves does not happen.
+    /// </summary>
+    [Fact]
+    public async Task LocaltimeDefault_RoundTrips()
+    {
+        var model = await AssertRoundTripAsync("""
+            CREATE TABLE t
+            (
+                id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                c  datetime NOT NULL DEFAULT LOCALTIME
+            );
+            """, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            IsMySql ? "CURRENT_TIMESTAMP" : "CURTIME()",
+            DefaultOf(model, "c"));
+    }
+
+    [Fact]
+    public async Task LocaltimestampDefault_RoundTrips()
+    {
+        var model = await AssertRoundTripAsync("""
+            CREATE TABLE t
+            (
+                id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                c  datetime NOT NULL DEFAULT LOCALTIMESTAMP
+            );
+            """, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            IsMySql ? "CURRENT_TIMESTAMP" : "LOCALTIMESTAMP()",
+            DefaultOf(model, "c"));
+    }
+
+    /// <summary>
+    /// <c>CURDATE()</c> / <c>CURTIME()</c> are MariaDB-only as column defaults — measured,
+    /// MySQL rejects them outright with a syntax error. So on MariaDB they round-trip with their
+    /// own tokens, and on MySQL the build must refuse to model them (warning instead), rather
+    /// than emitting DDL the server would reject.
+    /// </summary>
+    [Fact]
+    public async Task CurdateAndCurtimeDefaults_RoundTripOnMariaDbAndAreUnmodeledOnMySql()
+    {
+        const string sql = """
+            CREATE TABLE t
+            (
+                id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                d  date NOT NULL DEFAULT CURDATE(),
+                tm time NOT NULL DEFAULT CURTIME()
+            );
+            """;
+
+        if (IsMySql)
+        {
+            await AssertUnmodeledOnMySqlAsync(sql, "d", "tm");
+            return;
+        }
+
+        var model = await AssertRoundTripAsync(sql, TestContext.Current.CancellationToken);
+
+        Assert.Equal("CURDATE()", DefaultOf(model, "d"));
+        Assert.Equal("CURTIME()", DefaultOf(model, "tm"));
+    }
+
+    /// <summary>
+    /// The keyword spellings map onto the same stored functions — measured, <c>CURRENT_DATE</c>
+    /// is stored as <c>curdate()</c> and <c>CURRENT_TIME</c> as <c>curtime()</c> — so they must
+    /// reach the same canonical token as the call forms, or two sources meaning the same thing
+    /// would hash differently.
+    /// </summary>
+    [Fact]
+    public async Task CurrentDateAndTimeKeywords_RoundTripOnMariaDb()
+    {
+        const string sql = """
+            CREATE TABLE t
+            (
+                id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                d  date NOT NULL DEFAULT CURRENT_DATE,
+                tm time NOT NULL DEFAULT CURRENT_TIME
+            );
+            """;
+
+        if (IsMySql)
+        {
+            await AssertUnmodeledOnMySqlAsync(sql, "d", "tm");
+            return;
+        }
+
+        var model = await AssertRoundTripAsync(sql, TestContext.Current.CancellationToken);
+
+        Assert.Equal("CURDATE()", DefaultOf(model, "d"));
+        Assert.Equal("CURTIME()", DefaultOf(model, "tm"));
+    }
+
+    /// <summary>
+    /// The precision-carrying variants keep their precision through the round trip, as the
+    /// current-timestamp form does (issue #144).
+    ///
+    /// The two engines diverge again here, and not the way the bare forms do. Measured against
+    /// <c>mysql:latest</c>, <c>LOCALTIMESTAMP(3)</c> <em>is</em> accepted and stored as
+    /// <c>CURRENT_TIMESTAMP(3)</c> — precision and all — whereas <c>CURTIME(3)</c> is a syntax
+    /// error. So the two columns are asserted separately rather than as one MariaDB-only block.
+    /// </summary>
+    [Fact]
+    public async Task PrecisionCarryingLocaltimestamp_RoundTrips()
+    {
+        var model = await AssertRoundTripAsync("""
+            CREATE TABLE t
+            (
+                id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                a  datetime(3) NOT NULL DEFAULT LOCALTIMESTAMP(3)
+            );
+            """, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            IsMySql ? "CURRENT_TIMESTAMP(3)" : "LOCALTIMESTAMP(3)",
+            DefaultOf(model, "a"));
+    }
+
+    /// <summary>
+    /// <c>CURTIME(n)</c> is MariaDB-only, like its bare form.
+    /// </summary>
+    [Fact]
+    public async Task PrecisionCarryingCurtime_RoundTripsOnMariaDb()
+    {
+        const string sql = """
+            CREATE TABLE t
+            (
+                id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                b  time(3) NOT NULL DEFAULT CURTIME(3)
+            );
+            """;
+
+        if (IsMySql)
+        {
+            await AssertUnmodeledOnMySqlAsync(sql, "b");
+            return;
+        }
+
+        var model = await AssertRoundTripAsync(sql, TestContext.Current.CancellationToken);
+
+        Assert.Equal("CURTIME(3)", DefaultOf(model, "b"));
+    }
+
+    /// <summary>
+    /// Builds the source for MySQL and asserts each named column's default was left unmodeled
+    /// with a warning, rather than carried into the model as something MySQL cannot accept.
+    /// The DDL is never deployed here — the point is that the build refuses it first.
+    /// </summary>
+    private async Task AssertUnmodeledOnMySqlAsync(string sql, params string[] columnNames)
+    {
+        var workspace = new Workspace();
+        workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
+
+        var result = await new ParserWorkspaceModelBuilder(
+                workspace, new AntlrMariaDbParser(), new MySql9DatabaseSchemaProvider())
+            .ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        foreach (var columnName in columnNames)
+        {
+            Assert.Null(DefaultOf(result.Model, columnName));
+
+            Assert.Contains(result.Warnings,
+                w => w.Code == "SQ1002" && w.Message.Contains(columnName));
+        }
     }
 
     private static Element Column(Model model, string columnName)

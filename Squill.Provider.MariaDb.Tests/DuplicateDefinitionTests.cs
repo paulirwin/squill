@@ -17,7 +17,7 @@ public class DuplicateDefinitionTests
             workspace.Files.Add(new InMemoryStringFile(name, FileKind.Compile, sql));
         }
 
-        return new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser());
+        return new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), new MariaDb12DatabaseSchemaProvider());
     }
 
     [Fact]

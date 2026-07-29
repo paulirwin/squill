@@ -45,6 +45,39 @@ public static class DatabaseSchemaProviderRegistry
             ?? throw new UnsupportedTargetVersionException(providerName, majorVersion, KnownDspNames());
     }
 
+    /// <summary>
+    /// Resolves the schema provider for a provider name and an <em>optional</em> target major
+    /// version: the exact version when one is given, otherwise the latest supported major for
+    /// that engine.
+    ///
+    /// Every build has a schema provider, so engine capabilities are always answerable without
+    /// a null check or a fallback path. Defaulting to the latest supported version means an
+    /// unconstrained project behaves as if it targets a current server, which is what declaring
+    /// no minimum version means. Note this does <em>not</em> stamp a <c>DspName</c> into
+    /// <c>model.xml</c> — an unconstrained DACPAC still records no target platform, so the
+    /// default is a build-time convenience, not a version constraint imposed on deploy.
+    /// </summary>
+    public static DatabaseSchemaProvider Resolve(string providerName, int? majorVersion)
+        => majorVersion is { } major
+            ? Resolve(providerName, major)
+            : ResolveLatest(providerName);
+
+    /// <summary>
+    /// Resolves the highest supported major version for an engine, or throws
+    /// <see cref="UnsupportedTargetVersionException"/> if the engine is unknown.
+    /// </summary>
+    public static DatabaseSchemaProvider ResolveLatest(string providerName)
+    {
+        var provider = All
+            .Where(p => string.Equals(p.ProviderName, providerName, StringComparison.OrdinalIgnoreCase))
+            .MaxBy(p => p.MajorVersion);
+
+        // Reuses the DSP-name overload's phrasing: for an unknown engine there is no version to
+        // name, and the supported-list it prints is what the caller needs either way.
+        return provider
+            ?? throw new UnsupportedTargetVersionException(providerName, KnownDspNames());
+    }
+
     /// <summary>The DSP names of all discovered providers, for diagnostics.</summary>
     public static IReadOnlyList<string> KnownDspNames()
         => All.Select(p => p.DspName).OrderBy(n => n, StringComparer.Ordinal).ToList();

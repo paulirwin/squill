@@ -261,7 +261,7 @@ public class BuildDacpacTask : Microsoft.Build.Utilities.Task
     private static async Task<IReadOnlyList<SqlSourceDiagnostic>> BuildAsync(
         ISquillProvider provider, Workspace workspace, ModelMetadata metadata, string outputPath)
     {
-        var result = await provider.BuildModelAsync(workspace);
+        var result = await provider.BuildModelAsync(workspace, metadata);
 
         var directory = Path.GetDirectoryName(outputPath);
         if (!string.IsNullOrEmpty(directory))

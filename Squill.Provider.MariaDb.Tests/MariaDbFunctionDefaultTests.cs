@@ -15,6 +15,11 @@ namespace Squill.Provider.MariaDb.Tests;
 /// MariaDB reports <c>current_timestamp()</c>. Since one provider serves both engines and the
 /// model hash must match either way, every one of those spellings folds to one canonical
 /// token.
+///
+/// The rest of the time family (issue #147) is where that stops holding: <c>LOCALTIME</c>,
+/// <c>LOCALTIMESTAMP</c>, <c>CURDATE</c> and <c>CURTIME</c> mean genuinely different things on
+/// each engine, so the same source canonicalizes differently depending on the target — which is
+/// why these tests pin both engines rather than one shared answer.
 /// </summary>
 public class MariaDbFunctionDefaultTests
 {
@@ -22,18 +27,29 @@ public class MariaDbFunctionDefaultTests
         typeof(MariaDbElementTypes).Assembly
             .GetType("Squill.Provider.MariaDb.MariaDbDefaultValue", throwOnError: true)!;
 
-    private static string? FromDatabaseText(string? text, bool isCharacterColumn = false)
+    // The engine under test defaults to MariaDB; the MySQL cases pass MySql explicitly.
+    private static readonly MariaDbFamilyDatabaseSchemaProvider MariaDb =
+        new MariaDb12DatabaseSchemaProvider();
+
+    private static readonly MariaDbFamilyDatabaseSchemaProvider MySql =
+        new MySql9DatabaseSchemaProvider();
+
+    private static string? FromDatabaseText(
+        string? text,
+        bool isCharacterColumn = false,
+        MariaDbFamilyDatabaseSchemaProvider? engine = null)
         => (string?)DefaultValueType
             .GetMethod("FromDatabaseText", BindingFlags.Public | BindingFlags.Static)!
-            .Invoke(null, [text, isCharacterColumn]);
+            .Invoke(null, [text, engine ?? MariaDb, isCharacterColumn]);
 
-    private static async Task<Element> ColumnOfAsync(string columnSql)
+    private static async Task<Element> ColumnOfAsync(
+        string columnSql, MariaDbFamilyDatabaseSchemaProvider? engine = null)
     {
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile,
             $"CREATE TABLE t (id int PRIMARY KEY, c {columnSql});"));
 
-        var result = await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser())
+        var result = await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), engine ?? MariaDb)
             .ExtractModelAsync(TestContext.Current.CancellationToken);
 
         var table = Assert.Single(result.Model.Elements, e => e.Type == MariaDbElementTypes.SqlTable);
@@ -44,8 +60,10 @@ public class MariaDbFunctionDefaultTests
             .Single(c => SqlName.UnqualifiedOf((string)c.Name!) == "c");
     }
 
-    private static async Task<string?> DefaultOfAsync(string columnSql)
-        => (await ColumnOfAsync(columnSql)).GetProperty<string>(MariaDbPropertyNames.DefaultValue);
+    private static async Task<string?> DefaultOfAsync(
+        string columnSql, MariaDbFamilyDatabaseSchemaProvider? engine = null)
+        => (await ColumnOfAsync(columnSql, engine))
+            .GetProperty<string>(MariaDbPropertyNames.DefaultValue);
 
     private static async Task<string?> OnUpdateOfAsync(string columnSql)
         => (await ColumnOfAsync(columnSql))
@@ -98,7 +116,7 @@ CREATE TABLE event
 );
 """));
 
-        var result = await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser())
+        var result = await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), MariaDb)
             .ExtractModelAsync(TestContext.Current.CancellationToken);
 
         Assert.Empty(result.Warnings);
@@ -176,7 +194,7 @@ CREATE TABLE t
 );
 """));
 
-        var result = await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser())
+        var result = await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), MariaDb)
             .ExtractModelAsync(TestContext.Current.CancellationToken);
 
         Assert.Empty(result.Warnings);
@@ -262,62 +280,161 @@ CREATE TABLE actor
 );
 """));
 
-        var result = await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser())
+        var result = await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), MariaDb)
             .ExtractModelAsync(TestContext.Current.CancellationToken);
 
         Assert.Empty(result.Warnings);
     }
 
     /// <summary>
-    /// The grammar's <c>currentTimestamp</c> rule also admits <c>LOCALTIME</c>,
-    /// <c>LOCALTIMESTAMP</c>, <c>CURDATE</c> and <c>CURTIME</c>, but those are not synonyms for
-    /// the current timestamp and must not fold into its canonical token. Measured against a
-    /// live MariaDB, <c>DEFAULT LOCALTIME</c> is stored as <c>curtime()</c> — a time of day,
-    /// not a timestamp — and <c>DEFAULT LOCALTIMESTAMP</c> as <c>localtimestamp()</c>. Folding
-    /// either in would produce a parsed default that never matches the extracted one, i.e. a
-    /// column that re-diffs on every deploy forever.
+    /// The rest of the grammar's <c>currentTimestamp</c> family — <c>LOCALTIME</c>,
+    /// <c>LOCALTIMESTAMP</c>, <c>CURDATE</c>, <c>CURTIME</c> — is modeled as of issue #147, but
+    /// each keeps its <em>own</em> token on MariaDB rather than folding into the
+    /// current-timestamp one. Measured against <c>mariadb:latest</c>: <c>DEFAULT LOCALTIME</c>
+    /// is stored as <c>curtime()</c> — a time of day, not a timestamp — and
+    /// <c>DEFAULT LOCALTIMESTAMP</c> as <c>localtimestamp()</c>. Folding either into
+    /// <c>CURRENT_TIMESTAMP</c> would produce a parsed default that never matches the extracted
+    /// one, i.e. a column that re-diffs on every deploy forever.
     /// </summary>
     [Theory]
+    [InlineData("datetime DEFAULT LOCALTIME", "CURTIME()")]
+    [InlineData("datetime DEFAULT LOCALTIMESTAMP", "LOCALTIMESTAMP()")]
+    [InlineData("date DEFAULT CURDATE()", "CURDATE()")]
+    [InlineData("time DEFAULT CURTIME()", "CURTIME()")]
+    [InlineData("date DEFAULT CURRENT_DATE", "CURDATE()")]
+    [InlineData("time DEFAULT CURRENT_TIME", "CURTIME()")]
+    public async Task MariaDbTimeFunctions_KeepTheirOwnToken(string columnSql, string expected)
+    {
+        Assert.Equal(expected, await DefaultOfAsync(columnSql));
+    }
+
+    [Theory]
+    // None of these may collapse onto the current-timestamp token on MariaDB.
     [InlineData("datetime DEFAULT LOCALTIME")]
     [InlineData("datetime DEFAULT LOCALTIMESTAMP")]
     [InlineData("date DEFAULT CURDATE()")]
     [InlineData("time DEFAULT CURTIME()")]
-    public async Task NonSynonymTimeFunctions_AreNotFoldedIntoCurrentTimestamp(string columnSql)
+    public async Task MariaDbTimeFunctions_AreNotFoldedIntoCurrentTimestamp(string columnSql)
     {
-        Assert.Null(await DefaultOfAsync(columnSql));
-    }
-
-    [Theory]
-    // The forms MariaDB actually stores for those defaults — none may canonicalize to the
-    // current-timestamp token.
-    [InlineData("curtime()")]
-    [InlineData("localtimestamp()")]
-    [InlineData("curdate()")]
-    public void NonSynonymStoredForms_DoNotCanonicalizeToCurrentTimestamp(string stored)
-    {
-        Assert.NotEqual("CURRENT_TIMESTAMP", FromDatabaseText(stored));
+        Assert.NotEqual("CURRENT_TIMESTAMP", await DefaultOfAsync(columnSql));
     }
 
     /// <summary>
-    /// Carrying a precision must not widen the set of functions that fold into the
-    /// current-timestamp token: <c>LOCALTIME(3)</c> and friends are still not synonyms, and
-    /// MariaDB stores them as their own functions.
+    /// The canonical token is the engine's own reported spelling, so a model parsed from source
+    /// hash-matches one extracted from the database. Verified against <c>mariadb:latest</c>:
+    /// re-applying the stored form as DDL stores it unchanged, so a redeploy is a no-op.
     /// </summary>
     [Theory]
-    [InlineData("datetime(3) DEFAULT LOCALTIME(3)")]
-    [InlineData("datetime(3) DEFAULT LOCALTIMESTAMP(3)")]
-    [InlineData("time(3) DEFAULT CURTIME(3)")]
-    public async Task PrecisionCarryingNonSynonyms_AreStillNotModeled(string columnSql)
+    [InlineData("curtime()", "CURTIME()")]
+    [InlineData("localtimestamp()", "LOCALTIMESTAMP()")]
+    [InlineData("curdate()", "CURDATE()")]
+    public void MariaDbStoredForms_CanonicalizeToTheSameToken(string stored, string expected)
     {
-        Assert.Null(await DefaultOfAsync(columnSql));
+        Assert.Equal(expected, FromDatabaseText(stored));
+    }
+
+    /// <summary>
+    /// The parser side and the MariaDB extractor side must agree on one token per function, or
+    /// every one of these columns would show a phantom change on each deploy.
+    /// </summary>
+    [Theory]
+    [InlineData("datetime DEFAULT LOCALTIME", "curtime()")]
+    [InlineData("datetime DEFAULT LOCALTIMESTAMP", "localtimestamp()")]
+    [InlineData("date DEFAULT CURDATE()", "curdate()")]
+    [InlineData("time DEFAULT CURTIME()", "curtime()")]
+    public async Task ParsedAndMariaDbStoredForms_Agree(string columnSql, string stored)
+    {
+        Assert.Equal(await DefaultOfAsync(columnSql), FromDatabaseText(stored));
+    }
+
+    /// <summary>
+    /// The precision-carrying forms keep their precision, exactly as the current-timestamp form
+    /// does (issue #144). Measured: a <c>datetime(3) DEFAULT LOCALTIMESTAMP(3)</c> comes back as
+    /// <c>localtimestamp(3)</c>.
+    /// </summary>
+    [Theory]
+    [InlineData("datetime(3) DEFAULT LOCALTIMESTAMP(3)", "LOCALTIMESTAMP(3)")]
+    [InlineData("time(3) DEFAULT CURTIME(3)", "CURTIME(3)")]
+    public async Task MariaDbTimeFunctions_KeepTheirPrecision(string columnSql, string expected)
+    {
+        Assert.Equal(expected, await DefaultOfAsync(columnSql));
     }
 
     [Theory]
-    [InlineData("curtime(3)")]
-    [InlineData("localtimestamp(3)")]
-    public void PrecisionCarryingNonSynonymStoredForms_DoNotCanonicalize(string stored)
+    [InlineData("curtime(3)", "CURTIME(3)")]
+    [InlineData("localtimestamp(3)", "LOCALTIMESTAMP(3)")]
+    public void MariaDbPrecisionCarryingStoredForms_Canonicalize(string stored, string expected)
     {
-        Assert.Null(FromDatabaseText(stored));
+        Assert.Equal(expected, FromDatabaseText(stored));
+    }
+
+    /// <summary>
+    /// On MySQL the very same source means something different: per
+    /// <see href="https://dev.mysql.com/doc/refman/8.4/en/timestamp-initialization.html">its
+    /// docs</see> and measured against <c>mysql:latest</c>, <c>LOCALTIME</c> and
+    /// <c>LOCALTIMESTAMP</c> are true <c>CURRENT_TIMESTAMP</c> synonyms and are stored — and
+    /// reported — as <c>CURRENT_TIMESTAMP</c>. This is the whole reason the engine is a required
+    /// input rather than a default (issue #147).
+    /// </summary>
+    [Theory]
+    [InlineData("datetime DEFAULT LOCALTIME")]
+    [InlineData("datetime DEFAULT LOCALTIMESTAMP")]
+    public async Task OnMySql_LocaltimeFamily_FoldsIntoCurrentTimestamp(string columnSql)
+    {
+        Assert.Equal("CURRENT_TIMESTAMP", await DefaultOfAsync(columnSql, MySql));
+    }
+
+    /// <summary>
+    /// The same two spellings on MariaDB must NOT fold — the direct contrast that a single
+    /// shared token could not express.
+    /// </summary>
+    [Theory]
+    [InlineData("datetime DEFAULT LOCALTIME", "CURTIME()")]
+    [InlineData("datetime DEFAULT LOCALTIMESTAMP", "LOCALTIMESTAMP()")]
+    public async Task TheSameSource_CanonicalizesDifferentlyPerEngine(string columnSql, string onMariaDb)
+    {
+        Assert.Equal(onMariaDb, await DefaultOfAsync(columnSql, MariaDb));
+        Assert.Equal("CURRENT_TIMESTAMP", await DefaultOfAsync(columnSql, MySql));
+    }
+
+    /// <summary>
+    /// MySQL rejects <c>CURDATE()</c> / <c>CURTIME()</c> in a <c>DEFAULT</c> outright — measured,
+    /// it is a syntax error, not merely an invalid value — so they stay unmodeled there and are
+    /// reported at build time rather than deployed into a failing script.
+    /// </summary>
+    [Theory]
+    [InlineData("date DEFAULT CURDATE()")]
+    [InlineData("time DEFAULT CURTIME()")]
+    [InlineData("date DEFAULT CURRENT_DATE")]
+    public async Task OnMySql_CurdateAndCurtime_AreNotModeled(string columnSql)
+    {
+        Assert.Null(await DefaultOfAsync(columnSql, MySql));
+    }
+
+    /// <summary>
+    /// MySQL reports every one of its accepted synonyms as the bare keyword, so the extractor
+    /// side agrees with the parser side there too.
+    /// </summary>
+    [Fact]
+    public async Task OnMySql_ParsedAndStoredForms_Agree()
+    {
+        var parsed = await DefaultOfAsync("datetime DEFAULT LOCALTIME", MySql);
+
+        Assert.Equal(parsed, FromDatabaseText("CURRENT_TIMESTAMP", engine: MySql));
+    }
+
+    /// <summary>
+    /// Only the current-timestamp family is valid in <c>ON UPDATE</c> position; both engines
+    /// reject the others there. Modeling one would emit a clause that cannot be deployed, so it
+    /// is left unmodeled and warned about instead.
+    /// </summary>
+    [Theory]
+    [InlineData("datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE LOCALTIME")]
+    [InlineData("datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURTIME()")]
+    [InlineData("datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURDATE()")]
+    public async Task NonTimestampOnUpdate_IsNotModeled(string columnSql)
+    {
+        Assert.Null(await OnUpdateOfAsync(columnSql));
     }
 
     /// <summary>

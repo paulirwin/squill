@@ -16,7 +16,7 @@ public class MariaDbScriptGeneratorTests
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
 
-        var model = (await new ParserWorkspaceModelBuilder(workspace, parser).ExtractModelAsync()).Model;
+        var model = (await new ParserWorkspaceModelBuilder(workspace, parser, new MariaDb12DatabaseSchemaProvider()).ExtractModelAsync()).Model;
 
         var provider = new MariaDbDatabaseProvider("Server=unused");
         return SchemaCompare.Compare(provider, model, new Model());

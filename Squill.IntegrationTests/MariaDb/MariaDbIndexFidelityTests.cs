@@ -40,10 +40,10 @@ public abstract class MariaDbIndexFidelityTests
 
     private bool IsMySql => Fixture.EngineName == "MySQL";
 
-    private static Model ParseModel(string sql, CancellationToken cancellationToken)
+    private Model ParseModel(string sql, CancellationToken cancellationToken)
         => WorkspaceModelBuilding.BuildModelAsync(
                 sql,
-                ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser()),
+                ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser(), Fixture.SchemaProviderOf()),
                 cancellationToken)
             .GetAwaiter().GetResult();
 

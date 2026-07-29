@@ -1,4 +1,5 @@
 using Squill.Core;
+using Squill.Dacpac;
 using Squill.MariaDbParser.Syntax;
 using ForeignKeyAccumulator = Squill.Core.ForeignKeyAccumulator<Squill.Provider.MariaDb.SqlName, Squill.MariaDbParser.Syntax.ReferentialAction>;
 
@@ -14,9 +15,58 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
 {
     private readonly IDatabase _database;
 
+    /// <summary>
+    /// The schema provider for the server actually connected to, resolved from its
+    /// <c>VERSION()</c> during extraction. Not a constructor parameter: a few catalog forms —
+    /// the time-function column defaults of issue #147 — mean different things on each engine,
+    /// and the only trustworthy answer is the server being read, not what a caller believed it
+    /// was connecting to.
+    /// </summary>
+    private MariaDbFamilyDatabaseSchemaProvider? _schemaProvider;
+
+    // Set before any column is read; a null here would mean extraction ran out of order.
+    private MariaDbFamilyDatabaseSchemaProvider SchemaProvider => _schemaProvider
+        ?? throw new InvalidOperationException(
+            "The target engine has not been detected yet; extraction must connect first.");
+
     public MariaDbDatabaseModelBuilder(IDatabase database)
     {
         _database = database;
+    }
+
+    /// <summary>
+    /// Reads the server's version banner and classifies it. MariaDB always carries
+    /// <c>MariaDB</c> in <c>VERSION()</c> (e.g. <c>11.4.2-MariaDB</c>); MySQL never does.
+    /// </summary>
+    private async Task<MariaDbFamilyDatabaseSchemaProvider> DetectSchemaProviderAsync(
+        CancellationToken cancellationToken)
+    {
+        await using var reader = await _database.RunScriptReaderAsync(
+            "SELECT VERSION();", [], cancellationToken);
+
+        var version = await reader.ReadAsync(cancellationToken)
+            ? reader.GetString(0)
+            : string.Empty;
+
+        var providerName = version.Contains("MariaDB", StringComparison.OrdinalIgnoreCase)
+            ? "MariaDb"
+            : "MySql";
+
+        // Resolve the server's own major where it is supported, and fall back to the latest
+        // known one otherwise: extraction must still work against a server newer (or older)
+        // than the versions this build ships providers for, and the capabilities that matter
+        // here do not vary by major within an engine.
+        var major = MariaDbDatabase.ParseMajorVersion(version);
+
+        var schemaProvider = DatabaseSchemaProviderRegistry.All
+            .OfType<MariaDbFamilyDatabaseSchemaProvider>()
+            .FirstOrDefault(p =>
+                string.Equals(p.ProviderName, providerName, StringComparison.OrdinalIgnoreCase)
+                && p.MajorVersion == major);
+
+        return schemaProvider
+            ?? (MariaDbFamilyDatabaseSchemaProvider)
+                DatabaseSchemaProviderRegistry.ResolveLatest(providerName);
     }
 
     // MariaDB information_schema stores bare identifiers; we store the canonical SqlName on
@@ -28,6 +78,8 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
         var model = new Model();
 
         await _database.ConnectAsync(cancellationToken);
+
+        _schemaProvider = await DetectSchemaProviderAsync(cancellationToken);
 
         const string sql =
             "SELECT TABLE_NAME FROM information_schema.TABLES "
@@ -577,7 +629,8 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
             // it does for char/varchar), so they need the same re-quoting to match the parser.
             var defaultIsStringLiteral = IsCharacterType(dataType) || dataType is "enum" or "set";
 
-            if (MariaDbDefaultValue.FromDatabaseText(columnDefault, defaultIsStringLiteral) is { } defaultValue)
+            if (MariaDbDefaultValue.FromDatabaseText(columnDefault, SchemaProvider, defaultIsStringLiteral)
+                is { } defaultValue)
             {
                 column.Properties.Add(new Property(MariaDbPropertyNames.DefaultValue, defaultValue));
             }
@@ -588,7 +641,7 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
             // (issue #144): "on update current_timestamp(3)" canonicalizes with its precision
             // intact, matching the parser side. Emitted after the default to match the parser
             // builder's property order (the hash is order-sensitive).
-            if (MariaDbDefaultValue.CanonicalCurrentTimestamp(OnUpdateToken(extra)) is { } onUpdate)
+            if (MariaDbDefaultValue.CanonicalOnUpdate(OnUpdateToken(extra), SchemaProvider) is { } onUpdate)
             {
                 column.Properties.Add(
                     new Property(MariaDbPropertyNames.OnUpdateCurrentTimestamp, onUpdate));

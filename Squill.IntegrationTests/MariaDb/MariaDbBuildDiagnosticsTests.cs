@@ -17,7 +17,7 @@ public abstract class MariaDbBuildDiagnosticsTests
 {
     protected abstract MariaDbLikeFixture Fixture { get; }
 
-    private static async Task<BuildResult> BuildAsync(params (string Name, string Sql)[] files)
+    private async Task<BuildResult> BuildAsync(params (string Name, string Sql)[] files)
     {
         var workspace = new Workspace();
         foreach (var (name, sql) in files)
@@ -25,7 +25,8 @@ public abstract class MariaDbBuildDiagnosticsTests
             workspace.Files.Add(new InMemoryStringFile(name, FileKind.Compile, sql));
         }
 
-        return await DacpacBuilder.BuildModelAsync(workspace, TestContext.Current.CancellationToken);
+        return await DacpacBuilder.BuildModelAsync(
+            workspace, Fixture.SchemaProviderOf(), TestContext.Current.CancellationToken);
     }
 
     // Runs the statements in a throwaway database, so each test starts from a clean schema.

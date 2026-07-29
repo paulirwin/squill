@@ -18,9 +18,15 @@ public sealed class MariaDbSquillProvider : SquillProviderBase
         => string.Equals(providerName, "MariaDb", StringComparison.OrdinalIgnoreCase)
             || string.Equals(providerName, "MySql", StringComparison.OrdinalIgnoreCase);
 
+    // One provider, two engines: the schema provider the project's name and target version
+    // select decides which dialect to build for, since a few constructs canonicalize
+    // differently on each (issue #147).
     protected override Task<BuildResult> BuildModelCoreAsync(
-        Workspace workspace, CancellationToken cancellationToken)
-        => DacpacBuilder.BuildModelAsync(workspace, cancellationToken);
+        Workspace workspace, ModelMetadata metadata, CancellationToken cancellationToken)
+        => DacpacBuilder.BuildModelAsync(
+            workspace,
+            DacpacBuilder.SchemaProviderFor(metadata.ProviderName, metadata.TargetMajorVersion),
+            cancellationToken);
 
     protected override async Task<Squill.Dacpac.DeployResult> DeployCoreAsync(
         Stream dacpacStream,

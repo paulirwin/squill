@@ -47,12 +47,12 @@ public abstract class MariaDbColumnFidelityTests
 
     private bool IsMySql => Fixture.EngineName == "MySQL";
 
-    private static async Task<BuildResult> BuildAsync(string sql, CancellationToken cancellationToken)
+    private async Task<BuildResult> BuildAsync(string sql, CancellationToken cancellationToken)
     {
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Test.sql", FileKind.Compile, sql));
 
-        return await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser())
+        return await new ParserWorkspaceModelBuilder(workspace, new AntlrMariaDbParser(), Fixture.SchemaProviderOf())
             .ExtractModelAsync(cancellationToken);
     }
 

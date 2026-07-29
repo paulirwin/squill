@@ -9,7 +9,16 @@ namespace Squill.Provider.MariaDb;
 /// so it is not itself discovered; the concrete subclasses remain distinct types whose full
 /// names are recorded in DACPACs.
 /// </summary>
-public abstract class MariaDbDatabaseSchemaProviderBase : DatabaseSchemaProvider
+public abstract class MariaDbDatabaseSchemaProviderBase : MariaDbFamilyDatabaseSchemaProvider
 {
     public override string ProviderName => "MariaDb";
+
+    // MariaDB keeps these as separate functions rather than folding them into
+    // current_timestamp(): measured, DEFAULT LOCALTIME is stored as curtime() — a time of day —
+    // and LOCALTIMESTAMP as localtimestamp().
+    public override bool LocalTimeIsCurrentTimestampSynonym => false;
+
+    // CURDATE()/CURTIME() (and their CURRENT_DATE/CURRENT_TIME keyword spellings) are accepted
+    // as column defaults here, each stored under its own name.
+    public override bool SupportsDateAndTimeFunctionDefaults => true;
 }

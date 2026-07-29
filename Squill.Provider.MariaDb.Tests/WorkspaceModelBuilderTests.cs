@@ -9,7 +9,7 @@ public class WorkspaceModelBuilderTests
     private static Task<Model> BuildAsync(string sql)
         => WorkspaceModelBuilding.BuildModelAsync(
             sql,
-            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser()),
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrMariaDbParser(), new MariaDb12DatabaseSchemaProvider()),
             TestContext.Current.CancellationToken);
 
     [Fact]
@@ -18,7 +18,7 @@ public class WorkspaceModelBuilderTests
         var parser = new AntlrMariaDbParser();
         var workspace = new Workspace();
 
-        var builder = new ParserWorkspaceModelBuilder(workspace, parser);
+        var builder = new ParserWorkspaceModelBuilder(workspace, parser, new MariaDb12DatabaseSchemaProvider());
 
         var model = (await builder.ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
@@ -32,7 +32,7 @@ public class WorkspaceModelBuilderTests
         var workspace = new Workspace();
         workspace.Files.Add(new InMemoryStringFile("Ignored.sql", FileKind.None, "CREATE TABLE foo (id int);"));
 
-        var builder = new ParserWorkspaceModelBuilder(workspace, parser);
+        var builder = new ParserWorkspaceModelBuilder(workspace, parser, new MariaDb12DatabaseSchemaProvider());
 
         var model = (await builder.ExtractModelAsync(TestContext.Current.CancellationToken)).Model;
 
