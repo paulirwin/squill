@@ -1548,14 +1548,28 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             var columnReference = columnSpec.GetRelationship(PostgresRelationshipNames.Column)
                 ?.Entries.OfType<Reference>().SingleOrDefault();
 
-            if (columnReference == null)
+            // An expression key carries text in place of a column reference (issue #160). The
+            // raw spelling is re-emitted, parenthesized so a bare call and an operator
+            // expression are both valid in the key list.
+            var keyExpression = columnSpec.GetProperty<string>(PostgresPropertyNames.KeyExpression);
+
+            if (columnReference == null && keyExpression == null)
             {
                 throw new InvalidOperationException($"Index {indexName} column specification has no column reference");
             }
 
             // Column references are stored table-qualified (e.g. film.title); the
             // CREATE INDEX column list needs just the bare, quoted column name.
-            var text = $"\"{SqlName.UnqualifiedOf(columnReference.Name)}\"";
+            var text = keyExpression is not null
+                ? $"({keyExpression})"
+                : $"\"{SqlName.UnqualifiedOf(columnReference!.Name)}\"";
+
+            // COLLATE precedes the operator class in the CREATE INDEX synopsis (issue #160).
+            // A collation name is case-sensitive, so it is quoted rather than lower-cased.
+            if (columnSpec.GetProperty<string>(PostgresPropertyNames.Collation) is { } collation)
+            {
+                text += $" COLLATE {SqlName.Object(collation).QuotedUnqualified}";
+            }
 
             // Operator class (opclass) follows the column, before ASC/DESC — matching the
             // PostgreSQL CREATE INDEX synopsis. e.g. "embedding" vector_cosine_ops.
@@ -1608,6 +1622,25 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
         }
 
         sb.Append(" (").Append(string.Join(", ", columnText)).Append(')');
+
+        // The clause order below is the one PostgreSQL's grammar requires:
+        // (keys) INCLUDE (...) NULLS NOT DISTINCT WITH (...) WHERE ... (issue #160).
+        var includedColumns = index.GetRelationship(PostgresRelationshipNames.IncludedColumns)
+            ?.Entries.OfType<Reference>()
+            .Select(r => $"\"{SqlName.UnqualifiedOf(r.Name)}\"")
+            .ToList();
+
+        if (includedColumns is { Count: > 0 })
+        {
+            sb.Append(" INCLUDE (").Append(string.Join(", ", includedColumns)).Append(')');
+        }
+
+        // NULLS NOT DISTINCT is stored only when true, so its absence needs no explicit
+        // NULLS DISTINCT — that is the server default.
+        if (index.GetProperty<bool?>(PostgresPropertyNames.NullsNotDistinct) == true)
+        {
+            sb.Append(" NULLS NOT DISTINCT");
+        }
 
         // WITH (...) storage parameters (e.g. HNSW's m / ef_construction). The stored
         // value is already the canonical "name=value, ..." list.

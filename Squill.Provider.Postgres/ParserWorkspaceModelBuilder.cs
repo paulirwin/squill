@@ -906,19 +906,28 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 ? $"Index '{name.Name}'"
                 : "Index";
 
-            // Only plain column keys are checked; expression keys (not yet modeled) have
-            // no single column to resolve.
+            // Only plain column keys are resolved; an expression key names no single column of
+            // its own, so the columns it reads are not checked here.
             var columns = createIndexStatement.Elements
                 .Select(e => e.Expression)
                 .OfType<ColumnReferenceExpression>()
                 .Select(c => c.Identifier.Name)
                 .ToList();
 
+            // INCLUDE columns must exist on the table just as key columns do, so they are
+            // resolved too — but separately, since they take no part in the key (issue #160).
+            var referencedColumns = columns
+                .Concat(createIndexStatement.IncludeElements
+                    .Select(e => e.Expression)
+                    .OfType<ColumnReferenceExpression>()
+                    .Select(c => c.Identifier.Name))
+                .ToList();
+
             AddTableReference(new TableReference(
                 file.Name, createIndexStatement.Line, createIndexStatement.Column,
                 subject,
                 TableKey(schema, tableName.UnqualifiedName),
-                Display(schema, tableName.UnqualifiedName), columns));
+                Display(schema, tableName.UnqualifiedName), referencedColumns));
 
             // An index shares the constraint namespace within a schema, so a name reused by
             // another index or a constraint is a duplicate definition.
@@ -1251,7 +1260,11 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     fk.ReferencedTable,
                     fk.ReferencedColumns.Select(c => c.Name).ToList(),
                     fk.OnDelete ?? ReferentialAction.NoAction,
-                    fk.OnUpdate ?? ReferentialAction.NoAction));
+                    fk.OnUpdate ?? ReferentialAction.NoAction,
+                    // The visitor has already collapsed INITIALLY DEFERRED ⇒ DEFERRABLE, so
+                    // unlike the inline path there is nothing left to resolve here (issue #160).
+                    fk.IsDeferrable,
+                    fk.IsInitiallyDeferred));
             }
             else if (constraint is CheckTableConstraint check)
             {
@@ -1736,11 +1749,15 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
         foreach (var indexElement in createIndexStatement.Elements)
         {
-            if (indexElement.Expression is not ColumnReferenceExpression columnReference)
-            {
-                throw new NotImplementedException(
-                    $"Index element expression type {indexElement.Expression.GetType()} to element mapping not implemented");
-            }
+            // A key that is not a plain column reference is an expression index — e.g.
+            // CREATE INDEX ix ON people (lower(name)). Both the bare-call and parenthesized
+            // spellings reduce to the same expression here, matching PostgreSQL, which stores
+            // one canonical form for both (issue #160).
+            var columnReference = indexElement.Expression as ColumnReferenceExpression;
+
+            var keyExpression = columnReference is null
+                ? ExpressionSqlRenderer.Render(indexElement.Expression)
+                : null;
 
             // When a btree index does not spell out a direction / null-order, Postgres
             // applies ASC (IsAscending = true) and NULLS LAST (NullsFirst = false); the DB
@@ -1754,10 +1771,34 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 : isBtree ? false : null;
 
             columns.Add(new PostgresModelFactory.IndexedColumn(
-                tableName.Child(columnReference.Identifier.Name),
+                // An expression key names no column, so the index's own name stands in to give
+                // the spec a stable identity.
+                columnReference is not null
+                    ? tableName.Child(columnReference.Identifier.Name)
+                    : indexName,
                 isAscending,
                 nullsFirst,
-                indexElement.OperatorClass?.Name));
+                // An opclass or collation may be written schema-qualified, but only the bare
+                // name is stored: pg_opclass and pg_collation report it that way, so keeping
+                // the qualifier would make a qualified source re-diff against its own database.
+                UnqualifiedNameOf(indexElement.OperatorClass),
+                UnqualifiedNameOf(indexElement.Collation),
+                keyExpression));
+        }
+
+        // INCLUDE (...) covering columns (issue #160). PostgreSQL rejects an ordering or
+        // operator class on one, so only the column name is carried.
+        var includedColumns = new List<SqlName>();
+
+        foreach (var includeElement in createIndexStatement.IncludeElements)
+        {
+            if (includeElement.Expression is not ColumnReferenceExpression includeColumn)
+            {
+                throw new NotImplementedException(
+                    $"INCLUDE element expression type {includeElement.Expression.GetType()} to element mapping not implemented");
+            }
+
+            includedColumns.Add(tableName.Child(includeColumn.Identifier.Name));
         }
 
         // A WHERE clause makes this a partial (filtered) index; render its predicate
@@ -1772,6 +1813,21 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             ? RenderStorageParameters(createIndexStatement.WithOptions)
             : null;
 
+        // A TABLESPACE is accepted but not modeled, and only pg_default may be named.
+        // Measured: an index in pg_default stores reltablespace = 0, exactly as one with no
+        // TABLESPACE clause does, and pg_get_indexdef omits the clause entirely — so the
+        // default spelling is a genuine no-op that can be dropped without losing anything. Any
+        // other tablespace is a real placement decision that would be silently lost, so it is
+        // rejected rather than ignored (issue #160).
+        if (createIndexStatement.TableSpace is { } tablespace
+            && !string.Equals(tablespace.Name, "pg_default", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new NotSupportedException(
+                $"Index '{createIndexStatement.Name.Name}' declares TABLESPACE "
+                + $"'{tablespace.Name}', which Squill does not model. Only the default "
+                + "tablespace (pg_default) is supported.");
+        }
+
         // NOTE: CONCURRENTLY and IF NOT EXISTS affect how the index gets created, not the desired schema state
         return PostgresModelFactory.CreateIndex(
             indexName,
@@ -1781,8 +1837,18 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             columns,
             filterPredicate,
             storageParameters,
-            schema);
+            schema,
+            includedColumns,
+            createIndexStatement.NullsNotDistinct);
     }
+
+    /// <summary>
+    /// The bare name of an optionally schema-qualified <c>any_name</c> — an index operator class
+    /// or collation. The catalog reports both unqualified, so the qualifier is dropped to keep a
+    /// qualified source and its own database from disagreeing (issue #160).
+    /// </summary>
+    private static string? UnqualifiedNameOf(QualifiedName? name)
+        => name?.Segments[^1].Name;
 
     private static Element MakeCreateExtensionElement(CreateExtensionStatement createExtensionStatement)
     {

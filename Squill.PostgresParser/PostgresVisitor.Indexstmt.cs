@@ -6,18 +6,6 @@ public partial class PostgresVisitor
 {
     public override SyntaxNode VisitIndexstmt(PostgreSQLParser.IndexstmtContext context)
     {
-        // These clauses are optional in the grammar, so an absent one is a null context
-        // rather than a rule matching empty.
-        if (context.include_() is not null)
-        {
-            throw new NotImplementedException("Support for INCLUDE on CREATE INDEX not yet implemented");
-        }
-
-        if (context.opttablespace()?.TABLESPACE() is not null)
-        {
-            throw new NotImplementedException("Support for TABLESPACE on CREATE INDEX not yet implemented");
-        }
-
         bool unique = context.unique_()?.UNIQUE() is not null;
         bool concurrently = context.concurrently_()?.CONCURRENTLY() is not null;
         bool ifNotExists = context.if_not_exists_() is not null;
@@ -69,6 +57,41 @@ public partial class PostgresVisitor
         }
 
         createIndex.Elements.AddRange(elements.Items);
+
+        // These clauses are optional in the grammar, so an absent one is a null context rather
+        // than a rule matching empty.
+
+        // INCLUDE (...) covering columns. The grammar reuses index_elem for them, so they parse
+        // through the same visitor as the key columns (issue #160).
+        if (context.include_()?.index_including_params() is { } includingParams)
+        {
+            foreach (var includeElem in includingParams.index_elem())
+            {
+                if (Visit(includeElem) is not IndexElement includeElement)
+                {
+                    throw new PostgresParseException("Unable to parse INCLUDE column for index");
+                }
+
+                createIndex.IncludeElements.Add(includeElement);
+            }
+        }
+
+        // NULLS NOT DISTINCT (PostgreSQL 15+). nulls_distinct : NULLS_P NOT? DISTINCT, so the
+        // NOT is what separates it from NULLS DISTINCT, the explicit spelling of the default.
+        if (context.nulls_distinct() is { } nullsDistinct)
+        {
+            createIndex.NullsNotDistinct = nullsDistinct.NOT() is not null;
+        }
+
+        if (context.opttablespace()?.name() is { } tablespaceName)
+        {
+            if (VisitName(tablespaceName) is not Identifier tablespace)
+            {
+                throw new PostgresParseException("Unable to parse TABLESPACE for index");
+            }
+
+            createIndex.TableSpace = tablespace;
+        }
 
         // A WHERE clause makes this a partial (filtered) index; parse its predicate.
         if (context.where_clause() is { } whereClause && whereClause.WHERE() is not null)

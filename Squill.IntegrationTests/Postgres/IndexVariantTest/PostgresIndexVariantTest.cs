@@ -7,14 +7,19 @@ using Squill.TestFramework;
 
 namespace Squill.IntegrationTests.Postgres.IndexVariantTest;
 
-// CREATE INDEX variants that Squill does not (yet) model, plus the one index-level ALTER
-// that does work (issue #137, EF Core coverage parity). Each unsupported variant is valid,
-// executable Postgres a user could reasonably write declaratively — every test first proves
-// that by running the DDL against the container — so each asserts what Squill *should* do and
-// carries a [Fact(Skip = ...)] naming its issue until it does. The scenarios fail in three
-// different components — the parser's Indexstmt visitor, its IndexElem visitor, and
-// ParserWorkspaceModelBuilder's element mapping — and are kept distinct so a fix to one is
-// not mistaken for a fix to all.
+// CREATE INDEX variants beyond a plain column list, plus the one index-level ALTER (issue #137,
+// EF Core coverage parity). Each is valid, executable Postgres a user could reasonably write
+// declaratively — every test first proves that by running the DDL against the container before
+// asserting Squill agrees.
+//
+// These once failed in three different components — the parser's Indexstmt visitor, its
+// IndexElem visitor, and ParserWorkspaceModelBuilder's element mapping — and are kept distinct
+// so a fix to one is not mistaken for a fix to all; the two expression-index spellings in
+// particular take different grammar alternatives and so are asserted separately. All are
+// supported as of #160.
+//
+// Every scenario asserts the index both deploys as declared *and* round-trips, since a variant
+// modeled on only one side deploys correctly once and then re-diffs forever.
 public class PostgresIndexVariantTest : PostgresIntegrationTestBase
 {
     private const string PeopleTable = """
@@ -28,16 +33,15 @@ CREATE TABLE people
 );
 """;
 
-    // INCLUDE (covering) columns are read in VisitIndexstmt and rejected outright, though the
-    // whole statement is valid Postgres (PG11+).
-    [Fact(Skip = "Blocked by issue #160: VisitIndexstmt throws "
-                 + "\"Support for INCLUDE on CREATE INDEX not yet implemented\".")]
+    // INCLUDE (covering) columns (PG11+). They are stored in the index without being part of
+    // its key, which is what indnkeyatts vs indnatts below distinguishes.
+    [Fact]
     public async Task IndexWithInclude_DeploysWithItsCoveringColumns()
     {
         const string indexSql =
             "CREATE INDEX ix_people_name ON people (name) INCLUDE (first_name, last_name);";
 
-        // The DDL is valid Postgres, so the gap is Squill's.
+        // Prove the DDL is valid Postgres before asserting Squill reproduces it.
         await AssertExecutableAsync($"{PeopleTable}\n{indexSql}");
 
         await AssertIndexDeploysAndRoundTripsAsync(
@@ -57,10 +61,8 @@ SELECT indnkeyatts, indnatts FROM pg_index WHERE indexrelid = 'ix_people_name'::
     }
 
     // An index over a bare function call — CREATE INDEX ix ON people (lower(name)) — takes
-    // the func_expr_windowless alternative of index_elem and is rejected by the parser
-    // before any model is built.
-    [Fact(Skip = "Blocked by issue #160: VisitIndex_elem throws \"Support for function "
-                 + "expressions in CREATE INDEX statements not yet implemented\".")]
+    // the func_expr_windowless alternative of index_elem.
+    [Fact]
     public async Task ExpressionIndex_BareCall_DeploysAsAnExpressionIndex()
     {
         const string indexSql = "CREATE INDEX ix_people_lower_name ON people (lower(name));";
@@ -83,17 +85,16 @@ SELECT pg_get_indexdef('ix_people_lower_name'::regclass);
     }
 
     // The parenthesized spelling of the same index — ((lower(name))) — takes the a_expr
-    // alternative instead, so it parses cleanly and dies one layer later, in
-    // ParserWorkspaceModelBuilder's index-element mapping. Asserted separately from the
-    // bare-call form above because they are two distinct defects: fixing IndexElem alone
-    // would leave this one failing, and vice versa.
-    [Fact(Skip = "Blocked by issue #160: the parenthesized form parses, then "
-                 + "ParserWorkspaceModelBuilder rejects the index element expression type.")]
+    // alternative instead, so it reaches the model builder by a different route. Asserted
+    // separately from the bare-call form above because they were two distinct defects: fixing
+    // IndexElem alone would have left this one failing, and vice versa. Postgres stores one
+    // canonical form for both, so both must reduce to the same model.
+    [Fact]
     public async Task ExpressionIndex_Parenthesized_DeploysAsAnExpressionIndex()
     {
         const string indexSql = "CREATE INDEX ix_people_lower_name ON people ((lower(name)));";
 
-        // It really does get past the parser — the failure is at model build, not parse.
+        // This spelling always parsed; it was the model build that used to reject it.
         var root = new AntlrPostgresParser().Parse($"{PeopleTable}\n{indexSql}");
         Assert.Equal(2, root.Statements.Count);
 
@@ -113,12 +114,12 @@ SELECT pg_get_indexdef('ix_people_lower_name'::regclass);
             });
     }
 
-    // A bare operator class (name text_pattern_ops) is supported — see
-    // PostgresVectorRoundTripTest — but a schema-qualified one is rejected in VisitIndex_elem.
-    // pg_catalog.text_pattern_ops is how a user would disambiguate an opclass shadowed by one
-    // in another schema, and Postgres accepts it (the built-in opclasses live in pg_catalog).
-    [Fact(Skip = "Blocked by issue #160: VisitIndex_elem throws \"Schema-qualified index "
-                 + "operator classes are not yet supported\".")]
+    // A bare operator class (name text_pattern_ops) is covered by PostgresVectorRoundTripTest;
+    // this is the schema-qualified spelling. pg_catalog.text_pattern_ops is how a user would
+    // disambiguate an opclass shadowed by one in another schema, and Postgres accepts it (the
+    // built-in opclasses live in pg_catalog). The catalog reports the opclass unqualified, so
+    // the qualifier must be dropped or the declaration would re-diff against its own database.
+    [Fact]
     public async Task SchemaQualifiedOperatorClass_DeploysWithThatOperatorClass()
     {
         const string indexSql =
@@ -143,10 +144,11 @@ WHERE i.indexrelid = 'ix_people_name'::regclass;
             });
     }
 
-    // TABLESPACE on an index is rejected in VisitIndexstmt. pg_default always exists, so
-    // this is a declaration a user could write against any server.
-    [Fact(Skip = "Blocked by issue #160: VisitIndexstmt throws \"Support for TABLESPACE on "
-                 + "CREATE INDEX not yet implemented\".")]
+    // TABLESPACE pg_default. Measured: an index placed there stores reltablespace = 0 exactly
+    // as one with no TABLESPACE clause does, and pg_get_indexdef omits the clause entirely — so
+    // the default spelling is a genuine no-op, accepted and not modeled. A non-default
+    // tablespace is a real placement decision and is rejected rather than dropped.
+    [Fact]
     public async Task IndexTablespace_DeploysIntoThatTablespace()
     {
         const string indexSql = "CREATE INDEX ix_people_name ON people (name) TABLESPACE pg_default;";
@@ -320,14 +322,16 @@ CREATE INDEX ix_people_age ON people (age) WITH (fillfactor=80);
         }
     }
 
-    // NULLS NOT DISTINCT (PG15+) is the silent-drop case in this file: unlike INCLUDE and
-    // TABLESPACE above, nothing rejects it. The grammar accepts it, VisitIndexstmt never reads
-    // it, and PostgresPropertyNames has no property for it, so the declared index deploys with
-    // the OPPOSITE uniqueness semantics — multiple NULLs are allowed where the source asked for
-    // them to collide — and the loss is invisible to a round trip because neither the parser nor
-    // the extractor ever looks at it.
-    [Fact(Skip = "Blocked by issue #160: NULLS NOT DISTINCT is parsed and then dropped, so the "
-                 + "deployed index has the opposite uniqueness semantics from the source.")]
+    // NULLS NOT DISTINCT (PG15+) was the silent-drop case in this file: unlike INCLUDE and
+    // TABLESPACE above, nothing rejected it. The grammar accepted it, VisitIndexstmt never read
+    // it and no property carried it, so the declared index deployed with the OPPOSITE uniqueness
+    // semantics — multiple NULLs allowed where the source asked for them to collide — and the
+    // loss was invisible to a round trip because neither side ever looked at it.
+    //
+    // Hence the second half of this test: asserting indnullsnotdistinct alone would pass on a
+    // model that records the flag without the deploy honouring it, so the semantics are also
+    // exercised directly against the data.
+    [Fact]
     public async Task UniqueIndexNullsNotDistinct_IsDeployedWithTheDeclaredSemantics()
     {
         const string indexSql =

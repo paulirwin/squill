@@ -20,7 +20,7 @@ public class HnswIndexTests
         var element = Assert.Single(stmt.Elements);
         var columnRef = Assert.IsType<ColumnReferenceExpression>(element.Expression);
         Assert.Equal("embedding", columnRef.Identifier.Name);
-        Assert.Equal("vector_cosine_ops", element.OperatorClass?.Name);
+        Assert.Equal("vector_cosine_ops", element.OperatorClass?.ToString());
 
         // WITH options are carried as ordered name/value pairs.
         Assert.Collection(stmt.WithOptions,
@@ -39,7 +39,7 @@ public class HnswIndexTests
         var stmt = Assert.IsType<CreateIndexStatement>(Assert.Single(root.Statements));
 
         var element = Assert.Single(stmt.Elements);
-        Assert.Equal("vector_l2_ops", element.OperatorClass?.Name);
+        Assert.Equal("vector_l2_ops", element.OperatorClass?.ToString());
         Assert.Empty(stmt.WithOptions);
     }
 }
