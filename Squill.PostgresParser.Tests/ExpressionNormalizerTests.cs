@@ -63,7 +63,9 @@ public class ExpressionNormalizerTests
         "((price < (1)::numeric) OR (price > (5)::numeric))")]
     // A signed numeric constant is stored as a QUOTED literal carrying the sign.
     [InlineData("x > -1", "(x > '-1'::integer)")]
-    [InlineData("x > -1.5", "(x > '-1.5'::numeric)")]
+    // Comparing an integer column against a fractional constant also widens the COLUMN, so this
+    // row exercises the signed literal and the injected column cast together.
+    [InlineData("x > -1.5", "((x)::numeric > '-1.5'::numeric)")]
     // Nesting and precedence.
     [InlineData("price > 0 AND quantity > 0 OR flag",
         "(((price > (0)::numeric) AND (quantity > 0)) OR flag)")]
