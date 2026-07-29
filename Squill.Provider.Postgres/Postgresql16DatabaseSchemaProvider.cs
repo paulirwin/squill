@@ -8,4 +8,8 @@ namespace Squill.Provider.Postgres;
 public sealed class Postgresql16DatabaseSchemaProvider : PostgresqlDatabaseSchemaProvider
 {
     public override int MajorVersion => 16;
+
+    // SET EXPRESSION arrived in PostgreSQL 17; on this major it is a syntax error, so a
+    // changed generation expression is applied by rebuilding the column.
+    public override bool SupportsSetExpression => false;
 }

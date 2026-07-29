@@ -208,6 +208,24 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             return trigger.ToString();
         }
 
+        // A CHECK constraint whose predicate was redefined under the same name (issue #156).
+        // PostgreSQL cannot alter a predicate in place, so the constraint is dropped and re-added.
+        // Adding it back validates the new predicate against the existing rows, so a tightened
+        // predicate the data violates fails the deploy rather than silently leaving the old one
+        // in force.
+        if (source.Type == PostgresElementTypes.SqlCheckConstraint)
+        {
+            var check = new StringBuilder();
+
+            check.Append(GenerateDropScript(new DropDelta(recreateDelta.TargetElement, false)));
+
+            check.Append("ALTER TABLE ").Append(ConstraintTableName(source))
+                .Append(" ADD ").Append(GetCheckConstraintClause(source))
+                .Append(';').AppendLine();
+
+            return check.ToString();
+        }
+
         if (source.Type != PostgresElementTypes.SqlIndex)
         {
             throw new NotImplementedException(
@@ -422,8 +440,13 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
         // so a type change can be cast during the copy.
         var targetColumns = RelationshipHelpers.GetOrderedColumns(rebuildDelta.TargetElement)
             .ToDictionary(c => c.Name, c => c.Column);
+        // A generated column is excluded from the copy: its value is always derived from the
+        // other columns, and PostgreSQL rejects an explicit one ("cannot insert a non-DEFAULT
+        // value into column"). Leaving it out is also what makes a rebuild the way to redefine a
+        // generation expression (issue #156) — every row is recomputed from the new expression.
         var carriedColumns = RelationshipHelpers.GetOrderedColumns(rebuildDelta.SourceElement)
-            .Where(c => targetColumns.ContainsKey(c.Name))
+            .Where(c => targetColumns.ContainsKey(c.Name)
+                && c.Column.GetProperty<string>(PostgresPropertyNames.GeneratedExpression) is null)
             .ToList();
 
         // A GENERATED ALWAYS AS IDENTITY column rejects an explicit inserted value unless

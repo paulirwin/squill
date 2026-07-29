@@ -379,8 +379,15 @@ ORDER BY conname;
         }
     }
 
-    // The deployed database's model must hash-match the DACPAC's, which is what proves the
+    // The deployed database's model must agree with the DACPAC's, which is what proves the
     // parser-built and database-extracted models agree on these constructs.
+    //
+    // Agreement is asserted as "comparing them produces nothing to deploy" rather than as raw
+    // hash equality. One of these predicates — LIKE with an ESCAPE — is stored by PostgreSQL as a
+    // like_escape() call, a spelling the normalizer deliberately refuses (issue #171), so only
+    // the extracted side carries a canonical form. SchemaCompare handles that by dropping a
+    // one-sided canonical form (issue #156); a bare hash comparison cannot, and would report a
+    // difference for two models that are in fact equivalent.
     private static async Task AssertModelsMatchAsync(
         IDatabaseProvider provider, IDatabase createdDb, string dacpacPath, CancellationToken ct)
     {
@@ -395,9 +402,11 @@ ORDER BY conname;
             .CreateDatabaseModelBuilder(createdDb)
             .ExtractModelAsync(ct);
 
-        Assert.Equal(
-            ModelAssertions.ElementHashMultiset(dacpacModel),
-            ModelAssertions.ElementHashMultiset(deployedModel));
+        var comparison = SchemaCompare.Compare(provider, dacpacModel, deployedModel);
+
+        Assert.True(comparison.Deltas.Count == 0,
+            "The deployed database must already match the DACPAC, but comparing them produced: "
+            + string.Join(", ", comparison.Deltas.Select(d => d.ToString())));
     }
 
     private static Task<string> BuildDacpacAsync(

@@ -103,3 +103,25 @@ public interface IDatabaseDependencyAnalyzer : IModelIdentityRules
     /// </summary>
     Element NormalizeForComparison(Element source, Element target);
 }
+
+/// <summary>
+/// Comparison helpers shared by every code path that asks "are these two elements the same?".
+/// </summary>
+public static class ElementComparison
+{
+    /// <summary>
+    /// Whether <paramref name="source"/> and <paramref name="target"/> are equivalent, after
+    /// normalizing each against the other.
+    ///
+    /// Normalization is one-directional (it rewrites the source), but a facet can be missing from
+    /// EITHER side — a canonical expression form is absent whenever that side's spelling contains
+    /// something the normalizer cannot reduce, which the source and the target can hit
+    /// independently (issue #156). Normalizing both ways drops such a facet from whichever side
+    /// carries it, so it cannot make an unchanged element look changed.
+    /// </summary>
+    public static bool AreEquivalent(
+        IDatabaseDependencyAnalyzer analyzer, Element source, Element target)
+        => HashUtility.HashesEqual(
+            analyzer.NormalizeForComparison(source, target).Hash,
+            analyzer.NormalizeForComparison(target, source).Hash);
+}

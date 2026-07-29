@@ -26,8 +26,7 @@ public class PostgresExpressionRedefinitionTest : PostgresIntegrationTestBase
     /// Redefining a CHECK predicate under the same constraint name must drop and re-add the
     /// constraint so the declared predicate wins.
     /// </summary>
-    [Fact(Skip = "Blocked by issue #156: CheckExpression is excluded from the identity hash, "
-                 + "so a changed predicate produces no delta and the old one stays enforced.")]
+    [Fact]
     public async Task ChangedCheckPredicate_UnderSameConstraintName_IsApplied()
     {
         const string before = """
@@ -132,8 +131,7 @@ WHERE conrelid = 'gauge'::regclass AND conname = 'ck_a';
     /// Redefining a generated column's expression must rebuild the column so rows use the
     /// declared expression.
     /// </summary>
-    [Fact(Skip = "Blocked by issue #156: GeneratedExpression is excluded from the identity "
-                 + "hash, so a changed expression produces no delta and rows keep using the old one.")]
+    [Fact]
     public async Task ChangedGeneratedColumnExpression_IsApplied()
     {
         const string before = """

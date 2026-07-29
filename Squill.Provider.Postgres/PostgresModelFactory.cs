@@ -1,4 +1,5 @@
 using Squill.Core;
+using Squill.PostgresParser;
 using Squill.PostgresParser.Syntax;
 
 namespace Squill.Provider.Postgres;
@@ -37,13 +38,15 @@ public static class PostgresModelFactory
     /// (issue #120). Called by both model builders so a parsed column and an extracted one
     /// carry the same properties in the same order (the Merkle hash is order-sensitive).
     ///
-    /// The expression is carried for scripting only and does not take part in comparison:
-    /// PostgreSQL rewrites the expression it is given (adding parentheses and type casts, so
-    /// <c>price * quantity</c> comes back as <c>(price * (quantity)::numeric)</c>), so a
-    /// declared expression could never hash-match one read back through
-    /// <c>pg_get_expr</c> — the same treatment a domain's CHECK and a view's query get.
-    /// What does participate is <em>that</em> the column is generated, which is a real
-    /// structural difference: a generated column cannot be written to.
+    /// The raw expression is carried for scripting, so a deploy reproduces the spelling the user
+    /// wrote. It cannot itself take part in comparison: PostgreSQL rewrites the expression it is
+    /// given (adding parentheses and type casts, so <c>price * quantity</c> comes back as
+    /// <c>(price * (quantity)::numeric)</c>), so a declared expression could never hash-match one
+    /// read back through <c>pg_get_expr</c>. Its canonical form does instead (issue #156), which
+    /// is what makes redefining the expression a change the deploy acts on.
+    ///
+    /// Also participating is <em>that</em> the column is generated, which is a real structural
+    /// difference: a generated column cannot be written to.
     /// </summary>
     public static void AddGeneratedColumnProperties(Element column, string? generationExpression)
     {
@@ -54,9 +57,31 @@ public static class PostgresModelFactory
 
         if (generationExpression is not null)
         {
-            column.Properties.Add(
-                new Property(PostgresPropertyNames.GeneratedExpression, generationExpression,
-                    participatesInIdentity: false));
+            AddExpressionProperties(
+                column,
+                PostgresPropertyNames.GeneratedExpression,
+                PostgresPropertyNames.NormalizedGeneratedExpression,
+                generationExpression);
+        }
+    }
+
+    /// <summary>
+    /// Records an expression as the pair of properties comparison and scripting each need: the
+    /// raw text exactly as given, and — when one can be derived — its canonical form (issue #156).
+    ///
+    /// Only the canonical form takes part in identity. When the expression contains a construct
+    /// the normalizer cannot reduce, no canonical property is added and the raw one stays out of
+    /// identity too, so the element falls back to the pre-#156 behaviour: a redefinition is
+    /// missed, rather than an unchanged expression looking changed and redeploying forever.
+    /// </summary>
+    private static void AddExpressionProperties(
+        Element element, string rawName, string normalizedName, string expression)
+    {
+        element.Properties.Add(new Property(rawName, expression, participatesInIdentity: false));
+
+        if (ExpressionNormalizer.TryNormalize(expression, out var canonical))
+        {
+            element.Properties.Add(new Property(normalizedName, canonical));
         }
     }
 
@@ -183,22 +208,20 @@ public static class PostgresModelFactory
     /// set of its own — the predicate may reference any columns of the table (or none) — so
     /// the element carries the predicate text and its defining table, and nothing else.
     ///
-    /// The predicate does not take part in comparison, for the same reason a domain's CHECK
-    /// does not: PostgreSQL rewrites it when it stores it, so the declared
-    /// <c>price &gt; 0</c> comes back from pg_get_constraintdef as <c>((price &gt; (0)::numeric))</c>.
-    /// A CHECK constraint's modeled identity is its name and table instead, which is why an
-    /// unnamed one is given the engine-derived <c>&lt;table&gt;_&lt;column&gt;_check</c> name.
+    /// The raw predicate cannot take part in comparison: PostgreSQL rewrites it when it stores
+    /// it, so the declared <c>price &gt; 0</c> comes back from pg_get_constraintdef as
+    /// <c>((price &gt; (0)::numeric))</c>. Its canonical form does instead (issue #156), so
+    /// redefining the predicate under the same constraint name is a change the deploy acts on
+    /// rather than a silent no-op. The constraint's name and table still identify it — which is
+    /// why an unnamed one is given the engine-derived
+    /// <c>&lt;table&gt;_&lt;column&gt;_check</c> name.
     /// </summary>
     public static Element CreateCheckConstraint(
         SqlName name, SqlName definingTable, string checkExpression, string schema = "public")
-        => new(PostgresElementTypes.SqlCheckConstraint)
+    {
+        var element = new Element(PostgresElementTypes.SqlCheckConstraint)
         {
             Name = name,
-            Properties =
-            {
-                new Property(PostgresPropertyNames.CheckExpression, checkExpression,
-                    participatesInIdentity: false),
-            },
             Relationships =
             {
                 new Relationship(PostgresRelationshipNames.DefiningTable)
@@ -213,6 +236,15 @@ public static class PostgresModelFactory
                 }
             }
         };
+
+        AddExpressionProperties(
+            element,
+            PostgresPropertyNames.CheckExpression,
+            PostgresPropertyNames.NormalizedCheckExpression,
+            checkExpression);
+
+        return element;
+    }
 
     public static Element CreateIndex(SqlName name,
         SqlName indexedObject,
