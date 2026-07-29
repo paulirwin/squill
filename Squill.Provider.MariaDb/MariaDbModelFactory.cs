@@ -1,4 +1,5 @@
 using Squill.Core;
+using Squill.MariaDbParser;
 using Squill.MariaDbParser.Syntax;
 
 namespace Squill.Provider.MariaDb;
@@ -78,23 +79,20 @@ public static class MariaDbModelFactory
     /// predicate may reference any columns of the table — so the element carries the
     /// predicate text and its defining table.
     ///
-    /// The predicate does not take part in comparison: both engines rewrite it when they
-    /// store it (backtick-quoting identifiers, and in MySQL wrapping the whole expression in
-    /// parentheses), so a declared expression could never hash-match what
-    /// information_schema.CHECK_CONSTRAINTS reports. A CHECK constraint's modeled identity is
-    /// its name and table instead, which is why an unnamed one is a build error: the two
-    /// engines derive different names for it.
+    /// The raw predicate cannot take part in comparison: both engines rewrite it when they
+    /// store it (backtick-quoting identifiers, lower-casing keywords, and in MySQL wrapping the
+    /// whole expression in parentheses), so a declared expression could never hash-match what
+    /// information_schema.CHECK_CONSTRAINTS reports. Its canonical form does instead (issue
+    /// #156), so redefining the predicate under the same constraint name is a change the deploy
+    /// acts on rather than a silent no-op. The constraint's name and table still identify it,
+    /// which is why an unnamed one is a build error: the two engines derive different names.
     /// </summary>
     public static Element CreateCheckConstraint(
         SqlName name, SqlName definingTable, string checkExpression)
-        => new(MariaDbElementTypes.SqlCheckConstraint)
+    {
+        var element = new Element(MariaDbElementTypes.SqlCheckConstraint)
         {
             Name = name,
-            Properties =
-            {
-                new Property(MariaDbPropertyNames.CheckExpression, checkExpression,
-                    participatesInIdentity: false),
-            },
             Relationships =
             {
                 new Relationship(MariaDbRelationshipNames.DefiningTable)
@@ -104,14 +102,24 @@ public static class MariaDbModelFactory
             }
         };
 
+        AddExpressionProperties(
+            element,
+            MariaDbPropertyNames.CheckExpression,
+            MariaDbPropertyNames.NormalizedCheckExpression,
+            checkExpression);
+
+        return element;
+    }
+
     /// <summary>
     /// Records that a column is generated (computed) (issue #120). Called by both model
     /// builders so a parsed column and an extracted one carry the same properties in the
     /// same order (the Merkle hash is order-sensitive).
     ///
-    /// As with a CHECK predicate the expression is carried for scripting only and does not
-    /// participate in comparison — both engines rewrite it. What does participate is whether
-    /// the column is STORED or VIRTUAL, a real structural difference.
+    /// As with a CHECK predicate the raw expression is carried for scripting and its canonical
+    /// form is what participates in comparison (issue #156), since both engines rewrite the text
+    /// they store. Also participating is whether the column is STORED or VIRTUAL, a real
+    /// structural difference.
     /// </summary>
     public static void AddGeneratedColumnProperties(Element column, string? generationExpression,
         bool isStored)
@@ -120,9 +128,31 @@ public static class MariaDbModelFactory
 
         if (generationExpression is not null)
         {
-            column.Properties.Add(
-                new Property(MariaDbPropertyNames.GeneratedExpression, generationExpression,
-                    participatesInIdentity: false));
+            AddExpressionProperties(
+                column,
+                MariaDbPropertyNames.GeneratedExpression,
+                MariaDbPropertyNames.NormalizedGeneratedExpression,
+                generationExpression);
+        }
+    }
+
+    /// <summary>
+    /// Records an expression as the pair of properties comparison and scripting each need: the
+    /// raw text exactly as given, and — when one can be derived — its canonical form (issue #156).
+    ///
+    /// Only the canonical form takes part in identity. When the expression cannot be normalized,
+    /// no canonical property is added and the raw one stays out of identity too, so the element
+    /// falls back to the pre-#156 behaviour: a redefinition is missed, rather than an unchanged
+    /// expression looking changed and redeploying forever.
+    /// </summary>
+    private static void AddExpressionProperties(
+        Element element, string rawName, string normalizedName, string expression)
+    {
+        element.Properties.Add(new Property(rawName, expression, participatesInIdentity: false));
+
+        if (ExpressionNormalizer.TryNormalize(expression, out var canonical))
+        {
+            element.Properties.Add(new Property(normalizedName, canonical));
         }
     }
 

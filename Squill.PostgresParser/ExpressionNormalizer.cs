@@ -41,6 +41,53 @@ namespace Squill.PostgresParser;
 public static class ExpressionNormalizer
 {
     /// <summary>
+    /// Produces the canonical form of an expression given as TEXT — either as the user declared
+    /// it or as the catalog reported it — by parsing it first. Returns <c>false</c> when the text
+    /// does not parse or contains a construct with no known canonical form.
+    /// </summary>
+    /// <remarks>
+    /// The text is parsed as an index predicate, which is the grammar's expression position, so a
+    /// bare expression can be parsed without a statement around it.
+    /// </remarks>
+    public static bool TryNormalize(string expressionText, out string canonical)
+    {
+        canonical = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(expressionText))
+        {
+            return false;
+        }
+
+        Expression expression;
+
+        try
+        {
+            var root = new AntlrPostgresParser()
+                .Parse($"CREATE INDEX squill_normalize ON squill_normalize (c) WHERE {expressionText};");
+
+            if (root.Statements.Count != 1
+                || root.Statements[0] is not CreateIndexStatement { WhereClause: { } predicate })
+            {
+                return false;
+            }
+
+            expression = predicate;
+        }
+        catch (PostgresParseException)
+        {
+            return false;
+        }
+        catch (NotImplementedException)
+        {
+            // A construct the visitor does not map yet (e.g. `= ANY (…)`, issue #170). Treated
+            // like any other unnormalizable expression rather than failing the build.
+            return false;
+        }
+
+        return TryNormalize(expression, out canonical);
+    }
+
+    /// <summary>
     /// Produces the canonical form of <paramref name="expression"/>, or returns <c>false</c>
     /// when it contains a construct with no known canonical form.
     /// </summary>

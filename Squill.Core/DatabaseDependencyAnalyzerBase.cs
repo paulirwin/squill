@@ -62,10 +62,16 @@ public abstract class DatabaseDependencyAnalyzerBase : IDatabaseDependencyAnalyz
         {
             (SqlElementTypes.SqlView, SqlPropertyNames.Definition) => false,
             // A CHECK predicate and a generated column's expression are rewritten by every
-            // engine when stored (parentheses and casts added), so a declared one could never
-            // hash-match what is read back (issue #120). A CHECK constraint's identity is its
-            // name and table; a generated column's is that it is generated (IsStored), which
-            // does participate.
+            // engine when stored (parentheses and casts added), so the RAW text of one could
+            // never hash-match what is read back (issue #120). What participates in its place is
+            // the canonical form carried alongside it — NormalizedCheckExpression /
+            // NormalizedGeneratedExpression, which are not listed here and so participate by
+            // default. That is what makes redefining a predicate under the same name a change
+            // the deploy acts on rather than a silent no-op (issue #156).
+            //
+            // When an expression has no canonical form the normalized property is simply absent,
+            // and the raw one being excluded here is what makes the element fall back to the
+            // pre-#156 behaviour instead of re-diffing on every deploy.
             (SqlElementTypes.SqlCheckConstraint, SqlPropertyNames.CheckExpression) => false,
             (SqlElementTypes.SqlSimpleColumn, SqlPropertyNames.GeneratedExpression) => false,
             _ => true,
