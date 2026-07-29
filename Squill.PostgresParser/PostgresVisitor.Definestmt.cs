@@ -40,9 +40,61 @@ public partial class PostgresVisitor
                 + "type or a base type (CREATE TYPE name (INPUT = ..., OUTPUT = ...)) is not");
         }
 
+        if (context.COLLATION() is not null)
+        {
+            return VisitCreateCollation(context);
+        }
+
         throw new NotImplementedException(
-            "Only CREATE TYPE and CREATE AGGREGATE are supported among the DEFINE-family "
-            + "statements");
+            "Only CREATE TYPE, CREATE AGGREGATE and CREATE COLLATION are supported among the "
+            + "DEFINE-family statements");
+    }
+
+    // definestmt (collation alternatives):
+    //   CREATE COLLATION any_name definition
+    //   CREATE COLLATION any_name FROM any_name
+    // (each also with IF NOT EXISTS, which is not modeled — a declarative source states the
+    // collation it wants, and the deploy decides whether it already exists.)
+    private CreateCollationStatement VisitCreateCollation(PostgreSQLParser.DefinestmtContext context)
+    {
+        var names = context.any_name();
+        var statement = At(new CreateCollationStatement(ParseAnyName(names[0])), context);
+
+        if (context.FROM() is not null)
+        {
+            statement.CopiedFrom = ParseAnyName(names[1]);
+            return statement;
+        }
+
+        foreach (var defElem in context.definition().def_list().def_elem())
+        {
+            var value = DefArgText(defElem).Trim('\'');
+
+            switch (defElem.colLabel().GetText().ToUpperInvariant())
+            {
+                case "PROVIDER":
+                    statement.Provider = value.ToLowerInvariant();
+                    break;
+                case "LOCALE":
+                    statement.Locale = value;
+                    break;
+                case "LC_COLLATE":
+                    statement.LcCollate = value;
+                    break;
+                case "LC_CTYPE":
+                    statement.LcCtype = value;
+                    break;
+                case "DETERMINISTIC":
+                    statement.Deterministic =
+                        !string.Equals(value, "false", StringComparison.OrdinalIgnoreCase);
+                    break;
+                // RULES and VERSION are accepted by PostgreSQL but not modeled: VERSION is
+                // assigned by the provider library and changes with the host's ICU version, so
+                // it could never round-trip from a declarative source.
+            }
+        }
+
+        return statement;
     }
 
     // definestmt: CREATE TYPE_P any_name AS OPEN_PAREN opttablefuncelementlist CLOSE_PAREN

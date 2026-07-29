@@ -11,6 +11,13 @@ namespace Squill.Provider.Postgres;
 public sealed class PostgresPropertyNames : SqlPropertyNames
 {
     public const string NullsFirst = nameof(NullsFirst);
+    // Constraint deferrability (issue #159). A constraint is NOT DEFERRABLE INITIALLY IMMEDIATE
+    // unless declared otherwise, and pg_constraint reports condeferrable/condeferred as plain
+    // booleans, so each is stored only when true — matching the catalog's default and keeping a
+    // declared constraint hash-matched with an extracted one. INITIALLY DEFERRED implies
+    // DEFERRABLE (PostgreSQL rejects the combination without it).
+    public const string IsDeferrable = nameof(IsDeferrable);
+    public const string IsInitiallyDeferred = nameof(IsInitiallyDeferred);
     public const string IsIdentity = nameof(IsIdentity);
     public const string IdentityGeneration = nameof(IdentityGeneration);
     // Identity sequence options (issue #13), stored only when they differ from the
@@ -57,7 +64,20 @@ public sealed class PostgresPropertyNames : SqlPropertyNames
     // one — the catalog always reports a resolved opclass.
     public const string Subtype = nameof(Subtype);
     public const string SubtypeOperatorClass = nameof(SubtypeOperatorClass);
+    // Also a column facet (issue #159): a column-level COLLATE. Stored only when the collation
+    // is not the column type's default, for the same reason as above — pg_attribute.attcollation
+    // reports a resolved collation ("default", oid 100) for every collatable column, so storing
+    // it unconditionally would make every text column re-diff on every deploy.
     public const string Collation = nameof(Collation);
+    // Collations (issue #159). Provider is "libc" or "icu". A libc collation resolves its
+    // locale into LcCollate/LcCtype and an icu one into Locale, which is why all three exist
+    // and only the ones pg_collation actually populated are stored. IsDeterministic is stored
+    // only when false (deterministic is the default).
+    public const string Provider = nameof(Provider);
+    public const string Locale = nameof(Locale);
+    public const string LcCollate = nameof(LcCollate);
+    public const string LcCtype = nameof(LcCtype);
+    public const string IsDeterministic = nameof(IsDeterministic);
     // Functions (issue #81). ReturnsSet is true for RETURNS SETOF. Volatility is one of
     // "IMMUTABLE"/"STABLE"/"VOLATILE" (stored only when not the VOLATILE default); IsStrict
     // is stored only when true (CALLED ON NULL INPUT is the default).

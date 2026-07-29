@@ -30,4 +30,10 @@ public sealed class PostgresElementTypes : SqlElementTypes
     // these — only an independently declared type is an element.
     public const string SqlCompositeType = nameof(SqlCompositeType);
     public const string SqlRangeType = nameof(SqlRangeType);
+    // A CREATE COLLATION (issue #159). A top-level declared object a column's COLLATE may
+    // reference, so it must be created before any column that names it. PostgreSQL resolves the
+    // declared items into catalog facets and keeps no record of how they were written — a
+    // collation copied FROM another is stored identically to one spelling out that collation's
+    // locale — so the element carries the resolved facets, not the source spelling.
+    public const string SqlCollation = nameof(SqlCollation);
 }

@@ -107,6 +107,16 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             // next file rather than aborting the whole build here.
             return;
         }
+        catch (NotImplementedException ex)
+        {
+            // A construct the grammar accepts but the visitor cannot map throws from inside
+            // Parse, before there is a statement to anchor to — so the file is all the position
+            // there is. Reporting it as SQ0001 rather than letting it escape is what keeps an
+            // unsupported construct a build diagnostic instead of a raw stack trace (#159).
+            validator.AddError(new SqlSourceException(ex.Message, file.Name, innerException: ex));
+
+            return;
+        }
 
         foreach (var statement in root.Statements)
         {
@@ -362,6 +372,10 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         else if (statement is CreateRangeTypeStatement createRangeTypeStatement)
         {
             model.Elements.Add(MakeCreateRangeTypeElement(createRangeTypeStatement));
+        }
+        else if (statement is CreateCollationStatement createCollationStatement)
+        {
+            model.Elements.Add(MakeCreateCollationElement(createCollationStatement));
         }
         else if (statement is CreateFunctionStatement createFunctionStatement)
         {
@@ -1062,7 +1076,9 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         QualifiedName ReferencedTable,
         IReadOnlyList<string> ReferencedColumns,
         ReferentialAction OnDelete,
-        ReferentialAction OnUpdate);
+        ReferentialAction OnUpdate,
+        bool IsDeferrable = false,
+        bool IsInitiallyDeferred = false);
 
     // A UNIQUE constraint gathered while walking a CREATE TABLE, before it becomes an
     // element (its name may be explicit or derived from the Postgres convention).
@@ -1183,7 +1199,9 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             referencedTable,
             foreignColumns,
             spec.OnDelete,
-            spec.OnUpdate);
+            spec.OnUpdate,
+            spec.IsDeferrable,
+            spec.IsInitiallyDeferred);
     }
 
     // Walks the table-level constraints, appending table-level PK columns, unique specs and
@@ -1279,6 +1297,14 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             IdentityColumnConstraint? identityConstraint = null;
             string? defaultValue = null;
             string? generatedExpression = null;
+            string? collation = null;
+
+            // An inline constraint attribute (DEFERRABLE / INITIALLY DEFERRED) is written after
+            // the constraint it qualifies but arrives as a sibling node, so it is collected here
+            // and applied to the column's foreign key once the whole list has been walked.
+            bool? isDeferrable = null;
+            bool? isInitiallyDeferred = null;
+            ForeignKeySpec? inlineForeignKey = null;
 
             // SERIAL/SMALLSERIAL/BIGSERIAL are shorthand for a sequence-backed integer
             // column, not real types. They are lowered to the modern equivalent — the
@@ -1357,13 +1383,26 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 }
                 else if (constraint is ForeignKeyColumnConstraint fk)
                 {
-                    foreignKeys.Add(new ForeignKeySpec(
+                    // Held rather than added, because a DEFERRABLE / INITIALLY DEFERRED written
+                    // after this clause is a sibling constraint node not yet seen (#159).
+                    inlineForeignKey = new ForeignKeySpec(
                         explicitName,
                         new[] { columnDefinition.Name.Name },
                         fk.ReferencedTable,
                         fk.ReferencedColumn is { } refCol ? new[] { refCol.Name } : Array.Empty<string>(),
                         fk.OnDelete ?? ReferentialAction.NoAction,
-                        fk.OnUpdate ?? ReferentialAction.NoAction));
+                        fk.OnUpdate ?? ReferentialAction.NoAction);
+                }
+                else if (constraint is CollateColumnConstraint collate)
+                {
+                    // A collation name is case-sensitive; the unqualified name is stored, since
+                    // that is what pg_collation reports on the way back.
+                    collation = collate.Collation.Segments[^1].Name;
+                }
+                else if (constraint is ConstraintAttributeColumnConstraint attribute)
+                {
+                    isDeferrable = attribute.Deferrable ?? isDeferrable;
+                    isInitiallyDeferred = attribute.InitiallyDeferred ?? isInitiallyDeferred;
                 }
                 else if (constraint is CheckColumnConstraint check)
                 {
@@ -1386,6 +1425,30 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     throw new NotImplementedException(
                         $"Column constraint type {constraint.GetType()} to property mapping not implemented");
                 }
+            }
+
+            // The inline foreign key is added now that the whole constraint list has been
+            // walked, so a DEFERRABLE / INITIALLY DEFERRED written after it is picked up (#159).
+            if (inlineForeignKey is not null)
+            {
+                foreignKeys.Add(inlineForeignKey with
+                {
+                    // INITIALLY DEFERRED implies DEFERRABLE: PostgreSQL rejects the pairing with
+                    // NOT DEFERRABLE, so a source that writes only the INITIALLY clause is
+                    // deferrable too — and the catalog reports it that way.
+                    IsDeferrable = isDeferrable ?? isInitiallyDeferred ?? false,
+                    IsInitiallyDeferred = isInitiallyDeferred ?? false,
+                });
+            }
+            else if (isDeferrable is not null || isInitiallyDeferred is not null)
+            {
+                // Postgres accepts a constraint attribute only on a constraint that can be
+                // deferred; on a column with no such constraint it is a syntax error. Rejecting
+                // it here beats silently dropping something the source declared.
+                throw new NotSupportedException(
+                    $"Column '{columnName}' declares a DEFERRABLE or INITIALLY clause, but "
+                    + "PostgreSQL allows one only on a foreign key, UNIQUE or PRIMARY KEY "
+                    + "constraint written on the same column.");
             }
 
             // Only a NOT NULL column stores IsNullable (=false). Nullable is the default,
@@ -1414,10 +1477,18 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 element.Properties.Add(new Property(PostgresPropertyNames.DefaultValue, defaultValue));
             }
 
-            // Emitted last, matching the DB-extraction builder's property order.
             if (generatedExpression != null)
             {
                 PostgresModelFactory.AddGeneratedColumnProperties(element, generatedExpression);
+            }
+
+            // Emitted last, matching the DB-extraction builder's property order. An explicit
+            // COLLATE "default" names the collation every collatable column already has, so it
+            // records nothing — pg_attribute reports it identically to a column with no COLLATE
+            // at all, and storing it would re-diff forever (measured, #159).
+            if (collation is not null && !string.Equals(collation, "default", StringComparison.Ordinal))
+            {
+                element.Properties.Add(new Property(PostgresPropertyNames.Collation, collation));
             }
 
             element.Relationships.Add(new Relationship(PostgresRelationshipNames.TypeSpecifier)
@@ -1776,6 +1847,43 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             CanonicalRangeSubtypeName(createRangeTypeStatement.Subtype),
             createRangeTypeStatement.SubtypeOperatorClass,
             createRangeTypeStatement.Collation);
+    }
+
+    // A collation (issue #159). The declared items are resolved into the facets pg_collation
+    // stores, because that is all the catalog keeps: LOCALE fans out to LC_COLLATE / LC_CTYPE
+    // for libc and stays as the locale for icu. A collation declared FROM another is rejected
+    // rather than modeled — resolving it needs the copied collation's own locale, which for a
+    // stock one like "POSIX" lives in the target database and not in the source, so the model
+    // could not be built without a live server (which is exactly what this builder avoids).
+    private static Element MakeCreateCollationElement(CreateCollationStatement statement)
+    {
+        var (schema, name) = SplitSchema(statement.Name);
+
+        if (statement.CopiedFrom is { } copiedFrom)
+        {
+            throw new NotSupportedException(
+                $"Collation '{name.UnqualifiedName}' is declared FROM \"{copiedFrom}\", which "
+                + "Squill cannot model: PostgreSQL stores the copied locale rather than the "
+                + "reference, so the declaration cannot be reproduced without resolving it "
+                + "against a live server. Declare the locale directly, e.g. "
+                + "(LOCALE = 'POSIX', PROVIDER = libc).");
+        }
+
+        // libc is the provider PostgreSQL assumes when none is declared.
+        var provider = statement.Provider ?? "libc";
+
+        // For libc, LOCALE sets both LC_COLLATE and LC_CTYPE; an explicit pair overrides it.
+        // For icu, the locale is stored as-is and the lc_* facets stay empty.
+        var isIcu = string.Equals(provider, "icu", StringComparison.Ordinal);
+
+        return PostgresModelFactory.CreateCollation(
+            name,
+            schema,
+            provider,
+            locale: isIcu ? statement.Locale : null,
+            lcCollate: isIcu ? null : statement.LcCollate ?? statement.Locale,
+            lcCtype: isIcu ? null : statement.LcCtype ?? statement.Locale,
+            isDeterministic: statement.Deterministic ?? true);
     }
 
     // The internal type-name aliases PostgreSQL accepts, mapped to the canonical names
