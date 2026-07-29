@@ -204,7 +204,16 @@ public static class ExpressionNormalizer
         var after = close < tokens.Count - 1 ? Precedence(tokens[close + 1].Type) : int.MaxValue;
         var outer = Math.Min(before, after);
 
-        return inner < outer;
+        if (inner < outer)
+        {
+            return true;
+        }
+
+        // Equal precedence is redundant only on the LEFT, because these operators are all
+        // left-associative: `(a * 9) / 5` already parses that way, so the parentheses say
+        // nothing — which is exactly the form MySQL reports for `a * 9 / 5`. On the right they
+        // are load-bearing: `a / (b * c)` is not `a / b * c`.
+        return inner == outer && inner != int.MinValue && after <= before;
     }
 
     // The loosest-binding (highest-precedence-number) operator directly inside the group,
@@ -241,18 +250,24 @@ public static class ExpressionNormalizer
         return loosest;
     }
 
-    // Binding strength, loosest first — larger binds looser. Only the operators whose relative
-    // order decides whether a parenthesis can be dropped need distinguishing; everything else is
-    // an operand and binds tightest.
+    // Binding strength, loosest first — larger binds looser. This must cover every operator that
+    // can appear in a grouped subexpression, not just the boolean ones: both engines add
+    // precedence-clarifying parentheses around ARITHMETIC too, so `celsius * 9 / 5 + 32` is
+    // reported by MySQL as `(((celsius * 9) / 5) + 32)`. An operator missing from this table
+    // would bind tightest, and its group would never be recognized as redundant.
     private static int Precedence(int tokenType) => tokenType switch
     {
-        MariaDBLexer.OR or MariaDBLexer.XOR => 5,
-        MariaDBLexer.AND => 4,
-        MariaDBLexer.NOT => 3,
+        MariaDBLexer.OR or MariaDBLexer.XOR => 8,
+        MariaDBLexer.AND => 7,
+        MariaDBLexer.NOT => 6,
         MariaDBLexer.BETWEEN or MariaDBLexer.LIKE or MariaDBLexer.IN
-            or MariaDBLexer.REGEXP or MariaDBLexer.RLIKE or MariaDBLexer.IS => 2,
+            or MariaDBLexer.REGEXP or MariaDBLexer.RLIKE or MariaDBLexer.IS => 5,
         MariaDBLexer.EQUAL_SYMBOL or MariaDBLexer.GREATER_SYMBOL or MariaDBLexer.LESS_SYMBOL
-            or MariaDBLexer.EXCLAMATION_SYMBOL => 1,
+            or MariaDBLexer.EXCLAMATION_SYMBOL => 4,
+        MariaDBLexer.BIT_OR_OP or MariaDBLexer.BIT_AND_OP or MariaDBLexer.BIT_XOR_OP => 3,
+        MariaDBLexer.PLUS or MariaDBLexer.MINUS => 2,
+        MariaDBLexer.STAR or MariaDBLexer.DIVIDE or MariaDBLexer.MODULE
+            or MariaDBLexer.DIV or MariaDBLexer.MOD => 1,
         _ => int.MinValue,
     };
 

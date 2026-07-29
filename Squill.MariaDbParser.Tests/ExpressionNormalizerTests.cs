@@ -47,6 +47,11 @@ public class ExpressionNormalizerTests
         "`quantity` in (1,2,3)",
         "(`quantity` in (1,2,3))")]
     [InlineData("price * quantity", "`price` * `quantity`", "(`price` * `quantity`)")]
+    // Both engines add precedence-clarifying parentheses around ARITHMETIC, not just around
+    // boolean operands, so the redundant-parenthesis rule has to know arithmetic precedence too.
+    [InlineData("celsius * 9 / 5 + 32",
+        "`celsius` * 9 / 5 + 32",
+        "(((`celsius` * 9) / 5) + 32)")]
     [InlineData("name IS NOT NULL", "`name` is not null", "(`name` is not null)")]
     public void DeclaredAndExtracted_NormalizeToTheSameToken(
         string declared, string mariaDb, string mySql)
@@ -157,6 +162,10 @@ public class ExpressionNormalizerTests
     {
         Assert.NotEqual(Normalize("(a OR b) AND c"), Normalize("a OR b AND c"));
         Assert.NotEqual(Normalize("(a AND b) OR c"), Normalize("a AND (b OR c)"));
+
+        // The same for arithmetic: (a + b) * c is not a + b * c.
+        Assert.NotEqual(Normalize("(a + b) * c"), Normalize("a + b * c"));
+        Assert.NotEqual(Normalize("a / (b * c)"), Normalize("a / b * c"));
 
         // The redundant case still collapses: MySQL parenthesizes each operand of a boolean.
         Assert.Equal(Normalize("a > 0 AND b < 1"), Normalize("((a > 0) and (b < 1))"));
