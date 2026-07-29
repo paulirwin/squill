@@ -58,9 +58,14 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             PostgresElementTypes.SqlIndex =>
                 $"DROP INDEX IF EXISTS {SchemaQualified(element, parsed)};{Environment.NewLine}",
 
-            // A unique or CHECK constraint belongs to its table, so it is dropped through it
-            // rather than as a standalone object.
-            PostgresElementTypes.SqlUniqueConstraint or PostgresElementTypes.SqlCheckConstraint =>
+            // A constraint belongs to its table, so it is dropped through it rather than as a
+            // standalone object. PostgreSQL spells every kind the same way, primary and
+            // foreign keys included (issue #157). IF EXISTS keeps the drop idempotent when an
+            // earlier step — dropping the table itself — already took the constraint with it.
+            PostgresElementTypes.SqlUniqueConstraint
+                or PostgresElementTypes.SqlCheckConstraint
+                or PostgresElementTypes.SqlPrimaryKeyConstraint
+                or PostgresElementTypes.SqlForeignKeyConstraint =>
                 $"ALTER TABLE {ConstraintTableName(element)} DROP CONSTRAINT IF EXISTS "
                 + $"{parsed.QuotedUnqualified};{Environment.NewLine}",
 
@@ -208,22 +213,27 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             return trigger.ToString();
         }
 
-        // A CHECK constraint whose predicate was redefined under the same name (issue #156).
-        // PostgreSQL cannot alter a predicate in place, so the constraint is dropped and re-added.
-        // Adding it back validates the new predicate against the existing rows, so a tightened
-        // predicate the data violates fails the deploy rather than silently leaving the old one
+        // A constraint redefined under the same name: a CHECK whose predicate changed
+        // (issue #156), or a primary or foreign key whose columns or referential actions
+        // changed (issue #157). PostgreSQL cannot alter any of them in place, so each is
+        // dropped and re-added.
+        //
+        // Dropping first is required rather than merely tidy for a primary key — a table may
+        // only have one, so adding the new one before removing the old would be rejected — and
+        // it is what makes the re-add validate against the existing rows, so a tightened
+        // constraint the data violates fails the deploy instead of silently leaving the old one
         // in force.
-        if (source.Type == PostgresElementTypes.SqlCheckConstraint)
+        if (ConstraintClause(source) is { } constraintClause)
         {
-            var check = new StringBuilder();
+            var constraint = new StringBuilder();
 
-            check.Append(GenerateDropScript(new DropDelta(recreateDelta.TargetElement, false)));
+            constraint.Append(GenerateDropScript(new DropDelta(recreateDelta.TargetElement, false)));
 
-            check.Append("ALTER TABLE ").Append(ConstraintTableName(source))
-                .Append(" ADD ").Append(GetCheckConstraintClause(source))
+            constraint.Append("ALTER TABLE ").Append(ConstraintTableName(source))
+                .Append(" ADD ").Append(constraintClause)
                 .Append(';').AppendLine();
 
-            return check.ToString();
+            return constraint.ToString();
         }
 
         if (source.Type != PostgresElementTypes.SqlIndex)
@@ -804,32 +814,21 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             return GenerateCreateIndexScript(createDelta.Element, IndexTableName(createDelta.Element));
         }
 
-        // Likewise a unique constraint added to an existing table: there is no CREATE TABLE
-        // to carry the clause, so it is added with ALTER TABLE.
-        if (createDelta.Element.Type == PostgresElementTypes.SqlUniqueConstraint)
-        {
-            return GenerateAddUniqueConstraintScript(createDelta.Element);
-        }
-
-        // Likewise a CHECK constraint added to an existing table (issue #120).
-        if (createDelta.Element.Type == PostgresElementTypes.SqlCheckConstraint)
+        // Likewise a constraint added to a table that already exists: there is no CREATE TABLE
+        // to carry the clause, so it is added with ALTER TABLE. This covers unique and CHECK
+        // constraints (issue #120) as well as primary and foreign keys (issue #157).
+        //
+        // PostgreSQL validates the new constraint against the rows already in the table, so a
+        // duplicate in a new key's columns, or an orphan row a new foreign key forbids, fails
+        // the deploy rather than being quietly accepted.
+        if (ConstraintClause(createDelta.Element) is { } constraintClause)
         {
             return $"ALTER TABLE {ConstraintTableName(createDelta.Element)} "
-                + $"ADD {GetCheckConstraintClause(createDelta.Element)};{Environment.NewLine}";
+                + $"ADD {constraintClause};{Environment.NewLine}";
         }
 
         throw new NotImplementedException(
             $"Creating an element of type {createDelta.Element.Type} is not supported.");
-    }
-
-    // ALTER TABLE ... ADD CONSTRAINT ... UNIQUE (...), for a unique constraint added to a
-    // table that already exists.
-    private string GenerateAddUniqueConstraintScript(Element uniqueConstraint)
-    {
-        var quotedTable = ConstraintTableName(uniqueConstraint);
-
-        return $"ALTER TABLE {quotedTable} ADD {GetUniqueConstraintClause(uniqueConstraint)};"
-            + Environment.NewLine;
     }
 
     // Scripts a view as CREATE OR REPLACE, naming its columns explicitly so the deployed
@@ -1380,13 +1379,11 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
 
         if (pkColumns.Count > 0 && !pkIsInline)
         {
-            var pkColumnList = string.Join(", ", pkColumns.Select(c => $"\"{SqlName.UnqualifiedOf(c)}\""));
-
             // A composite PK, or a single-column PK with an explicit (non-default) name, is
             // a table-level clause. Emit the constraint name so an explicitly named PK
             // (CONSTRAINT pk_x PRIMARY KEY (...)) keeps its name in the database rather than
             // getting the Postgres-generated <table>_pkey.
-            columnText.Add($"CONSTRAINT {SqlName.Parse(pk!.Name!).QuotedUnqualified} PRIMARY KEY ({pkColumnList})");
+            columnText.Add(GetPrimaryKeyClause(pk!));
         }
 
         // UNIQUE constraints are always emitted as named table-level clauses. Unlike a PK
@@ -1887,6 +1884,40 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             ReferentialAction.SetDefault => "SET DEFAULT",
             _ => throw new InvalidOperationException($"Unknown referential action: {action}"),
         };
+
+    // The ADD-able clause for a table constraint, or null when the element is not one. Lets
+    // the create and recreate paths dispatch on constraint-ness once rather than repeating the
+    // same four-way type test.
+    private string? ConstraintClause(Element element) => element.Type switch
+    {
+        PostgresElementTypes.SqlPrimaryKeyConstraint => GetPrimaryKeyClause(element),
+        PostgresElementTypes.SqlForeignKeyConstraint => GetForeignKeyClause(element),
+        PostgresElementTypes.SqlUniqueConstraint => GetUniqueConstraintClause(element),
+        PostgresElementTypes.SqlCheckConstraint => GetCheckConstraintClause(element),
+        _ => null,
+    };
+
+    // CONSTRAINT "<name>" PRIMARY KEY ("col", ...), for a primary key written into a
+    // CREATE TABLE body or added to an existing table by ALTER TABLE (issue #157). One
+    // spelling serves both so the two paths cannot drift apart.
+    private static string GetPrimaryKeyClause(Element primaryKey)
+    {
+        if (primaryKey.Name is not string pkName)
+        {
+            throw new ArgumentException("Primary keys must have names");
+        }
+
+        var columns = GetKeyColumns(primaryKey);
+
+        if (columns.Count == 0)
+        {
+            throw new InvalidOperationException($"Primary key '{pkName}' has no columns");
+        }
+
+        var columnList = string.Join(", ", columns.Select(c => $"\"{SqlName.UnqualifiedOf(c)}\""));
+
+        return $"CONSTRAINT {SqlName.Parse(pkName).QuotedUnqualified} PRIMARY KEY ({columnList})";
+    }
 
     // The CONSTRAINT "<name>" UNIQUE ("col", ...) clause for a unique constraint. A unique
     // constraint is shaped like a primary key, so it reads its columns the same way.
