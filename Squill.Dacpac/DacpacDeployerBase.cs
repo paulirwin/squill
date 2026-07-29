@@ -139,6 +139,15 @@ public abstract class DacpacDeployerBase
             progress?.Report(DescribeDelta(delta));
 
             var sql = generator.GenerateScriptForDelta(delta);
+
+            // A delta that renders to nothing has nothing to run, and both engines' drivers
+            // reject an empty command outright rather than treating it as a no-op (issue #158).
+            // Matching the pre/post-deploy scripts above, which are already skipped when empty.
+            if (string.IsNullOrWhiteSpace(sql))
+            {
+                continue;
+            }
+
             await targetDb.RunScriptAsync(sql, cancellationToken: cancellationToken);
         }
 

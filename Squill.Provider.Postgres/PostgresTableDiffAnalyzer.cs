@@ -28,6 +28,19 @@ public class PostgresTableDiffAnalyzer : TableDiffAnalyzerBase
             return true;
         }
 
+        // A column that gained or lost its generated-ness (issue #158). Neither direction can be
+        // expressed by the ALTER path, which emits only TYPE, nullability, and DEFAULT clauses —
+        // it would emit nothing at all, and an AlterDelta with no clauses renders to the empty
+        // string the deployer then hands to Npgsql. Checked before GenerationDiffers, which
+        // compares two expressions and so only speaks to columns generated on both sides.
+        if (GeneratedNessDiffers(source, target))
+        {
+            reason = source.GetProperty<string>(PostgresPropertyNames.GeneratedExpression) is null
+                ? "is no longer a generated column"
+                : "became a generated column";
+            return true;
+        }
+
         // A generated column whose expression was redefined (issue #156). The ALTER path emits
         // only TYPE and nullability clauses, so it would produce nothing at all for this — the
         // change would be dropped silently. A rebuild recreates the column with the declared
@@ -46,6 +59,14 @@ public class PostgresTableDiffAnalyzer : TableDiffAnalyzerBase
         reason = string.Empty;
         return false;
     }
+
+    // Whether one side is a generated column and the other is an ordinary one. The RAW
+    // expression is what answers this: it is present whenever the column is generated, whereas
+    // the normalized form is absent for any expression the normalizer could not canonicalize,
+    // which would read an unchanged column as having lost its generated-ness.
+    private static bool GeneratedNessDiffers(Element source, Element target)
+        => (source.GetProperty<string>(PostgresPropertyNames.GeneratedExpression) is null)
+            != (target.GetProperty<string>(PostgresPropertyNames.GeneratedExpression) is null);
 
     private static bool GenerationDiffers(Element source, Element target)
     {

@@ -330,7 +330,7 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
 
         var sb = new StringBuilder();
 
-        foreach (var change in alterDelta.ColumnChanges)
+        foreach (var change in OrderColumnChanges(alterDelta.ColumnChanges))
         {
             var quotedColumn = $"\"{SqlName.UnqualifiedOf(change.ColumnName)}\"";
 
@@ -361,6 +361,21 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
 
         return sb.ToString();
     }
+
+    // Orders the column changes so a DROP never runs while something still depends on the
+    // column it removes (issue #158). Postgres refuses to drop a column another column's
+    // generation expression reads (SQLSTATE 2BP01), so a dropped generated column has to go
+    // first. No expression analysis is needed to know which: a generation expression may only
+    // reference ordinary columns of the same table — PostgreSQL rejects one that reads another
+    // generated column — so dropping every generated column before any plain one is always
+    // sufficient. The order is otherwise preserved, and adds and alters are unaffected.
+    private static IEnumerable<ColumnChange> OrderColumnChanges(IEnumerable<ColumnChange> changes)
+        => changes.OrderBy(c =>
+            c.Kind == ColumnChangeKind.Drop
+            && c.TargetColumn?.GetProperty<string>(PostgresPropertyNames.GeneratedExpression)
+                is not null
+                ? 0
+                : 1);
 
     // Emits ALTER COLUMN clauses for only the facets — type and nullability — that
     // actually changed between the current and desired column. Postgres requires a
