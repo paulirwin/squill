@@ -116,6 +116,11 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             PostgresElementTypes.SqlCompositeType or PostgresElementTypes.SqlRangeType =>
                 $"DROP TYPE IF EXISTS {SchemaQualified(element, parsed)};{Environment.NewLine}",
 
+            // A collation is dropped with RESTRICT (the default) so the drop fails loudly if a
+            // column still declares COLLATE against it, rather than silently cascading.
+            PostgresElementTypes.SqlCollation =>
+                $"DROP COLLATION IF EXISTS {SchemaQualified(element, parsed)};{Environment.NewLine}",
+
             // A trigger is dropped by name qualified with the table it is on (a trigger's name
             // is unique per table, not per schema). IF EXISTS keeps it idempotent.
             PostgresElementTypes.SqlTrigger =>
@@ -388,12 +393,27 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
         var sourceType = GetTypeStringForColumn(source);
         var targetType = GetTypeStringForColumn(target);
 
-        if (!string.Equals(sourceType, targetType, StringComparison.OrdinalIgnoreCase))
+        // A collation change rides on the TYPE clause — PostgreSQL has no ALTER COLUMN ... SET
+        // COLLATE — so the two facets are decided together (issue #159). Dropping a collation
+        // needs an explicit COLLATE "default": omitting the clause keeps the existing one
+        // rather than resetting it.
+        var sourceCollation = source.GetProperty<string>(PostgresPropertyNames.Collation);
+        var targetCollation = target.GetProperty<string>(PostgresPropertyNames.Collation);
+        var collationChanged = !string.Equals(sourceCollation, targetCollation, StringComparison.Ordinal);
+
+        if (!string.Equals(sourceType, targetType, StringComparison.OrdinalIgnoreCase) || collationChanged)
         {
             sb.Append("ALTER TABLE ").Append(quotedTableName)
                 .Append(" ALTER COLUMN ").Append(quotedColumn)
-                .Append(" TYPE ").Append(sourceType)
-                .AppendLine(";");
+                .Append(" TYPE ").Append(sourceType);
+
+            if (collationChanged)
+            {
+                sb.Append(" COLLATE ").Append(
+                    SqlName.Object(sourceCollation ?? "default").QuotedUnqualified);
+            }
+
+            sb.AppendLine(";");
         }
 
         // IsNullable is only stored when the column is NOT NULL (nullable == false); an
@@ -690,7 +710,7 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
         }
 
         var columnType = GetTypeStringForColumn(column);
-        var text = $"\"{SqlName.UnqualifiedOf(columnName)}\" {columnType}";
+        var text = $"\"{SqlName.UnqualifiedOf(columnName)}\" {columnType}{CollateClause(column)}";
 
         var isIdentity = column.GetProperty<bool?>(PostgresPropertyNames.IsIdentity) == true;
 
@@ -709,6 +729,15 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
 
         return text;
     }
+
+    // The ` COLLATE "<name>"` clause for a column carrying a non-default collation, or an empty
+    // string (issue #159). The property is stored only when the collation is not the column
+    // type's default, so an ordinary column renders nothing. A collation name is case-sensitive,
+    // so it is quoted as an identifier.
+    private static string CollateClause(Element column)
+        => column.GetProperty<string>(PostgresPropertyNames.Collation) is { } collation
+            ? $" COLLATE {SqlName.Object(collation).QuotedUnqualified}"
+            : string.Empty;
 
     // The " DEFAULT <value>" clause for a column carrying a modeled default, or an empty
     // string if it has none. The stored value is already canonical SQL (a numeric,
@@ -815,6 +844,11 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
         if (createDelta.Element.Type == PostgresElementTypes.SqlRangeType)
         {
             return GenerateCreateRangeTypeScript(createDelta.Element);
+        }
+
+        if (createDelta.Element.Type == PostgresElementTypes.SqlCollation)
+        {
+            return GenerateCreateCollationScript(createDelta.Element);
         }
 
         if (createDelta.Element.Type == PostgresElementTypes.SqlTrigger)
@@ -1179,6 +1213,53 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
         return $"{SqlName.Parse(name).QuotedUnqualified} {GetTypeStringForColumn(attribute)}";
     }
 
+    // CREATE COLLATION name (PROVIDER = ..., [LOCALE = ...] | [LC_COLLATE = ..., LC_CTYPE = ...],
+    //   [DETERMINISTIC = false]) — issue #159.
+    //
+    // The items are written from the resolved catalog facets rather than the source's spelling,
+    // which is what lets a collation declared as FROM/LOCALE and one read back from pg_collation
+    // script to the same statement.
+    private static string GenerateCreateCollationScript(Element collation)
+    {
+        if (collation.Name is not string name)
+        {
+            throw new ArgumentException("Collations must have names");
+        }
+
+        var sb = new StringBuilder();
+
+        sb.Append("CREATE COLLATION ").Append(SchemaQualified(collation, SqlName.Parse(name)))
+            .Append(" (PROVIDER = ")
+            .Append(collation.GetRequiredProperty<string>(PostgresPropertyNames.Provider));
+
+        // A locale is a string literal, not an identifier, so it is single-quoted.
+        if (collation.GetProperty<string>(PostgresPropertyNames.Locale) is { } locale)
+        {
+            sb.Append(", LOCALE = ").Append(QuoteLiteral(locale));
+        }
+
+        if (collation.GetProperty<string>(PostgresPropertyNames.LcCollate) is { } lcCollate)
+        {
+            sb.Append(", LC_COLLATE = ").Append(QuoteLiteral(lcCollate));
+        }
+
+        if (collation.GetProperty<string>(PostgresPropertyNames.LcCtype) is { } lcCtype)
+        {
+            sb.Append(", LC_CTYPE = ").Append(QuoteLiteral(lcCtype));
+        }
+
+        // Stored only when false, so its presence is the whole signal.
+        if (collation.GetProperty<bool?>(PostgresPropertyNames.IsDeterministic) == false)
+        {
+            sb.Append(", DETERMINISTIC = false");
+        }
+
+        return sb.Append(");").Append(Environment.NewLine).ToString();
+    }
+
+    private static string QuoteLiteral(string value)
+        => $"'{value.Replace("'", "''", StringComparison.Ordinal)}'";
+
     // CREATE TYPE name AS RANGE (SUBTYPE = ..., [SUBTYPE_OPCLASS = ...], [COLLATION = ...])
     private static string GenerateCreateRangeTypeScript(Element rangeType)
     {
@@ -1342,7 +1423,7 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
 
                 // The stored column Name is table-qualified (e.g. film.title); a column
                 // definition needs just the bare, quoted identifier.
-                var text = $"\"{SqlName.UnqualifiedOf(columnName)}\" {columnType}";
+                var text = $"\"{SqlName.UnqualifiedOf(columnName)}\" {columnType}{CollateClause(column)}";
 
                 var isIdentity = column.GetProperty<bool?>(PostgresPropertyNames.IsIdentity) == true;
                 var isSingleColumnPk = pkIsInline && pkColumns[0].Equals(columnName);
@@ -1886,7 +1967,28 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             sb.Append(" ON UPDATE ").Append(RenderReferentialAction(updateAction));
         }
 
+        sb.Append(DeferrabilityClause(foreignKey));
+
         return sb.ToString();
+    }
+
+    // [DEFERRABLE] [INITIALLY DEFERRED] (issue #159). Both properties are stored only when
+    // true, and NOT DEFERRABLE INITIALLY IMMEDIATE is the Postgres default, so an ordinary
+    // constraint renders nothing. INITIALLY DEFERRED requires DEFERRABLE to be written too.
+    private static string DeferrabilityClause(Element constraint)
+    {
+        var isInitiallyDeferred =
+            constraint.GetProperty<bool?>(PostgresPropertyNames.IsInitiallyDeferred) == true;
+        var isDeferrable =
+            constraint.GetProperty<bool?>(PostgresPropertyNames.IsDeferrable) == true
+            || isInitiallyDeferred;
+
+        if (!isDeferrable)
+        {
+            return string.Empty;
+        }
+
+        return isInitiallyDeferred ? " DEFERRABLE INITIALLY DEFERRED" : " DEFERRABLE";
     }
 
     private static string RenderReferentialAction(string action)

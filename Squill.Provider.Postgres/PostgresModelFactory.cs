@@ -420,6 +420,58 @@ public static class PostgresModelFactory
     }
 
     /// <summary>
+    /// Builds a collation element (issue #159) — <c>CREATE COLLATION name (...)</c>.
+    ///
+    /// The facets are the ones pg_collation stores, not the items the source wrote: PostgreSQL
+    /// resolves <c>LOCALE</c> and the <c>FROM</c> form into <paramref name="lcCollate"/> /
+    /// <paramref name="lcCtype"/> for the libc provider and into <paramref name="locale"/> for
+    /// icu, keeping no record of the spelling. Storing what was written instead would make one
+    /// of the equivalent spellings re-diff on every deploy (measured — see
+    /// <c>CreateCollationStatement</c>).
+    /// </summary>
+    public static Element CreateCollation(SqlName name, string schema, string provider,
+        string? locale, string? lcCollate, string? lcCtype, bool isDeterministic)
+    {
+        var element = new Element(PostgresElementTypes.SqlCollation)
+        {
+            Name = name,
+            Relationships =
+            {
+                new Relationship(PostgresRelationshipNames.Schema)
+                {
+                    new Reference(schema) { ExternalSource = "BuiltIns" },
+                },
+            },
+        };
+
+        element.Properties.Add(new Property(PostgresPropertyNames.Provider, provider));
+
+        if (locale is not null)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.Locale, locale));
+        }
+
+        if (lcCollate is not null)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.LcCollate, lcCollate));
+        }
+
+        if (lcCtype is not null)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.LcCtype, lcCtype));
+        }
+
+        // Deterministic is the default, so only a non-deterministic collation records the
+        // property — the same omit-when-default convention used elsewhere.
+        if (!isDeterministic)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.IsDeterministic, false));
+        }
+
+        return element;
+    }
+
+    /// <summary>
     /// Builds a standalone sequence element (issue #122) — <c>CREATE SEQUENCE name [options]</c>.
     ///
     /// Only options that differ from the PostgreSQL default are stored, and the defaults are
@@ -903,7 +955,9 @@ public static class PostgresModelFactory
         SqlName foreignTable,
         IEnumerable<SqlName> foreignColumns,
         ReferentialAction onDelete,
-        ReferentialAction onUpdate)
+        ReferentialAction onUpdate,
+        bool isDeferrable = false,
+        bool isInitiallyDeferred = false)
     {
         var columnRelationship = new Relationship(PostgresRelationshipNames.ForeignKeyColumns);
 
@@ -945,6 +999,18 @@ public static class PostgresModelFactory
         if (onUpdate != ReferentialAction.NoAction)
         {
             element.Properties.Add(new Property(PostgresPropertyNames.UpdateAction, onUpdate.ToString()));
+        }
+
+        // NOT DEFERRABLE INITIALLY IMMEDIATE is the Postgres default, so each flag is stored
+        // only when true — matching what pg_constraint reports (issue #159).
+        if (isDeferrable)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.IsDeferrable, true));
+        }
+
+        if (isInitiallyDeferred)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.IsInitiallyDeferred, true));
         }
 
         return element;

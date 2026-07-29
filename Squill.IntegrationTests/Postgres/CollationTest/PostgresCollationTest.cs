@@ -12,8 +12,8 @@ namespace Squill.IntegrationTests.Postgres.CollationTest;
 ///
 /// Every test here asserts the behaviour Squill *should* have, and each one blocked by a known
 /// defect carries a <c>[Fact(Skip = ...)]</c> naming its issue, so it turns green on its own
-/// once support lands. Today a per-column COLLATE and an inline DEFERRABLE foreign key both die
-/// in the parser (#159), while a per-column index COLLATE and a table-level DEFERRABLE are
+/// once support lands. A column COLLATE, an inline DEFERRABLE foreign key and CREATE COLLATION
+/// are supported (#159); a per-column index COLLATE and a table-level DEFERRABLE are still
 /// accepted and then quietly dropped (#160).
 ///
 /// "POSIX" is used throughout because it is the one non-default collation present on every
@@ -32,12 +32,12 @@ public class PostgresCollationTest : PostgresIntegrationTestBase
     /// carries the declared collation, and redeploying the same source is a no-op.
     /// </summary>
     /// <remarks>
-    /// Blocked in <c>PostgresVisitor.Columndef.cs</c>, which reaches its else-branch and throws.
-    /// A fix also needs the provider's column extraction to read <c>pg_attribute.attcollation</c>,
-    /// or the declared collation will be lost on the way back and re-diff on every deploy.
+    /// The round-trip half is the fragile part: extraction reports a resolved collation for
+    /// every collatable column, so it is recorded only when it differs from the column type's
+    /// default. Were it recorded unconditionally, this test's second assertion would fail —
+    /// every text column would re-diff on every deploy.
     /// </remarks>
-    [Fact(Skip = "Blocked by issue #159: PostgresVisitor.Columndef.cs throws "
-                 + "NotImplementedException for a COLLATE column constraint.")]
+    [Fact]
     public async Task ColumnCollate_RoundTripsWithTheDeclaredCollation()
     {
         const string sql = """
@@ -84,15 +84,13 @@ WHERE a.attrelid = 'people'::regclass AND a.attname = 'ssn';
     /// genuinely deferrable constraint.
     /// </summary>
     /// <remarks>
-    /// Hits the *same* throw site as a column COLLATE — the constraint attributes are a
-    /// colconstraint alternative of their own, so the column definition never gets built. The
-    /// pairing with <see cref="TableLevelDeferrableForeignKey_DeploysAsDeferrable"/> is the
-    /// interesting part: the identical constraint written at table level parses fine and is then
-    /// silently deployed as NOT deferrable. One spelling refuses to build; its sibling builds
-    /// and lies.
+    /// The constraint attributes are a colconstraint alternative of their own, arriving as
+    /// sibling nodes of the REFERENCES they qualify rather than as part of it. The pairing with
+    /// <see cref="TableLevelDeferrableForeignKey_DeploysAsDeferrable"/> is the interesting part:
+    /// the identical constraint written at table level is still parsed and then silently
+    /// deployed as NOT deferrable (#160). This spelling now round-trips; its sibling still lies.
     /// </remarks>
-    [Fact(Skip = "Blocked by issue #159: PostgresVisitor.Columndef.cs throws "
-                 + "NotImplementedException for an inline DEFERRABLE foreign key.")]
+    [Fact]
     public async Task InlineDeferrableForeignKey_DeploysAsDeferrable()
     {
         const string sql = """
@@ -270,11 +268,11 @@ SELECT indcollation[0]::text FROM pg_index WHERE indexrelid = 'ix_people_name'::
     /// must alter the deployed column's collation.
     /// </summary>
     /// <remarks>
-    /// Blocked before the diff is ever reached, by the same Columndef.cs throw: the "after"
-    /// schema does not build.
+    /// PostgreSQL has no ALTER COLUMN ... SET COLLATE, so the change rides on the TYPE clause.
+    /// That also means dropping a collation needs an explicit <c>COLLATE "default"</c>: omitting
+    /// the clause keeps the existing collation rather than resetting it.
     /// </remarks>
-    [Fact(Skip = "Blocked by issue #159: the 'after' schema does not build — "
-                 + "PostgresVisitor.Columndef.cs throws for a COLLATE column constraint.")]
+    [Fact]
     public async Task AlterColumnSetCollation_ChangesTheDeployedCollation()
     {
         const string before = """
@@ -332,13 +330,13 @@ WHERE a.attrelid = 'people'::regclass AND a.attname = 'name';
     /// declare a non-default collation and reference it from a column.
     /// </summary>
     /// <remarks>
-    /// CREATE COLLATION is a DEFINE-family statement with no syntax node and no SqlCollation
-    /// element type. Today it throws, which is at least the right failure mode — the user is
-    /// told, rather than getting a DACPAC whose deploy fails on the first column referencing the
-    /// collation — but it means a non-default collation cannot be declared at all.
+    /// PostgreSQL resolves the declared items into catalog facets and keeps no record of how
+    /// they were written — <c>FROM "POSIX"</c> and <c>(LOCALE = 'POSIX', PROVIDER = libc)</c>
+    /// store byte-identical rows — so the model carries the resolved facets. That is what makes
+    /// the round-trip assertion here hold: the collation is scripted back from what pg_collation
+    /// reports, not from the source's spelling.
     /// </remarks>
-    [Fact(Skip = "Blocked by issue #159: PostgresVisitor.VisitDefinestmt throws for "
-                 + "CREATE COLLATION; there is no syntax node and no SqlCollation element type.")]
+    [Fact]
     public async Task CreateCollationObject_IsDeployed()
     {
         const string sql = "CREATE COLLATION some_collation (LOCALE = 'POSIX', PROVIDER = libc);";

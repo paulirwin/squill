@@ -199,6 +199,7 @@ public class PostgresDatabaseDependencyAnalyzer : DatabaseDependencyAnalyzerBase
             or PostgresElementTypes.SqlSequence
             or PostgresElementTypes.SqlCompositeType
             or PostgresElementTypes.SqlRangeType
+            or PostgresElementTypes.SqlCollation
             or PostgresElementTypes.SqlFunction
             or PostgresElementTypes.SqlAggregate
             or PostgresElementTypes.SqlTrigger))
@@ -239,6 +240,9 @@ public class PostgresDatabaseDependencyAnalyzer : DatabaseDependencyAnalyzerBase
         // it, the same as an enum or domain (issue #122).
         PostgresElementTypes.SqlCompositeType => 1,
         PostgresElementTypes.SqlRangeType => 1,
+        // A collation must exist before a table whose column declares COLLATE against it, and
+        // before a range type naming it as its COLLATION (issue #159).
+        PostgresElementTypes.SqlCollation => 1,
         // A function may reference any table in its body, so it is created after tables
         // (issue #81). It comes before views and aggregates, which may call it — a view that
         // uses group_concat or a plain function, or an aggregate's SFUNC, needs the function to

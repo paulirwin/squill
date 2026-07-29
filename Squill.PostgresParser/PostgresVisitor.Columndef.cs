@@ -60,13 +60,50 @@ public partial class PostgresVisitor
 
                     columnDef.Constraints.Add(columnConstraint);
                 }
+                else if (colconstraint.COLLATE() is not null
+                         && colconstraint.any_name() is { } collationName)
+                {
+                    // `COLLATE any_name` is a colconstraint alternative of its own rather than a
+                    // colconstraintelem, so it never reaches VisitColconstraintelem (issue #159).
+                    columnDef.Constraints.Add(At(
+                        new CollateColumnConstraint(colconstraint.GetText(), ParseAnyName(collationName)),
+                        colconstraint));
+                }
+                else if (colconstraint.constraintattr() is { } constraintattr)
+                {
+                    columnDef.Constraints.Add(ParseConstraintAttribute(constraintattr));
+                }
                 else
                 {
-                    // COLLATE and DEFERRABLE / INITIALLY DEFERRED land here. Tracked by
-                    // issue #159, not #143.
-                    throw new NotImplementedException("DEFERRABLE, DEFERRED, IMMEDIATE, and COLLATE not yet supported");
+                    throw new PostgresParseException(
+                        $"Unrecognized column constraint '{colconstraint.GetText()}'");
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Parses a <c>constraintattr</c>: <c>DEFERRABLE</c>, <c>NOT DEFERRABLE</c>,
+    /// <c>INITIALLY DEFERRED</c> or <c>INITIALLY IMMEDIATE</c>. Each is a separate alternative,
+    /// so a node states one facet and leaves the other null.
+    /// </summary>
+    private ConstraintAttributeColumnConstraint ParseConstraintAttribute(
+        PostgreSQLParser.ConstraintattrContext context)
+    {
+        if (context.DEFERRABLE() is not null)
+        {
+            return At(new ConstraintAttributeColumnConstraint(
+                context.GetText(), deferrable: context.NOT() is null, initiallyDeferred: null), context);
+        }
+
+        if (context.INITIALLY() is not null)
+        {
+            return At(new ConstraintAttributeColumnConstraint(
+                context.GetText(), deferrable: null,
+                initiallyDeferred: context.DEFERRED() is not null), context);
+        }
+
+        throw new PostgresParseException(
+            $"Unrecognized constraint attribute '{context.GetText()}'");
     }
 }

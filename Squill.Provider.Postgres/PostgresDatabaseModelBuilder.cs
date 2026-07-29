@@ -38,6 +38,10 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         await ExtractSchemasAsync(model, cancellationToken);
         await ExtractExtensionsAsync(model, cancellationToken);
 
+        // Collations (issue #159) depend on nothing but their schema, and a column's COLLATE may
+        // name one, so they precede the tables for the same reason the types below do.
+        await ExtractCollationsAsync(model, cancellationToken);
+
         // Enum types and domains (issue #75) are user-defined types a column may be typed
         // as, so they must precede the tables in the model — both for a hash-matching
         // element order and so CREATE TYPE / CREATE DOMAIN run before the CREATE TABLE.
@@ -427,6 +431,79 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             model.Elements.Add(range);
         }
     }
+
+    private async Task ExtractCollationsAsync(Model model, CancellationToken cancellationToken = default)
+    {
+        // Every user-declared collation (issue #159).
+        //
+        // pg_collation is largely populated by the initdb-time import of the host's locales —
+        // hundreds of rows that are not declared objects and differ between machines. Those come
+        // from the pg_catalog schema, so restricting to user schemas leaves only the declared
+        // ones. An extension-owned collation is excluded the same way range types exclude one.
+        //
+        // collprovider is a single char ('c' libc, 'i' icu, 'b' builtin). collcollate/collctype
+        // are populated for libc and empty for icu, which uses the locale column instead — the
+        // empty ones come back NULL so the model stores only the facets that actually apply.
+        //
+        // That locale column is spelled differently across the majors Squill supports (measured:
+        // absent on 14, colliculocale on 15-16, colllocale on 17+), and naming a missing column
+        // is a parse-time error even inside a CASE that never runs. Reading it through
+        // to_jsonb() resolves the name at run time instead, so one query works on every major.
+        const string sql =
+            """
+            SELECT n.nspname AS schema_name,
+                   c.collname AS collation_name,
+                   c.collprovider::text AS provider,
+                   nullif(coalesce(to_jsonb(c) ->> 'colllocale',
+                                   to_jsonb(c) ->> 'colliculocale'), '') AS locale,
+                   nullif(c.collcollate, '') AS lc_collate,
+                   nullif(c.collctype, '') AS lc_ctype,
+                   c.collisdeterministic AS is_deterministic
+            FROM pg_collation c
+            JOIN pg_namespace n ON n.oid = c.collnamespace
+            WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
+              AND NOT EXISTS (SELECT 1 FROM pg_depend d
+                              WHERE d.objid = c.oid AND d.deptype = 'e')
+            ORDER BY n.nspname COLLATE "C", c.collname COLLATE "C";
+            """;
+
+        var collations = new List<Element>();
+
+        await using (var reader = await _database.RunScriptReaderAsync(sql, cancellationToken: cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var localeOrdinal = reader.GetOrdinal("locale");
+                var lcCollateOrdinal = reader.GetOrdinal("lc_collate");
+                var lcCtypeOrdinal = reader.GetOrdinal("lc_ctype");
+
+                collations.Add(PostgresModelFactory.CreateCollation(
+                    SqlName.Object(reader.GetString("collation_name")),
+                    reader.GetString("schema_name"),
+                    MapCollationProvider(reader.GetString("provider")),
+                    reader.IsDBNull(localeOrdinal) ? null : reader.GetString("locale"),
+                    reader.IsDBNull(lcCollateOrdinal) ? null : reader.GetString("lc_collate"),
+                    reader.IsDBNull(lcCtypeOrdinal) ? null : reader.GetString("lc_ctype"),
+                    reader.GetBoolean("is_deterministic")));
+            }
+        }
+
+        foreach (var collation in collations)
+        {
+            model.Elements.Add(collation);
+        }
+    }
+
+    // pg_collation stores the provider as a single char; the model carries the name the source
+    // writes in PROVIDER = ....
+    private static string MapCollationProvider(string code)
+        => code switch
+        {
+            "c" => "libc",
+            "i" => "icu",
+            "b" => "builtin",
+            _ => throw new InvalidOperationException($"Unknown collation provider: {code}"),
+        };
 
     private async Task ExtractSequencesAsync(Model model, CancellationToken cancellationToken = default)
     {
@@ -1033,6 +1110,10 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 rn.nspname AS referenced_schema,
                 c.confdeltype AS delete_action,
                 c.confupdtype AS update_action,
+                -- Deferrability (issue #159). Both are false for an ordinary constraint, which
+                -- is the Postgres default, so the model stores each only when true.
+                c.condeferrable AS is_deferrable,
+                c.condeferred AS is_initially_deferred,
                 k.ordinality AS key_ordinal,
                 la.attname AS column_name,
                 fa.attname AS referenced_column
@@ -1080,7 +1161,9 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                     accumulator = new ForeignKeyAccumulator(
                         referencedTable,
                         MapReferentialAction(reader.GetFieldValue<char>("delete_action")),
-                        MapReferentialAction(reader.GetFieldValue<char>("update_action")));
+                        MapReferentialAction(reader.GetFieldValue<char>("update_action")),
+                        reader.GetBoolean("is_deferrable"),
+                        reader.GetBoolean("is_initially_deferred"));
 
                     foreignKeys.Add(constraintName, accumulator);
                     order.Add(constraintName);
@@ -1103,7 +1186,9 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 accumulator.ReferencedTable,
                 accumulator.ReferencedColumns,
                 accumulator.OnDelete,
-                accumulator.OnUpdate));
+                accumulator.OnUpdate,
+                accumulator.IsDeferrable,
+                accumulator.IsInitiallyDeferred));
         }
     }
 
@@ -1506,7 +1591,16 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 -- pg_get_expr rather than information_schema.column_default (which reports
                 -- NULL for a generated column).
                 a.attgenerated::text AS generated_kind,
-                pg_get_expr(ad.adbin, ad.adrelid) AS generation_expression
+                pg_get_expr(ad.adbin, ad.adrelid) AS generation_expression,
+                -- A column-level COLLATE (issue #159). attcollation is a resolved oid for every
+                -- collatable column — 100 ("default") when none was declared — and 0 for a
+                -- non-collatable type, while typcollation is the type's own default. Reporting
+                -- the name only when the two differ is what distinguishes a declared collation
+                -- from the implicit one; returning it unconditionally would make every text
+                -- column re-diff on every deploy (measured against postgres:latest).
+                CASE WHEN a.attcollation <> col_type.typcollation
+                     THEN (SELECT collname FROM pg_collation WHERE oid = a.attcollation)
+                END AS collation_name
             FROM information_schema.columns c
             JOIN pg_namespace n ON n.nspname = c.table_schema
             JOIN pg_class t ON t.relname = c.table_name AND t.relnamespace = n.oid
@@ -1732,6 +1826,14 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                     : reader.GetString("generation_expression");
 
                 PostgresModelFactory.AddGeneratedColumnProperties(column, generationExpression);
+            }
+
+            // Emitted last, matching the parser builder's property order (the Merkle hash is
+            // order-sensitive). Non-null only for a collation that is not the type's default.
+            if (!reader.IsDBNull(reader.GetOrdinal("collation_name")))
+            {
+                column.Properties.Add(new Property(
+                    PostgresPropertyNames.Collation, reader.GetString("collation_name")));
             }
 
             columns.Entries.Add(column);
