@@ -689,8 +689,11 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
 
         // MariaDB always names the primary key constraint 'PRIMARY'. Its columns come from
         // STATISTICS (INDEX_NAME = 'PRIMARY'), ordered by SEQ_IN_INDEX.
+        // SUB_PART is the declared prefix length, NULL for a whole-column key (issue #161). It
+        // must be read here as well as in the source mapper: reading it on only one side would
+        // turn a silently-wrong index into one that re-diffs on every deploy.
         const string sql = """
-            SELECT COLUMN_NAME
+            SELECT COLUMN_NAME, SUB_PART
             FROM information_schema.STATISTICS
             WHERE TABLE_SCHEMA = @db AND TABLE_NAME = @name AND INDEX_NAME = 'PRIMARY'
             ORDER BY SEQ_IN_INDEX;
@@ -709,7 +712,8 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
             while (await reader.ReadAsync(cancellationToken))
             {
                 columns.Add(new MariaDbModelFactory.IndexedColumn(
-                    tableSqlName.Child(reader.GetString("COLUMN_NAME"))));
+                    tableSqlName.Child(reader.GetString("COLUMN_NAME")),
+                    PrefixLength: (int?)reader.GetNullableInt64("SUB_PART")));
             }
         }
 
@@ -731,14 +735,20 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
         // (modeled as the PK) but DO surface UNIQUE indexes as SqlIndex with IsUnique.
         // NON_UNIQUE = 0 means unique. INDEX_TYPE is BTREE / HASH / FULLTEXT / SPATIAL.
         // COLLATION is 'A' (ascending), 'D' (descending), or NULL (unordered).
-        const string sql = """
+        // SUB_PART is the declared prefix length, NULL for a whole-column key. EXPRESSION is the
+        // functional key's text — MySQL-only, and MariaDB's STATISTICS has no such column, so
+        // naming it there is an unknown-column error; the capability decides (issue #161).
+        var expressionColumn = SchemaProvider.SupportsFunctionalIndexKeys ? ",\n    EXPRESSION" : string.Empty;
+
+        var sql = $"""
             SELECT
                 INDEX_NAME,
                 NON_UNIQUE,
                 INDEX_TYPE,
                 SEQ_IN_INDEX,
                 COLUMN_NAME,
-                COLLATION
+                COLLATION,
+                SUB_PART{expressionColumn}
             FROM information_schema.STATISTICS
             WHERE TABLE_SCHEMA = @db AND TABLE_NAME = @name AND INDEX_NAME <> 'PRIMARY'
             ORDER BY INDEX_NAME, SEQ_IN_INDEX;
@@ -769,15 +779,25 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
                     order.Add(indexName);
                 }
 
-                var columnName = reader.GetString("COLUMN_NAME");
-
                 // COLLATION 'D' marks a descending column; 'A' ascending; NULL unordered.
                 bool? isAscending = reader.IsDBNull(reader.GetOrdinal("COLLATION"))
                     ? null
                     : reader.GetString("COLLATION") == "A";
 
-                entry.Columns.Add(new MariaDbModelFactory.IndexedColumn(
-                    tableSqlName.Child(columnName), isAscending));
+                // A functional key reports COLUMN_NAME NULL and its text in EXPRESSION, so it
+                // takes the index's own name for identity — the same shape the source builder
+                // gives it, which is what lets the two sides hash-match (issue #161).
+                var keyExpression = SchemaProvider.SupportsFunctionalIndexKeys
+                    ? reader.GetStringOrNull("EXPRESSION")
+                    : null;
+
+                entry.Columns.Add(keyExpression is not null
+                    ? new MariaDbModelFactory.IndexedColumn(
+                        SqlName.Object(indexName), isAscending, KeyExpression: keyExpression)
+                    : new MariaDbModelFactory.IndexedColumn(
+                        tableSqlName.Child(reader.GetString("COLUMN_NAME")),
+                        isAscending,
+                        PrefixLength: (int?)reader.GetNullableInt64("SUB_PART")));
             }
         }
 

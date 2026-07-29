@@ -23,29 +23,59 @@ public static class MariaDbModelFactory
         };
 
     /// <summary>
-    /// Describes an indexed column: its canonical reference plus optional sort direction.
-    /// A null direction means "unspecified" and is omitted from the model.
+    /// Describes one index key: its canonical column reference plus optional sort direction,
+    /// prefix length and — for a functional key — the expression in place of a column.
+    /// A null facet means "unspecified" and is omitted from the model.
     /// </summary>
+    /// <remarks>
+    /// An expression key (<c>CREATE INDEX ix ON t ((a + b))</c>) sets
+    /// <paramref name="KeyExpression"/> instead of naming a column; <paramref name="Column"/>
+    /// is then the index's own name, used only to give the spec a stable identity — the same
+    /// shape the Postgres provider uses for its expression keys (issue #160).
+    /// </remarks>
     public readonly record struct IndexedColumn(
         SqlName Column,
-        bool? IsAscending = null);
+        bool? IsAscending = null,
+        int? PrefixLength = null,
+        string? KeyExpression = null);
 
     public static Element CreateIndexedColumnSpecification(IndexedColumn column)
     {
-        var element = new Element(MariaDbElementTypes.SqlIndexedColumnSpecification)
+        var element = new Element(MariaDbElementTypes.SqlIndexedColumnSpecification);
+
+        // An expression key is text rather than a reference to a column, so it replaces the
+        // Column relationship instead of joining it (issue #161). Split raw-versus-canonical
+        // exactly as a CHECK predicate is (issue #156): measured on mysql:latest, a key
+        // declared `(a + b)` is stored as `` (`a` + `b`) ``, so only the canonical form can
+        // compare — the raw text would re-diff on every deploy.
+        if (column.KeyExpression is { } keyExpression)
         {
-            Relationships =
+            AddExpressionProperties(
+                element,
+                MariaDbPropertyNames.KeyExpression,
+                MariaDbPropertyNames.NormalizedKeyExpression,
+                keyExpression);
+        }
+        else
+        {
+            element.Relationships.Add(new Relationship(MariaDbRelationshipNames.Column)
             {
-                new Relationship(MariaDbRelationshipNames.Column)
-                {
-                    new Reference(column.Column)
-                }
-            }
-        };
+                new Reference(column.Column)
+            });
+        }
 
         if (column.IsAscending is bool isAscending)
         {
             element.Properties.Add(new Property(MariaDbPropertyNames.IsAscending, isAscending));
+        }
+
+        // The declared prefix length — the 20 in Brand(20) (issue #161). Recorded only when one
+        // is written, matching the catalog: information_schema.STATISTICS reports SUB_PART NULL
+        // for a whole-column key, so storing a value unconditionally would make every ordinary
+        // index re-diff on every deploy.
+        if (column.PrefixLength is int prefixLength)
+        {
+            element.Properties.Add(new Property(MariaDbPropertyNames.PrefixLength, prefixLength));
         }
 
         return element;

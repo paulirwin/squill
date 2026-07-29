@@ -38,4 +38,16 @@ public abstract class MariaDbFamilyDatabaseSchemaProvider : DatabaseSchemaProvid
     /// must leave them unmodeled and warn, rather than emit DDL the server cannot parse.
     /// </summary>
     public abstract bool SupportsDateAndTimeFunctionDefaults { get; }
+
+    /// <summary>
+    /// Whether the engine supports functional (expression) index keys —
+    /// <c>CREATE INDEX ix ON t ((a + b))</c> — and so reports them in
+    /// <c>information_schema.STATISTICS.EXPRESSION</c> (issue #161).
+    ///
+    /// MySQL has had them since 8.0.13. MariaDB has none: it rejects the DDL at the server with
+    /// a syntax error, and its <c>STATISTICS</c> has no <c>EXPRESSION</c> column at all — so
+    /// naming that column in the extractor's query is itself an unknown-column error there,
+    /// which is why the query is built around this capability rather than selecting it always.
+    /// </summary>
+    public abstract bool SupportsFunctionalIndexKeys { get; }
 }

@@ -103,17 +103,24 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
         var lines = new List<string>();
 
         var pk = dependentElements.SingleOrDefault(i => i.Type == MariaDbElementTypes.SqlPrimaryKeyConstraint);
-        var pkColumns = pk == null ? new List<string>() : RelationshipHelpers.GetKeyColumns(pk);
+
+        // Rendered from the column specifications rather than bare names, so a prefix length
+        // survives into the key — inside a PRIMARY KEY it decides which rows the table accepts
+        // as unique, so widening it changes the table's semantics (issue #161).
+        var pkKeys = pk == null
+            ? new List<string>()
+            : RelationshipHelpers.GetColumnSpecifications(pk)
+                .Select(spec => RenderIndexKey(spec, "PRIMARY"))
+                .ToList();
 
         foreach (var column in RelationshipHelpers.GetOrderedColumns(table))
         {
             lines.Add(RenderColumnDefinition(column.Column));
         }
 
-        if (pkColumns.Count > 0)
+        if (pkKeys.Count > 0)
         {
-            var pkColumnList = string.Join(", ", pkColumns.Select(c => $"`{SqlName.UnqualifiedOf(c)}`"));
-            lines.Add($"PRIMARY KEY ({pkColumnList})");
+            lines.Add($"PRIMARY KEY ({string.Join(", ", pkKeys)})");
         }
 
         // A unique index whose backing definition is a dependent element becomes a
@@ -219,10 +226,88 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
             throw new ArgumentException("Indexes must have names");
         }
 
-        var columns = RelationshipHelpers.GetKeyColumns(index);
-        var columnList = string.Join(", ", columns.Select(c => $"`{SqlName.UnqualifiedOf(c)}`"));
+        var columnList = string.Join(", ", RelationshipHelpers.GetColumnSpecifications(index)
+            .Select(spec => RenderIndexKey(spec, indexName)));
 
         return $"UNIQUE KEY `{SqlName.Parse(indexName).UnqualifiedName}` ({columnList})";
+    }
+
+    /// <summary>
+    /// One index key as it is written inside a key list: a quoted column with any prefix length
+    /// and sort direction, or — for a functional key — the expression in place of the column
+    /// (issue #161).
+    ///
+    /// <para>
+    /// The prefix length is what makes indexing a TEXT/BLOB column legal on MySQL at all, so
+    /// omitting it here is not a cosmetic loss: the generated DDL is rejected outright with
+    /// error 1170, and accepted by MariaDB with a silently substituted 768-byte prefix.
+    /// </para>
+    /// </summary>
+    private static string RenderIndexKey(Element columnSpec, string ownerName)
+    {
+        string text;
+
+        if (columnSpec.GetProperty<string>(MariaDbPropertyNames.KeyExpression) is { } keyExpression)
+        {
+            // MySQL requires a functional key to be parenthesized. The raw text may arrive
+            // either way — a source key is stored as the text inside its parentheses (`a + b`),
+            // while one read back from STATISTICS.EXPRESSION already carries them
+            // (``(`a` + `b`)``) — so wrap only when it is not already wrapped, rather than
+            // emitting a double-parenthesized key when scripting from an extracted model.
+            var trimmed = keyExpression.Trim();
+
+            text = IsWrappedInParentheses(trimmed) ? trimmed : $"({trimmed})";
+        }
+        else
+        {
+            var columnReference = columnSpec.GetRelationship(MariaDbRelationshipNames.Column)
+                ?.Entries.OfType<Reference>().SingleOrDefault()
+                ?? throw new InvalidOperationException(
+                    $"{ownerName} column specification has no column reference");
+
+            text = $"`{SqlName.UnqualifiedOf(columnReference.Name)}`";
+
+            if (columnSpec.GetProperty<int?>(MariaDbPropertyNames.PrefixLength) is int prefixLength)
+            {
+                text += $"({prefixLength})";
+            }
+        }
+
+        if (columnSpec.GetProperty<bool?>(MariaDbPropertyNames.IsAscending) == false)
+        {
+            text += " DESC";
+        }
+
+        return text;
+    }
+
+    /// <summary>
+    /// Whether the whole expression is enclosed by one matching pair of parentheses, so wrapping
+    /// it again would only add noise. The depth walk is what tells <c>(a + b)</c> — genuinely
+    /// wrapped — from <c>(a) + (b)</c>, where the outer characters are parentheses but close
+    /// each other mid-expression rather than spanning it.
+    /// </summary>
+    private static bool IsWrappedInParentheses(string expression)
+    {
+        if (expression.Length < 2 || expression[0] != '(' || expression[^1] != ')')
+        {
+            return false;
+        }
+
+        var depth = 0;
+
+        for (var i = 0; i < expression.Length; i++)
+        {
+            depth += expression[i] switch { '(' => 1, ')' => -1, _ => 0 };
+
+            // Back to zero before the end means the opening paren closed early.
+            if (depth == 0 && i < expression.Length - 1)
+            {
+                return false;
+            }
+        }
+
+        return depth == 0;
     }
 
     private static string GenerateCreateIndexScript(Element index, string quotedTableName)
@@ -241,18 +326,7 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
 
         foreach (var columnSpec in RelationshipHelpers.GetColumnSpecifications(index))
         {
-            var columnReference = columnSpec.GetRelationship(MariaDbRelationshipNames.Column)
-                ?.Entries.OfType<Reference>().SingleOrDefault()
-                ?? throw new InvalidOperationException($"Index {indexName} column specification has no column reference");
-
-            var text = $"`{SqlName.UnqualifiedOf(columnReference.Name)}`";
-
-            if (columnSpec.GetProperty<bool?>(MariaDbPropertyNames.IsAscending) == false)
-            {
-                text += " DESC";
-            }
-
-            columnText.Add(text);
+            columnText.Add(RenderIndexKey(columnSpec, indexName));
         }
 
         var sb = new StringBuilder();
@@ -975,16 +1049,17 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
     // read back differently from what was declared.
     private static string GetPrimaryKeyClause(Element primaryKey)
     {
-        var columns = RelationshipHelpers.GetKeyColumns(primaryKey);
+        // From the column specifications, so a declared prefix length survives (issue #161).
+        var keys = RelationshipHelpers.GetColumnSpecifications(primaryKey)
+            .Select(spec => RenderIndexKey(spec, "PRIMARY"))
+            .ToList();
 
-        if (columns.Count == 0)
+        if (keys.Count == 0)
         {
             throw new InvalidOperationException($"Primary key '{primaryKey.Name}' has no columns");
         }
 
-        var columnList = string.Join(", ", columns.Select(c => $"`{SqlName.UnqualifiedOf(c)}`"));
-
-        return $"PRIMARY KEY ({columnList})";
+        return $"PRIMARY KEY ({string.Join(", ", keys)})";
     }
 
     // The statement that removes a constraint from its table. Each kind has its own spelling on

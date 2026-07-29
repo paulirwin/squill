@@ -16,9 +16,9 @@ namespace Squill.IntegrationTests.MariaDb;
 ///
 /// <para>
 /// Each test asserts the shape that <em>should</em> deploy; those blocked by a known defect
-/// carry a <c>[Fact(Skip = ...)]</c> naming the issue (#161 for the keys the mapper discards,
-/// #163 for the fulltext asymmetry and the missing identifier-length diagnostic), so they turn
-/// green on their own once it is fixed.
+/// carry a <c>[Fact(Skip = ...)]</c> naming the issue (#163 for the missing identifier-length
+/// diagnostic), so they turn green on their own once it is fixed. The prefix-length and
+/// expression-key scenarios were such tests until #161 was fixed and now run unskipped.
 /// </para>
 ///
 /// <para>
@@ -128,8 +128,9 @@ public abstract class MariaDbIndexFidelityTests
     }
 
     // Every index key of every table in the deployed database, as the engine stored it. This
-    // query — SUB_PART in particular — is the whole point of this file: SUB_PART is the column
-    // the extractor does not select, so it is the only place a dropped prefix length shows up.
+    // query — SUB_PART in particular — is the whole point of this file: it reads the deployed
+    // shape straight from the catalog, so a prefix length that never reached the DDL shows up
+    // here even when the source and extracted models agree with each other (issue #161).
     private async Task<IReadOnlyList<IndexKey>> QueryIndexKeysAsync(
         string databaseName, CancellationToken cancellationToken)
     {
@@ -187,12 +188,15 @@ public abstract class MariaDbIndexFidelityTests
     // ---- 1. Prefix lengths ----
 
     /// <summary>
-    /// A prefix-length index key (<c>Brand(20)</c>) deploys as a FULL-COLUMN index key.
-    /// <c>MariaDbStatementMapper.MapIndexColumnNames</c> reads only the uid and ASC/DESC from
-    /// each <c>indexColumnName</c>, <c>IndexColumn</c> has no length field, no prefix-length
-    /// property exists in <c>MariaDbPropertyNames</c>, and the extractor's STATISTICS query does
-    /// not select <c>SUB_PART</c> — so the length is invisible from both ends and the round trip
-    /// hash-matches while having deployed a different index.
+    /// A prefix-length index key (<c>Brand(20)</c>) deploys with the declared prefix.
+    ///
+    /// <para>
+    /// It used to deploy as a full-column key: the mapper read only the uid and ASC/DESC from
+    /// each <c>indexColumnName</c>, and the extractor's STATISTICS query did not select
+    /// <c>SUB_PART</c> — so the length was invisible from both ends and the round trip
+    /// hash-matched while having deployed a different index (issue #161). Both sides read it
+    /// now, which is why this asserts the catalog rather than trusting the hash.
+    /// </para>
     ///
     /// <para>
     /// This is not an exotic corner: a prefix length is <em>mandatory</em> for indexing a TEXT
@@ -201,9 +205,7 @@ public abstract class MariaDbIndexFidelityTests
     /// <see cref="PrefixLengthOnTextColumn_DeploysWithTheDeclaredPrefix"/>).
     /// </para>
     /// </summary>
-    [Fact(Skip = "Blocked by issue #161: MariaDbStatementMapper.MapIndexColumnNames reads only "
-                 + "the uid and ASC/DESC, so a declared prefix length is discarded and a "
-                 + "full-column index deploys instead.")]
+    [Fact]
     public async Task IndexWithPrefixLength_DeploysWithTheDeclaredPrefix()
     {
         await DeployAndInspectAsync(
@@ -233,14 +235,13 @@ public abstract class MariaDbIndexFidelityTests
     }
 
     /// <summary>
-    /// The same silent drop inside a PRIMARY KEY. <c>MapTableConstraint</c> routes a
+    /// The same prefix inside a PRIMARY KEY. <c>MapTableConstraint</c> routes a
     /// <c>PRIMARY KEY (Name, Brand(20))</c> through the same <c>MapIndexColumnNames</c>, so the
-    /// deployed primary key covers the whole column. A PK is the one index where widening a key
-    /// changes the table's uniqueness semantics, so this is more than an efficiency loss.
+    /// same drop used to widen the deployed key to the whole column (issue #161). A PK is the
+    /// one index where widening a key changes the table's uniqueness semantics, so this was
+    /// more than an efficiency loss.
     /// </summary>
-    [Fact(Skip = "Blocked by issue #161: MapTableConstraint routes a PRIMARY KEY through the "
-                 + "same MapIndexColumnNames, so the declared prefix length is discarded and "
-                 + "the key silently widens to the whole column.")]
+    [Fact]
     public async Task PrimaryKeyWithPrefixLength_DeploysWithTheDeclaredPrefix()
     {
         await DeployAndInspectAsync(
@@ -269,9 +270,9 @@ public abstract class MariaDbIndexFidelityTests
     }
 
     /// <summary>
-    /// The scenario where the dropped prefix stops being an efficiency question. Because the
-    /// prefix is discarded, the generated DDL indexes an unbounded TEXT column — and the two
-    /// engines disagree about that, in opposite and equally bad ways:
+    /// The scenario where the dropped prefix stopped being an efficiency question. With the
+    /// prefix discarded the generated DDL indexed an unbounded TEXT column — and the two
+    /// engines disagreed about that, in opposite and equally bad ways:
     ///
     /// <list type="bullet">
     /// <item>
@@ -289,9 +290,7 @@ public abstract class MariaDbIndexFidelityTests
     /// on both engines and deploys identically, which is why this test asserts one outcome
     /// rather than branching per engine.
     /// </summary>
-    [Fact(Skip = "Blocked by issue #161: the discarded prefix makes the generated DDL index an "
-                 + "unbounded TEXT column, which MySQL rejects with error 1170 and MariaDB "
-                 + "silently substitutes a 768-byte prefix for.")]
+    [Fact]
     public async Task PrefixLengthOnTextColumn_DeploysWithTheDeclaredPrefix()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -393,14 +392,15 @@ public abstract class MariaDbIndexFidelityTests
     // ---- 3. Expression keys ----
 
     /// <summary>
-    /// A functional (expression) index key is silently discarded.
-    /// <c>MariaDbStatementMapper.MapIndexColumnNames</c> skips any <c>indexColumnName</c> that
-    /// is not a plain uid, with the comment "This keeps functional-index parsing from throwing"
-    /// — so <c>CREATE INDEX ix ON t ((a + b), c)</c> deploys as a ONE-column index on <c>c</c>.
-    /// No warning is emitted (unlike an unmodeled table constraint, which does raise one), so
-    /// nothing anywhere tells the user their index lost a key. That is strictly worse than
-    /// throwing: a build error would have stopped a deploy that silently produces the wrong
-    /// index.
+    /// A functional (expression) index key deploys as declared.
+    ///
+    /// <para>
+    /// It used to be discarded silently: <c>MapIndexColumnNames</c> skipped any
+    /// <c>indexColumnName</c> that was not a plain uid, so
+    /// <c>CREATE INDEX ix ON t ((a + b), c)</c> deployed as a ONE-column index on <c>c</c> with
+    /// no warning — strictly worse than throwing, since a build error would at least have
+    /// stopped a deploy that silently produces the wrong index (issue #161).
+    /// </para>
     ///
     /// <para>
     /// The wrong-result branch is MySQL-only: MariaDB has no functional indexes and rejects
@@ -410,11 +410,7 @@ public abstract class MariaDbIndexFidelityTests
     /// of them can run.
     /// </para>
     /// </summary>
-    [Fact(Skip = "Blocked by issue #161: MariaDbStatementMapper.MapIndexColumnNames skips an "
-                 + "expression index key, so the index deploys with fewer keys than declared. "
-                 + "(The MariaDB half of this test is correct today — that engine has no "
-                 + "functional indexes and rejects the DDL outright — but the two engines share "
-                 + "one test method, so it is skipped until the MySQL half can pass.)")]
+    [Fact]
     public async Task ExpressionIndexKey_IsDeployedAsDeclared()
     {
         var ct = TestContext.Current.CancellationToken;
