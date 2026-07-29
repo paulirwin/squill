@@ -182,11 +182,50 @@ WHERE table_name = 'customers' AND column_name = 'name';
             expectedSqlState: PostgresErrorCodes.NotNullViolation);
     }
 
-    // Dropping a generated column together with the columns its expression reads is not covered
-    // here: Squill emits the per-column DROPs in diff order with no dependency sort, so it drops
-    // `x` while the generated `sum` still depends on it and Postgres refuses (SQLSTATE 2BP01).
-    // The same drops in dependency order are accepted by Postgres, so this is a Squill defect
-    // rather than an engine limitation — reported separately, not asserted here.
+    /// <summary>
+    /// Dropping a generated column together with the columns its expression reads (issue #158).
+    /// Squill used to emit the per-column DROPs in diff order with no dependency sort, so it
+    /// dropped <c>x</c> while the generated <c>sum</c> still depended on it and Postgres refused
+    /// (SQLSTATE 2BP01). The same drops in dependency order are accepted, so this was a Squill
+    /// defect rather than an engine limitation.
+    /// </summary>
+    [Fact]
+    public async Task DropGeneratedColumnWithItsInputColumns_Succeeds()
+    {
+        const string before = """
+CREATE TABLE people
+(
+    id  integer PRIMARY KEY,
+    x   integer NULL,
+    y   integer NULL,
+    sum integer GENERATED ALWAYS AS (x + y) STORED
+);
+""";
+        const string after = """
+CREATE TABLE people
+(
+    id integer PRIMARY KEY
+);
+""";
+
+        await RunDeployScenarioAsync(
+            before, after,
+            seedSql: "INSERT INTO people (id, x, y) VALUES (1, 10, 3);",
+            assertAfterAsync: async conn =>
+            {
+                // The row survives; only the columns went away.
+                Assert.Equal(1L, await ScalarAsync(conn, "SELECT count(*) FROM people;"));
+
+                Assert.Equal(0L, await ScalarAsync(conn, """
+SELECT count(*) FROM information_schema.columns
+WHERE table_name = 'people' AND column_name IN ('x', 'y', 'sum');
+"""));
+
+                // The primary key column is untouched.
+                Assert.Equal(1, await ScalarAsync(conn, "SELECT id FROM people;"));
+            },
+            afterOptions: new DeployOptions { BlockOnPossibleDataLoss = false });
+    }
 
     /// <summary>
     /// Dropping the column that carries the primary key: the PK constraint has to go before (or

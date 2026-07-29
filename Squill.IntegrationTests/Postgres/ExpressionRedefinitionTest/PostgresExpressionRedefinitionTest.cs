@@ -187,13 +187,13 @@ WHERE d.adrelid = 'tally'::regclass AND a.attname = 'sum';
     /// that accepts an explicitly supplied value.
     /// </summary>
     /// <remarks>
-    /// This crashes rather than merely producing a wrong result. PostgresScriptGenerator's
-    /// AppendAlterColumn emits clauses only for type and nullability, with no case for a change
-    /// in generated-ness, so it returns an empty string that DacpacDeployerBase hands to Npgsql.
+    /// Fixed by issue #158. The ALTER path emits clauses only for type, nullability and default,
+    /// with no case for a change in generated-ness, so it returned an empty string that
+    /// DacpacDeployerBase handed to Npgsql. PostgresTableDiffAnalyzer now treats gaining or
+    /// losing generated-ness as a change the ALTER path cannot express, so it takes the rebuild
+    /// path instead.
     /// </remarks>
-    [Fact(Skip = "Blocked by issue #158: the script generator emits nothing for a change in "
-                 + "generated-ness, so the deployer executes an empty string and throws "
-                 + "InvalidOperationException: CommandText property has not been initialized.")]
+    [Fact]
     public async Task DroppedGeneratedNess_IsApplied()
     {
         const string before = """

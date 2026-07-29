@@ -48,7 +48,10 @@ public class ColumnChange
 
     /// <summary>
     /// The current column element from the target model, for Alter — so the generator can
-    /// emit only the facets (type, nullability) that actually changed. Null for Add/Drop.
+    /// emit only the facets (type, nullability) that actually changed — and for Drop, where it
+    /// is the column being dropped, so the generator can order the DROPs by the dependencies
+    /// between them (a generated column must go before the columns its expression reads —
+    /// issue #158). Null for Add.
     /// </summary>
     public Element? TargetColumn { get; }
 }

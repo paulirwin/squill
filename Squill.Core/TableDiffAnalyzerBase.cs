@@ -52,12 +52,15 @@ public abstract class TableDiffAnalyzerBase : ITableDiffAnalyzer
 
         var changes = new List<ColumnChange>();
 
-        // Dropped columns: present in the target (database) but not the source (DACPAC).
-        foreach (var (name, _) in targetColumns)
+        // Dropped columns: present in the target (database) but not the source (DACPAC). The
+        // target element is carried along so the generator can order the DROPs by the
+        // dependencies among them (issue #158).
+        foreach (var (name, targetColumn) in targetColumns)
         {
             if (!sourceColumns.Any(c => c.Name == name))
             {
-                changes.Add(new ColumnChange(ColumnChangeKind.Drop, name, sourceColumn: null));
+                changes.Add(new ColumnChange(
+                    ColumnChangeKind.Drop, name, sourceColumn: null, targetColumn));
             }
         }
 
