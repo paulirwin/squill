@@ -99,29 +99,48 @@ public static class PostgresModelFactory
         };
 
     /// <summary>
-    /// Describes an indexed column: its canonical reference plus optional ordering and
-    /// operator class (opclass, per PostgreSQL's CREATE INDEX). Null direction/nullsFirst
-    /// mean "unspecified" and are omitted from the model; a null operator class means the
-    /// type's default opclass, likewise omitted.
+    /// Describes an indexed column: its canonical reference plus optional ordering,
+    /// operator class (opclass, per PostgreSQL's CREATE INDEX) and collation. Null
+    /// direction/nullsFirst mean "unspecified" and are omitted from the model; a null operator
+    /// class means the type's default opclass, and a null collation the column's own, likewise
+    /// omitted.
     /// </summary>
+    /// <remarks>
+    /// An expression key (<c>CREATE INDEX ix ON people (lower(name))</c>) sets
+    /// <paramref name="KeyExpression"/> instead of naming a column; <paramref name="Column"/>
+    /// is then the index's own name, used only to give the spec a stable identity.
+    /// </remarks>
     public readonly record struct IndexedColumn(
         SqlName Column,
         bool? IsAscending = null,
         bool? NullsFirst = null,
-        string? OperatorClass = null);
+        string? OperatorClass = null,
+        string? Collation = null,
+        string? KeyExpression = null);
 
     public static Element CreateIndexedColumnSpecification(IndexedColumn column)
     {
-        var element = new Element(PostgresElementTypes.SqlIndexedColumnSpecification)
+        var element = new Element(PostgresElementTypes.SqlIndexedColumnSpecification);
+
+        // An expression key is text rather than a reference to a column, so it replaces the
+        // Column relationship instead of joining it (issue #160). The raw spelling is kept for
+        // scripting but excluded from identity — PostgreSQL rewrites what it is given, so
+        // lower(name) may come back parenthesized or cast — while the canonical form compares.
+        if (column.KeyExpression is { } keyExpression)
         {
-            Relationships =
+            AddExpressionProperties(
+                element,
+                PostgresPropertyNames.KeyExpression,
+                PostgresPropertyNames.NormalizedKeyExpression,
+                keyExpression);
+        }
+        else
+        {
+            element.Relationships.Add(new Relationship(PostgresRelationshipNames.Column)
             {
-                new Relationship(PostgresRelationshipNames.Column)
-                {
-                    new Reference(column.Column)
-                }
-            }
-        };
+                new Reference(column.Column)
+            });
+        }
 
         if (column.IsAscending is bool isAscending)
         {
@@ -138,6 +157,15 @@ public static class PostgresModelFactory
         if (column.OperatorClass is { } operatorClass)
         {
             element.Properties.Add(new Property(PostgresPropertyNames.OperatorClass, operatorClass));
+        }
+
+        // A per-key COLLATE (issue #160), stored only when it differs from the column type's
+        // own collation. Measured: pg_index.indcollation reports a resolved collation ("default",
+        // oid 100) for every collatable key column, so storing it unconditionally would make
+        // every text index re-diff on every deploy — the same rule #159 applied to columns.
+        if (column.Collation is { } collation)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.Collation, collation));
         }
 
         return element;
@@ -253,7 +281,9 @@ public static class PostgresModelFactory
         IEnumerable<IndexedColumn> columns,
         string? filterPredicate = null,
         string? storageParameters = null,
-        string schema = "public")
+        string schema = "public",
+        IEnumerable<SqlName>? includedColumns = null,
+        bool nullsNotDistinct = false)
     {
         var columnSpecs = new Relationship(PostgresRelationshipNames.ColumnSpecifications);
 
@@ -302,6 +332,33 @@ public static class PostgresModelFactory
         if (storageParameters is not null)
         {
             element.Properties.Add(new Property(PostgresPropertyNames.StorageParameters, storageParameters));
+        }
+
+        // INCLUDE (...) covering columns (issue #160). A separate relationship from the key
+        // columns, because they are stored in the index without being part of its key: they
+        // carry no ordering or opclass, and on a unique index they take no part in uniqueness.
+        // Added only when present so an ordinary index hashes as it did before.
+        if (includedColumns is not null)
+        {
+            var included = new Relationship(PostgresRelationshipNames.IncludedColumns);
+
+            foreach (var includedColumn in includedColumns)
+            {
+                included.Add(new Reference(includedColumn));
+            }
+
+            if (included.Entries.Count > 0)
+            {
+                element.Relationships.Add(included);
+            }
+        }
+
+        // NULLS NOT DISTINCT (PostgreSQL 15+, issue #160) inverts how a unique index treats
+        // NULLs. Stored only when true, matching the catalog's default of false, so an ordinary
+        // index does not re-diff.
+        if (nullsNotDistinct)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.NullsNotDistinct, true));
         }
 
         return element;

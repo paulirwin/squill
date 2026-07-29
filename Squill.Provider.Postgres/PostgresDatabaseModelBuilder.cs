@@ -1240,6 +1240,26 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         // builder, which stores an opclass only when one is written explicitly.
         // Storage parameters (the WITH clause) come from the index relation's reloptions,
         // a text[] of "name=value" entries rendered to a canonical comma-separated string.
+        // indkey spans key columns *and* INCLUDE columns: positions 1..indnkeyatts are the key,
+        // indnkeyatts+1..indnatts the covering columns. is_included partitions the rows so a
+        // covering column is not mistaken for a key one. The opclass join is LEFT because
+        // indclass has entries only for key columns (issue #160).
+        //
+        // indcollation is an oidvector, which unlike a normal Postgres array is 0-based —
+        // measured, indcollation[0] is the first key column — and it too spans key columns
+        // only. A collation is surfaced only when it differs from the column type's own
+        // (typcollation), mirroring the opcdefault suppression beside it: every collatable
+        // column reports a resolved collation ("default", oid 100), so recording it
+        // unconditionally would make every text index re-diff on every deploy.
+        //
+        // indnullsnotdistinct does not exist before PostgreSQL 15, and naming a missing column
+        // is a parse-time error even where it is never read, so it is read through to_jsonb()
+        // to resolve the name at run time — the same trick #159 used for the collation locale.
+        //
+        // An expression key (lower(name)) has indkey entry 0, which matches no pg_attribute
+        // row, so that join is LEFT or the whole index would vanish from the extract. Its text
+        // comes from the per-column form of pg_get_indexdef, which renders the one canonical
+        // spelling PostgreSQL stores for both `(lower(name))` and `((lower(name)))`.
         const string sql = """
             SELECT
                 i.relname AS index_name,
@@ -1248,8 +1268,14 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 pg_get_expr(ix.indpred, ix.indrelid) AS filter_predicate,
                 a.attname AS column_name,
                 k.ordinality AS column_ordinal,
+                k.ordinality > ix.indnkeyatts AS is_included,
+                pg_get_indexdef(ix.indexrelid, k.ordinality::integer, true) AS key_expression,
                 ix.indoption[k.ordinality - 1] AS column_option,
                 CASE WHEN oc.opcdefault THEN NULL ELSE oc.opcname END AS operator_class,
+                CASE WHEN ix.indcollation[k.ordinality - 1] <> ty.typcollation
+                     THEN co.collname END AS collation_name,
+                coalesce((to_jsonb(ix) ->> 'indnullsnotdistinct')::boolean, false)
+                    AS nulls_not_distinct,
                 array_to_string(i.reloptions, ', ') AS storage_parameters
             FROM pg_index ix
             JOIN pg_class i ON i.oid = ix.indexrelid
@@ -1257,8 +1283,10 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             JOIN pg_namespace n ON n.oid = t.relnamespace
             JOIN pg_am am ON am.oid = i.relam
             JOIN LATERAL unnest(ix.indkey) WITH ORDINALITY AS k(attnum, ordinality) ON TRUE
-            JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
-            JOIN pg_opclass oc ON oc.oid = ix.indclass[k.ordinality - 1]
+            LEFT JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
+            LEFT JOIN pg_type ty ON ty.oid = a.atttypid
+            LEFT JOIN pg_opclass oc ON oc.oid = ix.indclass[k.ordinality - 1]
+            LEFT JOIN pg_collation co ON co.oid = ix.indcollation[k.ordinality - 1]
             WHERE n.nspname = @schema
               AND t.relname = @name
               AND NOT ix.indisprimary
@@ -1276,7 +1304,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
         // Accumulate rows per index (ordered by column ordinal in the query) so a
         // multi-column index is built as a single element via the factory.
-        var indexRows = new Dictionary<string, (bool IsUnique, string Method, string? FilterPredicate, string? StorageParameters, List<PostgresModelFactory.IndexedColumn> Columns)>();
+        var indexRows = new Dictionary<string, (bool IsUnique, string Method, string? FilterPredicate, string? StorageParameters, bool NullsNotDistinct, List<PostgresModelFactory.IndexedColumn> Columns, List<SqlName> IncludedColumns)>();
         var order = new List<string>();
 
         await using (var reader = await _database.RunScriptReaderAsync(sql, parameters, cancellationToken))
@@ -1299,12 +1327,33 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                         ? null
                         : reader.GetString("storage_parameters") is { Length: > 0 } s ? s : null;
 
-                    entry = (reader.GetBoolean("is_unique"), reader.GetString("index_method"), filterPredicate, storageParameters, new());
+                    entry = (reader.GetBoolean("is_unique"), reader.GetString("index_method"),
+                        filterPredicate, storageParameters,
+                        reader.GetBoolean("nulls_not_distinct"), new(), new());
                     indexRows.Add(indexName, entry);
                     order.Add(indexName);
                 }
 
-                var columnName = reader.GetString("column_name");
+                // NULL for an expression key, whose indkey entry is 0 and so matches no column.
+                var columnName = reader.IsDBNull("column_name")
+                    ? null
+                    : reader.GetString("column_name");
+
+                // An INCLUDE column is stored in the index but is not part of its key: it
+                // carries no ordering, opclass or collation, so it is recorded by name alone.
+                if (reader.GetBoolean("is_included"))
+                {
+                    if (columnName is not null)
+                    {
+                        entry.IncludedColumns.Add(tableSqlName.Child(columnName));
+                    }
+
+                    continue;
+                }
+
+                var keyExpression = columnName is null
+                    ? reader.GetString("key_expression")
+                    : null;
 
                 // Only btree supports per-column ASC/DESC and NULLS ordering; other access
                 // methods (e.g. hnsw) reject those options, and their indoption bits are
@@ -1325,21 +1374,32 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                     ? null
                     : reader.GetString("operator_class");
 
+                var collation = reader.IsDBNull("collation_name")
+                    ? null
+                    : reader.GetString("collation_name");
+
                 entry.Columns.Add(new PostgresModelFactory.IndexedColumn(
-                    tableSqlName.Child(columnName),
+                    // An expression key names no column, so the index's own name stands in to
+                    // give the spec a stable identity — matching the parser builder.
+                    columnName is not null
+                        ? tableSqlName.Child(columnName)
+                        : SqlName.Object(indexName),
                     IsAscending: isAscending,
                     NullsFirst: nullsFirst,
-                    OperatorClass: operatorClass));
+                    OperatorClass: operatorClass,
+                    Collation: collation,
+                    KeyExpression: keyExpression));
             }
         }
 
         foreach (var indexName in order)
         {
-            var (isUnique, method, filterPredicate, storageParameters, columns) = indexRows[indexName];
+            var (isUnique, method, filterPredicate, storageParameters, nullsNotDistinct, columns,
+                includedColumns) = indexRows[indexName];
 
             model.Elements.Add(PostgresModelFactory.CreateIndex(
                 SqlName.Object(indexName), tableSqlName, isUnique, method, columns,
-                filterPredicate, storageParameters, schema));
+                filterPredicate, storageParameters, schema, includedColumns, nullsNotDistinct));
         }
     }
 

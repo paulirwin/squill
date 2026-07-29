@@ -47,6 +47,18 @@ public sealed class PostgresPropertyNames : SqlPropertyNames
     // https://www.postgresql.org/docs/current/sql-createindex.html
     public const string OperatorClass = nameof(OperatorClass);
     public const string StorageParameters = nameof(StorageParameters);
+    // NULLS NOT DISTINCT on a unique index (PostgreSQL 15+, issue #160). Stored only when true,
+    // matching pg_index.indnullsnotdistinct, which is a plain boolean defaulting to false — so
+    // an ordinary index carries no property and does not re-diff. The column does not exist
+    // before PostgreSQL 15, so extraction reads it through to_jsonb() rather than by name.
+    public const string NullsNotDistinct = nameof(NullsNotDistinct);
+    // An expression index key — CREATE INDEX ix ON people (lower(name)) — issue #160. The key
+    // is an expression rather than a column, so the spec carries text instead of a Column
+    // relationship. Split for the same reason as a generated column's expression: PostgreSQL
+    // rewrites what it is given, so only the canonical form can take part in comparison, while
+    // the raw spelling is kept for scripting.
+    public const string KeyExpression = nameof(KeyExpression);
+    public const string NormalizedKeyExpression = nameof(NormalizedKeyExpression);
     // Stored procedures (issue #41). ArgumentTypes carries the argument signature so
     // overloads are distinct objects. Body is the routine source held verbatim, as
     // PostgreSQL stores it in pg_proc.prosrc.

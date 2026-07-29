@@ -87,8 +87,10 @@ WHERE a.attrelid = 'people'::regclass AND a.attname = 'ssn';
     /// The constraint attributes are a colconstraint alternative of their own, arriving as
     /// sibling nodes of the REFERENCES they qualify rather than as part of it. The pairing with
     /// <see cref="TableLevelDeferrableForeignKey_DeploysAsDeferrable"/> is the interesting part:
-    /// the identical constraint written at table level is still parsed and then silently
-    /// deployed as NOT deferrable (#160). This spelling now round-trips; its sibling still lies.
+    /// the two spellings reach the parser by entirely different routes — sibling nodes here, a
+    /// single constraintattributespec there — and once had opposite failure modes, this one
+    /// refusing to build while the other silently deployed as NOT deferrable. Both round-trip
+    /// now (#159, #160), and both must keep doing so.
     /// </remarks>
     [Fact]
     public async Task InlineDeferrableForeignKey_DeploysAsDeferrable()
@@ -142,17 +144,18 @@ WHERE conrelid = 'orders'::regclass AND contype = 'f';
     /// deferrable.
     /// </summary>
     /// <remarks>
-    /// This takes a different path from the inline form: <c>PostgresVisitor.Constraintelem.cs</c>
-    /// never reads the constraint_attributes clause, so DEFERRABLE INITIALLY DEFERRED parses
-    /// without complaint and is dropped on the floor. The deployed constraint is a plain,
-    /// immediate foreign key that behaves differently from what the source declares — a
-    /// mid-transaction insert order the declared schema would permit fails against the deployed
-    /// one. Asserted against <c>pg_constraint</c> rather than the model, because neither side of
-    /// Squill models deferrability, so a model-level assertion would prove nothing.
+    /// This takes a different path from the inline form. Every constraintelem alternative ends
+    /// in one constraintattributespec holding the whole attribute list, where the inline form
+    /// delivers each attribute as a separate sibling node — so the two are read by different
+    /// code and only this one was ever left unread (#160). While it was, the clause parsed
+    /// without complaint and was dropped, deploying a plain immediate foreign key that behaves
+    /// differently from what the source declares: a mid-transaction insert order the declared
+    /// schema would permit fails against the deployed one.
+    ///
+    /// Asserted against <c>pg_constraint</c> rather than the model, so it measures what the
+    /// server actually did rather than what Squill believes it asked for.
     /// </remarks>
-    [Fact(Skip = "Blocked by issue #160: PostgresVisitor.Constraintelem.cs never reads the "
-                 + "constraint_attributes clause, so DEFERRABLE INITIALLY DEFERRED is parsed "
-                 + "and silently discarded.")]
+    [Fact]
     public async Task TableLevelDeferrableForeignKey_DeploysAsDeferrable()
     {
         const string sql = """
@@ -196,15 +199,18 @@ CREATE TABLE orders
     /// survive a re-extract so the source does not re-diff.
     /// </summary>
     /// <remarks>
-    /// The quietest failure of the batch: the grammar's index_elem_options carries a collate_
-    /// clause, <c>PostgresVisitor.IndexElem.cs</c> reads asc_desc_, nulls_order_ and class_ but
-    /// never collate_, and the provider's index query reads storage_parameters and
-    /// filter_predicate but never indcollation. Both sides are blind in the same way, so the
-    /// index deploys with the default collation, the re-extracted model matches, and a redeploy
-    /// is a clean no-op — the schema is wrong and nothing anywhere reports it.
+    /// This was the quietest failure of the batch (#160), and the reason the round-trip half of
+    /// the assertion matters as much as the first: the grammar's index_elem_options carries a
+    /// collate_ clause that <c>PostgresVisitor.IndexElem.cs</c> did not read, and the provider's
+    /// index query did not read indcollation either. Both sides being blind in the same way is
+    /// what made it invisible — the index deployed with the default collation, the re-extracted
+    /// model matched it, and a redeploy was a clean no-op while the schema was wrong.
+    ///
+    /// So a fix that models the collation on only one side must still fail here: the first
+    /// assertion catches a parse side that drops it, the hash comparison an extract side that
+    /// does.
     /// </remarks>
-    [Fact(Skip = "Blocked by issue #160: PostgresVisitor.IndexElem.cs never reads the collate_ "
-                 + "clause, so a per-column index COLLATE is parsed and silently discarded.")]
+    [Fact]
     public async Task IndexElementCollate_DeploysWithTheDeclaredCollation()
     {
         const string sql = """
@@ -232,8 +238,8 @@ CREATE INDEX ix_people_name ON people (name COLLATE "POSIX");
             var target = await dbModelBuilder.ExtractModelAsync(ct);
             await testDb.PublishAsync(SchemaCompare.Compare(provider, model, target), ct);
 
-            // The deployed index does not carry "POSIX": its single key column's collation is
-            // The deployed index must carry "POSIX" on its single key column.
+            // The deployed index must carry "POSIX" on its single key column. indcollation is
+            // an oidvector, which unlike an ordinary Postgres array is 0-based.
             var declared = await ScalarAsync(
                 testDb, "SELECT oid FROM pg_collation WHERE collname = 'POSIX';", ct);
             Assert.NotNull(declared);

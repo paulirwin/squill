@@ -30,24 +30,25 @@ public partial class PostgresVisitor
                 : IndexElementNullOrder.NullsLast;
         }
 
+        // A per-key COLLATE precedes the operator class in index_elem_options. It was the one
+        // clause of the four this visitor never read (issue #160), so an index silently sorted
+        // by the column's own collation rather than the declared one.
+        QualifiedName? collation = null;
+
+        if (options.collate_()?.any_name() is { } collationName)
+        {
+            collation = ParseAnyName(collationName);
+        }
+
         // An operator class (e.g. vector_cosine_ops) may follow the column. The grammar
         // exposes it as class_ within index_elem_options; only the plain class_ form (not
-        // the reloptions form) is supported here.
-        Identifier? operatorClass = null;
+        // the reloptions form) is supported here. A user may schema-qualify it
+        // (pg_catalog.text_pattern_ops) to disambiguate one shadowed by another schema's.
+        QualifiedName? operatorClass = null;
 
         if (options.class_()?.any_name() is { } opClassName)
         {
-            if (opClassName.attrs() is not null)
-            {
-                throw new NotImplementedException("Schema-qualified index operator classes are not yet supported");
-            }
-
-            if (VisitColid(opClassName.colid()) is not Identifier opClassIdentifier)
-            {
-                throw new PostgresParseException("Unable to parse index operator class");
-            }
-
-            operatorClass = opClassIdentifier;
+            operatorClass = ParseAnyName(opClassName);
         }
 
         Expression expr;
@@ -63,8 +64,16 @@ public partial class PostgresVisitor
         }
         else if (context.func_expr_windowless() is { } funcExprWindowless)
         {
-            throw new NotImplementedException(
-                "Support for function expressions in CREATE INDEX statements not yet implemented");
+            // A bare call — CREATE INDEX ix ON people (lower(name)) — is an expression index.
+            // Its parenthesized spelling, ((lower(name))), takes the a_expr alternative below
+            // instead, so the two arrive here by different routes (issue #160).
+            if (Visit(funcExprWindowless) is not Expression funcExpr)
+            {
+                throw new PostgresParseException(
+                    "Unable to parse function expression in CREATE INDEX statement");
+            }
+
+            expr = funcExpr;
         }
         else if (context.a_expr() is { } aExprContext)
         {
@@ -80,6 +89,6 @@ public partial class PostgresVisitor
             throw new InvalidOperationException("Unexpected alternate for index element");
         }
 
-        return new IndexElement(expr, direction, nullOrder, operatorClass);
+        return new IndexElement(expr, direction, nullOrder, operatorClass, collation);
     }
 }
