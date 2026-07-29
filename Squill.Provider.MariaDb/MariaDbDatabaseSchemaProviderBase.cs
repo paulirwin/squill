@@ -21,4 +21,8 @@ public abstract class MariaDbDatabaseSchemaProviderBase : MariaDbFamilyDatabaseS
     // CURDATE()/CURTIME() (and their CURRENT_DATE/CURRENT_TIME keyword spellings) are accepted
     // as column defaults here, each stored under its own name.
     public override bool SupportsDateAndTimeFunctionDefaults => true;
+
+    // MariaDB has no functional indexes: the DDL is a syntax error, and STATISTICS has no
+    // EXPRESSION column to read one back from.
+    public override bool SupportsFunctionalIndexKeys => false;
 }

@@ -25,7 +25,7 @@ public class CreateIndexTests
         Assert.Null(index.IndexMethod);
 
         var column = Assert.Single(index.Columns);
-        Assert.Equal("last_name", column.Column.Name);
+        Assert.Equal("last_name", column.Column?.Name);
         Assert.Null(column.IsAscending);
     }
 
@@ -75,7 +75,7 @@ public class CreateIndexTests
 
         Assert.Equal("idx name", index.Name);
         Assert.Equal("order", index.OnTable.Name);
-        Assert.Equal("select", Assert.Single(index.Columns).Column.Name);
+        Assert.Equal("select", Assert.Single(index.Columns).Column?.Name);
     }
 
     // ---- Index method ----
@@ -101,7 +101,7 @@ public class CreateIndexTests
 
         Assert.Equal("BTREE", index.IndexMethod);
         Assert.Equal("t", index.OnTable.Name);
-        Assert.Equal("a", Assert.Single(index.Columns).Column.Name);
+        Assert.Equal("a", Assert.Single(index.Columns).Column?.Name);
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public class CreateIndexTests
 
         Assert.Equal(
             new[] { "last_name", "first_name" },
-            index.Columns.Select(c => c.Column.Name));
+            index.Columns.Select(c => c.Column?.Name));
     }
 
     // Each column carries its own direction independently.
@@ -147,9 +147,9 @@ public class CreateIndexTests
 
         Assert.Collection(
             index.Columns,
-            c => { Assert.Equal("a", c.Column.Name); Assert.True(c.IsAscending); },
-            c => { Assert.Equal("b", c.Column.Name); Assert.False(c.IsAscending); },
-            c => { Assert.Equal("c", c.Column.Name); Assert.Null(c.IsAscending); });
+            c => { Assert.Equal("a", c.Column?.Name); Assert.True(c.IsAscending); },
+            c => { Assert.Equal("b", c.Column?.Name); Assert.False(c.IsAscending); },
+            c => { Assert.Equal("c", c.Column?.Name); Assert.Null(c.IsAscending); });
     }
 
     [Fact]
@@ -159,7 +159,7 @@ public class CreateIndexTests
 
         Assert.True(index.Unique);
         Assert.Equal("BTREE", index.IndexMethod);
-        Assert.Equal(new[] { "a", "b" }, index.Columns.Select(c => c.Column.Name));
+        Assert.Equal(new[] { "a", "b" }, index.Columns.Select(c => c.Column?.Name));
         Assert.False(index.Columns[1].IsAscending);
     }
 

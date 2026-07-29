@@ -22,6 +22,26 @@ public sealed class MariaDbPropertyNames : SqlPropertyNames
     // the omit-when-default convention.
     public const string IndexKind = nameof(IndexKind);
 
+    // The prefix length of one index key — the 20 in `Brand(20)` (issue #161). Both engines
+    // report it in information_schema.STATISTICS.SUB_PART, which is NULL for a whole-column
+    // key, so this follows the omit-when-default convention and is stored only when declared.
+    //
+    // Not an optimization detail: a prefix is mandatory for indexing TEXT/BLOB on MySQL (which
+    // rejects the DDL with error 1170 without one, where MariaDB silently substitutes 768), and
+    // inside a PRIMARY KEY it decides which rows the table accepts as unique.
+    public const string PrefixLength = nameof(PrefixLength);
+
+    // The expression of a functional index key — the `a + b` in `CREATE INDEX ix ON t ((a + b))`
+    // (issue #161). Held in place of the Column relationship, since such a key names no column.
+    // MySQL-only: MariaDB has no functional indexes and rejects the syntax at the server.
+    //
+    // Carried as the raw/canonical pair (issue #156) rather than one string, because MySQL
+    // rewrites what it is given: measured, a key declared `(a + b)` is stored and reported as
+    // `` (`a` + `b`) ``. Only the canonical form participates in identity; the raw text is kept
+    // for scripting.
+    public const string KeyExpression = nameof(KeyExpression);
+    public const string NormalizedKeyExpression = nameof(NormalizedKeyExpression);
+
     // ON UPDATE CURRENT_TIMESTAMP (issue #124): a timestamp/datetime column the engine
     // refreshes to the current time on every row update. Both engines report it in
     // information_schema.COLUMNS.EXTRA, though with different spellings.

@@ -21,4 +21,8 @@ public abstract class MySqlDatabaseSchemaProviderBase : MariaDbFamilyDatabaseSch
 
     // CURDATE()/CURTIME() are a syntax error in a DEFAULT on MySQL, so they are never modeled.
     public override bool SupportsDateAndTimeFunctionDefaults => false;
+
+    // Functional index keys exist here (8.0.13+) and are reported in STATISTICS.EXPRESSION.
+    // https://dev.mysql.com/doc/refman/8.4/en/create-index.html#create-index-functional-key-parts
+    public override bool SupportsFunctionalIndexKeys => true;
 }

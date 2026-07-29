@@ -180,15 +180,18 @@ public sealed class NamedTableConstraint(string? name, TableConstraint constrain
     public TableConstraint Constraint { get; } = constraint;
 }
 
-public sealed class PrimaryKeyTableConstraint(IReadOnlyList<Identifier> columns) : TableConstraint
+// A PRIMARY KEY and a UNIQUE key are index declarations in their own right, so their keys are
+// IndexColumns rather than bare names: both accept a prefix length, and in a PRIMARY KEY it
+// decides which rows the table accepts as unique (issue #161).
+public sealed class PrimaryKeyTableConstraint(IReadOnlyList<IndexColumn> columns) : TableConstraint
 {
-    public IReadOnlyList<Identifier> Columns { get; } = columns;
+    public IReadOnlyList<IndexColumn> Columns { get; } = columns;
 }
 
-public sealed class UniqueKeyTableConstraint(string? indexName, IReadOnlyList<Identifier> columns) : TableConstraint
+public sealed class UniqueKeyTableConstraint(string? indexName, IReadOnlyList<IndexColumn> columns) : TableConstraint
 {
     public string? IndexName { get; } = indexName;
-    public IReadOnlyList<Identifier> Columns { get; } = columns;
+    public IReadOnlyList<IndexColumn> Columns { get; } = columns;
 }
 
 public sealed class ForeignKeyTableConstraint(
@@ -260,11 +263,39 @@ public sealed class CreateIndexStatement(string? name, QualifiedName onTable) : 
     public IList<IndexColumn> Columns { get; } = new List<IndexColumn>();
 }
 
-/// <summary>A single indexed column: its name plus an optional sort direction.</summary>
-public sealed class IndexColumn(Identifier column, bool? isAscending)
+/// <summary>
+/// A single index key: a column (optionally with a prefix length) or an expression, plus an
+/// optional sort direction. The grammar rule is
+/// <c>((uid | STRING_LITERAL) ('(' decimalLiteral ')')? | expression) sortType?</c>, so exactly
+/// one of <see cref="Column"/> and <see cref="KeyExpression"/> is set.
+/// </summary>
+public sealed class IndexColumn(
+    Identifier? column,
+    bool? isAscending,
+    int? prefixLength = null,
+    string? keyExpression = null)
 {
-    public Identifier Column { get; } = column;
+    /// <summary>The indexed column, or <c>null</c> when this key is an expression.</summary>
+    public Identifier? Column { get; } = column;
+
     public bool? IsAscending { get; } = isAscending;
+
+    /// <summary>
+    /// The declared prefix length — the <c>20</c> in <c>Brand(20)</c> — or <c>null</c> for a
+    /// whole-column key (issue #161).
+    ///
+    /// Not an optimization detail: a prefix is <em>mandatory</em> for indexing a TEXT or BLOB
+    /// column on MySQL, and inside a PRIMARY KEY it decides which rows the table accepts as
+    /// unique, so dropping it changes what the schema means.
+    /// </summary>
+    public int? PrefixLength { get; } = prefixLength;
+
+    /// <summary>
+    /// The source text of a functional index key — the <c>a + b</c> in
+    /// <c>CREATE INDEX ix ON t ((a + b))</c> — or <c>null</c> when this key names a column
+    /// (issue #161). Carried verbatim; only MySQL supports these, MariaDB rejects the DDL.
+    /// </summary>
+    public string? KeyExpression { get; } = keyExpression;
 }
 
 // ---- CREATE PROCEDURE ----

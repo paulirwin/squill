@@ -201,7 +201,7 @@ public class CreateTableTests
         var (pk, name) = TableConstraint<PrimaryKeyTableConstraint>(table);
 
         Assert.Null(name);
-        Assert.Equal(new[] { "id" }, pk.Columns.Select(c => c.Name));
+        Assert.Equal(new[] { "id" }, pk.Columns.Select(c => c.Column?.Name));
     }
 
     // A composite PK keeps its columns in the order written; that order is the index order.
@@ -213,7 +213,7 @@ public class CreateTableTests
 
         var (pk, _) = TableConstraint<PrimaryKeyTableConstraint>(table);
 
-        Assert.Equal(new[] { "actor_id", "film_id" }, pk.Columns.Select(c => c.Name));
+        Assert.Equal(new[] { "actor_id", "film_id" }, pk.Columns.Select(c => c.Column?.Name));
     }
 
     // MariaDB always names the primary key `PRIMARY` regardless of what CONSTRAINT clause is
@@ -227,7 +227,7 @@ public class CreateTableTests
         var (pk, name) = TableConstraint<PrimaryKeyTableConstraint>(table);
 
         Assert.Equal("pk_t", name);
-        Assert.Equal(new[] { "id" }, pk.Columns.Select(c => c.Name));
+        Assert.Equal(new[] { "id" }, pk.Columns.Select(c => c.Column?.Name));
     }
 
     // ---- Table-level UNIQUE ----
@@ -241,7 +241,7 @@ public class CreateTableTests
 
         Assert.Null(name);
         Assert.Null(unique.IndexName);
-        Assert.Equal(new[] { "a", "b" }, unique.Columns.Select(c => c.Name));
+        Assert.Equal(new[] { "a", "b" }, unique.Columns.Select(c => c.Column?.Name));
     }
 
     // `UNIQUE KEY <index-name> (...)` names the backing index; that trailing uid is the index
@@ -255,7 +255,7 @@ public class CreateTableTests
 
         Assert.Null(name);
         Assert.Equal("idx_email", unique.IndexName);
-        Assert.Equal(new[] { "email" }, unique.Columns.Select(c => c.Name));
+        Assert.Equal(new[] { "email" }, unique.Columns.Select(c => c.Column?.Name));
     }
 
     // With both a CONSTRAINT name and an index name the leading uid is the constraint name and
@@ -393,7 +393,7 @@ public class CreateTableTests
 
         Assert.Equal("idx_a_b", index.IndexName);
         Assert.Null(index.IndexMethod);
-        Assert.Equal(new[] { "a", "b" }, index.Columns.Select(c => c.Column.Name));
+        Assert.Equal(new[] { "a", "b" }, index.Columns.Select(c => c.Column?.Name));
     }
 
     // `KEY` is a synonym for `INDEX` in a CREATE TABLE body.
@@ -405,7 +405,7 @@ public class CreateTableTests
         var index = Assert.Single(table.Elements.OfType<IndexTableConstraint>());
 
         Assert.Equal("idx_a", index.IndexName);
-        Assert.Equal(new[] { "a" }, index.Columns.Select(c => c.Column.Name));
+        Assert.Equal(new[] { "a" }, index.Columns.Select(c => c.Column?.Name));
     }
 
     // USING may be written either before the column list or after it; MariaDB accepts both
@@ -422,7 +422,7 @@ public class CreateTableTests
         var index = Assert.Single(table.Elements.OfType<IndexTableConstraint>());
 
         Assert.Equal(expectedMethod, index.IndexMethod);
-        Assert.Equal(new[] { "a" }, index.Columns.Select(c => c.Column.Name));
+        Assert.Equal(new[] { "a" }, index.Columns.Select(c => c.Column?.Name));
     }
 
     // FULLTEXT and SPATIAL indexes are carried as an ordinary index constraint tagged with the
@@ -444,7 +444,7 @@ public class CreateTableTests
         Assert.Equal(expectedKind, index.IndexKind);
         Assert.Equal(expectedName, index.IndexName);
         Assert.Null(index.IndexMethod);
-        Assert.Equal(new[] { "a" }, index.Columns.Select(c => c.Column.Name));
+        Assert.Equal(new[] { "a" }, index.Columns.Select(c => c.Column?.Name));
     }
 
     // An ordinary index carries no kind, so the two forms stay distinguishable.
@@ -510,13 +510,13 @@ public class CreateTableTests
             table.Elements.OfType<ColumnDefinition>().Select(c => c.Name.Name));
 
         var (pk, _) = TableConstraint<PrimaryKeyTableConstraint>(table);
-        Assert.Equal(new[] { "rental_id" }, pk.Columns.Select(c => c.Name));
+        Assert.Equal(new[] { "rental_id" }, pk.Columns.Select(c => c.Column?.Name));
 
         var (unique, _) = TableConstraint<UniqueKeyTableConstraint>(table);
         Assert.Equal("idx_uq", unique.IndexName);
         Assert.Equal(
             new[] { "rental_date", "inventory_id", "customer_id" },
-            unique.Columns.Select(c => c.Name));
+            unique.Columns.Select(c => c.Column?.Name));
 
         var index = Assert.Single(table.Elements.OfType<IndexTableConstraint>());
         Assert.Equal("idx_fk_customer_id", index.IndexName);

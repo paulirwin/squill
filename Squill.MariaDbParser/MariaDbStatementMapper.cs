@@ -217,8 +217,8 @@ internal static class MariaDbStatementMapper
         Identifier? referencedColumn = null;
         if (reference.indexColumnNames() is { } columnNames)
         {
-            var columns = MapIndexColumnNames(columnNames);
-            referencedColumn = columns.Count > 0 ? columns[0].Column : null;
+            var columns = ForeignKeyColumns(columnNames);
+            referencedColumn = columns.Count > 0 ? columns[0] : null;
         }
 
         var (onDelete, onUpdate) = MapReferenceActions(reference.referenceAction());
@@ -235,14 +235,14 @@ internal static class MariaDbStatementMapper
             case MariaDBParser.PrimaryKeyTableConstraintContext pk:
             {
                 var name = ConstraintName(pk.CONSTRAINT() != null, pk.uid());
-                var columns = MapIndexColumnNames(pk.indexColumnNames()).Select(c => c.Column).ToList();
+                var columns = MapIndexColumnNames(pk.indexColumnNames());
                 return Wrap(name, At(new PrimaryKeyTableConstraint(columns), pk));
             }
 
             case MariaDBParser.UniqueKeyTableConstraintContext unique:
             {
                 var name = ConstraintName(unique.CONSTRAINT() != null, unique.uid());
-                var columns = MapIndexColumnNames(unique.indexColumnNames()).Select(c => c.Column).ToList();
+                var columns = MapIndexColumnNames(unique.indexColumnNames());
                 // The index name (if any) is the uid that is NOT the constraint name.
                 var indexName = IndexNameFromUids(unique.CONSTRAINT() != null, unique.uid());
                 return Wrap(name, At(new UniqueKeyTableConstraint(indexName, columns), unique));
@@ -251,11 +251,11 @@ internal static class MariaDbStatementMapper
             case MariaDBParser.ForeignKeyTableConstraintContext fk:
             {
                 var name = ConstraintName(fk.CONSTRAINT() != null, fk.uid());
-                var columns = MapIndexColumnNames(fk.indexColumnNames()).Select(c => c.Column).ToList();
+                var columns = ForeignKeyColumns(fk.indexColumnNames());
                 var reference = fk.referenceDefinition();
                 var referencedTable = MapQualifiedName(reference.tableName().fullId());
                 var referencedColumns = reference.indexColumnNames() is { } refCols
-                    ? MapIndexColumnNames(refCols).Select(c => c.Column).ToList()
+                    ? ForeignKeyColumns(refCols)
                     : new List<Identifier>();
                 var (onDelete, onUpdate) = MapReferenceActions(reference.referenceAction());
 
@@ -648,24 +648,55 @@ internal static class MariaDbStatementMapper
         return ReferentialAction.Restrict;
     }
 
+    /// <summary>
+    /// The column names of a FOREIGN KEY's key list. A foreign key references whole columns —
+    /// neither engine accepts a prefix length or an expression in one — so the extra facets
+    /// <see cref="MapIndexColumnNames"/> now reads (issue #161) do not apply here, and a key
+    /// that is not a plain column is skipped rather than modeled as one.
+    /// </summary>
+    private static List<Identifier> ForeignKeyColumns(MariaDBParser.IndexColumnNamesContext columnNames)
+        => MapIndexColumnNames(columnNames)
+            .Select(c => c.Column)
+            .OfType<Identifier>()
+            .ToList();
+
     private static IReadOnlyList<IndexColumn> MapIndexColumnNames(MariaDBParser.IndexColumnNamesContext columnNames)
     {
         var columns = new List<IndexColumn>();
 
         foreach (var columnName in columnNames.indexColumnName())
         {
-            if (columnName.uid() is not { } uid)
-            {
-                // An expression-based index key (or a string-literal key) is not modeled;
-                // skip it. This keeps functional-index parsing from throwing.
-                continue;
-            }
-
             bool? isAscending = columnName.ASC() != null ? true
                 : columnName.DESC() != null ? false
                 : null;
 
-            columns.Add(new IndexColumn(new Identifier(UidText(uid)), isAscending));
+            // An expression key — the `(a + b)` in `CREATE INDEX ix ON t ((a + b))` (issue
+            // #161). It names no column, so it is carried as text instead. Dropping it used to
+            // deploy an index with fewer keys than declared, silently.
+            if (columnName.uid() is not { } uid)
+            {
+                if (columnName.expression() is not { } expression)
+                {
+                    // A STRING_LITERAL key: neither a column nor an expression, and nothing in
+                    // either engine produces one from a CREATE. Skipping it is what the mapper
+                    // has always done.
+                    continue;
+                }
+
+                columns.Add(new IndexColumn(
+                    column: null, isAscending, keyExpression: SourceText(expression)));
+
+                continue;
+            }
+
+            // The `(20)` in `Brand(20)`. The grammar allows a prefix only on a uid or string
+            // key, never on an expression, so it is read only on this branch.
+            var prefixLength = columnName.decimalLiteral() is { } prefix
+                && int.TryParse(prefix.GetText(), out var length)
+                    ? length
+                    : (int?)null;
+
+            columns.Add(new IndexColumn(new Identifier(UidText(uid)), isAscending, prefixLength));
         }
 
         return columns;

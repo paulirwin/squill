@@ -679,17 +679,17 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     case PrimaryKeyTableConstraint pk:
                         CheckOwnColumns(file, line, column,
                             $"Primary key on table '{table}'", table, columns,
-                            pk.Columns.Select(c => c.Name));
+                            KeyColumnNames(pk.Columns));
 
-                        AddUniqueColumnSet(table, pk.Columns.Select(c => c.Name), isPrimaryKey: true);
+                        AddUniqueColumnSet(table, KeyColumnNames(pk.Columns), isPrimaryKey: true);
                         break;
 
                     case UniqueKeyTableConstraint unique:
                         CheckOwnColumns(file, line, column,
                             $"Unique constraint on table '{table}'", table, columns,
-                            unique.Columns.Select(c => c.Name));
+                            KeyColumnNames(unique.Columns));
 
-                        AddUniqueColumnSet(table, unique.Columns.Select(c => c.Name), isPrimaryKey: false);
+                        AddUniqueColumnSet(table, KeyColumnNames(unique.Columns), isPrimaryKey: false);
 
                         // An inline UNIQUE KEY shares the table's index-name namespace with a
                         // standalone CREATE INDEX, so it has to be registered here too.
@@ -700,7 +700,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     case IndexTableConstraint index:
                         CheckOwnColumns(file, line, column,
                             $"Index on table '{table}'", table, columns,
-                            index.Columns.Select(c => c.Column.Name));
+                            KeyColumnNames(index.Columns));
 
                         // A plain KEY/INDEX is deliberately not recorded as a unique set:
                         // MariaDB would accept it as a foreign key's backing index, but MySQL
@@ -869,7 +869,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         public void AddCreateIndex(IFile file, CreateIndexStatement createIndex)
         {
             var table = createIndex.OnTable.Name;
-            var columns = createIndex.Columns.Select(c => c.Column.Name).ToList();
+            var columns = KeyColumnNames(createIndex.Columns).ToList();
 
             AddTableReference(new TableReference(
                 file.Name, createIndex.Line, createIndex.Column,
@@ -963,7 +963,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
         var primaryKeyColumns = new List<MariaDbModelFactory.IndexedColumn>();
         var foreignKeys = new List<ForeignKeySpec>();
-        var uniqueIndexes = new List<(string? Name, IReadOnlyList<string> Columns)>();
+        var uniqueIndexes = new List<(string? Name, IReadOnlyList<IndexColumn> Columns)>();
         var checkConstraints = new List<(string Name, string Expression)>();
         var specialIndexes = new List<(string Name, string Kind, IReadOnlyList<IndexColumn> Columns)>();
 
@@ -1010,13 +1010,13 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         // the common single-unique case in scope, use the first column's name.
         foreach (var (explicitName, columns) in uniqueIndexes)
         {
-            var indexName = explicitName ?? columns[0];
+            var indexName = tableName.Sibling(explicitName ?? columns[0].Column!.Name);
 
             var indexedColumns = columns.Select(c =>
-                new MariaDbModelFactory.IndexedColumn(tableName.Child(c), IsAscending: true));
+                ToIndexedColumn(c, tableName, indexName, indexKind: null));
 
             yield return MariaDbModelFactory.CreateIndex(
-                tableName.Sibling(indexName), tableName, isUnique: true, indexMethod: "BTREE", indexedColumns);
+                indexName, tableName, isUnique: true, indexMethod: "BTREE", indexedColumns);
         }
 
         // Inline FULLTEXT/SPATIAL indexes (issue #146). These become ordinary SqlIndex elements
@@ -1024,12 +1024,13 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         // `USING FULLTEXT` is a syntax error on both engines.
         foreach (var (name, kind, columns) in specialIndexes)
         {
+            var specialIndexName = tableName.Sibling(name);
+
             var indexedColumns = columns.Select(c =>
-                new MariaDbModelFactory.IndexedColumn(
-                    tableName.Child(c.Column.Name), IndexColumnIsAscending(c, kind)));
+                ToIndexedColumn(c, tableName, specialIndexName, kind));
 
             yield return MariaDbModelFactory.CreateIndex(
-                tableName.Sibling(name), tableName, isUnique: false, indexMethod: null,
+                specialIndexName, tableName, isUnique: false, indexMethod: null,
                 indexedColumns, indexKind: kind);
         }
 
@@ -1065,7 +1066,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         SqlName tableName,
         List<MariaDbModelFactory.IndexedColumn> primaryKeyColumns,
         List<ForeignKeySpec> foreignKeys,
-        List<(string? Name, IReadOnlyList<string> Columns)> uniqueIndexes,
+        List<(string? Name, IReadOnlyList<IndexColumn> Columns)> uniqueIndexes,
         List<(string Name, string Expression)> checkConstraints,
         List<(string Name, string Kind, IReadOnlyList<IndexColumn> Columns)> specialIndexes)
     {
@@ -1080,14 +1081,16 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 case PrimaryKeyTableConstraint pk:
                     foreach (var column in pk.Columns)
                     {
-                        primaryKeyColumns.Add(new MariaDbModelFactory.IndexedColumn(tableName.Child(column.Name)));
+                        // A PK key is always a plain column with an optional prefix length; the
+                        // catalog reports no direction for one, so none is modeled (issue #161).
+                        primaryKeyColumns.Add(new MariaDbModelFactory.IndexedColumn(
+                            tableName.Child(column.Column!.Name),
+                            PrefixLength: column.PrefixLength));
                     }
                     break;
 
                 case UniqueKeyTableConstraint unique:
-                    uniqueIndexes.Add((
-                        explicitName ?? unique.IndexName,
-                        unique.Columns.Select(c => c.Name).ToList()));
+                    uniqueIndexes.Add((explicitName ?? unique.IndexName, unique.Columns));
                     break;
 
                 case ForeignKeyTableConstraint fk:
@@ -1124,7 +1127,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         CreateTableStatement createTable,
         List<MariaDbModelFactory.IndexedColumn> primaryKeyColumns,
         List<ForeignKeySpec> foreignKeys,
-        List<(string? Name, IReadOnlyList<string> Columns)> uniqueIndexes,
+        List<(string? Name, IReadOnlyList<IndexColumn> Columns)> uniqueIndexes,
         List<(string Name, string Expression)> checkConstraints)
     {
         var columns = new Relationship(MariaDbRelationshipNames.Columns);
@@ -1165,7 +1168,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         break;
 
                     case UniqueKeyColumnConstraint:
-                        uniqueIndexes.Add((null, new[] { columnDefinition.Name.Name }));
+                        // An inline UNIQUE names its own column and can carry neither a prefix
+                        // length nor an expression, so the key is the bare column.
+                        uniqueIndexes.Add((null, new[]
+                        {
+                            new IndexColumn(columnDefinition.Name, isAscending: null)
+                        }));
                         break;
 
                     case AutoIncrementColumnConstraint:
@@ -1324,6 +1332,39 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     private static bool? IndexColumnIsAscending(IndexColumn column, string? indexKind)
         => indexKind == "FULLTEXT" ? null : column.IsAscending ?? true;
 
+    /// <summary>
+    /// The names of the key columns that reference a column of the table, for the validation
+    /// that every key names one of the table's own columns.
+    ///
+    /// A functional key names no column (issue #161), so it contributes nothing here — the
+    /// columns it mentions live inside the expression, which is carried verbatim rather than
+    /// resolved.
+    /// </summary>
+    private static IEnumerable<string> KeyColumnNames(IEnumerable<IndexColumn> columns)
+        => columns.Select(c => c.Column?.Name).OfType<string>();
+
+    /// <summary>
+    /// One parsed index key as the model records it (issue #161): the column reference (or, for
+    /// a functional key, the expression that replaces it), plus the sort direction and any
+    /// declared prefix length.
+    ///
+    /// <para>
+    /// An expression key names no column, so it takes <paramref name="ownerName"/> as its
+    /// identity — matching the Postgres provider, whose expression keys are shaped the same way.
+    /// </para>
+    /// </summary>
+    private static MariaDbModelFactory.IndexedColumn ToIndexedColumn(
+        IndexColumn column, SqlName tableName, SqlName ownerName, string? indexKind)
+        => column.KeyExpression is { } keyExpression
+            ? new MariaDbModelFactory.IndexedColumn(
+                ownerName,
+                IndexColumnIsAscending(column, indexKind),
+                KeyExpression: keyExpression)
+            : new MariaDbModelFactory.IndexedColumn(
+                tableName.Child(column.Column!.Name),
+                IndexColumnIsAscending(column, indexKind),
+                column.PrefixLength);
+
     private static Element MakeCreateIndexElement(CreateIndexStatement createIndex)
     {
         if (createIndex.Name is null)
@@ -1343,9 +1384,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             : createIndex.IndexMethod ?? "BTREE";
 
         var columns = createIndex.Columns.Select(c =>
-            new MariaDbModelFactory.IndexedColumn(
-                tableName.Child(c.Column.Name),
-                IndexColumnIsAscending(c, createIndex.IndexKind)));
+            ToIndexedColumn(c, tableName, indexName, createIndex.IndexKind));
 
         return MariaDbModelFactory.CreateIndex(
             indexName, tableName, createIndex.Unique, indexMethod, columns,
