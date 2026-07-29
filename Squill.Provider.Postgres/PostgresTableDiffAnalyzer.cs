@@ -22,8 +22,45 @@ public class PostgresTableDiffAnalyzer : TableDiffAnalyzerBase
     // work.)
     protected override bool ColumnChangeRequiresRebuild(Element source, Element target, out string reason)
     {
-        reason = "changed its identity definition";
-        return IdentityDiffers(source, target);
+        if (IdentityDiffers(source, target))
+        {
+            reason = "changed its identity definition";
+            return true;
+        }
+
+        // A generated column whose expression was redefined (issue #156). The ALTER path emits
+        // only TYPE and nullability clauses, so it would produce nothing at all for this — the
+        // change would be dropped silently. A rebuild recreates the column with the declared
+        // expression, which also recomputes every existing row.
+        //
+        // PostgreSQL 17 added ALTER COLUMN ... SET EXPRESSION AS, which would do this in place;
+        // it is a syntax error on the older majors Squill still supports (see
+        // PostgresqlDatabaseSchemaProvider.SupportsSetExpression), and a rebuild reaches the same
+        // end state on every one of them.
+        if (GenerationDiffers(source, target))
+        {
+            reason = "changed its generation expression";
+            return true;
+        }
+
+        reason = string.Empty;
+        return false;
+    }
+
+    private static bool GenerationDiffers(Element source, Element target)
+    {
+        // The canonical forms are what compare: the raw expressions are spelled differently by
+        // the source and the catalog even when they mean the same thing. When either has no
+        // canonical form the expression is not comparable at all, so no rebuild is claimed —
+        // matching the identity rule, which leaves such an expression out of the hash.
+        var sourceExpression =
+            source.GetProperty<string>(PostgresPropertyNames.NormalizedGeneratedExpression);
+        var targetExpression =
+            target.GetProperty<string>(PostgresPropertyNames.NormalizedGeneratedExpression);
+
+        return sourceExpression is not null
+            && targetExpression is not null
+            && !string.Equals(sourceExpression, targetExpression, StringComparison.Ordinal);
     }
 
     private static bool IdentityDiffers(Element source, Element target)

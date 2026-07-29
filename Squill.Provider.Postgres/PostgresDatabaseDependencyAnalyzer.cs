@@ -274,6 +274,10 @@ public class PostgresDatabaseDependencyAnalyzer : DatabaseDependencyAnalyzerBase
         // look different. Backfill the target's version onto a copy so an unmanaged extension
         // hash-matches. A source that DOES pin a version keeps it, so a version difference is
         // preserved and surfaces as an ALTER.
+        // The universal rule first: a canonical expression only counts when both sides have one
+        // (issue #156).
+        source = DropOneSidedNormalizedExpressions(source, target);
+
         if (source.Type != PostgresElementTypes.SqlExtension
             || target.Type != PostgresElementTypes.SqlExtension)
         {

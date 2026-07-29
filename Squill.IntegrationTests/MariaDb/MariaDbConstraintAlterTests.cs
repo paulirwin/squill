@@ -325,23 +325,18 @@ public abstract class MariaDbConstraintAlterTests
     /// Redefining a CHECK predicate under the SAME constraint name must reconcile, so the
     /// declared predicate is the one left in force.
     ///
-    /// The cause is <c>DatabaseDependencyAnalyzerBase.ParticipatesInIdentity</c> returning
-    /// false for <c>(SqlCheckConstraint, CheckExpression)</c>: the predicate is excluded from
-    /// the hash on purpose, because both engines rewrite a stored predicate and a declared one
-    /// could therefore never hash-match what is read back (issue #120). The consequence is
-    /// that a constraint's identity is only its name and table, so a changed predicate is
-    /// invisible to <see cref="SchemaCompare"/>.
+    /// The predicate's raw text is still excluded from the hash — both engines rewrite a stored
+    /// predicate, so a declared one could never hash-match what is read back (issue #120). What
+    /// makes this work is the canonical form carried alongside it, which does take part in
+    /// identity (issue #156), so a constraint is identified by its name, table AND predicate.
     ///
-    /// This gap also MASKS a second one: if a <see cref="RecreateDelta"/> for a
-    /// SqlCheckConstraint were ever produced, <c>MariaDbScriptGenerator.GenerateRecreateScript</c>
-    /// would throw <see cref="NotImplementedException"/> — it handles procedures, functions,
-    /// views, triggers, events and indexes, and nothing else. Only one of the two is
-    /// observable at a time; fixing the identity rule would expose the generator.
+    /// Two defects had to be fixed together here, because the first masked the second: while the
+    /// predicate was invisible to <see cref="SchemaCompare"/> no <see cref="RecreateDelta"/> for
+    /// a SqlCheckConstraint was ever produced, so
+    /// <c>MariaDbScriptGenerator.GenerateRecreateScript</c> throwing
+    /// <see cref="NotImplementedException"/> for one could not be observed.
     /// </summary>
-    [Fact(Skip = "Blocked by issue #156: CheckExpression is excluded from the identity hash, so "
-                 + "the two sources hash-equal and the tightened predicate is never deployed. "
-                 + "Fixing it will also expose a NotImplementedException in "
-                 + "MariaDbScriptGenerator.GenerateRecreateScript for a SqlCheckConstraint.")]
+    [Fact]
     public async Task ChangeCheckPredicate_IsApplied()
     {
         const string loose =

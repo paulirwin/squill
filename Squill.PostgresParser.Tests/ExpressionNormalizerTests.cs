@@ -61,12 +61,18 @@ public class ExpressionNormalizerTests
         "((price >= (1)::numeric) AND (price <= (5)::numeric))")]
     [InlineData("price NOT BETWEEN 1 AND 5",
         "((price < (1)::numeric) OR (price > (5)::numeric))")]
+    // A signed numeric constant is stored as a QUOTED literal carrying the sign.
+    [InlineData("x > -1", "(x > '-1'::integer)")]
+    [InlineData("x > -1.5", "(x > '-1.5'::numeric)")]
     // Nesting and precedence.
     [InlineData("price > 0 AND quantity > 0 OR flag",
         "(((price > (0)::numeric) AND (quantity > 0)) OR flag)")]
-    // A cast written in the SOURCE is not engine noise and must survive normalization, so it
-    // still distinguishes two genuinely different predicates.
+    // A cast on a column is erased, because PostgreSQL stores a written one and an inferred one
+    // identically: a declared `quantity::numeric > 0` and the widening it infers for
+    // `price * quantity` both come back as `(quantity)::numeric`. Since the engine cannot tell
+    // them apart, neither can a canonical form built from what it reports.
     [InlineData("price::integer > 0", "((price)::integer > 0)")]
+    [InlineData("price * quantity", "(price * (quantity)::numeric)")]
     public void DeclaredAndExtracted_NormalizeToTheSameToken(string declared, string extracted)
     {
         var declaredCanonical = Normalize(declared);
@@ -126,10 +132,17 @@ public class ExpressionNormalizerTests
     /// as a four-way disjunction covering both bound orderings. Rather than encode that from
     /// one measurement, the normalizer refuses it.
     /// </remarks>
-    [Fact]
-    public void UnnormalizableExpression_ReportsFailure()
+    [Theory]
+    [InlineData("price BETWEEN SYMMETRIC 5 AND 1")]
+    // A LIKE with an ESCAPE is stored as a call to the internal like_escape() function
+    // (`code ~~ like_escape('%!%%'::text, '!'::text)`) rather than the LIKE … ESCAPE spelling.
+    // Encoding that would be guessing at an implementation detail, so it is refused (issue #171).
+    [InlineData("code LIKE '%!%%' ESCAPE '!'")]
+    // COLLATE has no measured canonical form.
+    [InlineData("code COLLATE \"C\" > 'a'")]
+    public void UnnormalizableExpression_ReportsFailure(string predicate)
     {
-        Assert.Null(Normalize("price BETWEEN SYMMETRIC 5 AND 1"));
+        Assert.Null(Normalize(predicate));
     }
 
     /// <summary>

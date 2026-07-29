@@ -72,8 +72,10 @@ public abstract class TableDiffAnalyzerBase : ITableDiffAnalyzer
                 continue;
             }
 
-            // Both sides have the column; if its definition differs, alter it.
-            if (!HashUtility.HashesEqual(column.Hash, targetColumn.Hash))
+            // Both sides have the column; if its definition differs, alter it. Compared through
+            // the normalizing helper so a generation expression only one side could canonicalize
+            // does not read as a change (issue #156).
+            if (!ElementComparison.AreEquivalent(DependencyAnalyzer, column, targetColumn))
             {
                 // A change the ALTER path's TYPE + nullability clauses can't express (identity
                 // on Postgres, auto-increment on MariaDB) is applied by a rebuild instead of

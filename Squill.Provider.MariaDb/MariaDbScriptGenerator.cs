@@ -376,6 +376,26 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
             return DropEventStatement(source) + GenerateCreateEventScript(source);
         }
 
+        // A CHECK constraint whose predicate was redefined under the same name (issue #156).
+        // Neither engine can alter a predicate in place, so the constraint is dropped and re-added
+        // in one ALTER TABLE. Dropping first means the new predicate is validated against the
+        // existing rows, so a tightened predicate that the data violates fails the deploy rather
+        // than silently leaving the old one in force.
+        if (source.Type == MariaDbElementTypes.SqlCheckConstraint)
+        {
+            if (recreateDelta.TargetElement.Name is not string existingName)
+            {
+                throw new ArgumentException("Cannot drop a check constraint without a name");
+            }
+
+            var table = ConstraintTableName(source);
+
+            return $"ALTER TABLE {table} DROP CONSTRAINT "
+                + $"{SqlName.Parse(existingName).QuotedUnqualified};{Environment.NewLine}"
+                + $"ALTER TABLE {table} ADD {GetCheckConstraintClause(source)};"
+                + Environment.NewLine;
+        }
+
         if (source.Type != MariaDbElementTypes.SqlIndex)
         {
             throw new NotImplementedException(

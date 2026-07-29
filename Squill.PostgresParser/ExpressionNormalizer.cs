@@ -162,23 +162,37 @@ public static class ExpressionNormalizer
         }
     }
 
-    // A cast onto a LITERAL is erased; a cast onto anything else is kept.
+    // A cast is erased when it wraps a plain operand — a literal or a column reference.
     //
-    // PostgreSQL types every literal in a predicate against the column it is compared with and
-    // reports the result, so the cast says nothing the source chose: measured on a live server,
-    // `name <> ''` and `name <> ''::text` are BOTH stored as `name <> ''::text`, and `price > 0`
-    // as `price > (0)::numeric` (numeric literals additionally get parenthesized). Erasing it
-    // makes the declared and extracted spellings converge, and — because the two source
-    // spellings are indistinguishable once stored — loses nothing.
+    // PostgreSQL types every operand against what it is combined with and reports the result, so
+    // such a cast says nothing the source chose. Measured on a live server: `name <> ''` and
+    // `name <> ''::text` are BOTH stored as `name <> ''::text`; `price > 0` as
+    // `price > (0)::numeric`; and, where a column needs widening, `price * quantity` as
+    // `price * (quantity)::numeric`.
     //
-    // A cast onto anything else IS the source's own: `price::integer > 0` differs from
-    // `price > 0` and must stay distinct, so it is preserved.
+    // Crucially the engine does not distinguish an inferred cast from a written one: a declared
+    // `quantity::numeric > 0` and an inferred widening both come back as `(quantity)::numeric`.
+    // Since the two are indistinguishable once stored, treating them as equal loses nothing that
+    // could survive a round trip — whereas keeping them apart would make an unchanged expression
+    // re-diff forever.
+    //
+    // A cast wrapping anything more complex (a call, an operator expression) is left in place:
+    // it has not been measured to be inferable, so it is treated as meaningful.
     private static bool WriteTypecast(StringBuilder sb, TypecastExpression typecast)
     {
-        if (Unwrap(typecast.Expression) is LiteralExpression literal)
+        switch (Unwrap(typecast.Expression))
         {
-            sb.Append(literal.Text);
-            return true;
+            // A negative numeric constant is stored as a QUOTED literal carrying the sign
+            // (`x > -1` comes back as `x > '-1'::integer`), so the quotes are stripped when what
+            // they wrap is a number. Otherwise a declared -1 and the extracted '-1' would never
+            // agree. A genuine string literal keeps its quotes, so '1' stays distinct from 1.
+            case LiteralExpression literal:
+                sb.Append(UnquoteNumeric(literal.Text));
+                return true;
+
+            case ColumnReferenceExpression column:
+                sb.Append(column.Identifier.Name);
+                return true;
         }
 
         if (!Write(sb, typecast.Expression))
@@ -188,6 +202,25 @@ public static class ExpressionNormalizer
 
         sb.Append("::").Append(typecast.DataType.TypeName);
         return true;
+    }
+
+    // Drops the quotes around a literal that is really a number. PostgreSQL renders a signed
+    // numeric constant as a quoted string with a cast (`'-1'::integer`), so without this a
+    // declared `-1` and the same constant read back would never agree. Anything that is not a
+    // number keeps its quotes, so the string '1' stays distinct from the number 1.
+    private static string UnquoteNumeric(string text)
+    {
+        if (text.Length < 2 || text[0] != '\'' || text[^1] != '\'')
+        {
+            return text;
+        }
+
+        var inner = text[1..^1];
+
+        return decimal.TryParse(inner, System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out _)
+            ? inner
+            : text;
     }
 
     // Strips the grouping parentheses PostgreSQL adds around a cast operand, so the operand can
@@ -241,24 +274,17 @@ public static class ExpressionNormalizer
 
     private static bool WriteLike(StringBuilder sb, LikeExpression like)
     {
-        if (!WriteBinary(sb, like.Left, like.Operator, like.Right, closeParen: like.Escape is null))
+        // A LIKE with an ESCAPE is stored as a call to the internal like_escape() function
+        // (`code ~~ like_escape('%!%%'::text, '!'::text)`), not as the LIKE … ESCAPE spelling.
+        // Rendering that call here would be encoding an implementation detail from a single
+        // measurement, so the expression is refused and falls back to not participating in
+        // identity — see issue #171.
+        if (like.Escape is not null)
         {
             return false;
         }
 
-        if (like.Escape is not { } escape)
-        {
-            return true;
-        }
-
-        sb.Append(" ESCAPE ");
-        if (!Write(sb, escape))
-        {
-            return false;
-        }
-
-        sb.Append(')');
-        return true;
+        return WriteBinary(sb, like.Left, like.Operator, like.Right);
     }
 
     private static bool WriteBinary(
@@ -364,10 +390,21 @@ public static class ExpressionNormalizer
     {
         if (PrefixOperatorText(unary.Operator) is { } prefix)
         {
+            // A sign applied to a numeric constant folds into the constant, because that is how
+            // PostgreSQL stores it: `x > -1` comes back as `x > '-1'::integer`, one signed
+            // literal rather than a negation of 1. Emitting it as a signed literal is what makes
+            // the declared and extracted spellings agree.
+            if (prefix is "-" or "+" && Unwrap(unary.Expression) is LiteralExpression literal)
+            {
+                var text = UnquoteNumeric(literal.Text);
+
+                sb.Append(prefix == "-" && !text.StartsWith('-') ? $"-{text}" : text);
+                return true;
+            }
+
             sb.Append('(').Append(prefix);
 
-            // A word operator needs a separator; a sign must abut its operand so `- 1` and `-1`
-            // agree.
+            // A word operator needs a separator; a sign must abut its operand.
             if (prefix == "NOT")
             {
                 sb.Append(' ');

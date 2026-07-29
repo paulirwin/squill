@@ -45,8 +45,68 @@ public abstract class DatabaseDependencyAnalyzerBase : IDatabaseDependencyAnalyz
     // Not schema-scoped by default (Postgres overrides).
     public virtual string? GetElementSchema(Element element) => null;
 
-    // No extension version to normalize by default (Postgres overrides).
-    public virtual Element NormalizeForComparison(Element source, Element target) => source;
+    // Beyond the engine-specific normalization a provider adds, one rule is universal: a
+    // canonical expression only counts when BOTH sides have one (issue #156).
+    public virtual Element NormalizeForComparison(Element source, Element target)
+        => DropOneSidedNormalizedExpressions(source, target);
+
+    /// <summary>
+    /// Removes a normalized-expression property from the source when the target has no
+    /// counterpart (or vice versa), so an expression only one side could canonicalize does not
+    /// read as a change.
+    ///
+    /// The normalizer refuses anything with no measured canonical form, and the two sides are
+    /// spelled differently — the source as written, the target as the catalog reports it — so one
+    /// can succeed where the other fails. <c>LIKE … ESCAPE</c> is the measured case: the declared
+    /// form is refused, while the extracted form parses as a plain operator and normalizes fine.
+    /// Left alone, the element would differ purely because one side carries an extra property,
+    /// producing a delta on every deploy for an expression that never changed.
+    ///
+    /// Dropping the property falls back to the pre-#156 behaviour for that one expression: a
+    /// redefinition of it is missed, rather than an unchanged one redeploying forever.
+    ///
+    /// Only the source can be rewritten here, so the rule is expressed as "keep a normalized
+    /// property only when the target has the same one". That covers both directions: a property
+    /// the source alone has is dropped outright, and one the target alone has cannot contribute
+    /// to the source's hash anyway — but the target's extra property WOULD still differ, so the
+    /// comparison also has to hash the target without it. <see cref="NormalizedForComparison"/>
+    /// is what callers use to get that matched pair.
+    /// </summary>
+    protected static Element DropOneSidedNormalizedExpressions(Element source, Element target)
+    {
+        var unmatched = source.Properties
+            .Where(property => IsNormalizedExpression(property.Name)
+                && !target.Properties.Any(other => other.Name == property.Name))
+            .ToList();
+
+        if (unmatched.Count == 0)
+        {
+            return source;
+        }
+
+        var copy = new Element(source.Type) { Name = source.Name };
+
+        foreach (var relationship in source.Relationships)
+        {
+            copy.Relationships.Add(relationship);
+        }
+
+        foreach (var property in source.Properties.Except(unmatched))
+        {
+            copy.Properties.Add(property);
+        }
+
+        foreach (var annotation in source.Annotations)
+        {
+            copy.Annotations.Add(annotation);
+        }
+
+        return copy;
+    }
+
+    private static bool IsNormalizedExpression(string propertyName)
+        => propertyName is SqlPropertyNames.NormalizedCheckExpression
+            or SqlPropertyNames.NormalizedGeneratedExpression;
 
     // No in-place alteration beyond the generic handling by default (Postgres overrides for
     // enums and domains, which cannot be dropped while a column uses them — issue #122).

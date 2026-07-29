@@ -8,4 +8,7 @@ namespace Squill.Provider.Postgres;
 public sealed class Postgresql18DatabaseSchemaProvider : PostgresqlDatabaseSchemaProvider
 {
     public override int MajorVersion => 18;
+
+    // SET EXPRESSION arrived in PostgreSQL 17.
+    public override bool SupportsSetExpression => true;
 }

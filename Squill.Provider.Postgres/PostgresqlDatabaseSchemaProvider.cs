@@ -12,4 +12,15 @@ namespace Squill.Provider.Postgres;
 public abstract class PostgresqlDatabaseSchemaProvider : DatabaseSchemaProvider
 {
     public override string ProviderName => "Postgresql";
+
+    /// <summary>
+    /// Whether <c>ALTER TABLE … ALTER COLUMN … SET EXPRESSION AS (…)</c> is available, which
+    /// redefines a generated column's expression and recomputes the stored rows in one statement
+    /// (issue #156).
+    ///
+    /// Measured: accepted on <c>postgres:18</c>, and a <em>syntax error</em> on
+    /// <c>postgres:16</c> — not merely an unsupported option — so a build targeting an older
+    /// major must reach the same end state by rebuilding the column instead.
+    /// </summary>
+    public abstract bool SupportsSetExpression { get; }
 }

@@ -36,10 +36,10 @@ public class SchemaCompare
                 // extension's installed version) does not read as a spurious change.
                 var normalizedSource = analyzer.NormalizeForComparison(sourceElement, targetElement);
 
-                // The element exists in both models. If their hashes match, it is
-                // unchanged and needs no delta; otherwise produce an ALTER (or, when an
-                // in-place ALTER can't express the change, a table rebuild).
-                if (HashUtility.HashesEqual(normalizedSource.Hash, targetElement.Hash))
+                // The element exists in both models. If they are equivalent it is unchanged and
+                // needs no delta; otherwise produce an ALTER (or, when an in-place ALTER can't
+                // express the change, a table rebuild).
+                if (ElementComparison.AreEquivalent(analyzer, sourceElement, targetElement))
                 {
                     continue;
                 }
@@ -149,7 +149,10 @@ public class SchemaCompare
                 continue;
             }
 
-            if (HashUtility.HashesEqual(sourceElement.Hash, targetElement.Hash))
+            // Normalized both ways, so a facet only one side can express — a CHECK predicate the
+            // target could canonicalize but the source could not, or the reverse — does not read
+            // as a change (issue #156).
+            if (ElementComparison.AreEquivalent(analyzer, sourceElement, targetElement))
             {
                 continue;
             }
