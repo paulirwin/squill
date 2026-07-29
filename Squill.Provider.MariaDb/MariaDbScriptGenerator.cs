@@ -44,12 +44,17 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
             return GenerateCreateIndexScript(createDelta.Element, IndexTableName(createDelta.Element));
         }
 
-        // A CHECK constraint added to a table that already exists: there is no CREATE TABLE
-        // to carry the clause, so it is added with ALTER TABLE (issue #120).
-        if (createDelta.Element.Type == MariaDbElementTypes.SqlCheckConstraint)
+        // A constraint added to a table that already exists: there is no CREATE TABLE to carry
+        // the clause, so it is added with ALTER TABLE. This covers CHECK constraints
+        // (issue #120) as well as primary and foreign keys (issue #157).
+        //
+        // The engine validates the new constraint against the rows already in the table, so a
+        // duplicate in a new key's columns, or an orphan row a new foreign key forbids, fails
+        // the deploy rather than being quietly accepted.
+        if (ConstraintClause(createDelta.Element) is { } constraintClause)
         {
             return $"ALTER TABLE {ConstraintTableName(createDelta.Element)} "
-                + $"ADD {GetCheckConstraintClause(createDelta.Element)};{Environment.NewLine}";
+                + $"ADD {constraintClause};{Environment.NewLine}";
         }
 
         if (createDelta.Element.Type == MariaDbElementTypes.SqlProcedure)
@@ -376,23 +381,24 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
             return DropEventStatement(source) + GenerateCreateEventScript(source);
         }
 
-        // A CHECK constraint whose predicate was redefined under the same name (issue #156).
-        // Neither engine can alter a predicate in place, so the constraint is dropped and re-added
-        // in one ALTER TABLE. Dropping first means the new predicate is validated against the
-        // existing rows, so a tightened predicate that the data violates fails the deploy rather
-        // than silently leaving the old one in force.
-        if (source.Type == MariaDbElementTypes.SqlCheckConstraint)
+        // A constraint redefined under the same name: a CHECK whose predicate changed
+        // (issue #156), or a primary or foreign key whose columns or referential actions
+        // changed (issue #157). Neither engine can alter any of them in place, so each is
+        // dropped and re-added.
+        //
+        // Dropping first is required rather than merely tidy for a primary key — a table may
+        // only have one, so adding the new one before removing the old would be rejected — and
+        // it is what makes the re-add validate against the existing rows, so a tightened
+        // constraint the data violates fails the deploy instead of silently leaving the old one
+        // in force.
+        if (ConstraintClause(source) is { } constraintClause)
         {
-            if (recreateDelta.TargetElement.Name is not string existingName)
-            {
-                throw new ArgumentException("Cannot drop a check constraint without a name");
-            }
+            var drop = DropConstraintStatement(recreateDelta.TargetElement)
+                ?? throw new ArgumentException(
+                    $"Cannot drop a {source.Type} to recreate it: it has no name.");
 
-            var table = ConstraintTableName(source);
-
-            return $"ALTER TABLE {table} DROP CONSTRAINT "
-                + $"{SqlName.Parse(existingName).QuotedUnqualified};{Environment.NewLine}"
-                + $"ALTER TABLE {table} ADD {GetCheckConstraintClause(source)};"
+            return drop
+                + $"ALTER TABLE {ConstraintTableName(source)} ADD {constraintClause};"
                 + Environment.NewLine;
         }
 
@@ -426,6 +432,15 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
     {
         var element = dropDelta.Element;
 
+        // A constraint belongs to its table and is dropped through it. Each kind has its own
+        // spelling on these engines, so the statement comes from DropConstraintStatement — and
+        // a primary key is handled before the name check below, since it has no usable name of
+        // its own (issue #157).
+        if (DropConstraintStatement(element) is { } dropConstraint)
+        {
+            return dropConstraint;
+        }
+
         if (element.Name is not string name)
         {
             throw new ArgumentException("Cannot drop an object without a name");
@@ -440,11 +455,6 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
 
             MariaDbElementTypes.SqlIndex =>
                 $"DROP INDEX {parsed.QuotedUnqualified} ON {IndexTableName(element)};{Environment.NewLine}",
-
-            // A CHECK constraint belongs to its table, so it is dropped through it.
-            MariaDbElementTypes.SqlCheckConstraint =>
-                $"ALTER TABLE {ConstraintTableName(element)} DROP CONSTRAINT "
-                + $"{parsed.QuotedUnqualified};{Environment.NewLine}",
 
             // Neither engine allows overloading, so the name alone identifies the procedure
             // — no argument signature is needed, unlike PostgreSQL.
@@ -943,6 +953,77 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
                 $"Constraint {constraint.Name} has no defining-table reference");
 
         return SqlName.Parse(reference.Name).Sql;
+    }
+
+    // The ADD-able clause for a table constraint, or null when the element is not one. Lets
+    // the create and recreate paths dispatch on constraint-ness once rather than repeating the
+    // same type test. A unique constraint is absent deliberately: this provider models one as a
+    // unique SqlIndex, never as a SqlUniqueConstraint.
+    private string? ConstraintClause(Element element) => element.Type switch
+    {
+        MariaDbElementTypes.SqlPrimaryKeyConstraint => GetPrimaryKeyClause(element),
+        MariaDbElementTypes.SqlForeignKeyConstraint => GetForeignKeyClause(element),
+        MariaDbElementTypes.SqlCheckConstraint => GetCheckConstraintClause(element),
+        _ => null,
+    };
+
+    // PRIMARY KEY (`col`, ...), for a primary key written into a CREATE TABLE body or added to
+    // an existing table by ALTER TABLE (issue #157).
+    //
+    // No CONSTRAINT name is emitted: both engines name the primary key `PRIMARY` regardless of
+    // what the source calls it, so writing a name would be silently discarded — and would then
+    // read back differently from what was declared.
+    private static string GetPrimaryKeyClause(Element primaryKey)
+    {
+        var columns = RelationshipHelpers.GetKeyColumns(primaryKey);
+
+        if (columns.Count == 0)
+        {
+            throw new InvalidOperationException($"Primary key '{primaryKey.Name}' has no columns");
+        }
+
+        var columnList = string.Join(", ", columns.Select(c => $"`{SqlName.UnqualifiedOf(c)}`"));
+
+        return $"PRIMARY KEY ({columnList})";
+    }
+
+    // The statement that removes a constraint from its table. Each kind has its own spelling on
+    // these engines, unlike PostgreSQL's uniform DROP CONSTRAINT (issue #157):
+    //
+    //  * A primary key is dropped by keyword, with no name — the engine calls every one
+    //    `PRIMARY`, so there is nothing else to name it by.
+    //  * A foreign key needs DROP FOREIGN KEY. Plain DROP CONSTRAINT does exist on current
+    //    MariaDB and MySQL, but DROP FOREIGN KEY is the spelling both have always accepted.
+    //  * A CHECK is dropped with DROP CONSTRAINT, which is what MariaDB requires for one.
+    //
+    // Returns null for anything that is not a constraint.
+    private static string? DropConstraintStatement(Element constraint)
+    {
+        if (constraint.Type == MariaDbElementTypes.SqlPrimaryKeyConstraint)
+        {
+            return $"ALTER TABLE {ConstraintTableName(constraint)} DROP PRIMARY KEY;"
+                + Environment.NewLine;
+        }
+
+        if (constraint.Name is not string name)
+        {
+            return null;
+        }
+
+        var quotedName = SqlName.Parse(name).QuotedUnqualified;
+
+        return constraint.Type switch
+        {
+            MariaDbElementTypes.SqlForeignKeyConstraint =>
+                $"ALTER TABLE {ConstraintTableName(constraint)} DROP FOREIGN KEY {quotedName};"
+                + Environment.NewLine,
+
+            MariaDbElementTypes.SqlCheckConstraint =>
+                $"ALTER TABLE {ConstraintTableName(constraint)} DROP CONSTRAINT {quotedName};"
+                + Environment.NewLine,
+
+            _ => null,
+        };
     }
 
     // CONSTRAINT `name` CHECK (predicate), for a CHECK constraint written into a

@@ -239,15 +239,13 @@ WHERE table_name = 'people' AND column_name = 'id';
     /// drop it from the database.
     /// </summary>
     /// <remarks>
-    /// <c>SchemaCompare.AddDropDeltas</c> skips dependent constraints that are not droppable
-    /// standalone dependents, and a foreign key is one of those — a PK/FK is only reconciled
-    /// through its table, and dropping the FK does not change the table's hash, so no delta is
-    /// produced. This is the drop direction of the same defect the add direction hits; it at
-    /// least fails safe.
+    /// This is the drop direction of issue #157. <c>SchemaCompare.AddDropDeltas</c> used to skip
+    /// dependent constraints that were not droppable standalone dependents, and a foreign key
+    /// was one of those, so dropping it — which does not change its table's hash — produced no
+    /// delta and the constraint stayed in the database enforcing a relationship the source no
+    /// longer declared. It failed safe, unlike the add direction, but had the same root cause.
     /// </remarks>
-    [Fact(Skip = "Blocked by issue #157: SchemaCompare skips dependent elements on an otherwise "
-                 + "unchanged table, so dropping a FOREIGN KEY produces no delta and it stays "
-                 + "in the database enforcing a relationship the source no longer declares.")]
+    [Fact]
     public async Task DropForeignKey_AsTheOnlyChange_DropsTheConstraint()
     {
         var ct = TestContext.Current.CancellationToken;

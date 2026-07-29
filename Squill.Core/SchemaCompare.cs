@@ -103,12 +103,17 @@ public class SchemaCompare
         return comparison;
     }
 
-    // Reconciles the droppable standalone dependents (indexes and unique constraints) that
-    // the main loop skips because they are dependents, and whose change does not alter their
-    // table's hash — so without this pass a change to one alone would be lost. Present in
-    // both models but differing yields a RecreateDelta; present only in the source, on a
-    // table that already exists, yields a CreateDelta. Neither holds data, so this is never
-    // gated by a data-loss option.
+    // Reconciles the standalone dependents (indexes, and the constraints — unique, CHECK,
+    // primary key, foreign key) that the main loop skips because they are dependents, and whose
+    // change does not alter their table's hash — so without this pass a change to one alone
+    // would be lost. Present in both models but differing yields a RecreateDelta; present only
+    // in the source, on a table that already exists, yields a CreateDelta. None holds data, so
+    // this is never gated by a data-loss option.
+    //
+    // This runs BEFORE OrderDeltas, which is what makes the coveredByTable check below correct
+    // for a circular foreign key: the constraint closing a cycle is still in its table's
+    // DependentElements at this point and is only moved out into a deferred AddConstraintDelta
+    // later, so it is seen as covered here and does not also get a CreateDelta of its own.
     private static void AddRecreateDeltas(
         SchemaComparison comparison, IDatabaseDependencyAnalyzer analyzer, Model source, Model target)
     {
@@ -162,22 +167,42 @@ public class SchemaCompare
     }
 
     // Adds a DropDelta for each droppable target element that has no counterpart in the
-    // source. Covers top-level objects (tables, extensions) and standalone indexes. A
-    // dependent whose parent table is also being dropped is not dropped on its own — it
-    // goes away with the table's DROP ... CASCADE. Reconciling a standalone constraint
-    // (PK/FK) change is out of scope here.
+    // source. Covers top-level objects (tables, extensions) and every standalone dependent —
+    // indexes and constraints alike, including the primary and foreign keys that were formerly
+    // skipped here and so silently outlived their removal from the source (issue #157).
+    //
+    // A dependent whose table is being dropped too is left alone: the table's DROP takes it
+    // along, so dropping it separately would be a redundant statement against an object that is
+    // about to disappear.
     private static void AddDropDeltas(
         SchemaComparison comparison, IDatabaseDependencyAnalyzer analyzer, Model source, Model target)
     {
+        // The tables going away in this deploy, by name, so a dependent can tell whether its
+        // own table outlives it.
+        var droppedTables = target.Elements
+            .Where(i => analyzer.IsTableElementType(i.Type)
+                && i.Name is not null
+                && !source.Elements.Any(j => ElementsMatch(analyzer, j, i)))
+            .Select(i => (string)i.Name!)
+            .ToHashSet(StringComparer.Ordinal);
+
         foreach (var targetElement in target.Elements)
         {
-            // Skip dependent constraints (PK/FK); their lifecycle follows their table or a
-            // (not-yet-supported) constraint ALTER. Indexes are the one dependent type we
-            // drop standalone, so they fall through to the existence check below.
-            if (analyzer.IsDependentElementType(targetElement.Type)
-                && !analyzer.IsDroppableStandaloneDependent(targetElement.Type))
+            if (analyzer.IsDependentElementType(targetElement.Type))
             {
-                continue;
+                // A dependent type a provider does not reconcile standalone still follows its
+                // table. Nothing declares itself that way today, but the seam is what a
+                // provider would use to opt one out.
+                if (!analyzer.IsDroppableStandaloneDependent(targetElement.Type))
+                {
+                    continue;
+                }
+
+                if (GetOwningTableName(targetElement) is { } owningTable
+                    && droppedTables.Contains(owningTable))
+                {
+                    continue;
+                }
             }
 
             var existsInSource = source.Elements.Any(i => ElementsMatch(analyzer, i, targetElement));

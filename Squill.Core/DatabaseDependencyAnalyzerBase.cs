@@ -29,13 +29,18 @@ public abstract class DatabaseDependencyAnalyzerBase : IDatabaseDependencyAnalyz
     public bool DropCausesDataLoss(string type)
         => type == SqlElementTypes.SqlTable;
 
-    // An index, a unique constraint or a CHECK constraint can be created and dropped on its
-    // own, so a change to one on an otherwise-unchanged table is reconciled without touching
-    // the table. A PK or FK is not: those are reconciled through their table.
+    // Every dependent Squill models can be created and dropped on its own, so a change to one
+    // on an otherwise-unchanged table is reconciled without touching the table. That has to
+    // include the primary and foreign keys: both are separate elements, so neither changes its
+    // table's hash, and while they were excluded here nothing was left to notice a key being
+    // added, moved or removed — the deploy reported success and changed nothing (issue #157).
+    //
+    // "Droppable standalone" is about the DDL existing, not about the change being free: a
+    // constraint holds no data of its own, so reconciling one is never a data-loss operation,
+    // but the engine still validates a newly added key against the existing rows and rejects it
+    // if they violate it.
     public bool IsDroppableStandaloneDependent(string type)
-        => type is SqlElementTypes.SqlIndex
-            or SqlElementTypes.SqlUniqueConstraint
-            or SqlElementTypes.SqlCheckConstraint;
+        => IsDependentElementType(type);
 
     // No extension concept by default (Postgres overrides).
     public virtual bool IsExtensionElementType(string type) => false;

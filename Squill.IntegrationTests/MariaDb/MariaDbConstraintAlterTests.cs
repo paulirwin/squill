@@ -12,26 +12,25 @@ namespace Squill.IntegrationTests.MariaDb;
 /// assert what the engine actually ends up with. That is Squill's equivalent of an EF Core
 /// migration test — there are no migration operations, only "deploy A, then deploy B".
 ///
-/// The batch deliberately mixes cases that work with cases that do not. Every test asserts the
-/// CORRECT behaviour; those blocked by a known defect carry a <c>[Fact(Skip = ...)]</c> naming
-/// the issue, so they go green on their own once it is fixed. Two of Squill's dependent-element
-/// rules are behind the skipped ones and matter more than any single assertion:
+/// Every test asserts the CORRECT behaviour. Two of Squill's dependent-element rules are what
+/// these scenarios really exercise, and both took a fix to get right:
 ///
-///  * A PK and an FK are NOT droppable standalone dependents (see
-///    <c>DatabaseDependencyAnalyzerBase.IsDroppableStandaloneDependent</c>), and
-///    <c>SchemaCompare.AddDropDeltas</c> skips exactly those. So changing a PK or adding an
-///    FK to a table that ALREADY exists produces no delta at all: the deploy reports success
-///    and changes nothing. Tracked by issue #157.
-///  * A CHECK constraint's predicate does not participate in identity
+///  * Every dependent is reconciled standalone (see
+///    <c>DatabaseDependencyAnalyzerBase.IsDroppableStandaloneDependent</c>). A PK and an FK
+///    used to be excluded, and <c>SchemaCompare</c> skips every dependent in its main loop, so
+///    changing a PK or adding an FK to a table that ALREADY exists produced no delta at all:
+///    the deploy reported success and changed nothing. Fixed by issue #157.
+///  * A CHECK constraint's raw predicate does not participate in identity
 ///    (<c>ParticipatesInIdentity</c> returns false for
 ///    <c>(SqlCheckConstraint, CheckExpression)</c>, deliberately — both engines rewrite a
-///    stored predicate, so a declared one could never hash-match). The cost is that
-///    redefining a predicate under the same constraint name changes no hash and produces no
-///    delta. Tracked by issue #156. Note the two defects mask each other: were a
-///    <see cref="RecreateDelta"/> ever produced for a SqlCheckConstraint,
-///    <c>MariaDbScriptGenerator.GenerateRecreateScript</c> would throw
-///    <see cref="NotImplementedException"/>, since it handles only procedures, functions,
-///    views, triggers, events and indexes. Only one of the two is observable at a time.
+///    stored predicate, so a declared one could never hash-match). What participates instead is
+///    the canonical form carried alongside it, which is what makes redefining a predicate under
+///    the same name a change the deploy acts on. Fixed by issue #156.
+///
+/// The two defects used to mask each other, which is why they are worth naming together: while
+/// the predicate was invisible to <see cref="SchemaCompare"/>, no <see cref="RecreateDelta"/>
+/// for a SqlCheckConstraint was ever produced, so <c>MariaDbScriptGenerator</c> having no
+/// recreate path for one could not be observed.
 ///
 /// UNIQUE is the case where MariaDB diverges from Postgres: this provider never produces a
 /// <c>SqlUniqueConstraint</c> element. A <c>CONSTRAINT x UNIQUE (…)</c> and a
@@ -386,22 +385,22 @@ public abstract class MariaDbConstraintAlterTests
             });
     }
 
-    // ---- PK and FK: not droppable standalone dependents, so changes are lost today (#157) ----
+    // ---- PK and FK: reconciled standalone on an otherwise-unchanged table (#157) ----
 
     /// <summary>
     /// Moving the PRIMARY KEY to a different column of an existing table must reconcile, so
     /// the deployed key matches the source.
     ///
-    /// A PK is a dependent element but not a droppable standalone dependent
-    /// (<c>IsDroppableStandaloneDependent</c> lists only indexes, unique constraints and
-    /// checks), so <c>SchemaCompare</c>'s main loop skips it as a dependent,
-    /// <c>AddRecreateDeltas</c> skips it as not-standalone, and <c>AddDropDeltas</c> skips it
-    /// for the same reason ("their lifecycle follows their table or a (not-yet-supported)
-    /// constraint ALTER"). The table's own hash does not change either, because the PK is a
-    /// separate element. Nothing is left to notice the move.
+    /// A PK is a dependent element, so <c>SchemaCompare</c>'s main loop skips it, and the
+    /// table's own hash does not change when it moves because the PK is a separate element.
+    /// What notices the move is <c>AddRecreateDeltas</c>, which reconciles every standalone
+    /// dependent — and until issue #157 a PK was excluded from that by
+    /// <c>IsDroppableStandaloneDependent</c>, leaving nothing to catch it at all.
+    ///
+    /// The move is a redefinition rather than an add or a remove, so it deploys as a
+    /// drop-and-recreate: a table may only have one primary key, so the old one has to go first.
     /// </summary>
-    [Fact(Skip = "Blocked by issue #157: SchemaCompare skips dependent elements on an otherwise "
-                 + "unchanged table, so moving the PRIMARY KEY produces no delta.")]
+    [Fact]
     public async Task MovePrimaryKey_IsApplied()
     {
         await RunUpgradeAsync(
@@ -436,16 +435,15 @@ public abstract class MariaDbConstraintAlterTests
     }
 
     /// <summary>
-    /// Adding a FOREIGN KEY between two tables that already exist must reconcile. It is
-    /// blocked for the same reason as the primary key above: an FK is a dependent element that
-    /// is not a droppable standalone dependent, so no pass in <c>SchemaCompare</c> emits one
-    /// for a table that is not itself being created or rebuilt.
+    /// Adding a FOREIGN KEY between two tables that already exist must reconcile. It was
+    /// blocked for the same reason as the primary key above, and is fixed by the same change
+    /// (issue #157): an FK is now reconciled standalone, so a table that is not itself being
+    /// created or rebuilt still gets one added with ALTER TABLE.
     ///
     /// The impact is asserted directly rather than only via the catalog: an orphan row that
-    /// the declared ON DELETE CASCADE foreign key would have rejected is accepted.
+    /// the declared ON DELETE CASCADE foreign key forbids must be rejected.
     /// </summary>
-    [Fact(Skip = "Blocked by issue #157: SchemaCompare skips dependent elements on an otherwise "
-                 + "unchanged table, so adding a FOREIGN KEY produces no delta.")]
+    [Fact]
     public async Task AddForeignKeyToExistingTables_IsApplied()
     {
         await RunUpgradeAsync(
