@@ -280,10 +280,40 @@ CREATE TABLE t
         // The stable name, not the role token — this is the whole point of the named form.
         Assert.Equal("staging", schema.Name?.ToString());
 
-        // And the role really is dropped rather than carried into the model: nothing on the
-        // element records it, which is what makes the warning honest.
-        Assert.DoesNotContain(schema.Properties,
-            p => p.Value?.ToString()?.Contains(role, StringComparison.Ordinal) == true);
+        // And the role really is dropped rather than carried into the model, which is what
+        // makes the warning honest. Asserted as hash equality against the same schema declared
+        // with no AUTHORIZATION at all: that covers properties, relationships and annotations
+        // together, where inspecting one collection would pass vacuously if the role leaked
+        // through another (or if the collection is simply always empty).
+        var plain = await BuilderFor(("Plain.sql", "CREATE SCHEMA staging;"))
+            .ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        var plainSchema = Assert.Single(
+            plain.Model.Elements, e => e.Type == PostgresElementTypes.SqlSchema);
+
+        Assert.True(
+            HashUtility.HashesEqual(schema.Hash, plainSchema.Hash),
+            $"AUTHORIZATION {role} left a trace on the schema element: it does not hash-match "
+            + "the same schema declared without an AUTHORIZATION clause.");
+    }
+
+    /// <summary>
+    /// A quoted role is a role <em>name</em> even when it spells a keyword — confirmed on the
+    /// server, where <c>AUTHORIZATION "current_user"</c> gives ownership to a role of that name
+    /// rather than to the deploying one. The warning reports it as written, quotes included, so
+    /// it is unambiguous which of the two the source meant.
+    /// </summary>
+    [Fact]
+    public async Task SchemaAuthorization_QuotedRoleSpellingAKeyword_IsReportedAsWritten()
+    {
+        var builder = BuilderFor(
+            ("Staging.sql", "CREATE SCHEMA staging AUTHORIZATION \"current_user\";"));
+
+        var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        var warning = Assert.Single(result.Warnings);
+        Assert.Equal("SQ1002", warning.Code);
+        Assert.Contains("\"current_user\"", warning.Message, StringComparison.Ordinal);
     }
 
     /// <summary>
