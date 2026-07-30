@@ -229,6 +229,127 @@ CREATE TABLE {table}
         Assert.Contains("_ibfk_1", ex.Message);
     }
 
+    /// <summary>
+    /// A <em>column-level</em> foreign key derives an <c>_ibfk_N</c> name exactly as a
+    /// table-level one does, so it must be checked too. Enumerating only table-level
+    /// constraints skipped these entirely.
+    /// </summary>
+    [Fact]
+    public async Task LongDerivedForeignKeyName_FromColumnLevelKey_Errors()
+    {
+        var table = new string('t', 60);
+
+        var ex = await ErrorFor($"""
+CREATE TABLE author (id INT PRIMARY KEY);
+CREATE TABLE {table}
+(
+    id INT PRIMARY KEY,
+    author_id INT REFERENCES author (id)
+);
+""");
+
+        Assert.Equal(SqlSourceException.IdentifierTooLong, ex.Code);
+        Assert.Contains("_ibfk_1", ex.Message);
+    }
+
+    /// <summary>
+    /// Column-level and table-level unnamed foreign keys share one <c>_ibfk_N</c> counter, and
+    /// the column-level ones are numbered first. The ordinal reported must be the one that
+    /// actually deploys, so a table with one of each numbers them 1 and 2 — not 1 and 1.
+    /// </summary>
+    [Fact]
+    public async Task DerivedForeignKeyOrdinals_CountColumnLevelKeysFirst()
+    {
+        // 58 characters, so _ibfk_1 and _ibfk_2 are both 65 — one over the limit, giving two
+        // errors whose ordinals pin the numbering.
+        var table = new string('t', 58);
+
+        var builder = BuilderFor(("Test.sql", $"""
+CREATE TABLE author (id INT PRIMARY KEY);
+CREATE TABLE {table}
+(
+    id INT PRIMARY KEY,
+    author_id INT REFERENCES author (id),
+    editor_id INT,
+    FOREIGN KEY (editor_id) REFERENCES author (id)
+);
+"""));
+
+        var ex = await Assert.ThrowsAsync<AggregateException>(
+            () => builder.ExtractModelAsync(TestContext.Current.CancellationToken));
+
+        var messages = ex.InnerExceptions.Select(i => i.Message).ToList();
+
+        Assert.Contains(messages, m => m.Contains($"{table}_ibfk_1"));
+        Assert.Contains(messages, m => m.Contains($"{table}_ibfk_2"));
+    }
+
+    /// <summary>
+    /// A foreign key with an explicit CONSTRAINT name takes no ordinal, so an unnamed key
+    /// declared after it is still <c>_ibfk_1</c>.
+    /// </summary>
+    [Fact]
+    public async Task DerivedForeignKeyOrdinals_SkipExplicitlyNamedKeys()
+    {
+        var table = new string('t', 60);
+
+        var ex = await ErrorFor($"""
+CREATE TABLE author (id INT PRIMARY KEY);
+CREATE TABLE {table}
+(
+    id INT PRIMARY KEY,
+    author_id INT,
+    editor_id INT,
+    CONSTRAINT fk_author FOREIGN KEY (author_id) REFERENCES author (id),
+    FOREIGN KEY (editor_id) REFERENCES author (id)
+);
+""");
+
+        Assert.Equal(SqlSourceException.IdentifierTooLong, ex.Code);
+        Assert.Contains($"{table}_ibfk_1", ex.Message);
+    }
+
+    /// <summary>
+    /// A routine's parameter names are part of its stored definition and are read back from
+    /// the catalog, so an over-long one fails like the routine's own name.
+    /// </summary>
+    [Fact]
+    public async Task LongProcedureParameterName_Errors()
+    {
+        var ex = await ErrorFor(
+            $"CREATE PROCEDURE p(IN {TooLong} INT) BEGIN SELECT 1; END;");
+
+        Assert.Equal(SqlSourceException.IdentifierTooLong, ex.Code);
+        Assert.Contains(TooLong, ex.Message);
+    }
+
+    [Fact]
+    public async Task LongFunctionParameterName_Errors()
+    {
+        var ex = await ErrorFor(
+            $"CREATE FUNCTION f({TooLong} INT) RETURNS INT DETERMINISTIC RETURN 1;");
+
+        Assert.Equal(SqlSourceException.IdentifierTooLong, ex.Code);
+        Assert.Contains(TooLong, ex.Message);
+    }
+
+    /// <summary>
+    /// A view's explicit column list names its columns outright. MySQL rejects an over-long
+    /// one; MariaDB silently truncates it, which is worse — the extracted name would never
+    /// match the declared one, so the view would re-diff on every deploy.
+    /// </summary>
+    [Fact]
+    public async Task LongViewColumnName_Errors()
+    {
+        var ex = await ErrorFor($"""
+CREATE TABLE book (id INT PRIMARY KEY);
+CREATE VIEW v ({TooLong}) AS SELECT id FROM book;
+""");
+
+        Assert.Equal(SqlSourceException.IdentifierTooLong, ex.Code);
+        Assert.Contains(TooLong, ex.Message);
+    }
+
     [Fact]
     public async Task IdentifierAtTheLimit_IsAccepted()
     {
@@ -248,6 +369,29 @@ CREATE TABLE {table}
         Assert.True(System.Text.Encoding.UTF8.GetByteCount(name) > 64);
 
         await NoErrorFor($"CREATE TABLE `{name}` (id INT PRIMARY KEY);");
+    }
+
+    /// <summary>
+    /// A backtick-quoted identifier is measured by its unquoted content: the quotes are not
+    /// part of the name the server stores, so counting them would reject a legal 64-character
+    /// name. A quoted name may also contain a dot, which must not be mistaken for a qualifier
+    /// and split — the whole thing is one identifier and is measured as one.
+    /// </summary>
+    [Fact]
+    public async Task QuotedIdentifier_IsMeasuredUnquoted()
+    {
+        // 64 characters of content inside the quotes: legal, despite the quoted spelling
+        // being 66 characters long.
+        await NoErrorFor($"CREATE TABLE `{AtLimit}` (id INT PRIMARY KEY);");
+
+        // A dot inside the quotes is part of the name, not a qualifier: 65 characters of
+        // content is over the limit even though neither dot-separated part would be.
+        var dotted = new string('a', 32) + "." + new string('a', 32);
+        Assert.Equal(65, dotted.Length);
+
+        var ex = await ErrorFor($"CREATE TABLE `{dotted}` (id INT PRIMARY KEY);");
+
+        Assert.Equal(SqlSourceException.IdentifierTooLong, ex.Code);
     }
 
     /// <summary>

@@ -561,6 +561,9 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             CheckIdentifierLength(file, createProcedure.Line, createProcedure.Column,
                 "Procedure", name);
 
+            CheckRoutineParameterNames(file, createProcedure.Line, createProcedure.Column,
+                $"procedure '{name}'", createProcedure.Parameters);
+
             if (_procedureOrigins.TryGetValue(name, out var existing))
             {
                 AddError(new SqlSourceException(
@@ -587,6 +590,9 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
             CheckIdentifierLength(file, createFunction.Line, createFunction.Column,
                 "Function", name);
+
+            CheckRoutineParameterNames(file, createFunction.Line, createFunction.Column,
+                $"function '{name}'", createFunction.Parameters);
 
             if (_functionOrigins.TryGetValue(name, out var existing))
             {
@@ -666,6 +672,68 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             _eventOrigins[name] = new Origin(file.Name, createEvent.Line);
         }
 
+        /// <summary>
+        /// Checks the names MariaDB derives for the table's unnamed foreign keys
+        /// (<c>&lt;table&gt;_ibfk_&lt;n&gt;</c>). A derived name can exceed the limit while every
+        /// identifier the user wrote is within it, so it has to be checked as the name that
+        /// will actually be deployed rather than as source text.
+        ///
+        /// <para>
+        /// The ordinal must be counted exactly the way <see cref="MakeCreateTableElements"/>
+        /// counts it, or the name reported here is not the name that deploys: column-level
+        /// foreign keys are collected by <c>AddColumns</c> <em>before</em> the table-level ones,
+        /// and both share one counter. Enumerating only the table-level constraints (as this
+        /// check first did) both skipped column-level keys entirely and mis-numbered the rest.
+        /// </para>
+        ///
+        /// <para>
+        /// The <c>_ibfk_N</c> convention this mirrors is MySQL's. Measured on
+        /// <c>mariadb:12.3</c>, that engine names an unnamed InnoDB foreign key with a bare
+        /// ordinal (<c>1</c>, <c>2</c>) instead — which is always within the limit, so this
+        /// check only ever fires for a name MySQL would really use. That the model assumes
+        /// MySQL's convention for both engines is a separate, pre-existing defect (issue #179):
+        /// the two do not hash-match on MariaDB. It is not introduced or widened here.
+        /// </para>
+        /// </summary>
+        private void CheckDerivedForeignKeyNames(
+            IFile file, CreateTableStatement createTable, string table)
+        {
+            // Column-level foreign keys first, matching AddColumns' contribution order. A
+            // constraint wrapped in NamedColumnConstraint carries an explicit name and so takes
+            // no ordinal — the same rule the table-level loop below applies.
+            var unnamed = createTable.Elements
+                .OfType<ColumnDefinition>()
+                .SelectMany(c => c.Constraints)
+                .Where(c => c is not NamedColumnConstraint)
+                .OfType<ForeignKeyColumnConstraint>()
+                .Select(c => (Line: c.Line ?? createTable.Line, Column: c.Column ?? createTable.Column))
+                .ToList();
+
+            // Then the table-level ones, skipping any that carry an explicit CONSTRAINT name —
+            // those are checked as written and take no ordinal.
+            foreach (var tableConstraint in createTable.Elements.OfType<TableConstraint>())
+            {
+                if (tableConstraint is NamedTableConstraint)
+                {
+                    continue;
+                }
+
+                if (tableConstraint is ForeignKeyTableConstraint fk)
+                {
+                    unnamed.Add((fk.Line ?? createTable.Line, fk.Column ?? createTable.Column));
+                }
+            }
+
+            for (var ordinal = 1; ordinal <= unnamed.Count; ordinal++)
+            {
+                var (line, column) = unnamed[ordinal - 1];
+
+                CheckIdentifierLength(file, line, column,
+                    $"Generated name for an unnamed foreign key on table '{table}'",
+                    $"{table}_ibfk_{ordinal}");
+            }
+        }
+
         public void AddCreateTable(IFile file, CreateTableStatement createTable)
         {
             var table = createTable.Name.Name;
@@ -715,9 +783,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 .Select(i => i.Name.Name)
                 .ToList();
 
-            // Mirrors the _ibfk_N numbering the element builder applies (see MakeForeignKeys),
-            // so the derived name checked here is the one that will actually be deployed.
-            var ibfkOrdinal = 1;
+            CheckDerivedForeignKeyNames(file, createTable, table);
 
             foreach (var tableConstraint in createTable.Elements.OfType<TableConstraint>())
             {
@@ -810,18 +876,6 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         break;
 
                     case ForeignKeyTableConstraint fk:
-                        // An unnamed foreign key's derived name can exceed the limit while
-                        // every identifier the user wrote is within it, so it is checked
-                        // against the derived name rather than the source text.
-                        if (constraintName is null)
-                        {
-                            CheckIdentifierLength(file, line, column,
-                                $"Generated name for the unnamed foreign key on table '{table}'",
-                                $"{table}_ibfk_{ibfkOrdinal}");
-
-                            ibfkOrdinal++;
-                        }
-
                         CheckOwnColumns(file, line, column,
                             $"Foreign key on table '{table}'", table, columns,
                             fk.Columns.Select(c => c.Name));
@@ -935,10 +989,35 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             }
         }
 
+        /// <summary>
+        /// A routine's parameter names are part of its stored definition and are read back from
+        /// the catalog, so an over-long one fails the same way the routine's own name would.
+        /// </summary>
+        private void CheckRoutineParameterNames(
+            IFile file, int? line, int? column, string routine,
+            IEnumerable<RoutineParameter> parameters)
+        {
+            foreach (var parameter in parameters)
+            {
+                CheckIdentifierLength(file, parameter.Line ?? line, parameter.Column ?? column,
+                    $"Parameter of {routine}", parameter.Name.Name);
+            }
+        }
+
         public void AddCreateView(IFile file, CreateViewStatement createView)
         {
             CheckIdentifierLength(file, createView.Line, createView.Column,
                 "View", createView.Name.Name);
+
+            // An explicit column list names the view's columns outright. MySQL rejects an
+            // over-long one (error 1166); MariaDB silently truncates it to 64 characters, so
+            // the extracted name would never match the declared one and the view would
+            // re-diff on every deploy — the worse of the two failures.
+            foreach (var columnName in createView.ColumnNames)
+            {
+                CheckIdentifierLength(file, createView.Line, createView.Column,
+                    $"Column of view '{createView.Name.Name}'", columnName.Name);
+            }
 
             // Every table the view selects from must be declared in the project, so an
             // unresolved one is reported like any other unresolved reference.
