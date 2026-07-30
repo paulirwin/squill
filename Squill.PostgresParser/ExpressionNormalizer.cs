@@ -357,6 +357,18 @@ public static class ExpressionNormalizer
             return false;
         }
 
+        // The `= ANY (ARRAY[…])` rewrite is what PostgreSQL does for SCALAR elements. Measured:
+        // when the elements are themselves arrays, `a IN (ARRAY[1,2], ARRAY[3])` is stored as an
+        // OR chain — `((a = ARRAY[1, 2]) OR (a = ARRAY[3]))` — not as a quantified comparison.
+        // Encoding that second rewrite from one measurement is not warranted, so this refuses
+        // rather than emitting a token the engine would never report back. Refusing costs only
+        // the identity contribution; emitting a WRONG token would make the constraint re-diff
+        // on every deploy, which the class doc calls worse than none.
+        if (array.Elements.Any(i => i is ArrayExpression))
+        {
+            return false;
+        }
+
         // One element is not stored as an array, so it must not be normalized as one.
         if (array.Elements.Count == 1)
         {
@@ -381,6 +393,22 @@ public static class ExpressionNormalizer
         Expression right)
     {
         if (OperatorText(op) is not { } opText)
+        {
+            return false;
+        }
+
+        // A cast written on an ARRAY constructor is refused, because PostgreSQL does three
+        // different things with one depending on the types involved, and which of the three
+        // is not recoverable from the declared text alone. Measured:
+        //
+        //   q int     = ANY (ARRAY[1,2]::int[])      => ARRAY[1, 2]                  erased
+        //   n numeric = ANY (ARRAY[1,2]::numeric[])  => ARRAY[(1)::numeric, ...]     pushed down
+        //   n numeric = ANY (ARRAY[1,2])             => (ARRAY[1, 2])::numeric[]     inferred, kept
+        //
+        // Writing the cast through unchanged would match none of them, giving the declared and
+        // extracted sides two different non-null tokens — a permanent re-diff, which is worse
+        // than the no-canonical-form fallback taken here.
+        if (right is TypecastExpression { Expression: ArrayExpression })
         {
             return false;
         }

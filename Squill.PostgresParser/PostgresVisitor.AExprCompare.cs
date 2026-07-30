@@ -160,8 +160,12 @@ public partial class PostgresVisitor
         => context.mathop()?.GetText() switch
         {
             "=" => new BuiltInOperator(PostgresBuiltInBinaryOperator.Equal),
+            // No "!=" arm: the lexer defines NOT_EQUALS as '<>' alone, so `!=` never reaches
+            // mathop — it lexes as a generic Operator and falls through to CustomOperator
+            // below. An arm for it would read as coverage it does not provide. (That `!=` and
+            // `<>` therefore do not canonicalize together is a pre-existing gap that applies
+            // to plain comparisons too, not something this path introduces.)
             "<>" => new BuiltInOperator(PostgresBuiltInBinaryOperator.NotEqual),
-            "!=" => new BuiltInOperator(PostgresBuiltInBinaryOperator.NotEqual),
             "<" => new BuiltInOperator(PostgresBuiltInBinaryOperator.LessThan),
             ">" => new BuiltInOperator(PostgresBuiltInBinaryOperator.GreaterThan),
             "<=" => new BuiltInOperator(PostgresBuiltInBinaryOperator.LessThanEqual),

@@ -157,6 +157,16 @@ public class ExpressionNormalizerTests
     [InlineData("code LIKE '%!%%' ESCAPE '!'")]
     // COLLATE has no measured canonical form.
     [InlineData("code COLLATE \"C\" > 'a'")]
+    // An IN over ARRAY-valued elements is NOT stored as `= ANY`: measured,
+    // `a IN (ARRAY[1,2], ARRAY[3])` becomes the OR chain
+    // `((a = ARRAY[1, 2]) OR (a = ARRAY[3]))`. The `= ANY` rewrite applies to scalar elements
+    // only, so this shape is refused rather than given the wrong token (issue #170).
+    [InlineData("arr IN (ARRAY[1, 2], ARRAY[3])")]
+    // A cast written on an ARRAY constructor is refused because PostgreSQL does one of three
+    // different things with it depending on the types — erase it, push it down onto each
+    // element, or keep it at the array level — and which is not recoverable from the declared
+    // text alone. See WriteQuantified for the measurements.
+    [InlineData("quantity = ANY (ARRAY[1, 2]::int[])")]
     public void UnnormalizableExpression_ReportsFailure(string predicate)
     {
         Assert.Null(Normalize(predicate));
