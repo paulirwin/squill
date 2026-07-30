@@ -248,6 +248,75 @@ CREATE TABLE t
     }
 
     /// <summary>
+    /// A non-constant role behaves exactly as a named one when the schema is named (issue #166):
+    /// the schema is modeled under its own stable name and only the ownership is dropped, with
+    /// the token reported in the warning so it is clear what was not modeled.
+    ///
+    /// <para>
+    /// This is what makes the named form safe where the name-less form is not. The element's
+    /// name is <c>staging</c> whoever deploys it, so it matches the name extracted from the
+    /// target and the schema neither re-creates nor — under <c>DropObjectsNotInSource</c> —
+    /// gets dropped as undeclared.
+    /// </para>
+    /// </summary>
+    [Theory]
+    [InlineData("CURRENT_USER")]
+    [InlineData("SESSION_USER")]
+    public async Task SchemaAuthorization_NonConstantRole_WarnsButTheSchemaIsStillModeled(
+        string role)
+    {
+        var builder = BuilderFor(
+            ("Staging.sql", $"CREATE SCHEMA staging AUTHORIZATION {role};"));
+
+        var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        var warning = Assert.Single(result.Warnings);
+        Assert.Equal("SQ1002", warning.Code);
+        Assert.Contains(role, warning.Message, StringComparison.Ordinal);
+
+        var schema = Assert.Single(
+            result.Model.Elements, e => e.Type == PostgresElementTypes.SqlSchema);
+
+        // The stable name, not the role token — this is the whole point of the named form.
+        Assert.Equal("staging", schema.Name?.ToString());
+
+        // And the role really is dropped rather than carried into the model, which is what
+        // makes the warning honest. Asserted as hash equality against the same schema declared
+        // with no AUTHORIZATION at all: that covers properties, relationships and annotations
+        // together, where inspecting one collection would pass vacuously if the role leaked
+        // through another (or if the collection is simply always empty).
+        var plain = await BuilderFor(("Plain.sql", "CREATE SCHEMA staging;"))
+            .ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        var plainSchema = Assert.Single(
+            plain.Model.Elements, e => e.Type == PostgresElementTypes.SqlSchema);
+
+        Assert.True(
+            HashUtility.HashesEqual(schema.Hash, plainSchema.Hash),
+            $"AUTHORIZATION {role} left a trace on the schema element: it does not hash-match "
+            + "the same schema declared without an AUTHORIZATION clause.");
+    }
+
+    /// <summary>
+    /// A quoted role is a role <em>name</em> even when it spells a keyword — confirmed on the
+    /// server, where <c>AUTHORIZATION "current_user"</c> gives ownership to a role of that name
+    /// rather than to the deploying one. The warning reports it as written, quotes included, so
+    /// it is unambiguous which of the two the source meant.
+    /// </summary>
+    [Fact]
+    public async Task SchemaAuthorization_QuotedRoleSpellingAKeyword_IsReportedAsWritten()
+    {
+        var builder = BuilderFor(
+            ("Staging.sql", "CREATE SCHEMA staging AUTHORIZATION \"current_user\";"));
+
+        var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        var warning = Assert.Single(result.Warnings);
+        Assert.Equal("SQ1002", warning.Code);
+        Assert.Contains("\"current_user\"", warning.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// CASCADE is honored on deploy rather than dropped (issue #143), so it does not warn.
     /// Dropping it would build cleanly and then fail on deploy, because the dependency it
     /// exists to install would be missing.

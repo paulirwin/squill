@@ -10,6 +10,10 @@ namespace Squill.IntegrationTests.Postgres.SchemaTest;
 // the deployed model round-trips (parser model == extracted model), and dropping the
 // schema's objects works — proving schema-qualified DDL and schema-aware identity hold
 // up against a real database.
+//
+// Also covers a schema declared with an AUTHORIZATION role (issues #143, #166): the schema
+// is modeled and round-trips as any other does, while its ownership is not — the one part
+// that is dropped, and reported as an SQ1002 warning.
 public class PostgresSchemaTest : PostgresIntegrationTestBase
 {
     [Fact]
@@ -249,6 +253,80 @@ CREATE TABLE audit.record_change
         finally
         {
             tempDir.Delete(recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// A named schema with a non-constant <c>AUTHORIZATION</c> role deploys and redeploys as a
+    /// no-op — <em>including under <c>DropObjectsNotInSource</c></em> (issue #166).
+    ///
+    /// <para>
+    /// That last clause is the point of the test. The name-less form
+    /// (<c>CREATE SCHEMA AUTHORIZATION CURRENT_USER</c>) takes the schema's name from the
+    /// deploying role, so a source model would hold the token <c>CURRENT_USER</c> while the
+    /// target holds <c>postgres</c> — the two never match, and with drops enabled Squill would
+    /// drop the real schema as undeclared. Naming the schema removes that entirely: the name is
+    /// <c>staging</c> on both sides whoever deploys, and only the ownership is deploy-resolved,
+    /// which was already unmodeled for a named role (SQ1002, #143).
+    /// </para>
+    ///
+    /// <para>
+    /// The schema itself is fully modeled here, which is why this belongs with the other schema
+    /// round-trip coverage rather than with the unmodeled-statement tests: only the ownership
+    /// is dropped, and that is asserted by the SQ1002 warning below.
+    /// </para>
+    /// </summary>
+    [Theory]
+    [InlineData("CURRENT_USER")]
+    [InlineData("SESSION_USER")]
+    public async Task NamedSchemaWithNonConstantAuthorization_RoundTripsUnderDrops(string role)
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        var workspace = new Workspace();
+        workspace.Files.Add(new InMemoryStringFile(
+            "Staging.sql", FileKind.Compile, $"CREATE SCHEMA staging AUTHORIZATION {role};"));
+
+        var result = await DacpacBuilder.BuildModelAsync(workspace, ct);
+
+        // Ownership is unmodeled exactly as it is for a named role; the token is reported so
+        // it is clear which construct was dropped.
+        var warning = Assert.Single(result.Warnings);
+        Assert.Equal("SQ1002", warning.Code);
+        Assert.Contains(role, warning.Message, StringComparison.Ordinal);
+
+        IDatabaseProvider provider = new PostgresDatabaseProvider(ConnectionString);
+        var targetDbName = $"squill_schema_auth_{Guid.NewGuid():n}";
+        var createdDb = await provider.CreateDatabaseAsync(targetDbName, ct);
+        var dbModelBuilder = provider.CreateDatabaseModelBuilder(createdDb);
+
+        try
+        {
+            var target = await dbModelBuilder.ExtractModelAsync(ct);
+            await createdDb.PublishAsync(
+                SchemaCompare.Compare(provider, result.Model, target), ct);
+
+            // The schema deployed under its declared name, not under the deploying role's.
+            await using var conn = await OpenAsync(targetDbName, ct);
+            Assert.Equal("staging", await ScalarAsync(conn,
+                "SELECT nspname FROM pg_namespace WHERE nspname = 'staging';"));
+
+            var extracted = await dbModelBuilder.ExtractModelAsync(ct);
+
+            // A plain redeploy is a no-op...
+            Assert.Empty(SchemaCompare.Compare(provider, result.Model, extracted).Deltas);
+
+            // ...and so is one with drops enabled: the declared schema is not seen as missing,
+            // and the deployed one is not seen as undeclared.
+            var withDrops = SchemaCompare.Compare(
+                provider, result.Model, extracted,
+                new DeployOptions { DropObjectsNotInSource = true });
+
+            Assert.Empty(withDrops.Deltas);
+        }
+        finally
+        {
+            await createdDb.DropAsync(ct);
         }
     }
 

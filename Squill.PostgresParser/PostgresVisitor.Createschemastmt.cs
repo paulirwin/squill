@@ -7,7 +7,8 @@ public partial class PostgresVisitor
     // createschemastmt
     //   : CREATE SCHEMA (IF_P NOT EXISTS)? (optschemaname? AUTHORIZATION rolespec | colid) optschemaeltlist
     // The schema itself is modeled; an AUTHORIZATION role is carried but not (issue #143),
-    // since Squill does not manage roles. Inline schema elements
+    // since Squill does not manage roles. A non-constant role (CURRENT_USER / SESSION_USER) is
+    // accepted wherever the schema has a name of its own (issue #166). Inline schema elements
     // (CREATE SCHEMA ... CREATE TABLE ...) remain unsupported.
     public override SyntaxNode VisitCreateschemastmt(PostgreSQLParser.CreateschemastmtContext context)
     {
@@ -16,11 +17,14 @@ public partial class PostgresVisitor
 
         if (context.AUTHORIZATION() is not null)
         {
-            authorization = ParseSchemaAuthorizationRole(context.rolespec());
-
             // `CREATE SCHEMA AUTHORIZATION joe` — with no explicit name — creates a schema
             // named after the role, so the role doubles as the name. `CREATE SCHEMA s
             // AUTHORIZATION joe` names it explicitly via optschemaname.
+            //
+            // Which of the two it is decides whether a non-constant role is acceptable, so
+            // the name is resolved first: only the name-less form has to turn the role into
+            // a schema name, and only there is CURRENT_USER / SESSION_USER unusable
+            // (issue #166).
             if (context.optschemaname()?.colid() is { } authorizedName)
             {
                 if (VisitColid(authorizedName) is not Identifier explicitName)
@@ -29,9 +33,19 @@ public partial class PostgresVisitor
                 }
 
                 name = explicitName;
+
+                // The schema's name is stable, so the role only decides ownership — which is
+                // unmodeled either way (SQ1002, issue #143): the generated DDL is a bare
+                // CREATE SCHEMA IF NOT EXISTS, with no AUTHORIZATION at all. A non-constant
+                // role therefore costs nothing extra here. It is still carried as the token it
+                // was written as, so the warning can name what was dropped.
+                authorization = context.rolespec()?.GetText()
+                    ?? throw new PostgresParseException(
+                        "Unable to parse AUTHORIZATION role");
             }
             else
             {
+                authorization = ParseNameGivingAuthorizationRole(context.rolespec());
                 name = new SimpleIdentifier(authorization);
             }
         }
@@ -66,19 +80,30 @@ public partial class PostgresVisitor
     }
 
     /// <summary>
-    /// The role named by <c>CREATE SCHEMA ... AUTHORIZATION</c>. Only a plain role name is
-    /// accepted: CURRENT_USER and SESSION_USER resolve at execution time, so in the name-less
-    /// form the resulting schema name is not knowable at build time — and a declarative model
-    /// cannot contain an object whose name depends on who deploys it.
+    /// The role named by the name-less <c>CREATE SCHEMA AUTHORIZATION role</c>, where the role
+    /// also supplies the schema's name. Only a plain role name is accepted here: CURRENT_USER
+    /// and SESSION_USER resolve at execution time, so the resulting schema name is not knowable
+    /// at build time — and a declarative model cannot contain an object whose name depends on
+    /// who deploys it. Measured against <c>postgres:latest</c>, the same statement really does
+    /// produce a different schema per deploying role, and the catalog keeps no trace of the
+    /// token that produced it, so the name could not be recovered even at extraction time.
+    ///
+    /// <para>
+    /// The named form (<c>CREATE SCHEMA s AUTHORIZATION CURRENT_USER</c>) does not come through
+    /// here: its name is stable and only its ownership is deploy-resolved, which is already
+    /// unmodeled, so it accepts any role spec (issue #166).
+    /// </para>
     /// </summary>
-    private static string ParseSchemaAuthorizationRole(PostgreSQLParser.RolespecContext? context)
+    private static string ParseNameGivingAuthorizationRole(PostgreSQLParser.RolespecContext? context)
     {
         if (context?.nonreservedword() is not { } role)
         {
             throw new NotImplementedException(
-                "AUTHORIZATION CURRENT_USER / SESSION_USER on CREATE SCHEMA is not supported: "
-                + "the role resolves at deploy time, so the schema it names is not known at "
-                + "build time. Name the role explicitly.");
+                "AUTHORIZATION CURRENT_USER / SESSION_USER on a CREATE SCHEMA with no schema "
+                + "name is not supported: the schema takes its name from the role, which "
+                + "resolves at deploy time, so the name is not known at build time. Give the "
+                + "schema an explicit name (CREATE SCHEMA <name> AUTHORIZATION CURRENT_USER), "
+                + "or name the role explicitly.");
         }
 
         return role.GetText();

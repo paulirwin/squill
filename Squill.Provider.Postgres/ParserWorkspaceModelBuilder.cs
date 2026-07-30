@@ -313,7 +313,17 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         else if (statement is CreateSchemaStatement createSchemaStatement)
         {
             // The schema is modeled; only its owning role is not, since Squill does not
-            // manage roles (issue #143).
+            // manage roles (issue #143). The role may be the token CURRENT_USER or
+            // SESSION_USER when the schema was named explicitly (issue #166); it is reported
+            // as written so the warning names exactly what was dropped.
+            //
+            // "the deploying role" is deliberately the wording for all three cases, because
+            // dropping the clause is not equally harmless across them. Measured on
+            // postgres:latest under SET ROLE: AUTHORIZATION CURRENT_USER matches what a bare
+            // CREATE SCHEMA already does, so dropping it is a true no-op — but SESSION_USER
+            // resolves to the *session* role, which differs from the current one under SET
+            // ROLE or a SECURITY DEFINER context, so dropping that one really does change the
+            // owner. Both are unmodeled either way, as a named role has been since #143.
             if (createSchemaStatement.Authorization is { } role)
             {
                 warnings.Add(new SqlSourceDiagnostic(
