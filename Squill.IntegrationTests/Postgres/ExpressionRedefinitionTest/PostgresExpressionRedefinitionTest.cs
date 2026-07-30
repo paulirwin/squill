@@ -134,29 +134,95 @@ WHERE conrelid = 'parcel'::regclass AND conname = 'ck_parcel';
     }
 
     /// <summary>
-    /// An unchanged <c>IN</c> predicate must NOT redeploy — the other half of the contract.
-    /// The declared <c>IN</c> and the extracted <c>= ANY (ARRAY[…])</c> have to reduce to the
-    /// same canonical token, or every deploy would drop and re-add the constraint.
+    /// The negated form, which takes a different desugaring: measured, <c>NOT IN</c> is stored
+    /// as <c>&lt;&gt; ALL (ARRAY[…])</c> rather than as a negated <c>ANY</c>. Both the operator
+    /// and the quantifier differ from the positive case, so the two paths are asserted
+    /// separately — a regression in the negated one would not show up above.
     /// </summary>
     [Fact]
-    public async Task UnchangedInListPredicate_DoesNotRedeploy()
+    public async Task ChangedNotInListPredicate_UnderSameConstraintName_IsApplied()
     {
-        const string schema = """
+        const string before = """
+CREATE TABLE bundle
+(
+    id       integer PRIMARY KEY,
+    quantity integer NOT NULL,
+    CONSTRAINT ck_bundle CHECK (quantity NOT IN (1, 2))
+);
+""";
+        const string after = """
+CREATE TABLE bundle
+(
+    id       integer PRIMARY KEY,
+    quantity integer NOT NULL,
+    CONSTRAINT ck_bundle CHECK (quantity NOT IN (1, 2, 3))
+);
+""";
+
+        await RunScenarioAsync(
+            before, after,
+            // 9 is excluded by neither predicate, so the tightened constraint can be added.
+            seedSql: "INSERT INTO bundle (id, quantity) VALUES (1, 9);",
+            assertAfterAsync: async (conn, result) =>
+            {
+                Assert.False(string.IsNullOrWhiteSpace(result.Script),
+                    "A changed NOT IN CHECK predicate should generate a non-empty script.");
+
+                // NOT IN is stored as <> ALL, not as a negated ANY.
+                var def = (string?)await ScalarAsync(conn, """
+SELECT pg_get_constraintdef(oid) FROM pg_constraint
+WHERE conrelid = 'bundle'::regclass AND conname = 'ck_bundle';
+""");
+                Assert.Equal("CHECK ((quantity <> ALL (ARRAY[1, 2, 3])))", def);
+
+                // The value newly added to the exclusion list is rejected.
+                await Assert.ThrowsAsync<PostgresException>(() => ExecuteAsync(
+                    conn,
+                    "INSERT INTO bundle (id, quantity) VALUES (2, 3);",
+                    TestContext.Current.CancellationToken));
+
+                Assert.Equal(1L, await ScalarAsync(conn, "SELECT count(*) FROM bundle;"));
+            });
+    }
+
+    /// <summary>
+    /// An unchanged predicate must NOT redeploy — the other half of the contract. The declared
+    /// spelling and the extracted one have to reduce to the same canonical token, or every
+    /// deploy would drop and re-add the constraint.
+    ///
+    /// <para>
+    /// All the desugarings are covered, since each takes its own path: <c>IN</c> to
+    /// <c>= ANY</c>, <c>NOT IN</c> to <c>&lt;&gt; ALL</c>, a single-element list to a plain
+    /// comparison with no array at all, and a quantified comparison written as such.
+    /// </para>
+    /// </summary>
+    [Theory]
+    [InlineData("quantity IN (1, 2, 3)")]
+    [InlineData("quantity NOT IN (1, 2)")]
+    [InlineData("quantity IN (7)")]
+    [InlineData("quantity NOT IN (8)")]
+    [InlineData("quantity = ANY (ARRAY[1, 2, 3])")]
+    [InlineData("quantity <> ALL (ARRAY[4, 5])")]
+    public async Task UnchangedInListPredicate_DoesNotRedeploy(string predicate)
+    {
+        var schema = $"""
 CREATE TABLE crate
 (
     id       integer PRIMARY KEY,
     quantity integer NOT NULL,
-    CONSTRAINT ck_crate CHECK (quantity IN (1, 2, 3))
+    CONSTRAINT ck_crate CHECK ({predicate})
 );
 """;
 
         await RunScenarioAsync(
             schema, schema,
-            seedSql: "INSERT INTO crate (id, quantity) VALUES (1, 2);",
+            // No rows are needed to observe whether a script is generated, and the predicates
+            // above are mutually exclusive so no single value would satisfy them all.
+            seedSql: "SELECT 1;",
             assertAfterAsync: (_, result) =>
             {
                 Assert.True(string.IsNullOrWhiteSpace(result.Script),
-                    "An unchanged IN-list CHECK predicate must not generate a script; "
+                    $"An unchanged predicate ({predicate}) must not generate a script; "
                     + $"got: {result.Script}");
 
                 return Task.CompletedTask;
