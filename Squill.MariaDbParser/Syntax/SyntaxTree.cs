@@ -634,19 +634,43 @@ public sealed class UnmodeledStatement(string description) : Statement
 }
 
 /// <summary>
-/// A statement that changes state imperatively rather than declaring it — an <c>ALTER</c>,
-/// <c>DROP</c> or <c>TRUNCATE</c>, or DML such as <c>INSERT</c>. It has no meaning in a
-/// declarative project, so it is carried as a marker for the model builder to reject with a
-/// purpose-built SQ0006 error (issue #125).
+/// What an imperative statement actually does, which decides the remedy its SQ0006 error
+/// offers (issue #125). All three are rejected; they differ only in what the author should do
+/// instead, and offering the wrong remedy is worse than offering none — it sends the author to
+/// fix the wrong thing.
 /// </summary>
-public sealed class ImperativeStatement(string name, bool isDml) : Statement
+public enum ImperativeKind
+{
+    /// <summary>
+    /// A statement that changes schema: <c>ALTER</c>, <c>DROP</c>, <c>TRUNCATE</c>. The remedy
+    /// is to declare the end-state as <c>CREATE</c> and let Squill generate the migration.
+    /// </summary>
+    SchemaChange,
+
+    /// <summary>
+    /// A statement that writes data: <c>INSERT</c>, <c>UPDATE</c>, <c>DELETE</c>, and a
+    /// data-modifying CTE. The remedy is a pre/post-deploy script.
+    /// </summary>
+    DataChange,
+
+    /// <summary>
+    /// A query: <c>SELECT</c>, or a read-only CTE. It declares nothing and writes nothing, so
+    /// neither of the other remedies fits; the remedy is simply to remove it.
+    /// </summary>
+    Query,
+}
+
+/// <summary>
+/// A statement that changes state imperatively rather than declaring it — an <c>ALTER</c>,
+/// <c>DROP</c> or <c>TRUNCATE</c>, DML such as <c>INSERT</c>, or a bare query. None of them
+/// have meaning in a declarative project, so the statement is carried as a marker for the
+/// model builder to reject with a purpose-built SQ0006 error (issue #125).
+/// </summary>
+public sealed class ImperativeStatement(string name, ImperativeKind kind) : Statement
 {
     /// <summary>The statement's leading keywords, upper-cased — <c>ALTER TABLE</c>, <c>DROP INDEX</c>.</summary>
     public string Name { get; } = name;
 
-    /// <summary>
-    /// True for DML, which is rejected with a different remedy: seed data belongs in a
-    /// post-deploy script, and there is no CREATE that inserts a row.
-    /// </summary>
-    public bool IsDml { get; } = isDml;
+    /// <summary>What the statement does, and so which remedy its error offers.</summary>
+    public ImperativeKind Kind { get; } = kind;
 }

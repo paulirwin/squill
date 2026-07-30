@@ -78,14 +78,16 @@ public class ImperativeStatementDiagnosticTests
     }
 
     /// <summary>
-    /// A query declares nothing, so it is rejected too — but it writes no data, so it is not
-    /// sent to the deploy-script remedy, which would be advising the author to keep a
-    /// statement that does nothing either way.
+    /// A query declares nothing and writes nothing, so neither of the other remedies fits:
+    /// "express this as CREATE" would imply it was trying to state an end-state, and "move it
+    /// to a deploy script" would be advising the author to keep a statement that does nothing
+    /// either way. It gets its own wording telling them to remove it.
     /// </summary>
     [Theory]
     [InlineData("SELECT 1;")]
     [InlineData("SELECT * FROM t;")]
-    public async Task Query_IsRejectedWithoutTheSeedDataRemedy(string sql)
+    [InlineData("WITH x AS (SELECT 1) SELECT * FROM x;")]
+    public async Task Query_IsRejectedWithItsOwnRemedy(string sql)
     {
         var builder = BuilderFor(("A.sql", sql));
 
@@ -93,8 +95,31 @@ public class ImperativeStatementDiagnosticTests
             () => builder.ExtractModelAsync(TestContext.Current.CancellationToken));
 
         Assert.Equal(SqlSourceException.ImperativeStatement, ex.Code);
-        Assert.Contains("SELECT", ex.Message);
+        Assert.Contains("Remove it", ex.Message);
+
+        // Neither of the other two remedies, both of which would be wrong here.
         Assert.DoesNotContain("seed", ex.Message);
+        Assert.DoesNotContain("end-state", ex.Message);
+    }
+
+    /// <summary>
+    /// A CTE takes the kind of the statement it feeds, not of the leading WITH — so a
+    /// data-modifying CTE gets the seed-data remedy rather than being told to express itself
+    /// as CREATE, which it cannot be.
+    /// </summary>
+    [Theory]
+    [InlineData("WITH x AS (SELECT 1) INSERT INTO t (c) SELECT * FROM x;")]
+    [InlineData("WITH d AS (DELETE FROM t RETURNING *) INSERT INTO u SELECT * FROM d;")]
+    public async Task DataModifyingCte_GetsTheDeployScriptRemedy(string sql)
+    {
+        var builder = BuilderFor(("Seed.sql", sql));
+
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(
+            () => builder.ExtractModelAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(SqlSourceException.ImperativeStatement, ex.Code);
+        Assert.Contains("post-deploy", ex.Message);
+        Assert.DoesNotContain("end-state", ex.Message);
     }
 
     /// <summary>

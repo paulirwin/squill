@@ -372,7 +372,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     case ImperativeStatement imperative:
                         validator.AddError(ImperativeStatementDiagnostic.Exception(
                             imperative.Name,
-                            imperative.IsDml,
+                            ToDiagnosticKind(imperative.Kind),
                             file.Name,
                             statement.Line,
                             statement.Column));
@@ -399,6 +399,15 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             }
         }
     }
+
+    // The parsers deliberately do not reference Squill.Core, so each carries its own copy of
+    // this distinction; the provider, which bridges the two, maps one to the other.
+    private static ImperativeStatementKind ToDiagnosticKind(ImperativeKind kind) => kind switch
+    {
+        ImperativeKind.DataChange => ImperativeStatementKind.DataChange,
+        ImperativeKind.Query => ImperativeStatementKind.Query,
+        _ => ImperativeStatementKind.SchemaChange,
+    };
 
     /// <summary>
     /// Records a warning for every construct in a CREATE TABLE that is recognized but not

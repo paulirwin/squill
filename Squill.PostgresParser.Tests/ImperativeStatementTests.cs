@@ -35,7 +35,7 @@ public class ImperativeStatementTests
         var statement = ParseOne(sql);
 
         Assert.Equal(expectedName, statement.Name);
-        Assert.False(statement.IsDml);
+        Assert.Equal(ImperativeKind.SchemaChange, statement.Kind);
     }
 
     [Theory]
@@ -47,7 +47,7 @@ public class ImperativeStatementTests
         var statement = ParseOne(sql);
 
         Assert.Equal(expectedName, statement.Name);
-        Assert.True(statement.IsDml);
+        Assert.Equal(ImperativeKind.DataChange, statement.Kind);
     }
 
     /// <summary>
@@ -65,7 +65,32 @@ public class ImperativeStatementTests
         var statement = ParseOne(sql);
 
         Assert.Equal(expectedName, statement.Name);
-        Assert.False(statement.IsDml);
+        Assert.Equal(ImperativeKind.Query, statement.Kind);
+    }
+
+    /// <summary>
+    /// A CTE takes the kind of the statement it feeds, not of the leading WITH. Postgres lets
+    /// a CTE write — both in the WITH clause (<c>WITH d AS (DELETE … RETURNING *)</c>) and in
+    /// the statement it feeds — so classifying on the WITH alone sent a data-modifying CTE to
+    /// the "express this as CREATE" remedy, which is the wrong fix for it.
+    /// </summary>
+    [Theory]
+    [InlineData("WITH x AS (SELECT 1) INSERT INTO t (c) SELECT * FROM x;")]
+    [InlineData("WITH x AS (SELECT 1) UPDATE t SET c = 1;")]
+    [InlineData("WITH d AS (DELETE FROM t RETURNING *) INSERT INTO u SELECT * FROM d;")]
+    public void DataModifyingCte_IsClassifiedAsDataChange(string sql)
+    {
+        var statement = ParseOne(sql);
+
+        Assert.Equal(ImperativeKind.DataChange, statement.Kind);
+    }
+
+    [Fact]
+    public void ReadOnlyCte_IsClassifiedAsAQuery()
+    {
+        var statement = ParseOne("WITH x AS (SELECT 1) SELECT * FROM x;");
+
+        Assert.Equal(ImperativeKind.Query, statement.Kind);
     }
 
     /// <summary>

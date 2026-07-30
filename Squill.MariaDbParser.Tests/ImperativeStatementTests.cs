@@ -26,7 +26,7 @@ public class ImperativeStatementTests
         var statement = ParseOne(sql);
 
         Assert.Equal(expectedName, statement.Name);
-        Assert.False(statement.IsDml);
+        Assert.Equal(ImperativeKind.SchemaChange, statement.Kind);
     }
 
     /// <summary>
@@ -42,7 +42,7 @@ public class ImperativeStatementTests
         var statement = ParseOne(sql);
 
         Assert.Equal(expectedName, statement.Name);
-        Assert.True(statement.IsDml);
+        Assert.Equal(ImperativeKind.DataChange, statement.Kind);
     }
 
     /// <summary>
@@ -59,7 +59,7 @@ public class ImperativeStatementTests
         var statement = ParseOne(sql);
 
         Assert.Equal("SELECT", statement.Name);
-        Assert.False(statement.IsDml);
+        Assert.Equal(ImperativeKind.Query, statement.Kind);
     }
 
     [Fact]

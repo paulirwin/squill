@@ -77,14 +77,15 @@ public class ImperativeStatementDiagnosticTests
     }
 
     /// <summary>
-    /// A query declares nothing, so it is rejected too — but it writes no data, so it is not
-    /// sent to the deploy-script remedy, which would be advising the author to keep a
-    /// statement that does nothing either way.
+    /// A query declares nothing and writes nothing, so neither of the other remedies fits:
+    /// "express this as CREATE" would imply it was trying to state an end-state, and "move it
+    /// to a deploy script" would be advising the author to keep a statement that does nothing
+    /// either way. It gets its own wording telling them to remove it.
     /// </summary>
     [Theory]
     [InlineData("SELECT 1;")]
     [InlineData("SELECT * FROM t;")]
-    public async Task Query_IsRejectedWithoutTheSeedDataRemedy(string sql)
+    public async Task Query_IsRejectedWithItsOwnRemedy(string sql)
     {
         var builder = BuilderFor(("A.sql", sql));
 
@@ -92,8 +93,11 @@ public class ImperativeStatementDiagnosticTests
             () => builder.ExtractModelAsync(TestContext.Current.CancellationToken));
 
         Assert.Equal(SqlSourceException.ImperativeStatement, ex.Code);
-        Assert.Contains("SELECT", ex.Message);
+        Assert.Contains("Remove it", ex.Message);
+
+        // Neither of the other two remedies, both of which would be wrong here.
         Assert.DoesNotContain("seed", ex.Message);
+        Assert.DoesNotContain("end-state", ex.Message);
     }
 
     /// <summary>

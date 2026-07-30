@@ -6,29 +6,26 @@ namespace Squill.PostgresParser;
 
 public partial class PostgresVisitor
 {
-    // Statements that change state rather than declare it. Matched on the leading keyword,
+    // Statements that change schema rather than declare it. Matched on the leading keyword,
     // which is what makes this survive a grammar re-vendor: the `stmt` rule has ~67
     // alternatives and their context types move between upstream revisions, but the keyword
     // a user types does not.
-    private static readonly HashSet<string> ImperativeKeywords =
+    private static readonly HashSet<string> SchemaChangeKeywords =
     [
         "ALTER", "DROP", "TRUNCATE", "RENAME",
     ];
 
-    // Data manipulation, rejected with a different remedy than DDL: seed data belongs in a
-    // post-deploy script. COPY is here too — it loads rows, and Postgres treats it as such.
-    private static readonly HashSet<string> DmlKeywords =
+    // Statements that write data. COPY is here too — it loads rows, and Postgres treats it
+    // as such.
+    private static readonly HashSet<string> DataChangeKeywords =
     [
         "INSERT", "UPDATE", "DELETE", "MERGE", "COPY",
     ];
 
-    // Queries. Rejected like everything else here — a query declares nothing, so it has no
-    // business in a schema file — but they write no data, so they do not get the "move this
-    // into a post-deploy script" remedy: that would be advising someone to keep a statement
-    // that does nothing either way.
+    // Queries: they neither declare nor change anything.
     private static readonly HashSet<string> QueryKeywords =
     [
-        "SELECT", "TABLE", "VALUES", "WITH",
+        "SELECT", "TABLE", "VALUES",
     ];
 
     /// <summary>
@@ -55,7 +52,7 @@ public partial class PostgresVisitor
     // Builds a marker for an imperative statement, or null when the statement is not one.
     private static ImperativeStatement? ClassifyImperative(PostgreSQLParser.StmtContext context)
     {
-        var keywords = LeadingKeywords(context);
+        var keywords = LeadingKeywords(context, count: 2);
 
         if (keywords.Count == 0)
         {
@@ -64,19 +61,28 @@ public partial class PostgresVisitor
 
         var first = keywords[0];
 
-        if (DmlKeywords.Contains(first))
+        // A CTE takes the kind of the statement it feeds, not of the WITH itself:
+        // `WITH x AS (…) INSERT …` writes data and must get the seed-data remedy, while
+        // `WITH x AS (…) SELECT …` is only a query. Deciding on the leading WITH would send a
+        // data-modifying CTE to the "express this as CREATE" remedy, which is the wrong fix.
+        if (first == "WITH")
+        {
+            return new ImperativeStatement("WITH", ClassifyCte(context));
+        }
+
+        if (DataChangeKeywords.Contains(first))
         {
             // Just the verb: "INSERT INTO" adds nothing, and the object name that follows is
             // noise in a message that already carries a line number.
-            return new ImperativeStatement(first, isDml: true);
+            return new ImperativeStatement(first, ImperativeKind.DataChange);
         }
 
         if (QueryKeywords.Contains(first))
         {
-            return new ImperativeStatement(first, isDml: false);
+            return new ImperativeStatement(first, ImperativeKind.Query);
         }
 
-        if (!ImperativeKeywords.Contains(first))
+        if (!SchemaChangeKeywords.Contains(first))
         {
             return null;
         }
@@ -88,18 +94,29 @@ public partial class PostgresVisitor
             ? $"{first} {keywords[1]}"
             : first;
 
-        return new ImperativeStatement(name, isDml: false);
+        return new ImperativeStatement(name, ImperativeKind.SchemaChange);
     }
 
-    // The first two words of the statement, upper-cased. The lexer runs over a
-    // CaseChangingCharStream so token text is already upper, but a quoted identifier is not,
-    // and only word-shaped tokens are of interest — punctuation would never be a keyword.
-    private static List<string> LeadingKeywords(PostgreSQLParser.StmtContext context)
+    // Whether a CTE writes data. Postgres allows INSERT/UPDATE/DELETE both inside a WITH
+    // clause (`WITH d AS (DELETE … RETURNING *) …`) and as the statement the CTE feeds, and
+    // either makes the statement a data change — so any data-writing keyword anywhere in it
+    // is enough. The alternative, matching on parse-tree context types, is what the leading
+    // keyword approach deliberately avoids.
+    private static ImperativeKind ClassifyCte(PostgreSQLParser.StmtContext context)
+        => LeadingKeywords(context, count: int.MaxValue).Any(DataChangeKeywords.Contains)
+            ? ImperativeKind.DataChange
+            : ImperativeKind.Query;
+
+    // The first <paramref name="count"/> word-shaped tokens of the statement, upper-cased. The
+    // lexer runs over a CaseChangingCharStream so token text is already upper, but a quoted
+    // identifier is not, and only word-shaped tokens are of interest — punctuation would never
+    // be a keyword.
+    private static List<string> LeadingKeywords(PostgreSQLParser.StmtContext context, int count)
         => Trees.Descendants(context)
             .OfType<ITerminalNode>()
             .Select(i => i.Symbol.Text)
             .Where(i => !string.IsNullOrWhiteSpace(i) && i.All(char.IsLetter))
-            .Take(2)
+            .Take(count)
             .Select(i => i.ToUpperInvariant())
             .ToList();
 }

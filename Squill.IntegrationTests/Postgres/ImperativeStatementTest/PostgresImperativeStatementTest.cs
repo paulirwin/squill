@@ -93,6 +93,44 @@ CREATE INDEX ix_t_name ON t (name);
     }
 
     /// <summary>
+    /// A data-modifying CTE is valid Postgres that writes rows, so it must get the seed-data
+    /// remedy rather than being told to express itself as CREATE — which it cannot be. The
+    /// live run is what proves it really writes: classifying on the leading WITH alone would
+    /// have called this a query.
+    /// </summary>
+    [Fact]
+    public async Task DataModifyingCte_WritesRowsAndGetsTheDeployScriptRemedy()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        const string sql = "WITH x AS (SELECT 1 AS n) INSERT INTO t (id) SELECT n FROM x;";
+
+        IDatabaseProvider provider = new PostgresDatabaseProvider(ConnectionString);
+        var db = await provider.CreateDatabaseAsync($"squill_test_{Guid.NewGuid():n}", ct);
+
+        try
+        {
+            await db.ConnectAsync(ct);
+            await db.RunScriptAsync("CREATE TABLE t (id integer PRIMARY KEY);", cancellationToken: ct);
+            await db.RunScriptAsync(sql, cancellationToken: ct);
+
+            // It really did write a row — this is a data change, not a query.
+            var count = await ScalarAsync(db, "SELECT count(*)::text FROM t;", ct);
+
+            Assert.Equal("1", count);
+        }
+        finally
+        {
+            await db.DropAsync(ct);
+        }
+
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(() => BuildAsync(("Seed.sql", sql)));
+
+        Assert.Equal(SqlSourceException.ImperativeStatement, ex.Code);
+        Assert.Contains("post-deploy", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("end-state", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// The remedy the message gives has to actually work: the end-state the rejected ALTER
     /// describes, written as CREATE, must build and deploy to the same schema. Without this
     /// the diagnostic would be telling authors to do something unproven.

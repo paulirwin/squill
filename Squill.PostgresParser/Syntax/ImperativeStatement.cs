@@ -2,9 +2,9 @@ namespace Squill.PostgresParser.Syntax;
 
 /// <summary>
 /// A statement that changes state imperatively rather than declaring it — an <c>ALTER</c>,
-/// <c>DROP</c> or <c>TRUNCATE</c>, or DML such as <c>INSERT</c>. It has no meaning in a
-/// declarative project, so it is carried as a marker for the model builder to reject with a
-/// purpose-built SQ0006 error (issue #125).
+/// <c>DROP</c> or <c>TRUNCATE</c>, DML such as <c>INSERT</c>, or a bare query. None of them
+/// have meaning in a declarative project, so the statement is carried as a marker for the
+/// model builder to reject with a purpose-built SQ0006 error (issue #125).
 ///
 /// <para>
 /// A marker rather than a throw from the visitor, because the position is the point: throwing
@@ -14,14 +14,11 @@ namespace Squill.PostgresParser.Syntax;
 /// keep reporting the rest of the file.
 /// </para>
 /// </summary>
-public class ImperativeStatement(string name, bool isDml) : Statement
+public class ImperativeStatement(string name, ImperativeKind kind) : Statement
 {
     /// <summary>The statement's leading keywords, upper-cased — <c>ALTER TABLE</c>, <c>DROP INDEX</c>.</summary>
     public string Name { get; } = name;
 
-    /// <summary>
-    /// True for DML, which is rejected with a different remedy: seed data belongs in a
-    /// post-deploy script, and there is no CREATE that inserts a row.
-    /// </summary>
-    public bool IsDml { get; } = isDml;
+    /// <summary>What the statement does, and so which remedy its error offers.</summary>
+    public ImperativeKind Kind { get; } = kind;
 }

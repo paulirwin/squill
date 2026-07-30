@@ -64,7 +64,7 @@ internal static class MariaDbStatementMapper
                 ? "TRUNCATE"
                 : description;
 
-            return At(new ImperativeStatement(name, isDml: false), ddl);
+            return At(new ImperativeStatement(name, ImperativeKind.SchemaChange), ddl);
         }
 
         // Any other unrecognized DDL is not modeled. It becomes a marker statement rather than
@@ -73,6 +73,15 @@ internal static class MariaDbStatementMapper
         return At(new UnmodeledStatement(description), ddl);
     }
 
+    // Statements that write data. A CTE takes the kind of the statement it feeds rather than
+    // of the leading WITH, so these are matched anywhere in the statement: a
+    // `WITH x AS (…) INSERT …` writes data and must get the seed-data remedy, while a
+    // `WITH x AS (…) SELECT …` is only a query.
+    private static readonly HashSet<string> DataChangeKeywords =
+    [
+        "INSERT", "UPDATE", "DELETE", "REPLACE", "LOAD",
+    ];
+
     /// <summary>
     /// Maps a DML statement (INSERT/UPDATE/DELETE/SELECT/…) to the marker the builder rejects.
     /// DML never reached this mapper before — <c>EnumerateStatements</c> only yielded DDL — so
@@ -80,19 +89,24 @@ internal static class MariaDbStatementMapper
     /// </summary>
     public static Statement Map(MariaDBParser.DmlStatementContext dml)
     {
-        var keyword = DescribeLeadingKeyword(dml);
+        var keywords = Keywords(dml).ToList();
 
-        // A SELECT is rejected like everything else here — it declares nothing, so it has no
-        // business in a schema file — but it is not *data* being written, so it does not get
-        // the "move this into a post-deploy script" remedy. Telling someone to move a stray
-        // SELECT into a deploy script would be advising them to keep a statement that does
-        // nothing either way.
-        var isData = dml.selectStatement() is null;
+        // Just the verb: "INSERT INTO" adds nothing over "INSERT", and what follows is the
+        // table name rather than a keyword.
+        var name = keywords.Count > 0 ? keywords[0] : "This statement";
 
-        return At(new ImperativeStatement(keyword, isData), dml);
+        // A query is rejected like everything else — it declares nothing, so it has no business
+        // in a schema file — but nothing is written, so it does not get the "move this into a
+        // post-deploy script" remedy, which would be advising the author to keep a statement
+        // that does nothing either way.
+        var kind = keywords.Any(DataChangeKeywords.Contains)
+            ? ImperativeKind.DataChange
+            : ImperativeKind.Query;
+
+        return At(new ImperativeStatement(name, kind), dml);
     }
 
-    // Statements that change state rather than declare it, matched on the leading keyword.
+    // Statements that change schema rather than declare it, matched on the leading keyword.
     private static bool IsImperativeDdl(string description)
     {
         var first = description.Split(' ')[0];
@@ -100,17 +114,13 @@ internal static class MariaDbStatementMapper
         return first is "ALTER" or "DROP" or "TRUNCATE" or "RENAME";
     }
 
-    // Just the verb for DML: "INSERT INTO" adds nothing over "INSERT", and what follows is the
-    // table name rather than a keyword.
-    private static string DescribeLeadingKeyword(MariaDBParser.DmlStatementContext dml)
-    {
-        var keyword = Trees.Descendants(dml)
+    // The word-shaped tokens of a statement, upper-cased, in source order.
+    private static IEnumerable<string> Keywords(MariaDBParser.DmlStatementContext dml)
+        => Trees.Descendants(dml)
             .OfType<ITerminalNode>()
             .Select(i => i.Symbol.Text)
-            .FirstOrDefault(i => !string.IsNullOrWhiteSpace(i) && i.All(char.IsLetter));
-
-        return keyword?.ToUpperInvariant() ?? "This statement";
-    }
+            .Where(i => !string.IsNullOrWhiteSpace(i) && i.All(char.IsLetter))
+            .Select(i => i.ToUpperInvariant());
 
     // A short, human-readable name for an unmodeled DDL statement: its first two tokens
     // (CREATE VIEW, ALTER TABLE, DROP INDEX, …), so the warning names what was written.

@@ -458,7 +458,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             // missing capability and invites the author to wait for it (issue #125).
             throw ImperativeStatementDiagnostic.Exception(
                 imperativeStatement.Name,
-                imperativeStatement.IsDml,
+                ToDiagnosticKind(imperativeStatement.Kind),
                 file.Name,
                 statement.Line,
                 statement.Column);
@@ -469,6 +469,15 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 $"Statement type {statement.GetType()} to Element transformation not yet implemented");
         }
     }
+
+    // The parsers deliberately do not reference Squill.Core, so each carries its own copy of
+    // this distinction; the provider, which bridges the two, maps one to the other.
+    private static ImperativeStatementKind ToDiagnosticKind(ImperativeKind kind) => kind switch
+    {
+        ImperativeKind.DataChange => ImperativeStatementKind.DataChange,
+        ImperativeKind.Query => ImperativeStatementKind.Query,
+        _ => ImperativeStatementKind.SchemaChange,
+    };
 
     /// <summary>
     /// Records a warning for every construct in a CREATE TABLE that is recognized but not
