@@ -75,6 +75,21 @@ public class ExpressionNormalizerTests
     // them apart, neither can a canonical form built from what it reports.
     [InlineData("price::integer > 0", "((price)::integer > 0)")]
     [InlineData("price * quantity", "(price * (quantity)::numeric)")]
+    // IN is desugared into a quantified comparison against an array (issue #170). Measured on
+    // postgres:latest: IN becomes `= ANY`, and NOT IN becomes `<> ALL` rather than a negated
+    // ANY — so the two quantifiers are not interchangeable and both must normalize.
+    [InlineData("quantity IN (1, 2, 3)", "(quantity = ANY (ARRAY[1, 2, 3]))")]
+    [InlineData("quantity NOT IN (1, 2)", "(quantity <> ALL (ARRAY[1, 2]))")]
+    [InlineData("name IN ('a', 'b')", "(name = ANY (ARRAY['a'::text, 'b'::text]))")]
+    // SOME is a synonym for ANY and is stored as ANY, so the two spellings must agree.
+    [InlineData("quantity = SOME (ARRAY[1, 2])", "(quantity = ANY (ARRAY[1, 2]))")]
+    // A single-element IN does not become an array at all — it collapses to a plain
+    // comparison, so the declared IN must reduce to exactly what the extracted form is.
+    [InlineData("quantity IN (1)", "(quantity = 1)")]
+    [InlineData("quantity NOT IN (5)", "(quantity <> 5)")]
+    [InlineData("name IN ('x')", "(name = 'x'::text)")]
+    // Any operator can be quantified, not just equality.
+    [InlineData("quantity > ANY (ARRAY[1, 2])", "(quantity > ANY (ARRAY[1, 2]))")]
     public void DeclaredAndExtracted_NormalizeToTheSameToken(string declared, string extracted)
     {
         var declaredCanonical = Normalize(declared);
@@ -162,17 +177,47 @@ public class ExpressionNormalizerTests
 
     /// <summary>
     /// <c>IN (…)</c> is stored by PostgreSQL as <c>= ANY (ARRAY[…])</c>, so normalizing the two
-    /// together is needed for a CHECK that uses one. Neither side parses today: <c>IN</c> in an
-    /// expression position fails outright, and <c>= ANY (…)</c> hits an unimplemented visitor
-    /// branch (<c>PostgresVisitor.AExprCompare.cs</c>: "Subquery_op not yet supported"). Both are
-    /// pre-existing parser gaps rather than normalizer ones.
+    /// together is needed for a CHECK that uses one (issue #170). Both spellings now parse: the
+    /// <c>in_expr</c> alternatives are mapped, and the <c>subquery_Op</c> branch of
+    /// <c>a_expr_compare</c> is implemented.
     /// </summary>
-    [Fact(Skip = "Blocked by issue #170: IN (…) does not parse in an expression position, and "
-                 + "= ANY (ARRAY[…]) hits an unimplemented Subquery_op visitor branch.")]
+    [Fact]
     public void InList_NormalizesWithAnyArray()
     {
         Assert.Equal(
             Normalize("(quantity = ANY (ARRAY[1, 2, 3]))"),
             Normalize("quantity IN (1,2,3)"));
+    }
+
+    /// <summary>
+    /// The quantifier is part of the meaning, so <c>ANY</c> and <c>ALL</c> must not collapse
+    /// together — <c>= ANY</c> is membership while <c>= ALL</c> requires every element to
+    /// match. Nor may a differing element list collapse.
+    /// </summary>
+    [Theory]
+    [InlineData("quantity = ANY (ARRAY[1, 2])", "quantity = ALL (ARRAY[1, 2])")]
+    [InlineData("quantity IN (1, 2)", "quantity NOT IN (1, 2)")]
+    [InlineData("quantity IN (1, 2)", "quantity IN (1, 3)")]
+    [InlineData("quantity IN (1, 2)", "quantity IN (1, 2, 3)")]
+    [InlineData("quantity IN (1, 2)", "name IN (1, 2)")]
+    public void QuantifiedComparisons_ThatDiffer_NormalizeDifferently(string a, string b)
+    {
+        var canonicalA = Normalize(a);
+        var canonicalB = Normalize(b);
+
+        Assert.NotNull(canonicalA);
+        Assert.NotNull(canonicalB);
+        Assert.NotEqual(canonicalB, canonicalA);
+    }
+
+    /// <summary>
+    /// The element order in an <c>IN</c> list is preserved rather than sorted: PostgreSQL keeps
+    /// the order it was given (measured), so re-ordering the list is a real change to the
+    /// stored predicate and must not compare equal.
+    /// </summary>
+    [Fact]
+    public void InList_ElementOrder_IsSignificant()
+    {
+        Assert.NotEqual(Normalize("quantity IN (2, 1)"), Normalize("quantity IN (1, 2)"));
     }
 }

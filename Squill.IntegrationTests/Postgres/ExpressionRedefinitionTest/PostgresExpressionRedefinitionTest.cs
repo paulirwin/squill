@@ -71,6 +71,99 @@ WHERE conrelid = 'people'::regclass AND conname = 'ck_people';
     }
 
     /// <summary>
+    /// The same, for a predicate that uses <c>IN</c> (issue #170).
+    ///
+    /// <para>
+    /// This was the last predicate shape for which redefinition stayed a silent no-op after
+    /// #156. Neither spelling parsed — <c>IN (…)</c> failed outright and <c>= ANY (ARRAY[…])</c>
+    /// hit an unimplemented visitor branch — so the normalizer could give such a CHECK no
+    /// canonical form, it fell back to not participating in the identity hash, and changing
+    /// only the value list changed no hash at all.
+    /// </para>
+    ///
+    /// <para>
+    /// The two spellings have to meet for this to work: the declared form is <c>IN</c> and the
+    /// extracted form is what PostgreSQL stores it as, <c>= ANY (ARRAY[…])</c>. The assertion
+    /// on <c>pg_get_constraintdef</c> below is that stored form, measured rather than inferred.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task ChangedInListPredicate_UnderSameConstraintName_IsApplied()
+    {
+        const string before = """
+CREATE TABLE parcel
+(
+    id       integer PRIMARY KEY,
+    quantity integer NOT NULL,
+    CONSTRAINT ck_parcel CHECK (quantity IN (1, 2, 3))
+);
+""";
+        const string after = """
+CREATE TABLE parcel
+(
+    id       integer PRIMARY KEY,
+    quantity integer NOT NULL,
+    CONSTRAINT ck_parcel CHECK (quantity IN (1, 2))
+);
+""";
+
+        await RunScenarioAsync(
+            before, after,
+            seedSql: "INSERT INTO parcel (id, quantity) VALUES (1, 1);",
+            assertAfterAsync: async (conn, result) =>
+            {
+                Assert.False(string.IsNullOrWhiteSpace(result.Script),
+                    "A changed IN-list CHECK predicate should generate a non-empty script.");
+
+                // PostgreSQL stores IN as a quantified comparison against an array.
+                var def = (string?)await ScalarAsync(conn, """
+SELECT pg_get_constraintdef(oid) FROM pg_constraint
+WHERE conrelid = 'parcel'::regclass AND conname = 'ck_parcel';
+""");
+                Assert.Equal("CHECK ((quantity = ANY (ARRAY[1, 2])))", def);
+
+                // The value dropped from the list is genuinely rejected now.
+                await Assert.ThrowsAsync<PostgresException>(() => ExecuteAsync(
+                    conn,
+                    "INSERT INTO parcel (id, quantity) VALUES (2, 3);",
+                    TestContext.Current.CancellationToken));
+
+                // The seeded row, still in the list, survives.
+                Assert.Equal(1L, await ScalarAsync(conn, "SELECT count(*) FROM parcel;"));
+            });
+    }
+
+    /// <summary>
+    /// An unchanged <c>IN</c> predicate must NOT redeploy — the other half of the contract.
+    /// The declared <c>IN</c> and the extracted <c>= ANY (ARRAY[…])</c> have to reduce to the
+    /// same canonical token, or every deploy would drop and re-add the constraint.
+    /// </summary>
+    [Fact]
+    public async Task UnchangedInListPredicate_DoesNotRedeploy()
+    {
+        const string schema = """
+CREATE TABLE crate
+(
+    id       integer PRIMARY KEY,
+    quantity integer NOT NULL,
+    CONSTRAINT ck_crate CHECK (quantity IN (1, 2, 3))
+);
+""";
+
+        await RunScenarioAsync(
+            schema, schema,
+            seedSql: "INSERT INTO crate (id, quantity) VALUES (1, 2);",
+            assertAfterAsync: (_, result) =>
+            {
+                Assert.True(string.IsNullOrWhiteSpace(result.Script),
+                    "An unchanged IN-list CHECK predicate must not generate a script; "
+                    + $"got: {result.Script}");
+
+                return Task.CompletedTask;
+            });
+    }
+
+    /// <summary>
     /// The contrast case that proves the mechanism works when identity changes: a CHECK
     /// constraint's NAME does participate in identity, so renaming it (even with a different
     /// predicate) is seen as a drop plus a create, and the new predicate really is applied.

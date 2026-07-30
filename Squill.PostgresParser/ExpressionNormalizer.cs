@@ -135,8 +135,20 @@ public static class ExpressionNormalizer
             case LikeExpression like:
                 return WriteLike(sb, like);
 
+            // Must precede BinaryExpression for the same reason LikeExpression does — IN is
+            // carried as a BinaryExpression, and it desugars rather than rendering as-is.
+            case BinaryExpression { Operator: BuiltInOperator { Operator:
+                    PostgresBuiltInBinaryOperator.In or PostgresBuiltInBinaryOperator.NotIn } } inList:
+                return WriteInList(sb, inList);
+
             case BinaryExpression binary:
                 return WriteBinary(sb, binary.Left, binary.Operator, binary.Right);
+
+            case QuantifiedComparisonExpression quantified:
+                return WriteQuantifiedComparison(sb, quantified);
+
+            case ArrayExpression array:
+                return WriteArray(sb, array);
 
             case UnaryExpression unary:
                 return WriteUnary(sb, unary);
@@ -315,6 +327,110 @@ public static class ExpressionNormalizer
         return true;
     }
 
+    /// <summary>
+    /// Desugars an <c>IN</c> list into the quantified comparison PostgreSQL stores it as, so
+    /// the declared and extracted spellings of one predicate reduce to one token (issue #170).
+    ///
+    /// <para>
+    /// Measured on <c>postgres:latest</c>, and none of it is guessable from the grammar:
+    /// <c>q IN (1, 2)</c> is stored as <c>q = ANY (ARRAY[1, 2])</c>, while <c>q NOT IN (1, 2)</c>
+    /// becomes <c>q &lt;&gt; ALL (ARRAY[1, 2])</c> — a negated <c>ANY</c> is <em>not</em> what
+    /// the engine produces. And a <em>single-element</em> list collapses to a plain comparison
+    /// with no array at all: <c>q IN (1)</c> is stored as <c>q = 1</c>.
+    /// </para>
+    /// </summary>
+    private static bool WriteInList(StringBuilder sb, BinaryExpression inList)
+    {
+        var negated = inList.Operator is BuiltInOperator
+        {
+            Operator: PostgresBuiltInBinaryOperator.NotIn,
+        };
+
+        var op = new BuiltInOperator(negated
+            ? PostgresBuiltInBinaryOperator.NotEqual
+            : PostgresBuiltInBinaryOperator.Equal);
+
+        // The right operand is an ArrayExpression for a value list, and something else only for
+        // the subquery form — which the visitor refuses before reaching here.
+        if (inList.Right is not ArrayExpression array)
+        {
+            return false;
+        }
+
+        // One element is not stored as an array, so it must not be normalized as one.
+        if (array.Elements.Count == 1)
+        {
+            return WriteBinary(sb, inList.Left, op, array.Elements[0]);
+        }
+
+        return WriteQuantified(
+            sb, inList.Left, op,
+            negated ? ComparisonQuantifier.All : ComparisonQuantifier.Any,
+            array);
+    }
+
+    private static bool WriteQuantifiedComparison(
+        StringBuilder sb, QuantifiedComparisonExpression quantified)
+        => WriteQuantified(
+            sb, quantified.Left, quantified.Operator, quantified.Quantifier, quantified.Right);
+
+    // `(left OP ANY (right))` — the shape pg_get_constraintdef reports, with the quantifier's
+    // operand parenthesized separately from the comparison.
+    private static bool WriteQuantified(
+        StringBuilder sb, Expression left, Operator op, ComparisonQuantifier quantifier,
+        Expression right)
+    {
+        if (OperatorText(op) is not { } opText)
+        {
+            return false;
+        }
+
+        sb.Append('(');
+
+        if (!Write(sb, left))
+        {
+            return false;
+        }
+
+        sb.Append(' ').Append(opText).Append(' ')
+            .Append(quantifier == ComparisonQuantifier.All ? "ALL" : "ANY")
+            .Append(" (");
+
+        if (!Write(sb, right))
+        {
+            return false;
+        }
+
+        sb.Append("))");
+
+        return true;
+    }
+
+    // `ARRAY[a, b]` — element order is preserved rather than sorted, because PostgreSQL stores
+    // the order it was given (measured: `q IN (2, 1)` comes back as `ARRAY[2, 1]`), so a
+    // reordered list is a genuinely different predicate.
+    private static bool WriteArray(StringBuilder sb, ArrayExpression array)
+    {
+        sb.Append("ARRAY[");
+
+        for (var i = 0; i < array.Elements.Count; i++)
+        {
+            if (i > 0)
+            {
+                sb.Append(", ");
+            }
+
+            if (!Write(sb, array.Elements[i]))
+            {
+                return false;
+            }
+        }
+
+        sb.Append(']');
+
+        return true;
+    }
+
     private static bool WriteFunction(StringBuilder sb, FunctionApplicationExpression function)
     {
         // Lower-cased because PostgreSQL reports an unquoted function name folded to lower case,
@@ -376,8 +492,14 @@ public static class ExpressionNormalizer
             PostgresBuiltInBinaryOperator.Or => "OR",
             PostgresBuiltInBinaryOperator.LeftShift => "<<",
             PostgresBuiltInBinaryOperator.RightShift => ">>",
-            // SIMILAR TO is stored as a regex rewrite whose exact form is not measured, and
-            // IN as `= ANY (ARRAY[…])`, which does not parse today (issue #170).
+            // SIMILAR TO is stored as a regex rewrite whose exact form is not measured.
+            //
+            // IN / NOT IN are deliberately absent rather than missing: they never render as
+            // themselves, because PostgreSQL stores them desugared (`= ANY (ARRAY[…])` /
+            // `<> ALL (ARRAY[…])`). WriteInList rewrites them into that form before any
+            // operator text is needed, so reaching here with one means the desugaring was
+            // skipped — and returning null refuses rather than emitting an `IN` the engine
+            // would never report back (issue #170).
             _ => null,
         },
         _ => null,

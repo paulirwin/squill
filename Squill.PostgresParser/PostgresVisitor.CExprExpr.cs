@@ -21,6 +21,23 @@ public partial class PostgresVisitor
             return VisitColumnref(columnref);
         }
 
+        // ARRAY[...] — the form an IN predicate is stored as (issue #170). Checked before the
+        // a_expr branch below: `ARRAY` binds its own operand, so a parenthesized expression
+        // inside one must not be mistaken for the whole alternative.
+        if (context.ARRAY() is not null)
+        {
+            if (context.array_expr() is not { } arrayExpr)
+            {
+                // The only other ARRAY alternative is `ARRAY (SELECT ...)`, whose value
+                // depends on other rows and so cannot be compared against a target schema.
+                throw new NotImplementedException(
+                    "ARRAY (SELECT ...) is not supported: a subquery's value cannot be "
+                    + "compared against the target schema. Use an explicit element list.");
+            }
+
+            return VisitArray_expr(arrayExpr);
+        }
+
         if (context.a_expr() is { } aExpr)
         {
             if (VisitA_expr(aExpr) is not Expression expression)
