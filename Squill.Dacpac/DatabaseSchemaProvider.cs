@@ -22,15 +22,26 @@ public abstract class DatabaseSchemaProvider
     public abstract int MajorVersion { get; }
 
     /// <summary>
-    /// The longest identifier the engine accepts, in the unit <see cref="MeasureIdentifier"/>
-    /// counts. Every engine imposes one and rejects a longer name outright, so an identifier
-    /// over it is a build error (<c>SQ0005</c>) rather than a mid-deploy engine failure.
+    /// The longest identifier the engine honours, in the unit <see cref="MeasureIdentifier"/>
+    /// counts. Every engine imposes one, so a name over it never survives a deploy intact —
+    /// which is why it is a build error (<c>SQ0005</c>) rather than something discovered at
+    /// deploy time.
     ///
-    /// The two engines do not agree on the unit as well as the number, which is why the limit
-    /// and its measurement are declared together: PostgreSQL's <c>NAMEDATALEN - 1</c> is 63
+    /// <para>
+    /// What the engines do with an over-long name differs, and neither outcome is acceptable:
+    /// MariaDB and MySQL <em>reject</em> it (<c>ERROR 1059</c>) partway through the script,
+    /// while PostgreSQL <em>silently truncates</em> it, so the object deploys under a name the
+    /// model never predicted and re-diffs on every deploy thereafter. Truncation is the worse
+    /// of the two, since nothing announces it.
+    /// </para>
+    ///
+    /// <para>
+    /// The engines disagree on the unit as well as the number, which is why the limit and its
+    /// measurement are declared together: PostgreSQL's <c>NAMEDATALEN - 1</c> is 63
     /// <em>bytes</em>, MariaDB and MySQL cap at 64 <em>characters</em>. Comparing one engine's
     /// number under the other's unit is wrong in both directions — it would reject valid
     /// multi-byte MariaDB source, and accept Postgres source the server truncates.
+    /// </para>
     /// </summary>
     public abstract int MaxIdentifierLength { get; }
 
