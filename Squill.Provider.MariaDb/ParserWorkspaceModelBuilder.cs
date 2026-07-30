@@ -36,7 +36,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     public async Task<BuildResult> ExtractModelAsync(CancellationToken cancellationToken = default)
     {
         var model = new Model();
-        var validator = new SourceValidator();
+        var validator = new SourceValidator(_schemaProvider);
         var warnings = new List<SqlSourceDiagnostic>();
         var views = new List<PendingView>();
 
@@ -484,8 +484,41 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     // trigger/index tracking and the registration methods that read MariaDB syntax.
     private sealed class SourceValidator : SourceValidatorBase<string>
     {
-        public SourceValidator() : base(StringComparer.OrdinalIgnoreCase)
+        private readonly MariaDbFamilyDatabaseSchemaProvider _schemaProvider;
+
+        public SourceValidator(MariaDbFamilyDatabaseSchemaProvider schemaProvider)
+            : base(StringComparer.OrdinalIgnoreCase)
         {
+            _schemaProvider = schemaProvider;
+        }
+
+        /// <summary>
+        /// Reports an identifier the target engine would reject as too long (issue #163).
+        /// Both engines cap at 64 characters and fail with <c>ERROR 1059</c>, which surfaces
+        /// mid-deploy after part of the script has already run — so it is caught here instead,
+        /// anchored at the statement that declares it.
+        ///
+        /// <paramref name="description"/> says what the identifier is, because a derived name
+        /// (an unnamed foreign key's <c>&lt;table&gt;_ibfk_&lt;n&gt;</c>) does not appear in the
+        /// source text and would otherwise be unattributable.
+        /// </summary>
+        public void CheckIdentifierLength(
+            IFile file, int? line, int? column, string description, string identifier)
+        {
+            var limit = _schemaProvider.MaxIdentifierLength;
+
+            if (_schemaProvider.MeasureIdentifier(identifier) <= limit)
+            {
+                return;
+            }
+
+            // "characters" is stated literally rather than read from the provider because this
+            // validator only ever serves the MariaDB family, whose unit is characters. A
+            // Postgres equivalent would have to say "bytes" — see MeasureIdentifier.
+            AddError(new SqlSourceException(
+                $"{description} '{identifier}' is too long: "
+                + $"{_schemaProvider.ProviderName} limits an identifier to {limit} characters.",
+                file.Name, line, column, SqlSourceException.IdentifierTooLong));
         }
 
         // Where each routine/trigger was first defined, so a redefinition can name the original.
@@ -525,6 +558,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             // within the database, regardless of parameters.
             var name = createProcedure.Name.Name;
 
+            CheckIdentifierLength(file, createProcedure.Line, createProcedure.Column,
+                "Procedure", name);
+
+            CheckRoutineParameterNames(file, createProcedure.Line, createProcedure.Column,
+                $"procedure '{name}'", createProcedure.Parameters);
+
             if (_procedureOrigins.TryGetValue(name, out var existing))
             {
                 AddError(new SqlSourceException(
@@ -549,6 +588,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             // regardless of parameters — neither engine allows routine overloading.
             var name = createFunction.Name.Name;
 
+            CheckIdentifierLength(file, createFunction.Line, createFunction.Column,
+                "Function", name);
+
+            CheckRoutineParameterNames(file, createFunction.Line, createFunction.Column,
+                $"function '{name}'", createFunction.Parameters);
+
             if (_functionOrigins.TryGetValue(name, out var existing))
             {
                 AddError(new SqlSourceException(
@@ -572,6 +617,9 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             // A trigger name is unique within the database (schema), regardless of the table
             // it fires on — the same as a routine.
             var name = createTrigger.Name.Name;
+
+            CheckIdentifierLength(file, createTrigger.Line, createTrigger.Column,
+                "Trigger", name);
 
             if (_triggerOrigins.TryGetValue(name, out var existing))
             {
@@ -606,6 +654,9 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             // resolve — an event body may query anything, and bodies are not parsed.
             var name = createEvent.Name.Name;
 
+            CheckIdentifierLength(file, createEvent.Line, createEvent.Column,
+                "Event", name);
+
             if (_eventOrigins.TryGetValue(name, out var existing))
             {
                 AddError(new SqlSourceException(
@@ -621,13 +672,80 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             _eventOrigins[name] = new Origin(file.Name, createEvent.Line);
         }
 
+        /// <summary>
+        /// Checks the names MariaDB derives for the table's unnamed foreign keys
+        /// (<c>&lt;table&gt;_ibfk_&lt;n&gt;</c>). A derived name can exceed the limit while every
+        /// identifier the user wrote is within it, so it has to be checked as the name that
+        /// will actually be deployed rather than as source text.
+        ///
+        /// <para>
+        /// The ordinal must be counted exactly the way <see cref="MakeCreateTableElements"/>
+        /// counts it, or the name reported here is not the name that deploys: column-level
+        /// foreign keys are collected by <c>AddColumns</c> <em>before</em> the table-level ones,
+        /// and both share one counter. Enumerating only the table-level constraints (as this
+        /// check first did) both skipped column-level keys entirely and mis-numbered the rest.
+        /// </para>
+        ///
+        /// <para>
+        /// The <c>_ibfk_N</c> convention this mirrors is MySQL's. Measured on
+        /// <c>mariadb:12.3</c>, that engine names an unnamed InnoDB foreign key with a bare
+        /// ordinal (<c>1</c>, <c>2</c>) instead — which is always within the limit, so this
+        /// check only ever fires for a name MySQL would really use. That the model assumes
+        /// MySQL's convention for both engines is a separate, pre-existing defect (issue #179):
+        /// the two do not hash-match on MariaDB. It is not introduced or widened here.
+        /// </para>
+        /// </summary>
+        private void CheckDerivedForeignKeyNames(
+            IFile file, CreateTableStatement createTable, string table)
+        {
+            // Column-level foreign keys first, matching AddColumns' contribution order. A
+            // constraint wrapped in NamedColumnConstraint carries an explicit name and so takes
+            // no ordinal — the same rule the table-level loop below applies.
+            var unnamed = createTable.Elements
+                .OfType<ColumnDefinition>()
+                .SelectMany(c => c.Constraints)
+                .Where(c => c is not NamedColumnConstraint)
+                .OfType<ForeignKeyColumnConstraint>()
+                .Select(c => (Line: c.Line ?? createTable.Line, Column: c.Column ?? createTable.Column))
+                .ToList();
+
+            // Then the table-level ones, skipping any that carry an explicit CONSTRAINT name —
+            // those are checked as written and take no ordinal.
+            foreach (var tableConstraint in createTable.Elements.OfType<TableConstraint>())
+            {
+                if (tableConstraint is NamedTableConstraint)
+                {
+                    continue;
+                }
+
+                if (tableConstraint is ForeignKeyTableConstraint fk)
+                {
+                    unnamed.Add((fk.Line ?? createTable.Line, fk.Column ?? createTable.Column));
+                }
+            }
+
+            for (var ordinal = 1; ordinal <= unnamed.Count; ordinal++)
+            {
+                var (line, column) = unnamed[ordinal - 1];
+
+                CheckIdentifierLength(file, line, column,
+                    $"Generated name for an unnamed foreign key on table '{table}'",
+                    $"{table}_ibfk_{ordinal}");
+            }
+        }
+
         public void AddCreateTable(IFile file, CreateTableStatement createTable)
         {
             var table = createTable.Name.Name;
 
+            CheckIdentifierLength(file, createTable.Line, createTable.Column, "Table", table);
+
             var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var columnDefinition in createTable.Elements.OfType<ColumnDefinition>())
             {
+                CheckIdentifierLength(file, createTable.Line, createTable.Column,
+                    $"Column on table '{table}'", columnDefinition.Name.Name);
+
                 // A column named twice would silently collapse into one model element;
                 // MariaDB rejects it outright, so it is a build error.
                 if (!columns.Add(columnDefinition.Name.Name))
@@ -665,6 +783,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 .Select(i => i.Name.Name)
                 .ToList();
 
+            CheckDerivedForeignKeyNames(file, createTable, table);
+
             foreach (var tableConstraint in createTable.Elements.OfType<TableConstraint>())
             {
                 var (constraint, constraintName) = tableConstraint is NamedTableConstraint named
@@ -673,6 +793,16 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
                 var line = constraint.Line ?? createTable.Line;
                 var column = constraint.Column ?? createTable.Column;
+
+                // Covers every named table constraint in one place. The unnamed forms are
+                // handled per-case below, because each derives its name differently: an
+                // unnamed unique index takes its first column's name (already checked as a
+                // column), and an unnamed foreign key needs the _ibfk_N ordinal.
+                if (constraintName is not null)
+                {
+                    CheckIdentifierLength(file, line, column,
+                        $"Constraint on table '{table}'", constraintName);
+                }
 
                 switch (constraint)
                 {
@@ -695,6 +825,14 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         // standalone CREATE INDEX, so it has to be registered here too.
                         CheckDuplicateIndexName(file, line, column, table,
                             constraintName ?? unique.IndexName);
+
+                        // The `UNIQUE KEY <name>` spelling names the index outside the
+                        // CONSTRAINT slot the shared check above covers.
+                        if (constraintName is null && unique.IndexName is { } uniqueIndexName)
+                        {
+                            CheckIdentifierLength(file, line, column,
+                                $"Index on table '{table}'", uniqueIndexName);
+                        }
                         break;
 
                     case IndexTableConstraint index:
@@ -707,6 +845,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         // would not, and the check enforces the stricter of the two.
                         CheckDuplicateIndexName(file, line, column, table,
                             constraintName ?? index.IndexName);
+
+                        if (constraintName is null && index.IndexName is { } indexName)
+                        {
+                            CheckIdentifierLength(file, line, column,
+                                $"Index on table '{table}'", indexName);
+                        }
                         break;
 
                     case CheckTableConstraint:
@@ -845,8 +989,36 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             }
         }
 
+        /// <summary>
+        /// A routine's parameter names are part of its stored definition and are read back from
+        /// the catalog, so an over-long one fails the same way the routine's own name would.
+        /// </summary>
+        private void CheckRoutineParameterNames(
+            IFile file, int? line, int? column, string routine,
+            IEnumerable<RoutineParameter> parameters)
+        {
+            foreach (var parameter in parameters)
+            {
+                CheckIdentifierLength(file, parameter.Line ?? line, parameter.Column ?? column,
+                    $"Parameter of {routine}", parameter.Name.Name);
+            }
+        }
+
         public void AddCreateView(IFile file, CreateViewStatement createView)
         {
+            CheckIdentifierLength(file, createView.Line, createView.Column,
+                "View", createView.Name.Name);
+
+            // An explicit column list names the view's columns outright. MySQL rejects an
+            // over-long one (error 1166); MariaDB silently truncates it to 64 characters, so
+            // the extracted name would never match the declared one and the view would
+            // re-diff on every deploy — the worse of the two failures.
+            foreach (var columnName in createView.ColumnNames)
+            {
+                CheckIdentifierLength(file, createView.Line, createView.Column,
+                    $"Column of view '{createView.Name.Name}'", columnName.Name);
+            }
+
             // Every table the view selects from must be declared in the project, so an
             // unresolved one is reported like any other unresolved reference.
             foreach (var sourceTable in createView.SourceTables)
@@ -879,6 +1051,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
             CheckDuplicateIndexName(file, createIndex.Line, createIndex.Column,
                 table, createIndex.Name);
+
+            if (createIndex.Name is { } indexName)
+            {
+                CheckIdentifierLength(file, createIndex.Line, createIndex.Column,
+                    $"Index on table '{table}'", indexName);
+            }
 
             // Only a UNIQUE index backs a foreign key on both engines; MySQL rejects a
             // non-unique one even though MariaDB accepts it.

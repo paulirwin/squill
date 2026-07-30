@@ -14,6 +14,18 @@ public abstract class PostgresqlDatabaseSchemaProvider : DatabaseSchemaProvider
     public override string ProviderName => "Postgresql";
 
     /// <summary>
+    /// PostgreSQL's limit is <c>NAMEDATALEN - 1</c> = 63 <em>bytes</em>, not characters, and it
+    /// does not reject a longer identifier — it silently truncates to fit. Truncation is the
+    /// worse failure of the two: the object deploys under a name the model never predicted and
+    /// re-diffs on every deploy thereafter, where MariaDB's outright rejection at least stops.
+    /// </summary>
+    public sealed override int MaxIdentifierLength => 63;
+
+    /// <inheritdoc />
+    public sealed override int MeasureIdentifier(string identifier)
+        => System.Text.Encoding.UTF8.GetByteCount(identifier);
+
+    /// <summary>
     /// Whether <c>ALTER TABLE … ALTER COLUMN … SET EXPRESSION AS (…)</c> is available, which
     /// redefines a generated column's expression and recomputes the stored rows in one statement
     /// (issue #156).

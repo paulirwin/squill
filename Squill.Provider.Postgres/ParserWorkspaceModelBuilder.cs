@@ -1035,7 +1035,11 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             string table,
             string derivedName)
         {
-            // The limit is NAMEDATALEN - 1 = 63 bytes, not characters.
+            // The limit is NAMEDATALEN - 1 = 63 bytes, not characters. The same fact is
+            // declared as a capability on PostgresqlDatabaseSchemaProvider
+            // (MaxIdentifierLength / MeasureIdentifier, issue #163); it is repeated here
+            // because this builder is not given a schema provider, and threading one in is a
+            // public API change out of scope for that issue. Both must move together.
             if (System.Text.Encoding.UTF8.GetByteCount(derivedName) <= 63)
             {
                 return;
