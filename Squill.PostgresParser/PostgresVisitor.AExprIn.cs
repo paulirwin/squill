@@ -18,8 +18,13 @@ public partial class PostgresVisitor
             throw new PostgresParseException("Unable to parse IN expression left operand");
         }
 
-        // NOTE: using base Visit method because of named in_expr branches
-        // TODO: should we assert this is a more specific type i.e. InExpression?
+        // The base Visit is used because in_expr has named branches; the list branch maps to
+        // an ArrayExpression and the subquery branch refuses (issue #170).
+        //
+        // The IN spelling is kept here rather than rewritten into `= ANY (ARRAY[…])`: the
+        // parser's job is to preserve what was written, and folding the two spellings together
+        // here would lose the source form. The engine's rewrite is applied by the expression
+        // normalizer instead, which is where measured engine behaviour belongs.
         if (Visit(context.in_expr()) is not Expression right)
         {
             throw new PostgresParseException("Unable to parse IN expression right operand");

@@ -105,6 +105,21 @@ public static class ExpressionSqlRenderer
                 }
                 break;
 
+            // Must precede BinaryExpression: IN carries its operands as an ArrayExpression, but
+            // renders them as the parenthesized list it was written as — `x IN (1, 2)`, not
+            // `x IN ARRAY[1, 2]`, which is not valid SQL (issue #170).
+            case BinaryExpression
+            {
+                Operator: BuiltInOperator { Operator:
+                    PostgresBuiltInBinaryOperator.In or PostgresBuiltInBinaryOperator.NotIn },
+                Right: ArrayExpression inList,
+            } inExpression:
+                Write(sb, inExpression.Left, bareIdentifiers);
+                sb.Append(' ').Append(BinaryOperatorText(inExpression.Operator)).Append(" (");
+                WriteElements(sb, inList.Elements, bareIdentifiers);
+                sb.Append(')');
+                break;
+
             case BinaryExpression binary:
                 Write(sb, binary.Left, bareIdentifiers);
                 sb.Append(' ').Append(BinaryOperatorText(binary.Operator)).Append(' ');
@@ -207,6 +222,23 @@ public static class ExpressionSqlRenderer
                 sb.Append("COLLATION FOR (");
                 Write(sb, collation.Expression, bareIdentifiers);
                 sb.Append(')');
+                break;
+
+            // `x = ANY (ARRAY[…])` (issue #170). The quantifier's operand is parenthesized
+            // separately from the comparison, matching how PostgreSQL reports it.
+            case QuantifiedComparisonExpression quantified:
+                Write(sb, quantified.Left, bareIdentifiers);
+                sb.Append(' ').Append(BinaryOperatorText(quantified.Operator)).Append(' ')
+                    .Append(quantified.Quantifier == ComparisonQuantifier.All ? "ALL" : "ANY")
+                    .Append(" (");
+                Write(sb, quantified.Right, bareIdentifiers);
+                sb.Append(')');
+                break;
+
+            case ArrayExpression array:
+                sb.Append("ARRAY[");
+                WriteElements(sb, array.Elements, bareIdentifiers);
+                sb.Append(']');
                 break;
 
             default:
@@ -389,6 +421,22 @@ public static class ExpressionSqlRenderer
             }
 
             sb.Append('"').Append(name.Segments[i].Name).Append('"');
+        }
+    }
+
+    // A comma-separated operand list, shared by an array constructor and an IN list — the two
+    // spellings differ only in their brackets.
+    private static void WriteElements(
+        StringBuilder sb, IReadOnlyList<Expression> elements, IReadOnlySet<string> bareIdentifiers)
+    {
+        for (var i = 0; i < elements.Count; i++)
+        {
+            if (i > 0)
+            {
+                sb.Append(", ");
+            }
+
+            Write(sb, elements[i], bareIdentifiers);
         }
     }
 

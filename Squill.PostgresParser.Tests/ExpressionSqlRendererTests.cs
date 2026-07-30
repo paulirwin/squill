@@ -28,9 +28,40 @@ public class ExpressionSqlRendererTests
     [InlineData("a = 1 AND b = 2", "\"a\" = 1 AND \"b\" = 2")]
     [InlineData("a = 1 OR b = 2", "\"a\" = 1 OR \"b\" = 2")]
     [InlineData("(a = 1)", "(\"a\" = 1)")]
+    // IN renders as the parenthesized list it was written as, not as the ARRAY the operands
+    // are carried in — `x IN ARRAY[1, 2]` is not valid SQL (issue #170).
+    [InlineData("qty IN (1, 2, 3)", "\"qty\" IN (1, 2, 3)")]
+    [InlineData("qty NOT IN (1, 2)", "\"qty\" NOT IN (1, 2)")]
+    [InlineData("status IN ('a', 'b')", "\"status\" IN ('a', 'b')")]
+    [InlineData("qty IN (1)", "\"qty\" IN (1)")]
+    // A quantified comparison keeps its own spelling, including the ARRAY brackets.
+    [InlineData("qty = ANY (ARRAY[1, 2])", "\"qty\" = ANY (ARRAY[1, 2])")]
+    [InlineData("qty <> ALL (ARRAY[1, 2])", "\"qty\" <> ALL (ARRAY[1, 2])")]
+    [InlineData("qty > ANY (ARRAY[1, 2])", "\"qty\" > ANY (ARRAY[1, 2])")]
     public void Render_ProducesExpectedSql(string predicate, string expected)
     {
         Assert.Equal(expected, RenderPredicate(predicate));
+    }
+
+    /// <summary>
+    /// Rendering must produce SQL the server accepts, which is the point of keeping the source
+    /// spelling: an <c>IN</c> list rendered as an <c>ARRAY</c> constructor would parse in our
+    /// own tree and then fail to deploy. Re-parsing the rendered text and rendering again must
+    /// reach the same string — if it does not, the render is not valid input to our own parser,
+    /// let alone to Postgres.
+    /// </summary>
+    [Theory]
+    [InlineData("qty IN (1, 2, 3)")]
+    [InlineData("qty NOT IN (1, 2)")]
+    [InlineData("qty = ANY (ARRAY[1, 2])")]
+    [InlineData("qty <> ALL (ARRAY[1, 2])")]
+    [InlineData("status IN ('a', 'b')")]
+    public void Render_OfInAndQuantifiedForms_IsStable(string predicate)
+    {
+        var once = RenderPredicate(predicate);
+
+        // The rendered form quotes identifiers, which must itself re-parse.
+        Assert.Equal(once, RenderPredicate(once));
     }
 
     /// <summary>
