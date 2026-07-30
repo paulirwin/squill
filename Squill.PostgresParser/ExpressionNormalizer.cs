@@ -23,6 +23,11 @@ namespace Squill.PostgresParser;
 ///   <c>!~~</c>);</item>
 /// <item><c>BETWEEN</c> desugared into a pair of comparisons joined by <c>AND</c> (and
 ///   <c>NOT BETWEEN</c> into a pair joined by <c>OR</c>);</item>
+/// <item><c>IN (…)</c> desugared into <c>= ANY (ARRAY[…])</c>, and <c>NOT IN</c> into
+///   <c>&lt;&gt; ALL (ARRAY[…])</c> — with a single-element list collapsing to a plain
+///   comparison instead (issue #170);</item>
+/// <item><c>LIKE … ESCAPE</c> rewritten into a <c>like_escape()</c> call, and <c>COLLATE</c>
+///   given its own grouping (issue #171);</item>
 /// <item>grouping parentheses the engine adds around every subexpression.</item>
 /// </list>
 ///
@@ -169,9 +174,9 @@ public static class ExpressionNormalizer
                 }
                 return true;
 
-            // Everything else — a custom unary operator, AT TIME ZONE, COLLATE, the
-            // func_expr_common_subexpr forms, an array or subquery construct — has no canonical
-            // form established by measurement, so refuse rather than guess.
+            // Everything else — a custom unary operator, AT TIME ZONE, the
+            // func_expr_common_subexpr forms, a subquery construct — has no canonical form
+            // established by measurement, so refuse rather than guess.
             default:
                 return false;
         }
