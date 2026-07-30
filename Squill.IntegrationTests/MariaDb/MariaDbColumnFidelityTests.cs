@@ -31,12 +31,11 @@ namespace Squill.IntegrationTests.MariaDb;
 /// went unnoticed. The tests below pin what is actually deployed by querying
 /// <c>information_schema</c> directly, not by reading Squill's own model back.
 ///
-/// Two scenarios here are defects rather than documented trade-offs, so unlike the rest of the
-/// file they assert the CORRECT behaviour and carry a <c>[Fact(Skip = ...)]</c> naming issue
-/// #162: <c>NVARCHAR(45)</c> loses its length on the way to the DDL and deploys as a syntax
-/// error, and <c>REAL</c> is never folded to the <c>double</c> both engines store it as, so a
-/// column declared REAL re-diffs on every deploy. They go green on their own once #162 is
-/// fixed, rather than freezing the bug in place.
+/// Two scenarios here were defects rather than documented trade-offs, and were fixed under issue
+/// #162: <c>NVARCHAR(45)</c> lost its length on the way to the DDL and deployed as a syntax error,
+/// and <c>REAL</c> was never folded to the <c>double</c> both engines store it as, so a column
+/// declared REAL re-diffed on every deploy. Both now canonicalize to the type the engines record,
+/// and the two tests guard against a regression.
 ///
 /// The scenarios live on this abstract base and run once per engine via the concrete
 /// <c>MariaDb*</c> / <c>MySql*</c> subclasses at the bottom of this file.
@@ -604,11 +603,8 @@ public abstract class MariaDbColumnFidelityTests
     /// has to survive the alias canonicalization — a length dropped on the way to the DDL is
     /// not a fidelity nit but invalid SQL.
     ///
-    /// Two more alias spellings belong in this list and are deliberately absent, because
-    /// including them would only assert a defect: <c>NVARCHAR(45)</c> loses its length and
-    /// deploys as a syntax error, and <c>REAL</c> is not folded to the <c>double</c> both
-    /// engines store it as, so it re-diffs on every deploy. Both are reported against issue
-    /// #137 rather than encoded here.
+    /// <c>NVARCHAR(45)</c> and <c>REAL</c> belong to this family too and have their own tests
+    /// below, since each was a distinct defect fixed under issue #162.
     /// </summary>
     [Fact]
     public async Task UppercaseAndAliasTypeNames_RoundTripAndResolveToTheEnginesTypes()
@@ -657,13 +653,13 @@ public abstract class MariaDbColumnFidelityTests
     /// deploy as a national varchar of that length.
     /// </summary>
     /// <remarks>
-    /// <c>MariaDbScriptGenerator.GetTypeStringForColumn</c> preserves a declared length only for
-    /// <c>varchar</c>, <c>char</c>, <c>binary</c> and <c>varbinary</c>. <c>nvarchar</c> is not in
-    /// that set, so the generated DDL says a bare <c>nvarchar</c> and both engines reject it as a
-    /// syntax error. The build itself succeeds with no warning, so this only surfaces at deploy.
+    /// It reaches the DDL as a <c>varchar(45)</c>: <c>MariaDbTypeNormalizer.Canonicalize</c> folds
+    /// <c>nvarchar</c> to the <c>varchar</c> both engines store it as, which is also what puts it
+    /// among the length-carrying types the script generator preserves a length for (issue #162).
+    /// Before that fold the generated DDL was a bare <c>nvarchar</c> that both engines rejected as
+    /// a syntax error, and since the build itself succeeded it only surfaced at deploy time.
     /// </remarks>
-    [Fact(Skip = "Blocked by issue #162: GetTypeStringForColumn drops the length from nvarchar, "
-                 + "so the generated DDL is a bare `nvarchar` and the deploy fails with a syntax error.")]
+    [Fact]
     public async Task NvarcharColumn_KeepsItsDeclaredLength()
     {
         const string sql = """
@@ -702,12 +698,12 @@ public abstract class MariaDbColumnFidelityTests
     /// of unchanged source produces a phantom delta.
     /// </summary>
     /// <remarks>
-    /// <c>MariaDbTypeNormalizer.Canonicalize</c> folds <c>integer</c> to <c>int</c> and similar,
-    /// but has no <c>real</c> to <c>double</c> rule, so the parsed model says <c>real</c> while
-    /// the extracted model says <c>double</c>.
+    /// <c>MariaDbTypeNormalizer.Canonicalize</c> gained the <c>real</c> to <c>double</c> rule in
+    /// issue #162, alongside the <c>integer</c> to <c>int</c> fold it already had. Without it the
+    /// parsed model said <c>real</c> while the extracted model said <c>double</c>, so every
+    /// redeploy of unchanged source produced one phantom delta.
     /// </remarks>
-    [Fact(Skip = "Blocked by issue #162: MariaDbTypeNormalizer never folds real to double, so "
-                 + "the parsed and extracted models disagree and the source re-diffs on every deploy.")]
+    [Fact]
     public async Task RealColumn_RoundTripsAsDouble()
     {
         const string sql = """
@@ -720,8 +716,8 @@ public abstract class MariaDbColumnFidelityTests
 
         var cancellationToken = TestContext.Current.CancellationToken;
 
-        // The assertion that matters: this asserts a hash match and a no-op redeploy, which is
-        // exactly what fails today (parsed=real, extracted=double, one delta every deploy).
+        // The assertion that matters: a hash match and a no-op redeploy, which is exactly what
+        // failed before the fold (parsed=real, extracted=double, one delta every deploy).
         await AssertRoundTripAsync(sql, cancellationToken);
 
         await DeployAndInspectAsync(sql, async (db, name) =>
@@ -734,6 +730,71 @@ public abstract class MariaDbColumnFidelityTests
 
             Assert.True(await reader.ReadAsync(cancellationToken));
             Assert.Equal("double", reader.GetString(0));
+        }, cancellationToken);
+    }
+
+    /// <summary>
+    /// The remaining spellings of a varying character type, all of which both engines were
+    /// measured to store as <c>varchar</c> of the declared length (issue #162).
+    /// </summary>
+    /// <remarks>
+    /// These are worth their own round trip because the <c>VARYING</c> keyword is the only thing
+    /// distinguishing them from a fixed-width <c>char</c>, and the grammar carries it as a token
+    /// separate from the type name — so the mapper has to consult it rather than take the type
+    /// name at face value. Two of these spellings previously fell through to a raw-type-name
+    /// default that discarded the length as well.
+    /// </remarks>
+    [Fact]
+    public async Task VaryingCharacterSpellings_AllRoundTripAsVarchar()
+    {
+        const string sql = """
+            CREATE TABLE IceCream
+            (
+                Id int NOT NULL,
+                A  CHAR VARYING(30) NULL,
+                B  CHARACTER VARYING(31) NULL,
+                C  NCHAR VARYING(32) NULL,
+                D  NATIONAL CHARACTER VARYING(33) NULL,
+                E  NATIONAL VARCHAR(34) NULL,
+                F  NCHAR(10) NULL,
+                G  NATIONAL CHAR(11) NULL
+            );
+            """;
+
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        await AssertRoundTripAsync(sql, cancellationToken);
+
+        await DeployAndInspectAsync(sql, async (db, name) =>
+        {
+            await using var reader = await db.RunScriptReaderAsync($"""
+                SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = '{name}' AND TABLE_NAME = 'IceCream'
+                  AND COLUMN_NAME <> 'Id'
+                ORDER BY ORDINAL_POSITION;
+                """, cancellationToken: cancellationToken);
+
+            var actual = new List<(string Column, string DataType, long Length)>();
+
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                actual.Add((reader.GetString(0), reader.GetString(1), reader.GetInt64(2)));
+            }
+
+            // The national spellings lose only their implied utf8 character set, which Squill
+            // does not model for any column; the varying-ness and the length must both survive.
+            Assert.Equal(
+                [
+                    ("A", "varchar", 30L),
+                    ("B", "varchar", 31L),
+                    ("C", "varchar", 32L),
+                    ("D", "varchar", 33L),
+                    ("E", "varchar", 34L),
+                    ("F", "char", 10L),
+                    ("G", "char", 11L),
+                ],
+                actual);
         }, cancellationToken);
     }
 
