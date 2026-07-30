@@ -248,6 +248,45 @@ CREATE TABLE t
     }
 
     /// <summary>
+    /// A non-constant role behaves exactly as a named one when the schema is named (issue #166):
+    /// the schema is modeled under its own stable name and only the ownership is dropped, with
+    /// the token reported in the warning so it is clear what was not modeled.
+    ///
+    /// <para>
+    /// This is what makes the named form safe where the name-less form is not. The element's
+    /// name is <c>staging</c> whoever deploys it, so it matches the name extracted from the
+    /// target and the schema neither re-creates nor — under <c>DropObjectsNotInSource</c> —
+    /// gets dropped as undeclared.
+    /// </para>
+    /// </summary>
+    [Theory]
+    [InlineData("CURRENT_USER")]
+    [InlineData("SESSION_USER")]
+    public async Task SchemaAuthorization_NonConstantRole_WarnsButTheSchemaIsStillModeled(
+        string role)
+    {
+        var builder = BuilderFor(
+            ("Staging.sql", $"CREATE SCHEMA staging AUTHORIZATION {role};"));
+
+        var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        var warning = Assert.Single(result.Warnings);
+        Assert.Equal("SQ1002", warning.Code);
+        Assert.Contains(role, warning.Message, StringComparison.Ordinal);
+
+        var schema = Assert.Single(
+            result.Model.Elements, e => e.Type == PostgresElementTypes.SqlSchema);
+
+        // The stable name, not the role token — this is the whole point of the named form.
+        Assert.Equal("staging", schema.Name?.ToString());
+
+        // And the role really is dropped rather than carried into the model: nothing on the
+        // element records it, which is what makes the warning honest.
+        Assert.DoesNotContain(schema.Properties,
+            p => p.Value?.ToString()?.Contains(role, StringComparison.Ordinal) == true);
+    }
+
+    /// <summary>
     /// CASCADE is honored on deploy rather than dropped (issue #143), so it does not warn.
     /// Dropping it would build cleanly and then fail on deploy, because the dependency it
     /// exists to install would be missing.
