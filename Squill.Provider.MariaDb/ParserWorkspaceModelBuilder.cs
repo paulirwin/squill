@@ -365,9 +365,22 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         model.Elements.Add(MakeCreateEventElement(createEvent));
                         break;
 
-                    // Recognized but not modeled (CREATE VIEW, ALTER, …). Not fatal — the
-                    // rest of the project still builds — but the construct will not reach
-                    // the DACPAC, so say so rather than dropping it silently.
+                    // An authored ALTER/DROP/DML is a mistake in the source, not a gap in
+                    // Squill, so it is an error with its own code rather than the warning
+                    // below — which let the build succeed while the statement was silently
+                    // discarded, leaving the author believing it had been applied (issue #125).
+                    case ImperativeStatement imperative:
+                        validator.AddError(ImperativeStatementDiagnostic.Exception(
+                            imperative.Name,
+                            imperative.IsDml,
+                            file.Name,
+                            statement.Line,
+                            statement.Column));
+                        break;
+
+                    // Recognized but not modeled (a CREATE TABLE ... AS SELECT, …). Not fatal
+                    // — the rest of the project still builds — but the construct will not
+                    // reach the DACPAC, so say so rather than dropping it silently.
                     case UnmodeledStatement unmodeled:
                         warnings.Add(new SqlSourceDiagnostic(
                             $"{unmodeled.Description} is not modeled by Squill and will not be "

@@ -615,13 +615,38 @@ public sealed class CreateEventStatement(QualifiedName name, string eventType) :
 }
 
 /// <summary>
-/// A DDL statement the parser recognized but Squill does not model (<c>CREATE VIEW</c>, a
-/// <c>CREATE TABLE ... AS SELECT</c>, <c>ALTER</c>, <c>DROP</c>, …). It is carried into the
-/// syntax tree as a marker rather than dropped so the model builder can warn that the
+/// A DDL statement the parser recognized but Squill does not model (a
+/// <c>CREATE TABLE ... AS SELECT</c>, and other declarations awaiting support). It is carried
+/// into the syntax tree as a marker rather than dropped so the model builder can warn that the
 /// construct will not reach the DACPAC, at its source position (issue #61).
+///
+/// <para>
+/// <c>ALTER</c>/<c>DROP</c> used to land here too. They are <see cref="ImperativeStatement"/>
+/// now: "not modeled by Squill" describes a gap Squill might one day fill, which is the wrong
+/// thing to tell someone whose real problem is that the statement does not belong in a
+/// declarative project at all (issue #125).
+/// </para>
 /// </summary>
 public sealed class UnmodeledStatement(string description) : Statement
 {
     /// <summary>A short description of the construct, e.g. <c>CREATE VIEW</c>.</summary>
     public string Description { get; } = description;
+}
+
+/// <summary>
+/// A statement that changes state imperatively rather than declaring it — an <c>ALTER</c>,
+/// <c>DROP</c> or <c>TRUNCATE</c>, or DML such as <c>INSERT</c>. It has no meaning in a
+/// declarative project, so it is carried as a marker for the model builder to reject with a
+/// purpose-built SQ0006 error (issue #125).
+/// </summary>
+public sealed class ImperativeStatement(string name, bool isDml) : Statement
+{
+    /// <summary>The statement's leading keywords, upper-cased — <c>ALTER TABLE</c>, <c>DROP INDEX</c>.</summary>
+    public string Name { get; } = name;
+
+    /// <summary>
+    /// True for DML, which is rejected with a different remedy: seed data belongs in a
+    /// post-deploy script, and there is no CREATE that inserts a row.
+    /// </summary>
+    public bool IsDml { get; } = isDml;
 }

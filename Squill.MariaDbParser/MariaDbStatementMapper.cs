@@ -48,10 +48,68 @@ internal static class MariaDbStatementMapper
             return MapCreateEvent(createEvent);
         }
 
-        // Any other DDL (ALTER, DROP, …) is not modeled. It becomes a marker
-        // statement rather than being dropped, so the model builder can warn that it will
-        // not reach the DACPAC instead of the construct silently vanishing (issue #61).
-        return At(new UnmodeledStatement(DescribeDdl(ddl)), ddl);
+        var description = DescribeDdl(ddl);
+
+        // An authored ALTER/DROP/TRUNCATE is imperative: it has no meaning in a declarative
+        // project, so it is rejected with its own SQ0006 error rather than the SQ1002 warning
+        // the rest of this branch produces. A warning was the wrong signal twice over — it
+        // blamed a gap in Squill for a mistake in the source, and it let the build succeed
+        // while the statement was silently discarded (issue #125).
+        if (IsImperativeDdl(description))
+        {
+            // TRUNCATE's second word is the table name, not a keyword ("TRUNCATE TABLE" only
+            // when TABLE is written), so it is named by its verb alone — matching Postgres, so
+            // the same mistake reads the same on both engines.
+            var name = description.StartsWith("TRUNCATE", StringComparison.Ordinal)
+                ? "TRUNCATE"
+                : description;
+
+            return At(new ImperativeStatement(name, isDml: false), ddl);
+        }
+
+        // Any other unrecognized DDL is not modeled. It becomes a marker statement rather than
+        // being dropped, so the model builder can warn that it will not reach the DACPAC
+        // instead of the construct silently vanishing (issue #61).
+        return At(new UnmodeledStatement(description), ddl);
+    }
+
+    /// <summary>
+    /// Maps a DML statement (INSERT/UPDATE/DELETE/SELECT/…) to the marker the builder rejects.
+    /// DML never reached this mapper before — <c>EnumerateStatements</c> only yielded DDL — so
+    /// a stray INSERT in a source file vanished with no diagnostic at all (issue #125).
+    /// </summary>
+    public static Statement Map(MariaDBParser.DmlStatementContext dml)
+    {
+        var keyword = DescribeLeadingKeyword(dml);
+
+        // A SELECT is rejected like everything else here — it declares nothing, so it has no
+        // business in a schema file — but it is not *data* being written, so it does not get
+        // the "move this into a post-deploy script" remedy. Telling someone to move a stray
+        // SELECT into a deploy script would be advising them to keep a statement that does
+        // nothing either way.
+        var isData = dml.selectStatement() is null;
+
+        return At(new ImperativeStatement(keyword, isData), dml);
+    }
+
+    // Statements that change state rather than declare it, matched on the leading keyword.
+    private static bool IsImperativeDdl(string description)
+    {
+        var first = description.Split(' ')[0];
+
+        return first is "ALTER" or "DROP" or "TRUNCATE" or "RENAME";
+    }
+
+    // Just the verb for DML: "INSERT INTO" adds nothing over "INSERT", and what follows is the
+    // table name rather than a keyword.
+    private static string DescribeLeadingKeyword(MariaDBParser.DmlStatementContext dml)
+    {
+        var keyword = Trees.Descendants(dml)
+            .OfType<ITerminalNode>()
+            .Select(i => i.Symbol.Text)
+            .FirstOrDefault(i => !string.IsNullOrWhiteSpace(i) && i.All(char.IsLetter));
+
+        return keyword?.ToUpperInvariant() ?? "This statement";
     }
 
     // A short, human-readable name for an unmodeled DDL statement: its first two tokens

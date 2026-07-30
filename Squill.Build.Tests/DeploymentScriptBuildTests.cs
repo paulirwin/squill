@@ -144,6 +144,67 @@ CREATE TABLE Foo
         }
     }
 
+    /// <summary>
+    /// Authored ALTER/DROP/DML in a <em>compiled</em> source file is an SQ0006 error (issue
+    /// #125) — but a deploy script is exactly where that SQL is supposed to live, so the same
+    /// statements must build cleanly there and reach the DACPAC verbatim.
+    ///
+    /// <para>
+    /// This holds by construction rather than by a check: deploy scripts arrive on their own
+    /// MSBuild items (<c>SquillPreDeploy</c>/<c>SquillPostDeploy</c>, excluded from
+    /// <c>SquillCompile</c>) and are stored without ever being parsed. Pinned here because
+    /// SQ0006 makes that separation load-bearing — routing a deploy script through the
+    /// parser would now turn a working project into a failing build.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task Execute_ImperativeSqlInDeployScripts_IsNotRejected()
+    {
+        var tempDir = Directory.CreateTempSubdirectory("squill-deployscript-test");
+        try
+        {
+            var sqlPath = Path.Combine(tempDir.FullName, "Foo.sql");
+            await File.WriteAllTextAsync(sqlPath, SampleSchema, TestContext.Current.CancellationToken);
+
+            var prePath = Path.Combine(tempDir.FullName, "PreDeploy.sql");
+            await File.WriteAllTextAsync(
+                prePath, "ALTER TABLE Foo ADD COLUMN legacy integer;\nDROP TABLE IF EXISTS Stale;",
+                TestContext.Current.CancellationToken);
+
+            // Seed data — the canonical reason a post-deploy script exists.
+            var postPath = Path.Combine(tempDir.FullName, "PostDeploy.sql");
+            await File.WriteAllTextAsync(
+                postPath, "INSERT INTO Foo (id, name) VALUES (1, 'seed');\nUPDATE Foo SET name = 'x';",
+                TestContext.Current.CancellationToken);
+
+            var outputPath = Path.Combine(tempDir.FullName, "bin", "Sample.dacpac");
+            var engine = new StubBuildEngine();
+            var task = new BuildDacpacTask
+            {
+                BuildEngine = engine,
+                SourceFiles = [new TaskItem(sqlPath)],
+                PreDeployFiles = [new TaskItem(prePath)],
+                PostDeployFiles = [new TaskItem(postPath)],
+                OutputPath = outputPath,
+            };
+
+            Assert.True(task.Execute(), $"Errors: {string.Join("; ", engine.Errors.Select(e => e.Message))}");
+            Assert.DoesNotContain(engine.Errors, e => e.Code == "SQ0006");
+
+            await using var stream = File.OpenRead(outputPath);
+            var (metadata, _) =
+                await DacpacSerializer.Deserialize(stream, TestContext.Current.CancellationToken);
+
+            Assert.Contains("ALTER TABLE Foo", metadata.PreDeployScript);
+            Assert.Contains("DROP TABLE IF EXISTS Stale;", metadata.PreDeployScript);
+            Assert.Contains("INSERT INTO Foo", metadata.PostDeployScript);
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
     [Fact]
     public async Task Execute_WithNoScriptFiles_LeavesScriptsEmpty()
     {

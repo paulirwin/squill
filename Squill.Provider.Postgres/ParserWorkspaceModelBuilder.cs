@@ -149,6 +149,13 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 ProcessStatement(
                     statement, model, file, validator, warnings, views, _schemaProvider);
             }
+            catch (SqlSourceException ex)
+            {
+                // Already source-anchored and carrying its own code (SQ0006 for an imperative
+                // statement); recorded as-is so the rest of the file is still reported rather
+                // than the first one aborting the build.
+                validator.AddError(ex);
+            }
             catch (Exception ex) when (ex is NotImplementedException or NotSupportedException
                 or InvalidOperationException or PostgresParseException)
             {
@@ -443,6 +450,18 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             validator.AddCreateTrigger(file, createTriggerStatement);
 
             model.Elements.Add(MakeCreateTriggerElement(createTriggerStatement));
+        }
+        else if (statement is ImperativeStatement imperativeStatement)
+        {
+            // An authored ALTER/DROP/DML is a mistake in the source, not a gap in Squill, so it
+            // gets its own error rather than the "not yet implemented" below — which reads as a
+            // missing capability and invites the author to wait for it (issue #125).
+            throw ImperativeStatementDiagnostic.Exception(
+                imperativeStatement.Name,
+                imperativeStatement.IsDml,
+                file.Name,
+                statement.Line,
+                statement.Column);
         }
         else
         {
