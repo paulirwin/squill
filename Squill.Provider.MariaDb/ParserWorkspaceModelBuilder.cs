@@ -687,12 +687,15 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         /// </para>
         ///
         /// <para>
-        /// The <c>_ibfk_N</c> convention this mirrors is MySQL's. Measured on
-        /// <c>mariadb:12.3</c>, that engine names an unnamed InnoDB foreign key with a bare
-        /// ordinal (<c>1</c>, <c>2</c>) instead — which is always within the limit, so this
-        /// check only ever fires for a name MySQL would really use. That the model assumes
-        /// MySQL's convention for both engines is a separate, pre-existing defect (issue #179):
-        /// the two do not hash-match on MariaDB. It is not introduced or widened here.
+        /// The name derived here is a <em>prediction</em> that the script generator then
+        /// enforces: it emits an explicit <c>CONSTRAINT &lt;name&gt; FOREIGN KEY …</c> clause, so
+        /// the engine never auto-names the constraint and the two sides agree by construction.
+        /// That matters as of MariaDB 12.1, which changed how it names an <em>anonymous</em>
+        /// foreign key — from <c>&lt;table&gt;_ibfk_&lt;n&gt;</c> to a bare ordinal (<c>1</c>,
+        /// <c>2</c>) — as part of MDEV-28933. Squill does not reach that path, and both engines
+        /// were measured round-tripping an unnamed foreign key as
+        /// <c>&lt;table&gt;_ibfk_1</c>; but a database Squill did not create could already hold
+        /// a foreign key named <c>1</c>.
         /// </para>
         /// </summary>
         private void CheckDerivedForeignKeyNames(
