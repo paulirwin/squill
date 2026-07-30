@@ -33,6 +33,22 @@ public abstract class MariaDbFamilyDatabaseSchemaProvider : DatabaseSchemaProvid
         => identifier.EnumerateRunes().Count();
 
     /// <summary>
+    /// Which of the two engines this family serves is being targeted. Unlike every other
+    /// capability here it describes no single behaviour — it exists because a construct's
+    /// version boundary can differ between the engines (<c>VECTOR</c> is MySQL 9 and MariaDB 11)
+    /// or be absent from one of them entirely (MySQL has no <c>UUID</c> type), and a per-feature
+    /// boolean would mean adding a member to all five providers for every construct gated.
+    ///
+    /// <para>
+    /// It is deliberately the only member of its kind. Reach for a named capability describing
+    /// the behaviour whenever one can be written — this is for the version table in
+    /// <see cref="MariaDbVersionedFeature"/>, which is keyed by engine by its nature, and not a
+    /// licence to branch on the engine elsewhere.
+    /// </para>
+    /// </summary>
+    public abstract bool IsMySql { get; }
+
+    /// <summary>
     /// Whether <c>LOCALTIME</c> and <c>LOCALTIMESTAMP</c> are true synonyms for
     /// <c>CURRENT_TIMESTAMP</c> in a column <c>DEFAULT</c>, and so fold into its canonical
     /// token.

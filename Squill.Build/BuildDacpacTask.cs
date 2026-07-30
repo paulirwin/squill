@@ -80,8 +80,8 @@ public class BuildDacpacTask : Microsoft.Build.Utilities.Task
 
             if (sourcePaths.Length == 0)
             {
-                // Coded so it can be suppressed with NoWarn or escalated with
-                // WarningsAsErrors like any other MSBuild warning (issue #61).
+                // Coded so it can be suppressed with MSBuildWarningsAsMessages or escalated
+                // with MSBuildWarningsAsErrors like any other MSBuild warning (issue #61).
                 Log.LogWarning(
                     subcategory: null,
                     warningCode: SqlSourceDiagnostic.NoSourceFiles,
@@ -177,8 +177,11 @@ public class BuildDacpacTask : Microsoft.Build.Utilities.Task
             message: ex.Message);
 
     // Reports a build warning as a regular MSBuild diagnostic with file/line/column metadata,
-    // so NoWarn / WarningsAsErrors / TreatWarningsAsErrors apply to it and the IDE can
+    // so MSBuildWarningsAsMessages / MSBuildWarningsAsErrors apply to it and the IDE can
     // navigate to the construct that will not round-trip (issue #61).
+    //
+    // Those are the MSBuild-prefixed properties: NoWarn and WarningsAsErrors are Roslyn
+    // compiler options and do not affect a warning logged by a task. Measured.
     private void LogSourceWarning(SqlSourceDiagnostic warning)
         => Log.LogWarning(
             subcategory: null,

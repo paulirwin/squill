@@ -20,7 +20,10 @@ public sealed class PostgresSquillProvider : SquillProviderBase
 
     protected override Task<BuildResult> BuildModelCoreAsync(
         Workspace workspace, ModelMetadata metadata, CancellationToken cancellationToken)
-        => DacpacBuilder.BuildModelAsync(workspace, cancellationToken);
+        => DacpacBuilder.BuildModelAsync(
+            workspace,
+            DacpacBuilder.SchemaProviderFor(metadata.ProviderName, metadata.TargetMajorVersion),
+            cancellationToken);
 
     protected override async Task<Squill.Dacpac.DeployResult> DeployCoreAsync(
         Stream dacpacStream,

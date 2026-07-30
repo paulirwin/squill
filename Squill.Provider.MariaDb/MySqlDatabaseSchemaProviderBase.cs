@@ -14,6 +14,8 @@ public abstract class MySqlDatabaseSchemaProviderBase : MariaDbFamilyDatabaseSch
 {
     public override string ProviderName => "MySql";
 
+    public override bool IsMySql => true;
+
     // Measured, and matching MySQL's documented behaviour: LOCALTIME / LOCALTIMESTAMP are true
     // CURRENT_TIMESTAMP synonyms here and are reported as CURRENT_TIMESTAMP.
     // https://dev.mysql.com/doc/refman/8.4/en/timestamp-initialization.html

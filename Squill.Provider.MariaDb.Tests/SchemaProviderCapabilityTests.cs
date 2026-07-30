@@ -77,6 +77,25 @@ public class SchemaProviderCapabilityTests
             nameof(MariaDbFamilyDatabaseSchemaProvider.LocalTimeIsCurrentTimestampSynonym)));
         Assert.Null(universal.GetProperty(
             nameof(MariaDbFamilyDatabaseSchemaProvider.SupportsDateAndTimeFunctionDefaults)));
+        Assert.Null(universal.GetProperty(
+            nameof(MariaDbFamilyDatabaseSchemaProvider.IsMySql)));
+    }
+
+    /// <summary>
+    /// Which engine is being targeted is answered by every major of that engine identically —
+    /// it identifies the engine, not the version. Grouped by provider name, so this also fails
+    /// if a MariaDB provider ever claimed to be MySQL or vice versa.
+    /// </summary>
+    [Fact]
+    public void IsMySql_AgreesWithTheProviderName()
+    {
+        foreach (var provider in DatabaseSchemaProviderRegistry.All
+                     .OfType<MariaDbFamilyDatabaseSchemaProvider>())
+        {
+            Assert.Equal(
+                string.Equals(provider.ProviderName, "MySql", StringComparison.OrdinalIgnoreCase),
+                provider.IsMySql);
+        }
     }
 
     /// <summary>
