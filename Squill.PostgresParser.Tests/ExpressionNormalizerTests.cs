@@ -90,6 +90,32 @@ public class ExpressionNormalizerTests
     [InlineData("name IN ('x')", "(name = 'x'::text)")]
     // Any operator can be quantified, not just equality.
     [InlineData("quantity > ANY (ARRAY[1, 2])", "(quantity > ANY (ARRAY[1, 2]))")]
+    // LIKE … ESCAPE is rewritten into a call to the internal like_escape() function, with the
+    // LIKE flavour carried by the operator (issue #171). Measured on postgres:latest.
+    [InlineData("code LIKE '%!%%' ESCAPE '!'",
+        "(code ~~ like_escape('%!%%'::text, '!'::text))")]
+    [InlineData("code NOT LIKE '%!%%' ESCAPE '!'",
+        "(code !~~ like_escape('%!%%'::text, '!'::text))")]
+    [InlineData("code ILIKE 'a%' ESCAPE '!'",
+        "(code ~~* like_escape('a%'::text, '!'::text))")]
+    [InlineData("code NOT ILIKE 'a%' ESCAPE '!'",
+        "(code !~~* like_escape('a%'::text, '!'::text))")]
+    // An empty escape string is a real value, not an absent one, and is carried through.
+    [InlineData("code LIKE 'a%' ESCAPE ''", "(code ~~ like_escape('a%'::text, ''::text))")]
+    // COLLATE keeps its operand order and gains only grouping (issue #171). The engine reports
+    // the collation name bare or quoted depending on the name itself — `mycoll` bare, `"C"` and
+    // `"select"` quoted — so the canonical form quotes unconditionally to bridge the two.
+    [InlineData("code COLLATE \"C\" > 'a'", "((code COLLATE \"C\") > 'a'::text)")]
+    [InlineData("code COLLATE \"POSIX\" > 'a'", "((code COLLATE \"POSIX\") > 'a'::text)")]
+    [InlineData("(code COLLATE \"C\") > 'a'", "((code COLLATE \"C\") > 'a'::text)")]
+    // A collation on both sides of a comparison.
+    [InlineData("code COLLATE \"C\" = name COLLATE \"C\"",
+        "((code COLLATE \"C\") = (name COLLATE \"C\"))")]
+    // A collation whose name is a reserved keyword is reported back QUOTED even though it is
+    // lower-case ASCII — measured, `COLLATE "select"` stays `COLLATE "select"`. The canonical
+    // form quotes unconditionally so this and the bare spelling both reduce to one token.
+    [InlineData("code COLLATE \"select\" > 'a'", "((code COLLATE \"select\") > 'a'::text)")]
+    [InlineData("code COLLATE mycoll > 'a'", "((code COLLATE mycoll) > 'a'::text)")]
     public void DeclaredAndExtracted_NormalizeToTheSameToken(string declared, string extracted)
     {
         var declaredCanonical = Normalize(declared);
@@ -131,6 +157,19 @@ public class ExpressionNormalizerTests
     [InlineData("price > 0")]
     [InlineData("price BETWEEN 1 AND 5")]
     [InlineData("name LIKE 'a%'")]
+    // The two constructs added in #171. These matter most here: the LIKE … ESCAPE rewrite
+    // produces a shape (a call) quite unlike its input, so feeding the output back through has
+    // to reach the same string or the predicate would oscillate and redeploy forever.
+    [InlineData("code LIKE '%!%%' ESCAPE '!'")]
+    [InlineData("code NOT LIKE '%!%%' ESCAPE '!'")]
+    [InlineData("code ILIKE 'a%' ESCAPE '!'")]
+    [InlineData("code COLLATE \"C\" > 'a'")]
+    [InlineData("code COLLATE \"C\" = name COLLATE \"C\"")]
+    // A collation whose name is a reserved keyword, and one that needs no quoting at all. Both
+    // must survive a round trip: the canonical form is emitted quoted precisely so that a name
+    // like `select` re-parses — stripped to bare it would not, breaking idempotence.
+    [InlineData("code COLLATE \"select\" > 'a'")]
+    [InlineData("code COLLATE mycoll > 'a'")]
     public void Normalization_IsIdempotent(string predicate)
     {
         var once = Normalize(predicate);
@@ -151,12 +190,6 @@ public class ExpressionNormalizerTests
     /// </remarks>
     [Theory]
     [InlineData("price BETWEEN SYMMETRIC 5 AND 1")]
-    // A LIKE with an ESCAPE is stored as a call to the internal like_escape() function
-    // (`code ~~ like_escape('%!%%'::text, '!'::text)`) rather than the LIKE … ESCAPE spelling.
-    // Encoding that would be guessing at an implementation detail, so it is refused (issue #171).
-    [InlineData("code LIKE '%!%%' ESCAPE '!'")]
-    // COLLATE has no measured canonical form.
-    [InlineData("code COLLATE \"C\" > 'a'")]
     // An IN over ARRAY-valued elements is NOT stored as `= ANY`: measured,
     // `a IN (ARRAY[1,2], ARRAY[3])` becomes the OR chain
     // `((a = ARRAY[1, 2]) OR (a = ARRAY[3]))`. The `= ANY` rewrite applies to scalar elements
@@ -167,6 +200,14 @@ public class ExpressionNormalizerTests
     // element, or keep it at the array level — and which is not recoverable from the declared
     // text alone. See WriteQuantified for the measurements.
     [InlineData("quantity = ANY (ARRAY[1, 2]::int[])")]
+    // A SCHEMA-QUALIFIED collation is refused whatever the schema, because whether PostgreSQL
+    // reports the qualifier back depends on the search path — a deploy-time fact the model does
+    // not have. Measured with the default path: pg_catalog."C" and public."weird name" both come
+    // back bare, while s1.mycoll keeps its qualifier. The same declared text would therefore
+    // normalize differently per target (issue #171).
+    [InlineData("code COLLATE pg_catalog.\"C\" > 'a'")]
+    [InlineData("code COLLATE public.\"weird name\" > 'a'")]
+    [InlineData("code COLLATE s1.mycoll > 'a'")]
     public void UnnormalizableExpression_ReportsFailure(string predicate)
     {
         Assert.Null(Normalize(predicate));

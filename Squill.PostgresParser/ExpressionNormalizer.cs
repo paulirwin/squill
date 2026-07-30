@@ -23,6 +23,11 @@ namespace Squill.PostgresParser;
 ///   <c>!~~</c>);</item>
 /// <item><c>BETWEEN</c> desugared into a pair of comparisons joined by <c>AND</c> (and
 ///   <c>NOT BETWEEN</c> into a pair joined by <c>OR</c>);</item>
+/// <item><c>IN (…)</c> desugared into <c>= ANY (ARRAY[…])</c>, and <c>NOT IN</c> into
+///   <c>&lt;&gt; ALL (ARRAY[…])</c> — with a single-element list collapsing to a plain
+///   comparison instead (issue #170);</item>
+/// <item><c>LIKE … ESCAPE</c> rewritten into a <c>like_escape()</c> call, and <c>COLLATE</c>
+///   given its own grouping (issue #171);</item>
 /// <item>grouping parentheses the engine adds around every subexpression.</item>
 /// </list>
 ///
@@ -150,6 +155,9 @@ public static class ExpressionNormalizer
             case ArrayExpression array:
                 return WriteArray(sb, array);
 
+            case CollateExpression collate:
+                return WriteCollate(sb, collate);
+
             case UnaryExpression unary:
                 return WriteUnary(sb, unary);
 
@@ -166,9 +174,9 @@ public static class ExpressionNormalizer
                 }
                 return true;
 
-            // Everything else — a custom unary operator, AT TIME ZONE, COLLATE, the
-            // func_expr_common_subexpr forms, an array or subquery construct — has no canonical
-            // form established by measurement, so refuse rather than guess.
+            // Everything else — a custom unary operator, AT TIME ZONE, the
+            // func_expr_common_subexpr forms, a subquery construct — has no canonical form
+            // established by measurement, so refuse rather than guess.
             default:
                 return false;
         }
@@ -286,17 +294,110 @@ public static class ExpressionNormalizer
 
     private static bool WriteLike(StringBuilder sb, LikeExpression like)
     {
-        // A LIKE with an ESCAPE is stored as a call to the internal like_escape() function
-        // (`code ~~ like_escape('%!%%'::text, '!'::text)`), not as the LIKE … ESCAPE spelling.
-        // Rendering that call here would be encoding an implementation detail from a single
-        // measurement, so the expression is refused and falls back to not participating in
-        // identity — see issue #171.
-        if (like.Escape is not null)
+        // A LIKE with an ESCAPE is not stored as the LIKE … ESCAPE spelling at all: PostgreSQL
+        // rewrites it into a call to the internal like_escape() function, with the LIKE flavour
+        // carried by the operator (issue #171). Measured across all four flavours and an empty
+        // escape, on postgres:latest:
+        //
+        //   code LIKE      '%!%%' ESCAPE '!'  =>  code ~~   like_escape('%!%%'::text, '!'::text)
+        //   code NOT LIKE  '%!%%' ESCAPE '!'  =>  code !~~  like_escape('%!%%'::text, '!'::text)
+        //   code ILIKE     'a%'   ESCAPE '!'  =>  code ~~*  like_escape('a%'::text,   '!'::text)
+        //   code NOT ILIKE 'a%'   ESCAPE '!'  =>  code !~~* like_escape('a%'::text,   '!'::text)
+        //   code LIKE      'a%'   ESCAPE ''   =>  code ~~   like_escape('a%'::text,   ''::text)
+        //
+        // The extracted side already normalized before this, since it parses as an ordinary
+        // operator and call — so only the declared side needed the rewrite for the two to meet.
+        if (like.Escape is { } escape)
+        {
+            if (OperatorText(like.Operator) is not { } escapeOpText)
+            {
+                return false;
+            }
+
+            sb.Append('(');
+
+            if (!Write(sb, like.Left))
+            {
+                return false;
+            }
+
+            sb.Append(' ').Append(escapeOpText).Append(" like_escape(");
+
+            if (!Write(sb, like.Right))
+            {
+                return false;
+            }
+
+            sb.Append(", ");
+
+            if (!Write(sb, escape))
+            {
+                return false;
+            }
+
+            sb.Append("))");
+
+            return true;
+        }
+
+        return WriteBinary(sb, like.Left, like.Operator, like.Right);
+    }
+
+    /// <summary>
+    /// <c>expr COLLATE collation</c> (issue #171). The operand order is preserved and only
+    /// grouping is added, so this is the simplest of the rewrites — measured on
+    /// <c>postgres:latest</c>, <c>code COLLATE "C" &gt; 'a'</c> is stored as
+    /// <c>((code COLLATE "C") &gt; 'a'::text)</c>.
+    ///
+    /// <para>
+    /// Only a BARE collation is canonicalized; a schema-qualified one is refused whatever its
+    /// schema, because whether the qualifier survives depends on the target's search path. The
+    /// name is emitted double-quoted. Both decisions are explained where they are made below.
+    /// </para>
+    /// </summary>
+    private static bool WriteCollate(StringBuilder sb, CollateExpression collate)
+    {
+        var segments = collate.Collation.Segments;
+
+        // A QUALIFIED collation is refused, whatever the schema. Whether PostgreSQL reports the
+        // qualifier back depends on the search path at the time, which is a deploy-time fact the
+        // model does not have. Measured on postgres:latest with the default search path:
+        //
+        //   COLLATE pg_catalog."C"        =>  COLLATE "C"            qualifier dropped
+        //   COLLATE public."weird name"   =>  COLLATE "weird name"   qualifier dropped
+        //   COLLATE s1.mycoll             =>  COLLATE s1.mycoll      qualifier kept
+        //
+        // pg_catalog and public are on the path so their qualifiers vanish; s1 is not so its
+        // qualifier stays. Since the same declared text can normalize either way depending on
+        // the target's search path, canonicalizing it would make the constraint re-diff on some
+        // targets and not others — worse than leaving it out of identity (issue #171).
+        if (segments.Count > 1)
         {
             return false;
         }
 
-        return WriteBinary(sb, like.Left, like.Operator, like.Right);
+        sb.Append('(');
+
+        if (!Write(sb, collate.Expression))
+        {
+            return false;
+        }
+
+        // ALWAYS quoted, which is not quite what the engine does — it quotes only a name that
+        // would not survive bare, so `mycoll` comes back bare and `"C"` quoted. Reproducing
+        // that exactly needs PostgreSQL's reserved-keyword set as well as the character rule:
+        // measured, a collation named `select` is reported as `"select"` despite being
+        // lower-case ASCII, and 164 keywords behave that way (`SELECT count(*) FROM
+        // pg_get_keywords() WHERE quote_ident(word) <> word`).
+        //
+        // Vendoring that list would be a second copy of a per-version fact, so both sides are
+        // quoted uniformly instead. That is safe precisely because this is a canonical form
+        // rather than emitted SQL: the declared and extracted texts both pass through here, so
+        // they still meet, and quoting is the spelling that always re-parses — which the
+        // stripped form does not, breaking the idempotence this class documents.
+        sb.Append(" COLLATE \"").Append(segments[0].Name).Append("\")");
+
+        return true;
     }
 
     private static bool WriteBinary(

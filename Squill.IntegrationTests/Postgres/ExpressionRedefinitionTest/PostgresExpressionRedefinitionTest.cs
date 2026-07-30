@@ -230,6 +230,151 @@ CREATE TABLE crate
     }
 
     /// <summary>
+    /// The same, for a predicate that uses <c>LIKE … ESCAPE</c> (issue #171).
+    ///
+    /// <para>
+    /// PostgreSQL does not store this as the <c>LIKE … ESCAPE</c> spelling at all — it rewrites
+    /// it into a call to the internal <c>like_escape()</c> function. The normalizer refused that
+    /// rewrite rather than encode it from a single measurement, so such a CHECK had no canonical
+    /// form and redefining it stayed a silent no-op. The rewrite is now measured across all four
+    /// LIKE flavours and encoded, so the declared and extracted spellings meet.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task ChangedLikeEscapePredicate_UnderSameConstraintName_IsApplied()
+    {
+        const string before = """
+CREATE TABLE label
+(
+    id   integer PRIMARY KEY,
+    code text NOT NULL,
+    CONSTRAINT ck_label CHECK (code LIKE 'A!_%' ESCAPE '!')
+);
+""";
+        // The pattern is widened rather than moved, so the seeded row still satisfies it —
+        // otherwise the new constraint could not be added to a table that already has rows,
+        // and the test would fail on the seed rather than on the behaviour under test.
+        const string after = """
+CREATE TABLE label
+(
+    id   integer PRIMARY KEY,
+    code text NOT NULL,
+    CONSTRAINT ck_label CHECK (code LIKE 'A!_%!%' ESCAPE '!')
+);
+""";
+
+        await RunScenarioAsync(
+            before, after,
+            // 'A_%' matches both patterns: the escaped underscore and percent are literals.
+            seedSql: "INSERT INTO label (id, code) VALUES (1, 'A_%');",
+            assertAfterAsync: async (conn, result) =>
+            {
+                Assert.False(string.IsNullOrWhiteSpace(result.Script),
+                    "A changed LIKE … ESCAPE predicate should generate a non-empty script.");
+
+                // The stored form is the like_escape() rewrite, not the LIKE … ESCAPE spelling.
+                var def = (string?)await ScalarAsync(conn, """
+SELECT pg_get_constraintdef(oid) FROM pg_constraint
+WHERE conrelid = 'label'::regclass AND conname = 'ck_label';
+""");
+                Assert.Equal(
+                    "CHECK ((code ~~ like_escape('A!_%!%'::text, '!'::text)))", def);
+
+                // The new pattern is genuinely enforced: 'A_y' satisfied the old predicate
+                // (where % was a wildcard) but not the new one (where it is a literal).
+                await Assert.ThrowsAsync<PostgresException>(() => ExecuteAsync(
+                    conn,
+                    "INSERT INTO label (id, code) VALUES (2, 'A_y');",
+                    TestContext.Current.CancellationToken));
+            });
+    }
+
+    /// <summary>
+    /// The same, for a predicate that uses <c>COLLATE</c> (issue #171). The rewrite here is only
+    /// added grouping, but the node was simply not among those the normalizer handled, so the
+    /// predicate had no canonical form and redefining it was a silent no-op.
+    /// </summary>
+    [Fact]
+    public async Task ChangedCollatePredicate_UnderSameConstraintName_IsApplied()
+    {
+        const string before = """
+CREATE TABLE token
+(
+    id   integer PRIMARY KEY,
+    code text NOT NULL,
+    CONSTRAINT ck_token CHECK (code COLLATE "C" > 'a')
+);
+""";
+        const string after = """
+CREATE TABLE token
+(
+    id   integer PRIMARY KEY,
+    code text NOT NULL,
+    CONSTRAINT ck_token CHECK (code COLLATE "C" > 'm')
+);
+""";
+
+        await RunScenarioAsync(
+            before, after,
+            seedSql: "INSERT INTO token (id, code) VALUES (1, 'z');",
+            assertAfterAsync: async (conn, result) =>
+            {
+                Assert.False(string.IsNullOrWhiteSpace(result.Script),
+                    "A changed COLLATE predicate should generate a non-empty script.");
+
+                var def = (string?)await ScalarAsync(conn, """
+SELECT pg_get_constraintdef(oid) FROM pg_constraint
+WHERE conrelid = 'token'::regclass AND conname = 'ck_token';
+""");
+                Assert.Equal("CHECK (((code COLLATE \"C\") > 'm'::text))", def);
+
+                // The tightened bound is enforced: 'b' passed the old predicate, not the new.
+                await Assert.ThrowsAsync<PostgresException>(() => ExecuteAsync(
+                    conn,
+                    "INSERT INTO token (id, code) VALUES (2, 'b');",
+                    TestContext.Current.CancellationToken));
+            });
+    }
+
+    /// <summary>
+    /// The other half of the contract for both constructs added in #171: an UNCHANGED predicate
+    /// must not redeploy. This is the risk a newly-encoded rewrite introduces — a canonical form
+    /// that is wrong in a way that still parses would make every deploy drop and re-add the
+    /// constraint.
+    /// </summary>
+    [Theory]
+    [InlineData("code LIKE 'A!_%' ESCAPE '!'")]
+    [InlineData("code NOT LIKE 'A!_%' ESCAPE '!'")]
+    [InlineData("code ILIKE 'a!_%' ESCAPE '!'")]
+    [InlineData("code COLLATE \"C\" > 'a'")]
+    public async Task UnchangedEscapeOrCollatePredicate_DoesNotRedeploy(string predicate)
+    {
+        var schema = $"""
+CREATE TABLE stable_check
+(
+    id   integer PRIMARY KEY,
+    code text NOT NULL,
+    CONSTRAINT ck_stable CHECK ({predicate})
+);
+""";
+
+        await RunScenarioAsync(
+            schema, schema,
+            // No rows: the predicates above are mutually exclusive by construction (a value
+            // matching LIKE cannot match NOT LIKE), and what is under test is whether an
+            // unchanged predicate produces a script, which no row is needed to observe.
+            seedSql: "SELECT 1;",
+            assertAfterAsync: (_, result) =>
+            {
+                Assert.True(string.IsNullOrWhiteSpace(result.Script),
+                    $"An unchanged predicate ({predicate}) must not generate a script; "
+                    + $"got: {result.Script}");
+
+                return Task.CompletedTask;
+            });
+    }
+
+    /// <summary>
     /// The contrast case that proves the mechanism works when identity changes: a CHECK
     /// constraint's NAME does participate in identity, so renaming it (even with a different
     /// predicate) is seen as a drop plus a create, and the new predicate really is applied.
