@@ -7,7 +7,8 @@ namespace Squill.Core;
 /// diagnostic code the host should report: <c>SQ0001</c> (the default) for syntax and
 /// other per-statement errors, <c>SQ0002</c> for a reference to an object that is not
 /// defined in the project, <c>SQ0003</c> for a duplicate definition, <c>SQ0004</c> for a
-/// constraint whose shape is invalid.
+/// constraint whose shape is invalid, <c>SQ0005</c> for an identifier the target engine
+/// would reject as too long.
 /// </summary>
 public class SqlSourceException : Exception
 {
@@ -26,6 +27,16 @@ public class SqlSourceException : Exception
 
     /// <summary>Diagnostic code for a constraint whose shape is invalid (e.g. a foreign key column-count mismatch).</summary>
     public const string InvalidConstraint = "SQ0004";
+
+    /// <summary>
+    /// Diagnostic code for an identifier longer than the target engine's limit. The engine
+    /// would reject the DDL mid-deploy (MariaDB/MySQL <c>ERROR 1059</c>), leaving the target
+    /// half-deployed, so it is caught at build time instead. Reported for a derived name
+    /// (an unnamed foreign key's <c>&lt;table&gt;_ibfk_&lt;n&gt;</c>) as well as a written one,
+    /// since a derived name can exceed the limit while every identifier in the source is
+    /// within it.
+    /// </summary>
+    public const string IdentifierTooLong = "SQ0005";
 
     public SqlSourceException(
         string message,

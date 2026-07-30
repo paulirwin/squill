@@ -16,6 +16,23 @@ namespace Squill.Provider.MariaDb;
 public abstract class MariaDbFamilyDatabaseSchemaProvider : DatabaseSchemaProvider
 {
     /// <summary>
+    /// Both engines cap an identifier at 64 <em>characters</em> and reject a longer one with
+    /// <c>ERROR 1059 (ER_TOO_LONG_IDENT)</c>. This is one of the few places the family agrees
+    /// and still has to be stated, because the universal capability is abstract — and the
+    /// answer is a genuine divergence from PostgreSQL, which counts 63 bytes instead.
+    /// https://dev.mysql.com/doc/refman/8.4/en/identifier-length.html
+    /// </summary>
+    public sealed override int MaxIdentifierLength => 64;
+
+    /// <summary>
+    /// Counts characters, not UTF-16 code units: an identifier outside the BMP (an emoji, which
+    /// <c>utf8mb4</c> accepts) is one character to the engine but two units to
+    /// <see cref="string.Length"/>, so measuring units would reject a name the server takes.
+    /// </summary>
+    public sealed override int MeasureIdentifier(string identifier)
+        => identifier.EnumerateRunes().Count();
+
+    /// <summary>
     /// Whether <c>LOCALTIME</c> and <c>LOCALTIMESTAMP</c> are true synonyms for
     /// <c>CURRENT_TIMESTAMP</c> in a column <c>DEFAULT</c>, and so fold into its canonical
     /// token.

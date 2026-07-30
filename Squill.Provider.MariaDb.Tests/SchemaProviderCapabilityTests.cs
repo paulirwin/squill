@@ -80,6 +80,46 @@ public class SchemaProviderCapabilityTests
     }
 
     /// <summary>
+    /// The identifier limit is the opposite case to the capabilities above: it belongs on the
+    /// <em>universal</em> base, because every engine imposes one and code that validates a name
+    /// must get an answer whatever it is targeting. What varies is both the number and the unit
+    /// — MariaDB and MySQL agree on 64 characters, PostgreSQL counts 63 bytes — which is why
+    /// the measurement travels with the limit rather than being assumed by the caller.
+    /// </summary>
+    [Fact]
+    public void IdentifierLimit_IsOnTheUniversalBase()
+    {
+        var universal = typeof(DatabaseSchemaProvider);
+
+        Assert.NotNull(universal.GetProperty(
+            nameof(DatabaseSchemaProvider.MaxIdentifierLength)));
+        Assert.NotNull(universal.GetMethod(
+            nameof(DatabaseSchemaProvider.MeasureIdentifier)));
+    }
+
+    /// <summary>
+    /// Both engines cap at 64 characters (<c>ER_TOO_LONG_IDENT</c> past it), and measure
+    /// characters rather than bytes — so a multi-byte name within the limit is accepted.
+    /// </summary>
+    [Theory]
+    [InlineData("MariaDb")]
+    [InlineData("MySql")]
+    public void BothEngines_Cap64Characters(string providerName)
+    {
+        var provider = (MariaDbFamilyDatabaseSchemaProvider)
+            DacpacBuilder.SchemaProviderFor(providerName, null);
+
+        Assert.Equal(64, provider.MaxIdentifierLength);
+
+        // Characters, not bytes: 64 three-byte characters is 192 bytes and still legal.
+        Assert.Equal(64, provider.MeasureIdentifier(new string('é', 64)));
+
+        // And not UTF-16 code units either: an astral-plane character is one character to the
+        // engine but two units to string.Length.
+        Assert.Equal(1, provider.MeasureIdentifier("😀"));
+    }
+
+    /// <summary>
     /// Both engines this provider serves derive from the shared family base, so a capability
     /// added there is a question both must answer.
     /// </summary>

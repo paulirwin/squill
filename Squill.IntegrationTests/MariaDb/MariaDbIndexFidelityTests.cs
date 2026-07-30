@@ -16,9 +16,9 @@ namespace Squill.IntegrationTests.MariaDb;
 ///
 /// <para>
 /// Each test asserts the shape that <em>should</em> deploy; those blocked by a known defect
-/// carry a <c>[Fact(Skip = ...)]</c> naming the issue (#163 for the missing identifier-length
-/// diagnostic), so they turn green on their own once it is fixed. The prefix-length and
-/// expression-key scenarios were such tests until #161 was fixed and now run unskipped.
+/// carry a <c>[Fact(Skip = ...)]</c> naming the issue, so they turn green on their own once it
+/// is fixed. The prefix-length and expression-key scenarios were such tests until #161 was
+/// fixed, and the identifier-length one until #163 — all now run unskipped.
 /// </para>
 ///
 /// <para>
@@ -96,30 +96,6 @@ public abstract class MariaDbIndexFidelityTests
             }
 
             await assert(extracted, await QueryIndexKeysAsync(databaseName, cancellationToken));
-        }
-        finally
-        {
-            await testDb.DropAsync(cancellationToken);
-        }
-    }
-
-    // Deploys the SQL and returns the exception the engine (or Squill) threw, for the scenarios
-    // where the silent drop escalates into a hard deploy failure.
-    private async Task<Exception> DeployExpectingFailureAsync(string sql, CancellationToken cancellationToken)
-    {
-        var provider = new MariaDbDatabaseProvider(Fixture.ConnectionString);
-        var parsedModel = ParseModel(sql, cancellationToken);
-
-        var testDb = await provider.CreateDatabaseAsync(
-            $"squill_test_{Guid.NewGuid():n}", cancellationToken);
-        var modelBuilder = provider.CreateDatabaseModelBuilder(testDb);
-
-        try
-        {
-            var empty = await modelBuilder.ExtractModelAsync(cancellationToken);
-
-            return await Assert.ThrowsAnyAsync<Exception>(() => testDb.PublishAsync(
-                SchemaCompare.Compare(provider, parsedModel, empty), cancellationToken));
         }
         finally
         {
@@ -641,17 +617,21 @@ public abstract class MariaDbIndexFidelityTests
     // ---- 5. Identifier length ----
 
     /// <summary>
-    /// An index name longer than the engines' 64-character identifier limit is accepted by the
-    /// build with no diagnostic — neither <c>SqlName</c> nor <c>MariaDbModelFactory</c>
-    /// validates length — and fails at deploy time with <c>ERROR 1059 (42000): Identifier name
-    /// '…' is too long</c>. Per the repo's build-diagnostics policy (source-anchored SQ-class
-    /// errors, the way SSDT rejects unresolved references at build time), this should be a
-    /// build error pointing at the offending line, not a mid-deploy engine failure after some
-    /// of the script has already run.
+    /// An index name longer than the engines' 64-character identifier limit is rejected by the
+    /// build with a source-anchored <c>SQ0005</c> diagnostic (issue #163).
+    ///
+    /// <para>
+    /// It previously passed the build with no diagnostic — neither <c>SqlName</c> nor
+    /// <c>MariaDbModelFactory</c> validated length — and failed at deploy time with
+    /// <c>ERROR 1059 (42000): Identifier name '…' is too long</c>, after some of the script had
+    /// already run. Per the repo's build-diagnostics policy (source-anchored SQ-class errors,
+    /// the way SSDT rejects unresolved references at build time) that belongs at build time.
+    /// The second half of this test still deploys the same SQL, so the build error stays
+    /// justified by the engine's own rejection rather than Squill being gratuitously stricter
+    /// than the target.
+    /// </para>
     /// </summary>
-    [Fact(Skip = "Blocked by issue #163: no identifier-length validation exists, so an over-long "
-                 + "index name passes the build and fails mid-deploy with engine error 1059 "
-                 + "instead of producing a source-anchored build diagnostic.")]
+    [Fact]
     public async Task LongIndexName_IsRejectedByTheBuild()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -673,13 +653,20 @@ public abstract class MariaDbIndexFidelityTests
         // reference or a duplicate table is rejected — not let it through to the server.
         var ex = Assert.Throws<SqlSourceException>(() => ParseModel(sql, ct));
 
+        Assert.Equal(SqlSourceException.IdentifierTooLong, ex.Code);
         Assert.Contains("too long", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(6, ex.Line);
 
         // And the engine really would have rejected it, so the build error is warranted rather
         // than Squill being stricter than the target. 1059 = ER_TOO_LONG_IDENT.
-        var exception = await DeployExpectingFailureAsync(sql, ct);
-        var mySqlException = Assert.IsType<MySqlException>(exception);
-        Assert.Equal(1059, mySqlException.Number);
+        //
+        // The raw statements go straight to the server rather than through the deploy path:
+        // now that the build rejects this source, a deploy never reaches the server, so the
+        // engine's own verdict has to be obtained directly for it to mean anything.
+        var exception = await Assert.ThrowsAsync<MySqlException>(
+            () => ExecuteInFreshDatabaseAsync(sql, ct));
+
+        Assert.Equal(1059, exception.Number);
     }
 
     private async Task ExecuteAsync(string databaseName, string sql, CancellationToken cancellationToken)

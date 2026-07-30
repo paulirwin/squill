@@ -22,6 +22,25 @@ public abstract class DatabaseSchemaProvider
     public abstract int MajorVersion { get; }
 
     /// <summary>
+    /// The longest identifier the engine accepts, in the unit <see cref="MeasureIdentifier"/>
+    /// counts. Every engine imposes one and rejects a longer name outright, so an identifier
+    /// over it is a build error (<c>SQ0005</c>) rather than a mid-deploy engine failure.
+    ///
+    /// The two engines do not agree on the unit as well as the number, which is why the limit
+    /// and its measurement are declared together: PostgreSQL's <c>NAMEDATALEN - 1</c> is 63
+    /// <em>bytes</em>, MariaDB and MySQL cap at 64 <em>characters</em>. Comparing one engine's
+    /// number under the other's unit is wrong in both directions — it would reject valid
+    /// multi-byte MariaDB source, and accept Postgres source the server truncates.
+    /// </summary>
+    public abstract int MaxIdentifierLength { get; }
+
+    /// <summary>
+    /// Measures an identifier in the unit <see cref="MaxIdentifierLength"/> is expressed in.
+    /// See that property for why the unit is engine-specific.
+    /// </summary>
+    public abstract int MeasureIdentifier(string identifier);
+
+    /// <summary>
     /// The DSP name written to the <c>DataSchemaModel</c> root of <c>model.xml</c> — the
     /// concrete type's fully-qualified name (e.g.
     /// <c>Squill.Provider.Postgres.Postgresql16DatabaseSchemaProvider</c>). Using the real type
