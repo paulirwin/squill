@@ -110,6 +110,11 @@ public class ExpressionNormalizerTests
     // A collation on both sides of a comparison.
     [InlineData("code COLLATE \"C\" = name COLLATE \"C\"",
         "((code COLLATE \"C\") = (name COLLATE \"C\"))")]
+    // A collation whose name is a reserved keyword is reported back QUOTED even though it is
+    // lower-case ASCII — measured, `COLLATE "select"` stays `COLLATE "select"`. The canonical
+    // form quotes unconditionally so this and the bare spelling both reduce to one token.
+    [InlineData("code COLLATE \"select\" > 'a'", "((code COLLATE \"select\") > 'a'::text)")]
+    [InlineData("code COLLATE mycoll > 'a'", "((code COLLATE mycoll) > 'a'::text)")]
     public void DeclaredAndExtracted_NormalizeToTheSameToken(string declared, string extracted)
     {
         var declaredCanonical = Normalize(declared);
@@ -159,6 +164,11 @@ public class ExpressionNormalizerTests
     [InlineData("code ILIKE 'a%' ESCAPE '!'")]
     [InlineData("code COLLATE \"C\" > 'a'")]
     [InlineData("code COLLATE \"C\" = name COLLATE \"C\"")]
+    // A collation whose name is a reserved keyword, and one that needs no quoting at all. Both
+    // must survive a round trip: the canonical form is emitted quoted precisely so that a name
+    // like `select` re-parses — stripped to bare it would not, breaking idempotence.
+    [InlineData("code COLLATE \"select\" > 'a'")]
+    [InlineData("code COLLATE mycoll > 'a'")]
     public void Normalization_IsIdempotent(string predicate)
     {
         var once = Normalize(predicate);

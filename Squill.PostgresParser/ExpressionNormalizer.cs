@@ -345,9 +345,9 @@ public static class ExpressionNormalizer
     /// <c>((code COLLATE "C") &gt; 'a'::text)</c>.
     ///
     /// <para>
-    /// The collation name is emitted double-quoted, which is how the engine reports it whatever
-    /// the source spelling. A <em>qualified</em> name is emitted as written, since a collation
-    /// in a user schema keeps its qualifier — with one exception, handled below.
+    /// Only a BARE collation is canonicalized; a schema-qualified one is refused whatever its
+    /// schema, because whether the qualifier survives depends on the target's search path. The
+    /// name is emitted double-quoted. Both decisions are explained where they are made below.
     /// </para>
     /// </summary>
     private static bool WriteCollate(StringBuilder sb, CollateExpression collate)
@@ -378,24 +378,21 @@ public static class ExpressionNormalizer
             return false;
         }
 
-        // Quoted only when the identifier requires it, matching how the engine reports it: a
-        // lower-case name of ordinary characters comes back bare (`mycoll`), anything else
-        // quoted (`"C"`, `"weird name"`).
-        sb.Append(" COLLATE ").Append(QuoteIfRequired(segments[0].Name)).Append(')');
+        // ALWAYS quoted, which is not quite what the engine does — it quotes only a name that
+        // would not survive bare, so `mycoll` comes back bare and `"C"` quoted. Reproducing
+        // that exactly needs PostgreSQL's reserved-keyword set as well as the character rule:
+        // measured, a collation named `select` is reported as `"select"` despite being
+        // lower-case ASCII, and 164 keywords behave that way (`SELECT count(*) FROM
+        // pg_get_keywords() WHERE quote_ident(word) <> word`).
+        //
+        // Vendoring that list would be a second copy of a per-version fact, so both sides are
+        // quoted uniformly instead. That is safe precisely because this is a canonical form
+        // rather than emitted SQL: the declared and extracted texts both pass through here, so
+        // they still meet, and quoting is the spelling that always re-parses — which the
+        // stripped form does not, breaking the idempotence this class documents.
+        sb.Append(" COLLATE \"").Append(segments[0].Name).Append("\")");
 
         return true;
-    }
-
-    // PostgreSQL quotes an identifier when reporting it only if it would not survive a
-    // round trip bare — that is, when it is not already all-lower-case with only
-    // letters/digits/underscores, or when it starts with a digit.
-    private static string QuoteIfRequired(string identifier)
-    {
-        var needsQuoting = identifier.Length == 0
-            || char.IsAsciiDigit(identifier[0])
-            || identifier.Any(c => !char.IsAsciiLetterLower(c) && !char.IsAsciiDigit(c) && c != '_');
-
-        return needsQuoting ? $"\"{identifier}\"" : identifier;
     }
 
     private static bool WriteBinary(
