@@ -16,13 +16,42 @@ public static class DacpacBuilder
     private static IWorkspaceModelBuilder CreateModelBuilder(Workspace workspace) =>
         new ParserWorkspaceModelBuilder(workspace, new AntlrPostgresParser());
 
+    private static Func<Workspace, IWorkspaceModelBuilder> CreateModelBuilder(
+        PostgresqlDatabaseSchemaProvider schemaProvider) =>
+        workspace => new ParserWorkspaceModelBuilder(
+            workspace, new AntlrPostgresParser(), schemaProvider);
+
+    /// <summary>
+    /// The schema provider a DACPAC's recorded provider name and target version select, so the
+    /// build can report constructs newer than the targeted major (issue #142). An unspecified
+    /// target version resolves to the latest supported major, which is what declaring no
+    /// <c>SquillTargetVersion</c> means — an unconstrained project behaves as if it targets a
+    /// current server. Mirrors the MariaDB provider's builder of the same name.
+    /// </summary>
+    public static PostgresqlDatabaseSchemaProvider SchemaProviderFor(
+        string providerName, int? targetMajorVersion)
+    {
+        var schemaProvider =
+            DatabaseSchemaProviderRegistry.Resolve(providerName, targetMajorVersion);
+
+        // A name this builder does not serve resolves to some other engine's provider. Say so,
+        // rather than letting it surface as a bare InvalidCastException.
+        return schemaProvider as PostgresqlDatabaseSchemaProvider
+            ?? throw new ArgumentException(
+                $"'{providerName}' is not a PostgreSQL provider name; it resolves to "
+                + $"{schemaProvider.GetType().Name}. Use the provider that serves that engine.",
+                nameof(providerName));
+    }
+
     /// <inheritdoc cref="WorkspaceDacpacBuilder.BuildAsync"/>
     public static Task BuildAsync(
         Workspace workspace,
         ModelMetadata metadata,
         Stream stream,
         CancellationToken cancellationToken = default) =>
-        WorkspaceDacpacBuilder.BuildAsync(workspace, metadata, stream, CreateModelBuilder, cancellationToken);
+        WorkspaceDacpacBuilder.BuildAsync(workspace, metadata, stream,
+            CreateModelBuilder(SchemaProviderFor(metadata.ProviderName, metadata.TargetMajorVersion)),
+            cancellationToken);
 
     /// <inheritdoc cref="WorkspaceDacpacBuilder.BuildToFileAsync"/>
     public static Task BuildToFileAsync(
@@ -30,13 +59,26 @@ public static class DacpacBuilder
         ModelMetadata metadata,
         string outputPath,
         CancellationToken cancellationToken = default) =>
-        WorkspaceDacpacBuilder.BuildToFileAsync(workspace, metadata, outputPath, CreateModelBuilder, cancellationToken);
+        WorkspaceDacpacBuilder.BuildToFileAsync(workspace, metadata, outputPath,
+            CreateModelBuilder(SchemaProviderFor(metadata.ProviderName, metadata.TargetMajorVersion)),
+            cancellationToken);
 
     /// <inheritdoc cref="WorkspaceDacpacBuilder.BuildModelAsync"/>
     public static Task<BuildResult> BuildModelAsync(
         Workspace workspace,
         CancellationToken cancellationToken = default) =>
         WorkspaceDacpacBuilder.BuildModelAsync(workspace, CreateModelBuilder, cancellationToken);
+
+    /// <summary>
+    /// Builds the model for a given target, so constructs newer than that major are reported
+    /// (issue #142). The overload without a schema provider targets the latest supported major.
+    /// </summary>
+    public static Task<BuildResult> BuildModelAsync(
+        Workspace workspace,
+        PostgresqlDatabaseSchemaProvider schemaProvider,
+        CancellationToken cancellationToken = default) =>
+        WorkspaceDacpacBuilder.BuildModelAsync(
+            workspace, CreateModelBuilder(schemaProvider), cancellationToken);
 
     /// <inheritdoc cref="WorkspaceDacpacBuilder.CreateWorkspace"/>
     public static Workspace CreateWorkspace(IEnumerable<string> sourceFilePaths) =>

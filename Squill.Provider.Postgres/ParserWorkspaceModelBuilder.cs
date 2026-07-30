@@ -1,4 +1,5 @@
 using Squill.Core;
+using Squill.Dacpac;
 using Squill.PostgresParser;
 using Squill.PostgresParser.Syntax;
 
@@ -8,11 +9,34 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 {
     private readonly Workspace _workspace;
     private readonly IPostgresParser _postgresParser;
+    private readonly PostgresqlDatabaseSchemaProvider _schemaProvider;
 
-    public ParserWorkspaceModelBuilder(Workspace workspace, IPostgresParser postgresParser)
+    /// <summary>
+    /// Builds a model from PostgreSQL source. The target
+    /// <see cref="PostgresqlDatabaseSchemaProvider"/> is what makes the build version-aware:
+    /// constructs introduced after the targeted major are reported at build time rather than
+    /// failing partway through a deploy (issue #142).
+    ///
+    /// <para>
+    /// It defaults to the latest supported major rather than being required, which is what
+    /// declaring no <c>SquillTargetVersion</c> means — an unconstrained project behaves as if
+    /// it targets a current server, so nothing is reported as too new. This mirrors
+    /// <see cref="Squill.Dacpac.DatabaseSchemaProviderRegistry.Resolve(string, int?)"/>, whose
+    /// null case resolves the same way.
+    /// </para>
+    /// </summary>
+    public ParserWorkspaceModelBuilder(
+        Workspace workspace,
+        IPostgresParser postgresParser,
+        PostgresqlDatabaseSchemaProvider? schemaProvider = null)
     {
         _workspace = workspace;
         _postgresParser = postgresParser;
+        // Resolved rather than named so adding a new major does not leave a stale default
+        // behind here — the registry already knows which is latest.
+        _schemaProvider = schemaProvider
+            ?? (PostgresqlDatabaseSchemaProvider)DatabaseSchemaProviderRegistry
+                .ResolveLatest("Postgresql");
     }
 
     public async Task<BuildResult> ExtractModelAsync(CancellationToken cancellationToken = default)
@@ -122,7 +146,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         {
             try
             {
-                ProcessStatement(statement, model, file, validator, warnings, views);
+                ProcessStatement(
+                    statement, model, file, validator, warnings, views, _schemaProvider);
             }
             catch (Exception ex) when (ex is NotImplementedException or NotSupportedException
                 or InvalidOperationException or PostgresParseException)
@@ -233,7 +258,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         IFile file,
         SourceValidator validator,
         List<SqlSourceDiagnostic> warnings,
-        List<PendingView> views)
+        List<PendingView> views,
+        PostgresqlDatabaseSchemaProvider schemaProvider)
     {
         if (statement is CreateTableStatement createTableStatement)
         {
@@ -282,6 +308,16 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         else if (statement is CreateIndexStatement createIndexStatement)
         {
             validator.AddCreateIndex(file, createIndexStatement);
+
+            // Reported alongside the model rather than instead of it: the index is still built
+            // as declared, because dropping NULLS NOT DISTINCT would deploy the opposite
+            // uniqueness semantics from the source's (issue #142).
+            PostgresTargetVersionChecker.Check(
+                file,
+                createIndexStatement,
+                SplitSchema(createIndexStatement.OnRelation.Name).Name.UnqualifiedName,
+                schemaProvider,
+                warnings);
 
             var element = MakeCreateIndexElement(createIndexStatement);
 

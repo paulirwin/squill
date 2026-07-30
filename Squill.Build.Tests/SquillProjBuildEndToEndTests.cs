@@ -180,6 +180,68 @@ public class SquillProjBuildEndToEndTests
         }
     }
 
+    // Source using a construct newer than SquillTargetVersion is reported as an SQ1003 warning
+    // through the same MSBuild channel as every other coded diagnostic (issue #142), so the
+    // build still succeeds — and NoWarn / WarningsAsErrors apply to it like any other warning.
+    [Theory]
+    [InlineData("", 0, "warning SQ1003")]
+    // The issue asks for opting into treating it as an error. That needs no Squill-specific
+    // property: the warning carries a code, so MSBuild's own escalation turns it fatal.
+    //
+    // The property is MSBuildWarningsAsErrors, not the WarningsAsErrors that a C# project
+    // would use — the latter is a Roslyn compiler option and does not apply to a warning
+    // logged by a task, which is what this one is.
+    [InlineData("<MSBuildWarningsAsErrors>SQ1003</MSBuildWarningsAsErrors>", 1, "error SQ1003")]
+    public async Task DotnetBuild_WithTooNewFeature_ReportsSq1003(
+        string escalation, int expectedExitCode, string expectedText)
+    {
+        var repoRoot = FindRepoRoot();
+
+        var taskDll = Path.Combine(repoRoot, "Squill.Build", "bin", "Debug", "net10.0", "Squill.Build.dll");
+        Assert.True(File.Exists(taskDll),
+            $"Squill.Build must be built before this test; expected {taskDll}. Run 'dotnet build Squill.Build'.");
+
+        var tempDir = Directory.CreateTempSubdirectory("squill-e2e-too-new");
+        try
+        {
+            var sdkDir = Path.Combine(repoRoot, "Squill.Sdk", "Sdk");
+
+            // NULLS NOT DISTINCT arrived in PostgreSQL 15; this project targets 14.
+            var projContent = $"""
+<Project>
+  <Import Project="{Path.Combine(sdkDir, "Sdk.props")}" />
+  <PropertyGroup>
+    <SquillTargetVersion>14</SquillTargetVersion>
+    {escalation}
+  </PropertyGroup>
+  <Import Project="{Path.Combine(sdkDir, "Sdk.targets")}" />
+</Project>
+""";
+            await File.WriteAllTextAsync(
+                Path.Combine(tempDir.FullName, "TestDb.squillproj"),
+                projContent,
+                TestContext.Current.CancellationToken);
+
+            await File.WriteAllTextAsync(
+                Path.Combine(tempDir.FullName, "Account.sql"),
+                "CREATE TABLE account (id integer PRIMARY KEY, email text);\n"
+                + "CREATE UNIQUE INDEX ix_account_email ON account (email) NULLS NOT DISTINCT;",
+                TestContext.Current.CancellationToken);
+
+            var (exitCode, output) = await RunDotnetBuild(tempDir.FullName, "TestDb.squillproj");
+
+            Assert.True(exitCode == expectedExitCode,
+                $"Expected exit code {expectedExitCode}. Output:\n{output}");
+
+            Assert.Contains(expectedText, output);
+            Assert.Contains("NULLS NOT DISTINCT", output);
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
     // A syntax error in a .sql file must surface as a regular MSBuild error with
     // file/line/column metadata (issue #53) — rendered as `Bad.sql(2,x): error SQ0001: ...`
     // in build output — and fail the build.

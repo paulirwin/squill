@@ -13,6 +13,8 @@ public abstract class MariaDbDatabaseSchemaProviderBase : MariaDbFamilyDatabaseS
 {
     public override string ProviderName => "MariaDb";
 
+    public override bool IsMySql => false;
+
     // MariaDB keeps these as separate functions rather than folding them into
     // current_timestamp(): measured, DEFAULT LOCALTIME is stored as curtime() — a time of day —
     // and LOCALTIMESTAMP as localtimestamp().

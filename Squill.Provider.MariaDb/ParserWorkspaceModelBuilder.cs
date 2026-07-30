@@ -295,6 +295,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
                         AddUnmodeledTableWarnings(file, createTable, warnings, _schemaProvider);
 
+                        // Reported alongside the unmodeled-construct warnings, not in place of
+                        // them: a construct can be both too new for the target and unmodeled,
+                        // and the two say different things about what will happen (issue #142).
+                        MariaDbTargetVersionChecker.Check(
+                            file, createTable, _schemaProvider, warnings);
+
                         foreach (var element in MakeCreateTableElements(createTable, _schemaProvider))
                         {
                             model.Elements.Add(element);
