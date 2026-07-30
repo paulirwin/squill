@@ -383,11 +383,13 @@ ORDER BY conname;
     // parser-built and database-extracted models agree on these constructs.
     //
     // Agreement is asserted as "comparing them produces nothing to deploy" rather than as raw
-    // hash equality. One of these predicates — LIKE with an ESCAPE — is stored by PostgreSQL as a
-    // like_escape() call, a spelling the normalizer deliberately refuses (issue #171), so only
-    // the extracted side carries a canonical form. SchemaCompare handles that by dropping a
-    // one-sided canonical form (issue #156); a bare hash comparison cannot, and would report a
-    // difference for two models that are in fact equivalent.
+    // hash equality, which is the more robust of the two: SchemaCompare drops a canonical form
+    // present on only one side (issue #156), so it still reports equivalence for a predicate
+    // the normalizer refuses, where a bare hash comparison would report a spurious difference.
+    //
+    // Both predicates that used to take that path — LIKE with an ESCAPE, and COLLATE — now
+    // normalize on both sides as of issue #171, so they no longer rely on it. It still applies
+    // to any predicate shape the normalizer refuses.
     private static async Task AssertModelsMatchAsync(
         IDatabaseProvider provider, IDatabase createdDb, string dacpacPath, CancellationToken ct)
     {

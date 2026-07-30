@@ -150,6 +150,9 @@ public static class ExpressionNormalizer
             case ArrayExpression array:
                 return WriteArray(sb, array);
 
+            case CollateExpression collate:
+                return WriteCollate(sb, collate);
+
             case UnaryExpression unary:
                 return WriteUnary(sb, unary);
 
@@ -286,17 +289,113 @@ public static class ExpressionNormalizer
 
     private static bool WriteLike(StringBuilder sb, LikeExpression like)
     {
-        // A LIKE with an ESCAPE is stored as a call to the internal like_escape() function
-        // (`code ~~ like_escape('%!%%'::text, '!'::text)`), not as the LIKE … ESCAPE spelling.
-        // Rendering that call here would be encoding an implementation detail from a single
-        // measurement, so the expression is refused and falls back to not participating in
-        // identity — see issue #171.
-        if (like.Escape is not null)
+        // A LIKE with an ESCAPE is not stored as the LIKE … ESCAPE spelling at all: PostgreSQL
+        // rewrites it into a call to the internal like_escape() function, with the LIKE flavour
+        // carried by the operator (issue #171). Measured across all four flavours and an empty
+        // escape, on postgres:latest:
+        //
+        //   code LIKE      '%!%%' ESCAPE '!'  =>  code ~~   like_escape('%!%%'::text, '!'::text)
+        //   code NOT LIKE  '%!%%' ESCAPE '!'  =>  code !~~  like_escape('%!%%'::text, '!'::text)
+        //   code ILIKE     'a%'   ESCAPE '!'  =>  code ~~*  like_escape('a%'::text,   '!'::text)
+        //   code NOT ILIKE 'a%'   ESCAPE '!'  =>  code !~~* like_escape('a%'::text,   '!'::text)
+        //   code LIKE      'a%'   ESCAPE ''   =>  code ~~   like_escape('a%'::text,   ''::text)
+        //
+        // The extracted side already normalized before this, since it parses as an ordinary
+        // operator and call — so only the declared side needed the rewrite for the two to meet.
+        if (like.Escape is { } escape)
+        {
+            if (OperatorText(like.Operator) is not { } escapeOpText)
+            {
+                return false;
+            }
+
+            sb.Append('(');
+
+            if (!Write(sb, like.Left))
+            {
+                return false;
+            }
+
+            sb.Append(' ').Append(escapeOpText).Append(" like_escape(");
+
+            if (!Write(sb, like.Right))
+            {
+                return false;
+            }
+
+            sb.Append(", ");
+
+            if (!Write(sb, escape))
+            {
+                return false;
+            }
+
+            sb.Append("))");
+
+            return true;
+        }
+
+        return WriteBinary(sb, like.Left, like.Operator, like.Right);
+    }
+
+    /// <summary>
+    /// <c>expr COLLATE collation</c> (issue #171). The operand order is preserved and only
+    /// grouping is added, so this is the simplest of the rewrites — measured on
+    /// <c>postgres:latest</c>, <c>code COLLATE "C" &gt; 'a'</c> is stored as
+    /// <c>((code COLLATE "C") &gt; 'a'::text)</c>.
+    ///
+    /// <para>
+    /// The collation name is emitted double-quoted, which is how the engine reports it whatever
+    /// the source spelling. A <em>qualified</em> name is emitted as written, since a collation
+    /// in a user schema keeps its qualifier — with one exception, handled below.
+    /// </para>
+    /// </summary>
+    private static bool WriteCollate(StringBuilder sb, CollateExpression collate)
+    {
+        var segments = collate.Collation.Segments;
+
+        // A QUALIFIED collation is refused, whatever the schema. Whether PostgreSQL reports the
+        // qualifier back depends on the search path at the time, which is a deploy-time fact the
+        // model does not have. Measured on postgres:latest with the default search path:
+        //
+        //   COLLATE pg_catalog."C"        =>  COLLATE "C"            qualifier dropped
+        //   COLLATE public."weird name"   =>  COLLATE "weird name"   qualifier dropped
+        //   COLLATE s1.mycoll             =>  COLLATE s1.mycoll      qualifier kept
+        //
+        // pg_catalog and public are on the path so their qualifiers vanish; s1 is not so its
+        // qualifier stays. Since the same declared text can normalize either way depending on
+        // the target's search path, canonicalizing it would make the constraint re-diff on some
+        // targets and not others — worse than leaving it out of identity (issue #171).
+        if (segments.Count > 1)
         {
             return false;
         }
 
-        return WriteBinary(sb, like.Left, like.Operator, like.Right);
+        sb.Append('(');
+
+        if (!Write(sb, collate.Expression))
+        {
+            return false;
+        }
+
+        // Quoted only when the identifier requires it, matching how the engine reports it: a
+        // lower-case name of ordinary characters comes back bare (`mycoll`), anything else
+        // quoted (`"C"`, `"weird name"`).
+        sb.Append(" COLLATE ").Append(QuoteIfRequired(segments[0].Name)).Append(')');
+
+        return true;
+    }
+
+    // PostgreSQL quotes an identifier when reporting it only if it would not survive a
+    // round trip bare — that is, when it is not already all-lower-case with only
+    // letters/digits/underscores, or when it starts with a digit.
+    private static string QuoteIfRequired(string identifier)
+    {
+        var needsQuoting = identifier.Length == 0
+            || char.IsAsciiDigit(identifier[0])
+            || identifier.Any(c => !char.IsAsciiLetterLower(c) && !char.IsAsciiDigit(c) && c != '_');
+
+        return needsQuoting ? $"\"{identifier}\"" : identifier;
     }
 
     private static bool WriteBinary(
