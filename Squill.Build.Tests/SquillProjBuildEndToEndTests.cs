@@ -182,7 +182,7 @@ public class SquillProjBuildEndToEndTests
 
     // Source using a construct newer than SquillTargetVersion is reported as an SQ1003 warning
     // through the same MSBuild channel as every other coded diagnostic (issue #142), so the
-    // build still succeeds — and NoWarn / WarningsAsErrors apply to it like any other warning.
+    // build still succeeds — and the MSBuild* warning properties apply to it like any other.
     [Theory]
     [InlineData("", 0, "warning SQ1003")]
     // The issue asks for opting into treating it as an error. That needs no Squill-specific

@@ -19,7 +19,7 @@ namespace Squill.Provider.MariaDb;
 /// The construct is still modeled. Dropping it would build a model that silently means
 /// something other than the source says, which is the failure #141 called out for typed
 /// literals; the warning is the whole of the response, and a project that wants it fatal
-/// escalates SQ1003 through MSBuild's <c>WarningsAsErrors</c>.
+/// escalates SQ1003 through <c>MSBuildWarningsAsErrors</c>.
 /// </para>
 /// </summary>
 internal static class MariaDbTargetVersionChecker
@@ -76,13 +76,20 @@ internal static class MariaDbTargetVersionChecker
         var line = statement.Line;
         var col = statement.Column;
 
+        // The citation is the targeted engine's own, never the other's: pointing a MySQL warning
+        // at MariaDB's VECTOR page would cite something that says nothing about MySQL's boundary.
+        // It is omitted entirely rather than substituted when that engine has none to cite.
+        var citation = feature.DocumentationUrlFor(schemaProvider) is { } url
+            ? $" See {url}."
+            : string.Empty;
+
         // Absent from this engine at any version: "too new" would send the author looking for
         // an upgrade that does not exist, so this is its own diagnostic.
         if (feature.MinimumMajorVersionFor(schemaProvider) is not { } minimum)
         {
             warnings.Add(new SqlSourceDiagnostic(
                 $"{subject}, which {schemaProvider.ProviderName} does not support at any "
-                + $"version. See {feature.DocumentationUrl}.",
+                + $"version.{citation}",
                 file.Name, line, col, SqlSourceDiagnostic.FeatureNotSupportedByEngine));
 
             return;
@@ -97,8 +104,8 @@ internal static class MariaDbTargetVersionChecker
 
         warnings.Add(new SqlSourceDiagnostic(
             $"{subject}, which requires {schemaProvider.ProviderName} {minimum} or later, but "
-            + $"this project targets {schemaProvider.ProviderName} {schemaProvider.MajorVersion}. "
-            + $"See {feature.DocumentationUrl}.{note}",
+            + $"this project targets {schemaProvider.ProviderName} {schemaProvider.MajorVersion}."
+            + $"{citation}{note}",
             file.Name, line, col, SqlSourceDiagnostic.FeatureNotInTargetVersion));
     }
 }

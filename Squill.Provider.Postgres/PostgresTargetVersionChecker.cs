@@ -19,7 +19,7 @@ namespace Squill.Provider.Postgres;
 /// something other than the source says — for <c>NULLS NOT DISTINCT</c> that would be the
 /// opposite uniqueness semantics — which is the failure #141 called out for typed literals.
 /// The warning is the whole of the response, and a project that wants it fatal escalates
-/// SQ1003 through MSBuild's <c>WarningsAsErrors</c>.
+/// SQ1003 through <c>MSBuildWarningsAsErrors</c>.
 /// </para>
 /// </summary>
 internal static class PostgresTargetVersionChecker

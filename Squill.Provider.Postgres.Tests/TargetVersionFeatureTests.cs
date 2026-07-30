@@ -11,7 +11,9 @@ namespace Squill.Provider.Postgres.Tests;
 ///
 /// A warning rather than an error because that is what the issue asks for, and because the
 /// diagnostic rides the same channel as every other <c>SQ1xxx</c> — a project that wants it
-/// fatal escalates it with MSBuild's <c>WarningsAsErrors</c>, like any other coded warning.
+/// fatal escalates it with <c>MSBuildWarningsAsErrors</c>, like any other coded warning. (Not
+/// the <c>WarningsAsErrors</c> a C# project would use — that is a Roslyn compiler option and
+/// does not apply to a warning logged by an MSBuild task, which is what this one is.)
 /// </summary>
 public class TargetVersionFeatureTests
 {

@@ -298,8 +298,8 @@ CREATE TABLE book
     public async Task Execute_ReportsUnmodeledConstructAsCodedWarning()
     {
         // A build warning has to reach MSBuild with a code and a source position, or
-        // NoWarn / WarningsAsErrors cannot act on it and the IDE cannot navigate to it
-        // (issue #61).
+        // MSBuildWarningsAsMessages / MSBuildWarningsAsErrors cannot act on it and the IDE
+        // cannot navigate to it (issue #61).
         const string schema = """
 CREATE TABLE Event
 (

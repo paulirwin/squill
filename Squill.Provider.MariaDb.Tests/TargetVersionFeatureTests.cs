@@ -84,6 +84,49 @@ CREATE TABLE account
         Assert.Contains("9", warning.Message);
     }
 
+    /// <summary>
+    /// The warning cites the <em>targeted engine's</em> documentation. Citing MariaDB's VECTOR
+    /// page in a MySQL warning would point the reader at something that says nothing about
+    /// MySQL's boundary — worse than no citation, since the whole point is that the claim can
+    /// be checked.
+    /// </summary>
+    [Fact]
+    public async Task Vector_CitesTheTargetedEnginesDocumentation()
+    {
+        var mariaDb = await BuilderFor(
+                new MariaDb10DatabaseSchemaProvider(), ("Embedding.sql", VectorSql))
+            .ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains("mariadb.com", Assert.Single(mariaDb.Warnings).Message);
+
+        var mySql = await BuilderFor(
+                new MySql8DatabaseSchemaProvider(), ("Embedding.sql", VectorSql))
+            .ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        var mySqlWarning = Assert.Single(mySql.Warnings);
+
+        Assert.Contains("dev.mysql.com", mySqlWarning.Message);
+        Assert.DoesNotContain("mariadb.com", mySqlWarning.Message);
+    }
+
+    /// <summary>
+    /// MySQL has no UUID type at any version, so there is no MySQL page establishing a boundary
+    /// for it. The citation is omitted rather than falling back to MariaDB's, and the message
+    /// must not trail a dangling "See ." where the URL would have been.
+    /// </summary>
+    [Fact]
+    public async Task Uuid_OnMySql_OmitsTheCitationRatherThanCitingMariaDb()
+    {
+        var result = await BuilderFor(
+                new MySql9DatabaseSchemaProvider(), ("Account.sql", UuidSql))
+            .ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        var warning = Assert.Single(result.Warnings);
+
+        Assert.DoesNotContain("mariadb.com", warning.Message);
+        Assert.DoesNotContain("See .", warning.Message);
+    }
+
     [Fact]
     public async Task Vector_OnMySql9_DoesNotWarn()
     {

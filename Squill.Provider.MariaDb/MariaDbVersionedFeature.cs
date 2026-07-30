@@ -41,9 +41,20 @@ namespace Squill.Provider.MariaDb;
 /// <param name="MySqlMinimumMajorVersion">
 /// The first MySQL major that accepts it, or null if MySQL has no equivalent at any version.
 /// </param>
-/// <param name="DocumentationUrl">
-/// The official page establishing the versions, cited in the warning itself — the author's next
-/// question after "this is too new" is always "says who?".
+/// <param name="MariaDbDocumentationUrl">
+/// The official MariaDB page establishing that engine's boundary, cited in the warning itself —
+/// the author's next question after "this is too new" is always "says who?".
+/// </param>
+/// <param name="MySqlDocumentationUrl">
+/// The official MySQL page establishing that engine's boundary, or null when MySQL has no
+/// equivalent at any version.
+///
+/// <para>
+/// The citation is per-engine for the same reason the minimum version is: the boundaries are
+/// established by different vendors on different pages. Citing MariaDB's <c>VECTOR</c> page in a
+/// MySQL warning would point at something that says nothing about MySQL 9.0 — worse than no
+/// citation, since the whole point is that the reader can check the claim.
+/// </para>
 /// </param>
 /// <param name="Note">
 /// An optional clarification appended to the warning, for a construct whose real boundary is a
@@ -53,7 +64,8 @@ public readonly record struct MariaDbVersionedFeature(
     string Description,
     int? MariaDbMinimumMajorVersion,
     int? MySqlMinimumMajorVersion,
-    string DocumentationUrl,
+    string MariaDbDocumentationUrl,
+    string? MySqlDocumentationUrl = null,
     string? Note = null)
 {
     /// <summary>
@@ -72,7 +84,10 @@ public readonly record struct MariaDbVersionedFeature(
         "VECTOR",
         MariaDbMinimumMajorVersion: 11,
         MySqlMinimumMajorVersion: 9,
-        "https://mariadb.com/docs/server/reference/data-types/vectors/vector");
+        MariaDbDocumentationUrl:
+            "https://mariadb.com/docs/server/reference/data-types/vectors/vector",
+        MySqlDocumentationUrl:
+            "https://dev.mysql.com/doc/relnotes/mysql/9.0/en/news-9-0-0.html");
 
     /// <summary>
     /// The native <c>UUID</c> column type, which MySQL has no equivalent of at any version —
@@ -87,7 +102,11 @@ public readonly record struct MariaDbVersionedFeature(
         "UUID",
         MariaDbMinimumMajorVersion: 11,
         MySqlMinimumMajorVersion: null,
-        "https://mariadb.com/docs/server/reference/data-types/string-data-types/uuid-data-type",
+        MariaDbDocumentationUrl:
+            "https://mariadb.com/docs/server/reference/data-types/string-data-types/uuid-data-type",
+        // No MySQL citation: there is no MySQL page establishing a boundary for a type that
+        // engine never had, and pointing at MariaDB's would suggest one exists.
+        MySqlDocumentationUrl: null,
         Note: "MariaDB accepts it from 10.7; Squill targets a major version only, so a project "
             + "on 10.7 or later can suppress this warning or raise its target version.");
 
@@ -99,4 +118,12 @@ public readonly record struct MariaDbVersionedFeature(
     /// </summary>
     public int? MinimumMajorVersionFor(MariaDbFamilyDatabaseSchemaProvider schemaProvider)
         => schemaProvider.IsMySql ? MySqlMinimumMajorVersion : MariaDbMinimumMajorVersion;
+
+    /// <summary>
+    /// The documentation establishing <paramref name="schemaProvider"/>'s engine's boundary for
+    /// this construct, or null when that engine has none to cite. Per-engine for the same reason
+    /// <see cref="MinimumMajorVersionFor"/> is: the two vendors document their own boundaries.
+    /// </summary>
+    public string? DocumentationUrlFor(MariaDbFamilyDatabaseSchemaProvider schemaProvider)
+        => schemaProvider.IsMySql ? MySqlDocumentationUrl : MariaDbDocumentationUrl;
 }

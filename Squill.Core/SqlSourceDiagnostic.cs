@@ -6,7 +6,15 @@ namespace Squill.Core;
 /// CHECK constraint or an unmodeled function default should not fail the build — so they
 /// are collected during the build and returned alongside the model, letting the host report
 /// them through its own warning channel (<c>Log.LogWarning</c> for the MSBuild task) with
-/// file/line/column so MSBuild's <c>NoWarn</c> / <c>WarningsAsErrors</c> apply (issue #61).
+/// file/line/column so MSBuild's <c>MSBuildWarningsAsMessages</c> / <c>MSBuildWarningsAsErrors</c>
+/// apply (issue #61).
+///
+/// <para>
+/// Those are the <c>MSBuild</c>-prefixed properties, not the <c>NoWarn</c> / <c>WarningsAsErrors</c>
+/// a C# project uses: the latter are Roslyn compiler options and have no effect on a warning
+/// logged by a task. Measured — <c>NoWarn</c> leaves an <c>SQ1xxx</c> warning in the output,
+/// while <c>MSBuildWarningsAsMessages</c> demotes it.
+/// </para>
 /// </summary>
 /// <param name="Message">The human-readable warning text.</param>
 /// <param name="SourceFile">The source file the warning is about, as named by the workspace.</param>
