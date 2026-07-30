@@ -102,8 +102,9 @@ public class ExpressionNormalizerTests
         "(code !~~* like_escape('a%'::text, '!'::text))")]
     // An empty escape string is a real value, not an absent one, and is carried through.
     [InlineData("code LIKE 'a%' ESCAPE ''", "(code ~~ like_escape('a%'::text, ''::text))")]
-    // COLLATE keeps its operand order and gains only grouping (issue #171). The collation name
-    // is reported double-quoted whatever the source spelling.
+    // COLLATE keeps its operand order and gains only grouping (issue #171). The engine reports
+    // the collation name bare or quoted depending on the name itself — `mycoll` bare, `"C"` and
+    // `"select"` quoted — so the canonical form quotes unconditionally to bridge the two.
     [InlineData("code COLLATE \"C\" > 'a'", "((code COLLATE \"C\") > 'a'::text)")]
     [InlineData("code COLLATE \"POSIX\" > 'a'", "((code COLLATE \"POSIX\") > 'a'::text)")]
     [InlineData("(code COLLATE \"C\") > 'a'", "((code COLLATE \"C\") > 'a'::text)")]
