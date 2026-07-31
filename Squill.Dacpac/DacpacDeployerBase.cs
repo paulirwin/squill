@@ -22,9 +22,10 @@ public abstract class DacpacDeployerBase
     protected abstract IDatabase CreateDatabase(string connectionString, string databaseName);
 
     /// <summary>
-    /// The connected server's version, major and minor. The minor matters because much of the
-    /// MySQL and MariaDB DDL surface landed in point releases, so a DACPAC targeting 8.4 must be
-    /// refused against an 8.0 server even though the majors match.
+    /// The connected server's version — major, minor and patch. The components below the major
+    /// matter because much of the MySQL and MariaDB DDL surface landed in point releases, so a
+    /// DACPAC targeting 8.4 must be refused against an 8.0 server even though the majors match,
+    /// and one targeting 8.0.13 against an 8.0.3 server even though the minors match too.
     /// </summary>
     protected abstract TargetVersion GetServerVersion(IDatabase database);
 

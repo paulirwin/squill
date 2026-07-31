@@ -74,7 +74,8 @@ public readonly record struct TargetVersion(int Major, int Minor, int Patch = 0)
 
     private static ArgumentException Invalid(string targetVersion)
         => new($"SquillTargetVersion '{targetVersion}' is not a valid version number "
-               + "(expected a major version like '16', or a dotted version like '16.2').");
+               + "(expected a major version like '16', a dotted version like '16.2', or a full "
+               + "version like '8.0.13').");
 
     /// <summary>
     /// Orders by major, then minor, then patch, which is what makes a floor comparable to a

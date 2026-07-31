@@ -46,14 +46,15 @@ public class MariaDbDatabase : IDatabase
     }
 
     /// <summary>
-    /// The version of the connected server (e.g. <c>11.4</c> for MariaDB, <c>8.0</c> for MySQL),
-    /// used to enforce the DACPAC's recorded target version at deploy time. Parsed from the
-    /// driver's server-version string, whose MariaDB form carries a <c>-MariaDB</c> suffix
+    /// The version of the connected server (e.g. <c>11.4.2</c> for MariaDB, <c>8.0.36</c> for
+    /// MySQL), used to enforce the DACPAC's recorded target version at deploy time. Parsed from
+    /// the driver's server-version string, whose MariaDB form carries a <c>-MariaDB</c> suffix
     /// (e.g. <c>11.4.2-MariaDB</c>) and whose MySQL form does not (e.g. <c>8.0.36</c>).
     ///
     /// <para>
-    /// The minor is load-bearing on these engines: much of the DDL surface arrived in point
-    /// releases, so 8.0 and 8.4 are genuinely different targets.
+    /// The components below the major are load-bearing on these engines: much of the DDL surface
+    /// arrived in point releases, so 8.0 and 8.4 are genuinely different targets, as are 8.0.3
+    /// and 8.0.13.
     /// </para>
     /// </summary>
     public TargetVersion GetServerVersion()

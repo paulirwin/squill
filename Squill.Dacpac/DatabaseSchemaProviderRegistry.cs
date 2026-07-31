@@ -50,10 +50,11 @@ public static class DatabaseSchemaProviderRegistry
     /// onto the returned instance so point-release feature gates can consult it.
     ///
     /// <para>
-    /// A target below the major's oldest release yields a <em>fresh</em> instance rather than the
-    /// cached singleton: the cached one is shared by every caller, so writing a build's target
+    /// A target that names a non-zero minor or patch yields a <em>fresh</em> instance rather than
+    /// the cached singleton: the cached one is shared by every caller, so writing a build's target
     /// onto it would leak into unrelated builds. A <c>null</c> target, or one that is exactly the
-    /// major's <c>.0.0</c>, needs no per-build state and reuses the cached instance.
+    /// major's <c>.0.0</c>, carries nothing the canonical instance does not already describe, so
+    /// it needs no per-build state and reuses the cached instance.
     /// </para>
     /// </summary>
     public static DatabaseSchemaProvider Resolve(string providerName, TargetVersion? targetVersion)

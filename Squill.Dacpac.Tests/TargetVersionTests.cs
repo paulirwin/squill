@@ -4,7 +4,8 @@ namespace Squill.Dacpac.Tests;
 
 /// <summary>
 /// Covers the floor semantics of a parsed <c>SquillTargetVersion</c> (issue #189): a bare major
-/// means <c>.0</c>, a dotted value keeps its minor, and versions order as (major, minor) tuples.
+/// means <c>.0</c>, a dotted value keeps the components it names, and versions order as
+/// (major, minor, patch) tuples compared numerically.
 /// </summary>
 public class TargetVersionTests
 {

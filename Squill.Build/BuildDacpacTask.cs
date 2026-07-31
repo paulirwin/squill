@@ -64,13 +64,14 @@ public class BuildDacpacTask : Microsoft.Build.Utilities.Task
 
     /// <summary>
     /// The oldest database engine version the DACPAC must work against, like SSDT's target
-    /// platform — a bare major (<c>16</c>) or a dotted version (<c>8.4</c>). Recorded in the
-    /// DACPAC and enforced at deploy time. Empty means no version constraint.
+    /// platform — a bare major (<c>16</c>), a dotted version (<c>8.4</c>), or a full one
+    /// (<c>8.0.13</c>). Recorded in the DACPAC and enforced at deploy time. Empty means no
+    /// version constraint.
     ///
     /// <para>
-    /// This is a floor with no ceiling: a newer server always satisfies it. A bare major means
-    /// that major's <c>.0</c> release, so features added in a later point release are flagged.
-    /// See <see cref="Squill.Dacpac.TargetVersion"/>.
+    /// This is a floor with no ceiling: a newer server always satisfies it. Components left off
+    /// mean <c>.0</c>, so a bare major names that major's oldest release and features added in a
+    /// later point release are flagged. See <see cref="Squill.Dacpac.TargetVersion"/>.
     /// </para>
     /// </summary>
     public string TargetVersion { get; set; } = string.Empty;
