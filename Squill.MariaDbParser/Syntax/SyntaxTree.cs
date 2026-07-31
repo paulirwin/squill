@@ -615,13 +615,62 @@ public sealed class CreateEventStatement(QualifiedName name, string eventType) :
 }
 
 /// <summary>
-/// A DDL statement the parser recognized but Squill does not model (<c>CREATE VIEW</c>, a
-/// <c>CREATE TABLE ... AS SELECT</c>, <c>ALTER</c>, <c>DROP</c>, …). It is carried into the
-/// syntax tree as a marker rather than dropped so the model builder can warn that the
+/// A DDL statement the parser recognized but Squill does not model (a
+/// <c>CREATE TABLE ... AS SELECT</c>, and other declarations awaiting support). It is carried
+/// into the syntax tree as a marker rather than dropped so the model builder can warn that the
 /// construct will not reach the DACPAC, at its source position (issue #61).
+///
+/// <para>
+/// <c>ALTER</c>/<c>DROP</c> used to land here too. They are <see cref="ImperativeStatement"/>
+/// now: "not modeled by Squill" describes a gap Squill might one day fill, which is the wrong
+/// thing to tell someone whose real problem is that the statement does not belong in a
+/// declarative project at all (issue #125).
+/// </para>
 /// </summary>
 public sealed class UnmodeledStatement(string description) : Statement
 {
     /// <summary>A short description of the construct, e.g. <c>CREATE VIEW</c>.</summary>
     public string Description { get; } = description;
+}
+
+/// <summary>
+/// What an imperative statement actually does, which decides the remedy its SQ0006 error
+/// offers (issue #125). All three are rejected; they differ only in what the author should do
+/// instead, and offering the wrong remedy is worse than offering none — it sends the author to
+/// fix the wrong thing.
+/// </summary>
+public enum ImperativeKind
+{
+    /// <summary>
+    /// A statement that changes schema: <c>ALTER</c>, <c>DROP</c>, <c>TRUNCATE</c>. The remedy
+    /// is to declare the end-state as <c>CREATE</c> and let Squill generate the migration.
+    /// </summary>
+    SchemaChange,
+
+    /// <summary>
+    /// A statement that writes data: <c>INSERT</c>, <c>UPDATE</c>, <c>DELETE</c>, and a
+    /// data-modifying CTE. The remedy is a pre/post-deploy script.
+    /// </summary>
+    DataChange,
+
+    /// <summary>
+    /// A query: <c>SELECT</c>, or a read-only CTE. It declares nothing and writes nothing, so
+    /// neither of the other remedies fits; the remedy is simply to remove it.
+    /// </summary>
+    Query,
+}
+
+/// <summary>
+/// A statement that changes state imperatively rather than declaring it — an <c>ALTER</c>,
+/// <c>DROP</c> or <c>TRUNCATE</c>, DML such as <c>INSERT</c>, or a bare query. None of them
+/// have meaning in a declarative project, so the statement is carried as a marker for the
+/// model builder to reject with a purpose-built SQ0006 error (issue #125).
+/// </summary>
+public sealed class ImperativeStatement(string name, ImperativeKind kind) : Statement
+{
+    /// <summary>The statement's leading keywords, upper-cased — <c>ALTER TABLE</c>, <c>DROP INDEX</c>.</summary>
+    public string Name { get; } = name;
+
+    /// <summary>What the statement does, and so which remedy its error offers.</summary>
+    public ImperativeKind Kind { get; } = kind;
 }

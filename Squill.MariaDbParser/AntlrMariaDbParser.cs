@@ -40,22 +40,18 @@ public class AntlrMariaDbParser : IMariaDbParser
 
         var root = new Root();
 
-        foreach (var statement in EnumerateStatements(rootContext))
+        foreach (var mapped in EnumerateStatements(rootContext))
         {
-            var mapped = MariaDbStatementMapper.Map(statement);
-
-            if (mapped is not null)
-            {
-                root.Statements.Add(mapped);
-            }
+            root.Statements.Add(mapped);
         }
 
         return root;
     }
 
-    // Walks the root -> sqlStatements -> sqlStatement -> ddlStatement chain and yields each
-    // DDL statement context, skipping anything that isn't a recognized CREATE.
-    private static IEnumerable<MariaDBParser.DdlStatementContext> EnumerateStatements(
+    // Walks the root -> sqlStatements -> sqlStatement chain and maps each statement Squill has
+    // something to say about: DDL, and DML so an authored INSERT can be rejected. Everything
+    // else (SET, transaction control, …) is still skipped.
+    private static IEnumerable<Statement> EnumerateStatements(
         MariaDBParser.RootContext rootContext)
     {
         var sqlStatements = rootContext.sqlStatements();
@@ -67,11 +63,22 @@ public class AntlrMariaDbParser : IMariaDbParser
 
         foreach (var sqlStatement in sqlStatements.sqlStatement())
         {
-            var ddl = sqlStatement.ddlStatement();
-
-            if (ddl is not null)
+            if (sqlStatement.ddlStatement() is { } ddl)
             {
-                yield return ddl;
+                if (MariaDbStatementMapper.Map(ddl) is { } mappedDdl)
+                {
+                    yield return mappedDdl;
+                }
+
+                continue;
+            }
+
+            // DML used to be dropped here, so a stray INSERT in a source file vanished with no
+            // diagnostic whatsoever — the build succeeded and the statement simply never
+            // happened. It is now carried through to be rejected as SQ0006 (issue #125).
+            if (sqlStatement.dmlStatement() is { } dml)
+            {
+                yield return MariaDbStatementMapper.Map(dml);
             }
         }
     }
