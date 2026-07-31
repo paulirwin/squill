@@ -129,23 +129,40 @@ public class TargetVersionTests
     }
 
     /// <summary>
-    /// A trailing zero changes the magnitude, so <c>8.90</c> is a strictly higher floor than
-    /// <c>8.9</c> rather than another spelling of it. Text ordering happens to agree here (the
-    /// shorter string is a prefix), so this pins that the component is read as a whole number
-    /// rather than digit-by-digit — a parser taking only the first digit would call these equal.
+    /// <c>8.90</c> is greater than <c>8.9</c>: a trailing zero changes the component's magnitude
+    /// (90 against 9), so the two are different floors rather than two spellings of one.
+    ///
+    /// <para>
+    /// Text ordering happens to agree here, since the shorter string is a prefix of the longer —
+    /// which is why this pair lives here rather than in
+    /// <see cref="Compare_IsNumeric_NotLexicographic"/>. What it pins instead is that a component
+    /// is read as a whole number: a parser that took only the leading digit, or that treated the
+    /// trailing zero as insignificant, would call these equal.
+    /// </para>
     /// </summary>
     [Fact]
     public void Compare_TrailingZeroIsADistinctVersion()
     {
-        Assert.True(TargetVersion.Parse("8.9") < TargetVersion.Parse("8.90"));
-        Assert.NotEqual(TargetVersion.Parse("8.9"), TargetVersion.Parse("8.90"));
-        Assert.Equal(90, TargetVersion.Parse("8.90")!.Value.Minor);
-        Assert.Equal(9, TargetVersion.Parse("8.9")!.Value.Minor);
+        var lower = TargetVersion.Parse("8.9")!.Value;
+        var higher = TargetVersion.Parse("8.90")!.Value;
 
-        Assert.True(TargetVersion.Parse("8.0.9") < TargetVersion.Parse("8.0.90"));
-        Assert.Equal(90, TargetVersion.Parse("8.0.90")!.Value.Patch);
+        // Asserted both ways round so a CompareTo that returned a constant cannot pass.
+        Assert.True(higher > lower, "8.90 must be greater than 8.9.");
+        Assert.True(lower < higher, "8.9 must be less than 8.90.");
+        Assert.NotEqual(lower, higher);
 
-        // ... but a leading zero does not change it: 8.09 and 8.9 name the same minor.
+        Assert.Equal(9, lower.Minor);
+        Assert.Equal(90, higher.Minor);
+
+        // The same on the patch component.
+        var lowerPatch = TargetVersion.Parse("8.0.9")!.Value;
+        var higherPatch = TargetVersion.Parse("8.0.90")!.Value;
+
+        Assert.True(higherPatch > lowerPatch, "8.0.90 must be greater than 8.0.9.");
+        Assert.Equal(9, lowerPatch.Patch);
+        Assert.Equal(90, higherPatch.Patch);
+
+        // A *leading* zero, by contrast, does not change the value: 8.09 and 8.9 are one floor.
         Assert.Equal(TargetVersion.Parse("8.9"), TargetVersion.Parse("8.09"));
     }
 
