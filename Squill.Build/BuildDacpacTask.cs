@@ -63,9 +63,16 @@ public class BuildDacpacTask : Microsoft.Build.Utilities.Task
     public string DacVersion { get; set; } = "1.0.0.0";
 
     /// <summary>
-    /// The minimum target database engine major version the DACPAC is built for (e.g. <c>16</c>
-    /// for PostgreSQL, <c>11</c> for MariaDB), like SSDT's target platform. Recorded in the
-    /// DACPAC and enforced at deploy time. Empty means no version constraint.
+    /// The oldest database engine version the DACPAC must work against, like SSDT's target
+    /// platform — a bare major (<c>16</c>), a dotted version (<c>8.4</c>), or a full one
+    /// (<c>8.0.13</c>). Recorded in the DACPAC and enforced at deploy time. Empty means no
+    /// version constraint.
+    ///
+    /// <para>
+    /// This is a floor with no ceiling: a newer server always satisfies it. Components left off
+    /// mean <c>.0</c>, so a bare major names that major's oldest release and features added in a
+    /// later point release are flagged. See <see cref="Squill.Dacpac.TargetVersion"/>.
+    /// </para>
     /// </summary>
     public string TargetVersion { get; set; } = string.Empty;
 
@@ -109,7 +116,7 @@ public class BuildDacpacTask : Microsoft.Build.Utilities.Task
                 ProviderName = ProviderName,
                 Name = DacName,
                 Version = DacVersion,
-                TargetMajorVersion = ParseTargetVersion(TargetVersion),
+                TargetVersion = Squill.Dacpac.TargetVersion.Parse(TargetVersion),
                 PreDeployScript = ReadDeployScript(PreDeployFiles, "pre-deployment"),
                 PostDeployScript = ReadDeployScript(PostDeployFiles, "post-deployment"),
             };
@@ -233,32 +240,6 @@ public class BuildDacpacTask : Microsoft.Build.Utilities.Task
             $"Squill: included {paths.Length} {description} script file(s).");
 
         return builder.ToString();
-    }
-
-    /// <summary>
-    /// Parses the <see cref="TargetVersion"/> MSBuild property (a string, possibly empty or a
-    /// full version like <c>16.2</c>) into a target major version. Empty yields <c>null</c>
-    /// (no constraint); a dotted version keeps only the major component. A non-numeric value
-    /// fails the build with a clear diagnostic.
-    /// </summary>
-    private static int? ParseTargetVersion(string targetVersion)
-    {
-        if (string.IsNullOrWhiteSpace(targetVersion))
-        {
-            return null;
-        }
-
-        var major = targetVersion.Trim().Split('.', 2)[0];
-
-        if (!int.TryParse(major, System.Globalization.NumberStyles.None,
-                System.Globalization.CultureInfo.InvariantCulture, out var value))
-        {
-            throw new ArgumentException(
-                $"SquillTargetVersion '{targetVersion}' is not a valid version number "
-                + "(expected a major version like '16', or a dotted version like '16.2').");
-        }
-
-        return value;
     }
 
     private static async Task<IReadOnlyList<SqlSourceDiagnostic>> BuildAsync(

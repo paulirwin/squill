@@ -11,6 +11,15 @@ namespace Squill.Provider.Postgres;
 /// </summary>
 public abstract class PostgresqlDatabaseSchemaProvider : DatabaseSchemaProvider
 {
+    protected PostgresqlDatabaseSchemaProvider()
+    {
+    }
+
+    protected PostgresqlDatabaseSchemaProvider(TargetVersion? targetVersion)
+        : base(targetVersion)
+    {
+    }
+
     public override string ProviderName => "Postgresql";
 
     /// <summary>

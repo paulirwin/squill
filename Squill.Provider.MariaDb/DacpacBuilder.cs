@@ -23,21 +23,28 @@ public static class DacpacBuilder
     /// engines are one provider but not one dialect: a handful of constructs canonicalize
     /// differently on each (issue #147), and the schema provider is what declares which.
     /// An unspecified target version resolves to the engine's latest supported major.
+    ///
+    /// <para>
+    /// Takes the whole target version, not just its major: anything below the major is carried
+    /// onto the returned instance so point-release feature gates can consult it (issue #189),
+    /// since a project targeting <c>8.0</c> and one targeting <c>8.0.13</c> must be told
+    /// different things about what they may author.
+    /// </para>
     /// </summary>
     public static MariaDbFamilyDatabaseSchemaProvider SchemaProviderFor(
-        string providerName, int? targetMajorVersion)
-    {
-        var schemaProvider =
-            DatabaseSchemaProviderRegistry.Resolve(providerName, targetMajorVersion);
+        string providerName, TargetVersion? targetVersion)
+        => AsFamilyProvider(
+            providerName, DatabaseSchemaProviderRegistry.Resolve(providerName, targetVersion));
 
+    private static MariaDbFamilyDatabaseSchemaProvider AsFamilyProvider(
+        string providerName, DatabaseSchemaProvider schemaProvider)
         // A name this builder does not serve resolves to some other engine's provider. Say so,
         // rather than letting it surface as a bare InvalidCastException.
-        return schemaProvider as MariaDbFamilyDatabaseSchemaProvider
+        => schemaProvider as MariaDbFamilyDatabaseSchemaProvider
             ?? throw new ArgumentException(
                 $"'{providerName}' is not a MariaDB or MySQL provider name; it resolves to "
                 + $"{schemaProvider.GetType().Name}. Use the provider that serves that engine.",
                 nameof(providerName));
-    }
 
     /// <inheritdoc cref="WorkspaceDacpacBuilder.BuildAsync"/>
     public static Task BuildAsync(
@@ -46,7 +53,7 @@ public static class DacpacBuilder
         Stream stream,
         CancellationToken cancellationToken = default) =>
         WorkspaceDacpacBuilder.BuildAsync(workspace, metadata, stream,
-            CreateModelBuilder(SchemaProviderFor(metadata.ProviderName, metadata.TargetMajorVersion)),
+            CreateModelBuilder(SchemaProviderFor(metadata.ProviderName, metadata.TargetVersion)),
             cancellationToken);
 
     /// <inheritdoc cref="WorkspaceDacpacBuilder.BuildToFileAsync"/>
@@ -56,7 +63,7 @@ public static class DacpacBuilder
         string outputPath,
         CancellationToken cancellationToken = default) =>
         WorkspaceDacpacBuilder.BuildToFileAsync(workspace, metadata, outputPath,
-            CreateModelBuilder(SchemaProviderFor(metadata.ProviderName, metadata.TargetMajorVersion)),
+            CreateModelBuilder(SchemaProviderFor(metadata.ProviderName, metadata.TargetVersion)),
             cancellationToken);
 
     /// <inheritdoc cref="WorkspaceDacpacBuilder.BuildModelAsync"/>

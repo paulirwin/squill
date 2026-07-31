@@ -33,6 +33,14 @@ internal static class DacpacConstants
     public const string FileFormatVersion = "1.2";
     public const string SchemaVersion = "3.0";
 
+    // The full target version on the DataSchemaModel root. SSDT has no equivalent: its DspName
+    // encodes one type per major and so cannot express anything below it, which leaves point
+    // releases ungateable (issue #189). Squill-specific by necessity, and written only when there
+    // is something below the major to record, so a bare-major package keeps SSDT's exact
+    // attribute set. SSDT ignores unknown attributes, so its presence does not make the package
+    // unreadable there.
+    public const string TargetVersionAttribute = "SquillTargetVersion";
+
     // The name of the tool producing the package, recorded in Origin.xml. The
     // accompanying ProductVersion is read from the assembly at write time.
     public const string ProductName = "Squill";

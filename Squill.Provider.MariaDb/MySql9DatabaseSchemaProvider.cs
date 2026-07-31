@@ -1,3 +1,5 @@
+using Squill.Dacpac;
+
 namespace Squill.Provider.MariaDb;
 
 /// <summary>
@@ -7,5 +9,16 @@ namespace Squill.Provider.MariaDb;
 /// </summary>
 public sealed class MySql9DatabaseSchemaProvider : MySqlDatabaseSchemaProviderBase
 {
+    /// <summary>The canonical instance, discovered by reflection and cached by the registry.</summary>
+    public MySql9DatabaseSchemaProvider()
+    {
+    }
+
+    /// <summary>A per-build instance carrying the declared target floor.</summary>
+    public MySql9DatabaseSchemaProvider(TargetVersion? targetVersion)
+        : base(targetVersion)
+    {
+    }
+
     public override int MajorVersion => 9;
 }

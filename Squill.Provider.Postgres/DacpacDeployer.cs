@@ -119,8 +119,8 @@ public static class DacpacDeployer
         protected override IDatabase CreateDatabase(string connectionString, string databaseName)
             => new PostgresDatabase(connectionString, databaseName);
 
-        protected override int GetServerMajorVersion(IDatabase database)
-            => ((PostgresDatabase)database).GetServerMajorVersion();
+        protected override TargetVersion GetServerVersion(IDatabase database)
+            => ((PostgresDatabase)database).GetServerVersion();
 
         protected override IScriptGenerator CreateScriptGenerator()
             => new PostgresScriptGenerator();

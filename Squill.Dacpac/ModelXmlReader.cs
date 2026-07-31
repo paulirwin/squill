@@ -23,6 +23,55 @@ namespace Squill.Dacpac;
 /// </summary>
 internal static class ModelXmlReader
 {
+    /// <summary>
+    /// Reads the recorded target version from the <c>DataSchemaModel</c> root, falling back to
+    /// <paramref name="majorVersion"/><c>.0.0</c> when the attribute is absent — which covers both
+    /// a bare-major target and a package written before the attribute existed.
+    ///
+    /// <para>
+    /// A <em>malformed</em> value throws rather than falling back: silently reading a floor as
+    /// older than it is would let a deploy through that the package meant to block, and the value
+    /// is machine-written, so anything unparseable means the package is damaged. A value whose
+    /// major disagrees with the <c>DspName</c> is likewise rejected, since the two stamps would
+    /// then name different targets and there is no honest way to choose between them.
+    /// </para>
+    /// </summary>
+    private static TargetVersion ReadTargetVersion(XElement root, int majorVersion)
+    {
+        if ((string?)root.Attribute(DacpacConstants.TargetVersionAttribute) is not { } text)
+        {
+            return new TargetVersion(majorVersion, 0, 0);
+        }
+
+        TargetVersion? parsed;
+
+        try
+        {
+            parsed = TargetVersion.Parse(text);
+        }
+        catch (ArgumentException ex)
+        {
+            throw new InvalidOperationException(
+                $"model.xml has an invalid {DacpacConstants.TargetVersionAttribute} attribute "
+                + $"'{text}'.", ex);
+        }
+
+        if (parsed is not { } version)
+        {
+            throw new InvalidOperationException(
+                $"model.xml has an empty {DacpacConstants.TargetVersionAttribute} attribute.");
+        }
+
+        if (version.Major != majorVersion)
+        {
+            throw new InvalidOperationException(
+                $"model.xml records a {DacpacConstants.TargetVersionAttribute} of '{text}', whose "
+                + $"major disagrees with the DspName's major version ({majorVersion}).");
+        }
+
+        return version;
+    }
+
     public static Model Read(
         Stream stream, ModelMetadata? metadata = null, IModelIdentityRules? identityRules = null)
     {
@@ -39,7 +88,11 @@ internal static class ModelXmlReader
         if (metadata is not null && (string?)root.Attribute("DspName") is { } dspName)
         {
             var schemaProvider = DatabaseSchemaProviderRegistry.ResolveByDspName(dspName);
-            metadata.TargetMajorVersion = schemaProvider.MajorVersion;
+
+            // Anything below the major rides alongside in its own attribute, since DspName cannot
+            // carry it. Absent means .0.0 — both for a package written before this attribute
+            // existed and for one whose target named only a major, which are the same floor.
+            metadata.TargetVersion = ReadTargetVersion(root, schemaProvider.MajorVersion);
         }
 
         var modelElement = root.Element(ns + "Model");
