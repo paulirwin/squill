@@ -77,8 +77,15 @@ public readonly record struct TargetVersion(int Major, int Minor, int Patch = 0)
                + "(expected a major version like '16', or a dotted version like '16.2').");
 
     /// <summary>
-    /// Orders by major then minor, which is what makes a floor comparable to a server version:
-    /// the deploy check is exactly <c>server &lt; required</c>.
+    /// Orders by major, then minor, then patch, which is what makes a floor comparable to a
+    /// server version: the deploy check is exactly <c>server &lt; required</c>.
+    ///
+    /// <para>
+    /// Each component is compared as a <em>number</em>, never as text. The two disagree wherever
+    /// one component has more digits than the other — <c>8.10</c> is above <c>8.9</c>, though
+    /// <c>"8.10"</c> sorts below <c>"8.9"</c> as a string — and getting it wrong would refuse
+    /// deploys to servers that satisfy the floor.
+    /// </para>
     /// </summary>
     public int CompareTo(TargetVersion other)
     {

@@ -87,6 +87,68 @@ public class TargetVersionTests
         Assert.True(TargetVersion.Parse("8.0.13") >= TargetVersion.Parse("8.0.13"));
     }
 
+    /// <summary>
+    /// Components compare as numbers, not as text. Every pair below is one where lexicographic
+    /// ordering gives the <em>opposite</em> answer: a longer number starting with a smaller digit
+    /// sorts first as text but is larger numerically, so <c>"8.9"</c> sorts after <c>"8.10"</c>
+    /// (<c>'9' &gt; '1'</c>) while <c>8.9 &lt; 8.10</c>. A floor compared as text would refuse
+    /// deploys to servers that satisfy it.
+    ///
+    /// <para>
+    /// Pinned separately from the ordering test above, whose cases all happen to agree under both
+    /// rules and so could not catch the regression. Note a trailing zero is <em>not</em> such a
+    /// case — <c>"8.9"</c> is a prefix of <c>"8.90"</c>, so text and numeric ordering agree there;
+    /// see <see cref="Compare_TrailingZeroIsADistinctVersion"/> for what that pair does pin.
+    /// </para>
+    /// </summary>
+    [Theory]
+    // Two digits vs one: numerically 10 > 9, lexicographically "8.9" > "8.10".
+    [InlineData("8.9", "8.10")]
+    [InlineData("8.0.9", "8.0.10")]
+    // Wider gap, same trap: numerically 90 > 9, lexicographically "8.9" > "8.90"... but only
+    // once the shorter string is no longer a prefix, hence 8.9 against 8.19 rather than 8.90.
+    [InlineData("8.9", "8.19")]
+    [InlineData("8.0.9", "8.0.19")]
+    // The real MariaDB case: 10.5 and 10.11 are both shipped majors.
+    [InlineData("10.5", "10.11")]
+    // Majors, where the same trap applies: numerically 10 > 9, lexicographically "9" > "10".
+    [InlineData("9.0", "10.0")]
+    public void Compare_IsNumeric_NotLexicographic(string lower, string higher)
+    {
+        var low = TargetVersion.Parse(lower);
+        var high = TargetVersion.Parse(higher);
+
+        Assert.True(low < high, $"Expected {lower} < {higher}.");
+        Assert.True(high > low, $"Expected {higher} > {lower}.");
+
+        // Guard against the ordering being right only because ToString() was compared: the
+        // rendered forms sort the other way round, so this would fail under text comparison.
+        Assert.True(
+            string.CompareOrdinal(lower, higher) > 0,
+            $"Test case is not discriminating: '{lower}' must sort after '{higher}' as text.");
+    }
+
+    /// <summary>
+    /// A trailing zero changes the magnitude, so <c>8.90</c> is a strictly higher floor than
+    /// <c>8.9</c> rather than another spelling of it. Text ordering happens to agree here (the
+    /// shorter string is a prefix), so this pins that the component is read as a whole number
+    /// rather than digit-by-digit — a parser taking only the first digit would call these equal.
+    /// </summary>
+    [Fact]
+    public void Compare_TrailingZeroIsADistinctVersion()
+    {
+        Assert.True(TargetVersion.Parse("8.9") < TargetVersion.Parse("8.90"));
+        Assert.NotEqual(TargetVersion.Parse("8.9"), TargetVersion.Parse("8.90"));
+        Assert.Equal(90, TargetVersion.Parse("8.90")!.Value.Minor);
+        Assert.Equal(9, TargetVersion.Parse("8.9")!.Value.Minor);
+
+        Assert.True(TargetVersion.Parse("8.0.9") < TargetVersion.Parse("8.0.90"));
+        Assert.Equal(90, TargetVersion.Parse("8.0.90")!.Value.Patch);
+
+        // ... but a leading zero does not change it: 8.09 and 8.9 name the same minor.
+        Assert.Equal(TargetVersion.Parse("8.9"), TargetVersion.Parse("8.09"));
+    }
+
     [Theory]
     [InlineData(8, 0, 0, "8.0")]
     [InlineData(8, 4, 0, "8.4")]
