@@ -91,12 +91,6 @@ public class NonDecimalIntegerLiteralTests
     }
 
     /// <summary>
-    /// The grammar's integral tokens accept any decimal digits after the prefix, so <c>0b999</c>
-    /// and <c>0o99</c> lex happily even though neither is a real literal. PostgreSQL rejects
-    /// them, and so must the parser — quietly reinterpreting <c>0b999</c> as some other number
-    /// would deploy a value the source never named.
-    /// </summary>
-    /// <summary>
     /// A literal too large for the value type is rejected, not wrapped around.
     /// <c>Convert.ToInt64</c> reinterprets an out-of-range binary/octal/hex string as two's
     /// complement instead of throwing, so <c>0x9999999999999999</c> would come out as
@@ -142,6 +136,12 @@ public class NonDecimalIntegerLiteralTests
         Assert.Equal(long.MaxValue, parsed.Value);
     }
 
+    /// <summary>
+    /// The grammar's integral tokens accept any decimal digits after the prefix, so <c>0b999</c>
+    /// and <c>0o99</c> lex happily even though neither is a real literal. PostgreSQL rejects
+    /// them, and so must the parser — quietly reinterpreting <c>0b999</c> as some other number
+    /// would deploy a value the source never named.
+    /// </summary>
     [Theory]
     [InlineData("0b999")]
     [InlineData("0o99")]
