@@ -56,4 +56,29 @@ public readonly record struct PostgresVersionedFeature(
         "NULLS NOT DISTINCT",
         15,
         "https://www.postgresql.org/docs/release/15.0/");
+
+    /// <summary>
+    /// A non-decimal integer literal — <c>0x19</c>, <c>0o17</c>, <c>0b101</c> — anywhere an
+    /// expression reaches the model: a column <c>DEFAULT</c>, a <c>CHECK</c> predicate, an index
+    /// predicate (issue #191).
+    ///
+    /// PostgreSQL 16 release notes: "Allow non-decimal integer literals". Measured against pinned
+    /// servers rather than taken from the notes alone, because the interesting half of the claim
+    /// is what the OLDER versions do, and they do not agree with each other: 15 rejects
+    /// <c>DEFAULT 0x19</c> outright ("trailing junk after numeric literal"), but 14 does not
+    /// necessarily fail at all — it lexes <c>0x19</c> as the integer <c>0</c> followed by the
+    /// identifier <c>x19</c>, so <c>SELECT 0x1f</c> quietly returns <c>0</c> there. A construct
+    /// that returns the wrong number rather than an error is exactly the kind this warning
+    /// exists to catch before a deploy.
+    ///
+    /// <para>
+    /// Note that only the spelling is version-gated. PostgreSQL normalizes the radix away when it
+    /// stores the value (measured on 16: <c>DEFAULT 0x19</c> reads back as <c>25</c>), so the
+    /// model carries the decimal value and the round trip is unaffected.
+    /// </para>
+    /// </summary>
+    public static readonly PostgresVersionedFeature NonDecimalIntegerLiteral = new(
+        "a non-decimal integer literal",
+        16,
+        "https://www.postgresql.org/docs/release/16.0/");
 }

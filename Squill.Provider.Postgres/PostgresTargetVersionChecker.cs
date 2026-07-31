@@ -1,4 +1,5 @@
 using Squill.Core;
+using Squill.PostgresParser;
 using Squill.PostgresParser.Syntax;
 
 namespace Squill.Provider.Postgres;
@@ -57,6 +58,48 @@ internal static class PostgresTargetVersionChecker
             PostgresVersionedFeature.NullsNotDistinct,
             schemaProvider,
             warnings);
+    }
+
+    /// <summary>
+    /// Adds a diagnostic for each non-decimal integer literal (<c>0x19</c>, <c>0o17</c>,
+    /// <c>0b101</c>) anywhere inside <paramref name="expression"/>, which the target major does
+    /// not accept (issue #191).
+    /// </summary>
+    /// <param name="subject">
+    /// What the expression belongs to, e.g. <c>"The default for column 'mask'"</c>. The literal
+    /// itself is quoted into the message on top of this, since a predicate may contain several
+    /// and the author needs to know which one is being reported.
+    /// </param>
+    public static void CheckExpression(
+        IFile file,
+        Expression expression,
+        string subject,
+        PostgresqlDatabaseSchemaProvider schemaProvider,
+        List<SqlSourceDiagnostic> warnings)
+    {
+        // Nothing below the introducing version can be at fault, and walking the tree to find
+        // that out would be wasted work on by far the common case.
+        if (schemaProvider.MajorVersion
+            >= PostgresVersionedFeature.NonDecimalIntegerLiteral.MinimumMajorVersion)
+        {
+            return;
+        }
+
+        foreach (var literal in ExpressionWalker.DescendantsAndSelf(expression)
+                     .OfType<LiteralExpression>()
+                     .Where(l => l.Radix != IntegerLiteralRadix.Decimal))
+        {
+            // The radix comes from the token the lexer matched, not from re-reading the text, so
+            // a string constant that merely contains "0x" is not mistaken for one of these.
+            Report(
+                file,
+                $"{subject} uses the non-decimal integer literal '{literal.Text}'",
+                literal.Line ?? expression.Line,
+                literal.Column ?? expression.Column,
+                PostgresVersionedFeature.NonDecimalIntegerLiteral,
+                schemaProvider,
+                warnings);
+        }
     }
 
     private static void Report(
