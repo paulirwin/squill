@@ -76,8 +76,14 @@ under `Tables/`. `dotnet build` produces a DACPAC from the declarative `.sql` fi
 `.sql` files (tables, views, and so on) as your schema grows.
 
 The `--Provider` choice is `Postgresql` (default), `MariaDb`, or `MySql`, and selects the SQL
-dialect the DACPAC is built for. `--TargetVersion` records a minimum target engine major
-version, enforced on deploy; omit it for no version constraint.
+dialect the DACPAC is built for. `--TargetVersion` records the oldest engine version the schema
+must work against, enforced on deploy; omit it for no version constraint.
+
+The target version is a *floor* with no upper bound: `11` deploys happily to 11.4, 12, or later,
+and only an older server is refused. It accepts a bare major (`11`), a minor (`8.4`), or a full
+version (`8.0.13`) — useful on MySQL and MariaDB, where much of the DDL surface arrived in point
+releases. Components you leave off mean `.0`, so `8` is the same floor as `8.0.0`, and a
+construct added after that point is reported at build time rather than failing on deploy.
 
 ### Pre- and post-deployment scripts
 

@@ -25,7 +25,7 @@ public sealed class MariaDbSquillProvider : SquillProviderBase
         Workspace workspace, ModelMetadata metadata, CancellationToken cancellationToken)
         => DacpacBuilder.BuildModelAsync(
             workspace,
-            DacpacBuilder.SchemaProviderFor(metadata.ProviderName, metadata.TargetMajorVersion),
+            DacpacBuilder.SchemaProviderFor(metadata.ProviderName, metadata.TargetVersion),
             cancellationToken);
 
     protected override async Task<Squill.Dacpac.DeployResult> DeployCoreAsync(

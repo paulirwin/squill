@@ -76,7 +76,8 @@ CREATE TABLE Foo
                 SourceFiles = [new TaskItem(sqlPath)],
                 OutputPath = outputPath,
                 ProviderName = "Postgresql",
-                // A dotted value keeps only the major component.
+                // A dotted value keeps both components: the minor is what makes point-release
+                // features gateable, so discarding it here would be the bug from issue #189.
                 TargetVersion = "16.2",
             };
 
@@ -87,6 +88,45 @@ CREATE TABLE Foo
                 await DacpacSerializer.Deserialize(stream, TestContext.Current.CancellationToken);
 
             Assert.Equal(16, metadata.TargetMajorVersion);
+            Assert.Equal(new TargetVersion(16, 2), metadata.TargetVersion);
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// A bare major is a floor of <c>major.0</c> (issue #189). The oldest patch is the weakest
+    /// assumption a floor can make, so nothing valid is refused at deploy time; the cost is a
+    /// warning on features added later in the major, which is the recoverable direction.
+    /// </summary>
+    [Fact]
+    public async Task Execute_WithBareMajorTargetVersion_RecordsAFloorOfPointZero()
+    {
+        var tempDir = Directory.CreateTempSubdirectory("squill-buildtask-test");
+        try
+        {
+            var sqlPath = Path.Combine(tempDir.FullName, "Foo.sql");
+            await File.WriteAllTextAsync(sqlPath, SampleSchema, TestContext.Current.CancellationToken);
+
+            var outputPath = Path.Combine(tempDir.FullName, "bin", "Sample.dacpac");
+            var task = new BuildDacpacTask
+            {
+                BuildEngine = new StubBuildEngine(),
+                SourceFiles = [new TaskItem(sqlPath)],
+                OutputPath = outputPath,
+                ProviderName = "Postgresql",
+                TargetVersion = "16",
+            };
+
+            Assert.True(task.Execute());
+
+            await using var stream = File.OpenRead(outputPath);
+            var (metadata, _) =
+                await DacpacSerializer.Deserialize(stream, TestContext.Current.CancellationToken);
+
+            Assert.Equal(new TargetVersion(16, 0), metadata.TargetVersion);
         }
         finally
         {

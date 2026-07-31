@@ -46,6 +46,52 @@ public static class DatabaseSchemaProviderRegistry
     }
 
     /// <summary>
+    /// Resolves the schema provider for a full target version, carrying anything below the major
+    /// onto the returned instance so point-release feature gates can consult it.
+    ///
+    /// <para>
+    /// A target below the major's oldest release yields a <em>fresh</em> instance rather than the
+    /// cached singleton: the cached one is shared by every caller, so writing a build's target
+    /// onto it would leak into unrelated builds. A <c>null</c> target, or one that is exactly the
+    /// major's <c>.0.0</c>, needs no per-build state and reuses the cached instance.
+    /// </para>
+    /// </summary>
+    public static DatabaseSchemaProvider Resolve(string providerName, TargetVersion? targetVersion)
+    {
+        if (targetVersion is not { } version)
+        {
+            return ResolveLatest(providerName);
+        }
+
+        var canonical = Resolve(providerName, version.Major);
+
+        // A floor at the major's oldest release is what the canonical instance already describes,
+        // so there is nothing per-build to carry and the shared instance is correct.
+        return version is { Minor: 0, Patch: 0 }
+            ? canonical
+            : WithTargetVersion(canonical, version);
+    }
+
+    /// <summary>
+    /// Builds a copy of <paramref name="provider"/> carrying <paramref name="targetVersion"/>, via
+    /// the subclass's <c>(TargetVersion?)</c> constructor. A provider that has not added one keeps
+    /// working at its major's oldest release rather than failing the build, since the missing
+    /// constructor only means that engine has no point-release gates yet.
+    /// </summary>
+    private static DatabaseSchemaProvider WithTargetVersion(
+        DatabaseSchemaProvider provider, TargetVersion targetVersion)
+    {
+        var constructor = provider.GetType().GetConstructor([typeof(TargetVersion?)]);
+
+        if (constructor is null)
+        {
+            return provider;
+        }
+
+        return (DatabaseSchemaProvider)constructor.Invoke([(TargetVersion?)targetVersion]);
+    }
+
+    /// <summary>
     /// Resolves the schema provider for a provider name and an <em>optional</em> target major
     /// version: the exact version when one is given, otherwise the latest supported major for
     /// that engine.

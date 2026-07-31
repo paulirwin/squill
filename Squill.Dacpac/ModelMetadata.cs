@@ -38,11 +38,29 @@ public class ModelMetadata
     public string PostDeployScript { get; set; } = string.Empty;
 
     /// <summary>
-    /// The minimum target database engine <em>major</em> version this DACPAC was built for
-    /// (e.g. <c>16</c> for PostgreSQL, <c>11</c> for MariaDB), like SSDT's target platform.
-    /// Encoded into the DSP name on the <c>model.xml</c> root (see <see cref="DspName"/>) and
-    /// checked at deploy time: if the target server's major version is lower than this, the
-    /// deploy fails. <c>null</c> means no version constraint.
+    /// The minimum target database engine version this DACPAC was built for (e.g. <c>16.0</c>
+    /// for PostgreSQL, <c>8.4</c> for MySQL), like SSDT's target platform. It is a
+    /// <em>floor</em>: the deploy fails when the target server is older, and no ceiling is
+    /// implied, so any newer server is accepted. <c>null</c> means no version constraint.
+    ///
+    /// <para>
+    /// The major is encoded into the DSP name on the <c>model.xml</c> root, which names one type
+    /// per major and so cannot carry anything below it; the full version is written alongside as
+    /// its own attribute. See <see cref="Squill.Dacpac.TargetVersion"/> for the floor semantics.
+    /// </para>
     /// </summary>
-    public int? TargetMajorVersion { get; set; }
+    public TargetVersion? TargetVersion { get; set; }
+
+    /// <summary>
+    /// The major component of <see cref="TargetVersion"/>, or <c>null</c> when unconstrained.
+    /// Reading it is useful because the DSP name and the schema-provider registry are keyed on
+    /// the major alone. Assigning a major sets a floor of <c>major.0.0</c>, which is what naming
+    /// a bare major means anyway — so this stays a faithful spelling of the same thing rather
+    /// than a lossy shortcut.
+    /// </summary>
+    public int? TargetMajorVersion
+    {
+        get => TargetVersion?.Major;
+        set => TargetVersion = value is { } major ? new TargetVersion(major, 0, 0) : null;
+    }
 }

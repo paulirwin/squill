@@ -11,6 +11,15 @@ namespace Squill.Provider.MariaDb;
 /// </summary>
 public abstract class MariaDbDatabaseSchemaProviderBase : MariaDbFamilyDatabaseSchemaProvider
 {
+    protected MariaDbDatabaseSchemaProviderBase()
+    {
+    }
+
+    protected MariaDbDatabaseSchemaProviderBase(TargetVersion? targetVersion)
+        : base(targetVersion)
+    {
+    }
+
     public override string ProviderName => "MariaDb";
 
     public override bool IsMySql => false;

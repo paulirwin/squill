@@ -37,7 +37,7 @@
     "TargetVersion": {
       "type": "parameter",
       "datatype": "text",
-      "description": "The minimum target engine major version the DACPAC targets (e.g. 16 for PostgreSQL, 11 for MariaDB/MySQL). Leave empty for no version constraint.",
+      "description": "The oldest engine version the DACPAC must work against, as a major (16), minor (8.4), or full version (8.0.13). A floor with no upper bound: newer servers are always accepted. Leave empty for no version constraint.",
       "defaultValue": "",
       "replaces": "TARGET_VERSION"
     },

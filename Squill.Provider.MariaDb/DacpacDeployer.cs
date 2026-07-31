@@ -88,8 +88,8 @@ public static class DacpacDeployer
         protected override IDatabase CreateDatabase(string connectionString, string databaseName)
             => new MariaDbDatabase(connectionString, databaseName);
 
-        protected override int GetServerMajorVersion(IDatabase database)
-            => ((MariaDbDatabase)database).GetServerMajorVersion();
+        protected override TargetVersion GetServerVersion(IDatabase database)
+            => ((MariaDbDatabase)database).GetServerVersion();
 
         protected override IScriptGenerator CreateScriptGenerator()
             => new MariaDbScriptGenerator();

@@ -3,6 +3,7 @@ using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
 using Npgsql;
 using Squill.Core;
+using Squill.Dacpac;
 
 namespace Squill.Provider.Postgres;
 
@@ -40,18 +41,30 @@ public class PostgresDatabase : IDatabase
     }
 
     /// <summary>
-    /// The major version of the connected PostgreSQL server (e.g. <c>16</c>), used to enforce
-    /// the DACPAC's recorded target version at deploy time. Npgsql exposes the server version
-    /// as a parsed <see cref="Version"/> once connected, so no query is needed.
+    /// The version of the connected PostgreSQL server (e.g. <c>16.2</c>), used to enforce the
+    /// DACPAC's recorded target version at deploy time. Npgsql exposes the server version as a
+    /// parsed <see cref="Version"/> once connected, so no query is needed.
+    ///
+    /// <para>
+    /// PostgreSQL's own feature boundaries fall on majors, so the components below it are carried
+    /// for a uniform comparison rather than because anything here gates on them. A
+    /// <see cref="Version"/> leaves an unstated component at <c>-1</c>, which would compare below
+    /// <c>.0</c> and wrongly fail a deploy, so both are floored at zero.
+    /// </para>
     /// </summary>
-    public int GetServerMajorVersion()
+    public TargetVersion GetServerVersion()
     {
         if (_connection == null)
         {
             throw new InvalidOperationException("Thou shalt connect first!");
         }
 
-        return _connection.PostgreSqlVersion.Major;
+        var version = _connection.PostgreSqlVersion;
+
+        return new TargetVersion(
+            version.Major,
+            Math.Max(version.Minor, 0),
+            Math.Max(version.Build, 0));
     }
 
     public async Task RunScriptAsync(string sql,

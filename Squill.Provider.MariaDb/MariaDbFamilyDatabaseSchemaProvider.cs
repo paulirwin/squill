@@ -15,6 +15,37 @@ namespace Squill.Provider.MariaDb;
 /// </summary>
 public abstract class MariaDbFamilyDatabaseSchemaProvider : DatabaseSchemaProvider
 {
+    protected MariaDbFamilyDatabaseSchemaProvider()
+    {
+    }
+
+    protected MariaDbFamilyDatabaseSchemaProvider(TargetVersion? targetVersion)
+        : base(targetVersion)
+    {
+    }
+
+    /// <summary>
+    /// Whether <em>authoring</em> a functional index key is safe for the declared target floor.
+    ///
+    /// <para>
+    /// Distinct from <see cref="SupportsFunctionalIndexKeys"/>, and deliberately so. That one
+    /// answers a question about the server actually in front of us — does this catalog have a
+    /// <c>STATISTICS.EXPRESSION</c> column to select? — and is resolved from the live version
+    /// banner during extraction, where reading it from a project's declared floor would build
+    /// catalog SQL for the wrong server and fail with an unknown-column error. This one answers
+    /// the build-time question instead: is the construct present in every release at or after the
+    /// floor?
+    /// </para>
+    ///
+    /// <para>
+    /// The default is the conservative one — whatever the engine supports at all, with no
+    /// point-release qualification. An engine that introduced the construct partway through a
+    /// major overrides this to state its own threshold, so the version number lives beside the
+    /// engine it describes rather than in a family base that serves both.
+    /// </para>
+    /// </summary>
+    public virtual bool CanAuthorFunctionalIndexKeys => SupportsFunctionalIndexKeys;
+
     /// <summary>
     /// Both engines cap an identifier at 64 <em>characters</em> and reject a longer one with
     /// <c>ERROR 1059 (ER_TOO_LONG_IDENT)</c>. This is one of the few places the family agrees

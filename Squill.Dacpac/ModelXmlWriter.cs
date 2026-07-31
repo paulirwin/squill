@@ -34,11 +34,24 @@ internal static class ModelXmlWriter
         // type. Because model.xml is checksummed in Origin.xml, this stamp is tamper-evident.
         // An unconstrained DACPAC (no target version) writes no DspName. An unsupported target
         // version has no type and fails the build here rather than producing a bad stamp.
-        if (metadata.TargetMajorVersion is { } majorVersion)
+        if (metadata.TargetVersion is { } targetVersion)
         {
             var schemaProvider = DatabaseSchemaProviderRegistry.Resolve(
-                metadata.ProviderName, majorVersion);
+                metadata.ProviderName, targetVersion.Major);
             writer.WriteAttributeString("DspName", schemaProvider.DspName);
+
+            // Everything below the major needs its own attribute: DspName is a type name and
+            // there is one type per major, so it has nowhere to put a minor or patch. Deploy-time
+            // enforcement is the whole point of recording the target, and a floor of 8.0.13
+            // cannot be enforced from a stamp that only says 8. This attribute is ours rather
+            // than SSDT's — accepted knowingly, and written only when there is something below
+            // the major to record, so a bare-major DACPAC keeps SSDT's exact attribute set.
+            if (targetVersion is not { Minor: 0, Patch: 0 })
+            {
+                writer.WriteAttributeString(
+                    DacpacConstants.TargetVersionAttribute,
+                    targetVersion.ToString());
+            }
         }
 
         writer.WriteStartElement("Model");

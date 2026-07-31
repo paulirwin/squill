@@ -120,7 +120,11 @@ public sealed class MariaDb10Fixture : MariaDbLikeFixture
             .Build();
 }
 
-/// <summary>A MySQL fixture pinned to an older supported major (8).</summary>
+/// <summary>
+/// A MySQL fixture pinned to <c>8.0</c> — the oldest supported major, at its oldest point
+/// release. Paired with <see cref="MySql84Fixture"/> to exercise the minor-version gate
+/// (issue #189), where the two differ only below the major.
+/// </summary>
 public sealed class MySql8Fixture : MariaDbLikeFixture
 {
     public override string EngineName => "MySQL";
@@ -131,6 +135,25 @@ public sealed class MySql8Fixture : MariaDbLikeFixture
 
     protected override IDatabaseContainer BuildContainer() =>
         new MySqlBuilder(new DockerImage("mysql:8.0"))
+            .WithUsername("root")
+            .Build();
+}
+
+/// <summary>
+/// A MySQL fixture pinned to <c>8.4</c>. Same major as <see cref="MySql8Fixture"/>, later minor:
+/// the pair is what makes a point-release gate observable, since a major-only check cannot tell
+/// them apart.
+/// </summary>
+public sealed class MySql84Fixture : MariaDbLikeFixture
+{
+    public override string EngineName => "MySQL";
+    public override string ProviderName => "MySql";
+    public override int LowestSupportedMajor => 8;
+
+    protected override ContainerEngine Engine => ContainerEngine.MySql;
+
+    protected override IDatabaseContainer BuildContainer() =>
+        new MySqlBuilder(new DockerImage("mysql:8.4"))
             .WithUsername("root")
             .Build();
 }

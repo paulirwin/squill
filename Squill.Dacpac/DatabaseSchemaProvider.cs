@@ -13,6 +13,27 @@ namespace Squill.Dacpac;
 public abstract class DatabaseSchemaProvider
 {
     /// <summary>
+    /// Creates the canonical, version-floor-less instance for a major. This is the constructor
+    /// <see cref="DatabaseSchemaProviderRegistry"/> discovers by reflection, and the instance it
+    /// caches and hands to every caller.
+    /// </summary>
+    protected DatabaseSchemaProvider()
+    {
+    }
+
+    /// <summary>
+    /// Creates an instance carrying the build's declared target floor, for gating features that
+    /// arrived in a point release. Returns a distinct object rather than mutating a shared one:
+    /// the registry caches a single instance per major, so a settable floor would be
+    /// process-global mutable state — order-dependent across concurrent builds, and capable of
+    /// changing the catalog SQL an extractor builds partway through a run.
+    /// </summary>
+    protected DatabaseSchemaProvider(TargetVersion? targetVersion)
+    {
+        TargetVersion = targetVersion;
+    }
+
+    /// <summary>
     /// The provider name recorded in the DACPAC metadata (e.g. <c>Postgresql</c>, <c>MariaDb</c>,
     /// <c>MySql</c>). Matches the value <see cref="SquillProviderRegistry"/> resolves on.
     /// </summary>
@@ -20,6 +41,41 @@ public abstract class DatabaseSchemaProvider
 
     /// <summary>The target engine major version this provider represents (e.g. <c>16</c>).</summary>
     public abstract int MajorVersion { get; }
+
+    /// <summary>
+    /// The build's declared target floor, when it stated one. <c>null</c> on the registry's
+    /// canonical per-major instances, which describe an engine major rather than any particular
+    /// project's target; those fall back to this major's <c>.0.0</c>, the same floor a bare major
+    /// names.
+    /// </summary>
+    public TargetVersion? TargetVersion { get; }
+
+    /// <summary>
+    /// The floor this provider gates against: the declared target when there is one, otherwise
+    /// this major's oldest release.
+    /// </summary>
+    public TargetVersion Floor => TargetVersion ?? new TargetVersion(MajorVersion, 0, 0);
+
+    /// <summary>
+    /// Whether a feature introduced in the given release is available on <em>every</em> server
+    /// the declared floor permits. That is the only question a build-time gate can soundly
+    /// answer, because the floor has no ceiling: the target admits arbitrarily new servers, so a
+    /// construct counts as usable only if it exists at the floor itself.
+    ///
+    /// <para>
+    /// The patch component is not optional padding here — most of the DDL this gating exists for
+    /// arrived in patch releases (MySQL functional index keys in 8.0.13, enforced <c>CHECK</c>
+    /// constraints in 8.0.16), so a gate that stopped at the minor could not state its own
+    /// threshold.
+    /// </para>
+    ///
+    /// <para>
+    /// Deliberately not the inverse question ("was it removed later?"), which a floor cannot
+    /// express — see issue #188.
+    /// </para>
+    /// </summary>
+    public bool SupportsFeatureFrom(int introducedInMajor, int introducedInMinor, int introducedInPatch = 0)
+        => Floor >= new TargetVersion(introducedInMajor, introducedInMinor, introducedInPatch);
 
     /// <summary>
     /// The longest identifier the engine honours, in the unit <see cref="MeasureIdentifier"/>

@@ -9,7 +9,7 @@ namespace Squill.Dacpac;
 /// across providers.
 ///
 /// The engine-specific parts are hooks: creating the provider and a connected target database
-/// (<see cref="CreateProvider"/> / <see cref="CreateDatabase"/> / <see cref="GetServerMajorVersion"/>),
+/// (<see cref="CreateProvider"/> / <see cref="CreateDatabase"/> / <see cref="GetServerVersion"/>),
 /// the script generator (<see cref="CreateScriptGenerator"/>), the engine name for version
 /// messages (<see cref="GetEngineName"/>), an optional per-session setup before deltas run
 /// (<see cref="PrepareSessionAsync"/>, a no-op by default), and parsing the target database
@@ -21,7 +21,12 @@ public abstract class DacpacDeployerBase
 
     protected abstract IDatabase CreateDatabase(string connectionString, string databaseName);
 
-    protected abstract int GetServerMajorVersion(IDatabase database);
+    /// <summary>
+    /// The connected server's version, major and minor. The minor matters because much of the
+    /// MySQL and MariaDB DDL surface landed in point releases, so a DACPAC targeting 8.4 must be
+    /// refused against an 8.0 server even though the majors match.
+    /// </summary>
+    protected abstract TargetVersion GetServerVersion(IDatabase database);
 
     protected abstract IScriptGenerator CreateScriptGenerator();
 
@@ -73,7 +78,7 @@ public abstract class DacpacDeployerBase
         // Enforce the DACPAC's recorded target platform before doing any work: fail if the
         // server predates the version the DACPAC was built for (SSDT-style), so we never deploy
         // a newer-targeted package to an older engine.
-        EnforceTargetVersion(metadata, GetServerMajorVersion(targetDb), progress);
+        EnforceTargetVersion(metadata, GetServerVersion(targetDb), progress);
 
         progress?.Report("Extracting current schema from target database...");
         var modelBuilder = provider.CreateDatabaseModelBuilder(targetDb);
@@ -161,27 +166,38 @@ public abstract class DacpacDeployerBase
     }
 
     /// <summary>
-    /// Throws <see cref="TargetVersionMismatchException"/> when the DACPAC records a target
-    /// major version newer than the connected server. A DACPAC with no recorded target version
-    /// (<c>null</c>) is unconstrained and always allowed.
+    /// Throws <see cref="TargetVersionMismatchException"/> when the DACPAC's recorded target
+    /// version is newer than the connected server. The target is a floor with no ceiling, so the
+    /// test is one-sided: any server at or above it passes, however far above. A DACPAC with no
+    /// recorded target version (<c>null</c>) is unconstrained and always allowed.
+    ///
+    /// <para>
+    /// The comparison is on the whole version, not the major alone, which is what lets a floor of
+    /// 8.4 be refused against an 8.0 server while a floor of 8.0 still deploys happily to 8.4.
+    /// </para>
     /// </summary>
-    private void EnforceTargetVersion(
-        ModelMetadata metadata, int serverMajorVersion, IProgress<string>? progress)
+    protected void EnforceTargetVersion(
+        ModelMetadata metadata, TargetVersion serverVersion, IProgress<string>? progress = null)
     {
-        if (metadata.TargetMajorVersion is not { } required)
+        if (metadata.TargetVersion is not { } required)
         {
             return;
         }
 
         var engineName = GetEngineName(metadata);
 
-        if (serverMajorVersion < required)
+        if (serverVersion < required)
         {
-            throw new TargetVersionMismatchException(required, serverMajorVersion, engineName);
+            throw new TargetVersionMismatchException(
+                required.Major, required.Minor,
+                serverVersion.Major, serverVersion.Minor,
+                engineName,
+                required.ToString(),
+                serverVersion.ToString());
         }
 
         progress?.Report(
-            $"Target server is {engineName} {serverMajorVersion}; DACPAC targets {required}+ (OK).");
+            $"Target server is {engineName} {serverVersion}; DACPAC targets {required}+ (OK).");
     }
 
     /// <summary>
