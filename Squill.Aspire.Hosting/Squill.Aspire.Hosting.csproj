@@ -12,7 +12,11 @@
 
     <ItemGroup>
         <PackageReference Include="Aspire.Hosting" Version="13.4.6"/>
-        <PackageReference Include="Microsoft.Build" Version="18.8.2"/>
+        <!-- Compile-time only: MSBuildLocator loads the real assemblies from the .NET SDK at
+             runtime, and they must not sit next to the consuming app or they are bound in
+             preference to the located ones. -->
+        <PackageReference Include="Microsoft.Build" Version="18.8.2" ExcludeAssets="runtime"/>
+        <PackageReference Include="Microsoft.Build.Locator" Version="1.9.1"/>
         <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.10"/>
     </ItemGroup>
 
