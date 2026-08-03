@@ -127,6 +127,75 @@ public class CreateTableDataTypeTests
     }
 
     /// <summary>
+    /// ZEROFILL is captured as a flag on the data type (issue #190). It was previously accepted
+    /// by the grammar and then dropped by the mapper, which is fine while nothing asks about it,
+    /// but a deprecation check that could not see it would miss every ZEROFILL column — worse
+    /// than not checking at all. The type name and any display width are unaffected by it.
+    /// </summary>
+    [Theory]
+    [InlineData("int zerofill", "int")]
+    [InlineData("int(11) zerofill", "int")]
+    [InlineData("bigint unsigned zerofill", "bigint")]
+    [InlineData("decimal(10,2) zerofill", "decimal")]
+    [InlineData("double zerofill", "double")]
+    public void ZerofillColumn_CapturesZerofillFlag(string declared, string expectedName)
+    {
+        var type = ColumnType(ParseOne($"CREATE TABLE t (c {declared});"), "c");
+
+        Assert.Equal(expectedName, type.TypeName);
+        Assert.True(type.IsZerofill);
+    }
+
+    [Fact]
+    public void ColumnWithoutZerofill_DoesNotSetZerofillFlag()
+    {
+        var type = ColumnType(ParseOne("CREATE TABLE t (c int(11) unsigned);"), "c");
+
+        Assert.False(type.IsZerofill);
+        Assert.True(type.IsUnsigned);
+    }
+
+    /// <summary>
+    /// A type-level CHARACTER SET is captured (issue #190). Like ZEROFILL, the grammar accepted
+    /// it and the mapper discarded it; the <c>utf8</c> alias for <c>utf8mb3</c> is deprecated, and
+    /// a check cannot report what the syntax tree does not carry.
+    /// </summary>
+    [Theory]
+    [InlineData("varchar(10) character set utf8", "utf8")]
+    [InlineData("varchar(10) CHARACTER SET utf8mb4", "utf8mb4")]
+    [InlineData("text character set utf8mb3", "utf8mb3")]
+    public void ColumnWithCharacterSet_CapturesCharacterSet(string declared, string expected)
+    {
+        var type = ColumnType(ParseOne($"CREATE TABLE t (c {declared});"), "c");
+
+        Assert.Equal(expected, type.CharacterSet);
+    }
+
+    [Fact]
+    public void ColumnWithoutCharacterSet_HasNullCharacterSet()
+    {
+        var type = ColumnType(ParseOne("CREATE TABLE t (c varchar(10));"), "c");
+
+        Assert.Null(type.CharacterSet);
+    }
+
+    /// <summary>
+    /// A CHARACTER SET on an enum/set type lands on a different grammar alternative than the
+    /// string types', so it is asserted separately — the two are easy to fix one of and not
+    /// the other.
+    /// </summary>
+    [Fact]
+    public void EnumColumnWithCharacterSet_CapturesCharacterSet()
+    {
+        var type = ColumnType(
+            ParseOne("CREATE TABLE t (c enum('a','b') character set utf8);"), "c");
+
+        Assert.Equal("enum", type.TypeName);
+        Assert.Equal("utf8", type.CharacterSet);
+        Assert.Equal(new[] { "'a'", "'b'" }, type.CollectionValues);
+    }
+
+    /// <summary>
     /// The national-character types and their many spellings (issue #162). The parser keeps the
     /// written name, as everywhere else here — the fold to what the engines store
     /// (<c>varchar</c>/<c>char</c>) belongs to the model builder.

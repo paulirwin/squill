@@ -82,4 +82,35 @@ public readonly record struct SqlSourceDiagnostic(
     /// </para>
     /// </summary>
     public const string FeatureNotSupportedByEngine = "SQ1004";
+
+    /// <summary>
+    /// Diagnostic code for a construct every supported version of the target engine still
+    /// accepts, but whose documentation says it is scheduled for removal (issue #190).
+    ///
+    /// <para>
+    /// This is deliberately not <see cref="FeatureNotInTargetVersion"/>. That code says the
+    /// declared target is too <em>old</em> for the source, and its remedy is to raise the target
+    /// version. Here nothing about the target version is wrong — the construct works on every
+    /// version in the supported window, including the newest — so "requires version N or later"
+    /// would be a nonsense message pointing at an upgrade that fixes nothing. The remedy is to
+    /// change the source, and it is version-independent: the same warning is correct whether the
+    /// project targets the oldest supported major or the newest.
+    /// </para>
+    ///
+    /// <para>
+    /// The bar for reporting under this code is an explicit statement of removal or
+    /// non-recommendation in the vendor's own documentation, cited in the warning. Advice to
+    /// prefer something else is not deprecation, and warning on constructs that merely feel dated
+    /// would train authors to suppress the code — issue #190 lists five candidates
+    /// (<c>money</c>, <c>CREATE RULE</c>, <c>serial</c>, <c>INHERITS</c>, <c>character(n)</c>)
+    /// checked against their documentation and deliberately <em>not</em> reported for this reason.
+    /// </para>
+    ///
+    /// <para>
+    /// The construct is still modeled, as with every other <c>SQ1xxx</c>: it deploys correctly
+    /// today, and the warning is about its future. A project that wants it fatal escalates it
+    /// with <c>&lt;MSBuildWarningsAsErrors&gt;SQ1006&lt;/…&gt;</c>.
+    /// </para>
+    /// </summary>
+    public const string DeprecatedConstruct = "SQ1006";
 }
