@@ -301,6 +301,13 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         MariaDbTargetVersionChecker.Check(
                             file, createTable, _schemaProvider, warnings);
 
+                        // Independent of the version check above rather than folded into it: a
+                        // deprecated construct is accepted by every version in the supported
+                        // window, so it is not a target-version problem and raising the target
+                        // would not resolve it (issue #190).
+                        MariaDbDeprecationChecker.Check(
+                            file, createTable, _schemaProvider, warnings);
+
                         foreach (var element in MakeCreateTableElements(createTable, _schemaProvider))
                         {
                             model.Elements.Add(element);

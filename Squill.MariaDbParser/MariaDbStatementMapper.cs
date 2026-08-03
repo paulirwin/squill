@@ -1123,6 +1123,13 @@ internal static class MariaDbStatementMapper
         var result = new DataType(typeName.ToLowerInvariant())
         {
             IsUnsigned = unsigned,
+
+            // Read off the context rather than threaded through DataTypeDetails: both apply to
+            // several data-type alternatives that the switch below already collapses, and asking
+            // the context directly means a new alternative carrying either one is picked up
+            // without touching every case.
+            IsZerofill = Zerofill(dataType),
+            CharacterSet = CharacterSetName(dataType),
         };
 
         foreach (var dimension in dimensions)
@@ -1192,6 +1199,24 @@ internal static class MariaDbStatementMapper
                 return (FirstTypeToken(dataType), Array.Empty<long>(), false);
         }
     }
+
+    // Whether the type was declared ZEROFILL (issue #190). Only the numeric alternatives accept
+    // it, and they all share the dimensionDataType label, so one case answers for all of them.
+    private static bool Zerofill(MariaDBParser.DataTypeContext dataType)
+        => dataType is MariaDBParser.DimensionDataTypeContext d && d.ZEROFILL().Length > 0;
+
+    // The character set named by a type-level CHARACTER SET, as written (issue #190). Three
+    // alternatives accept one and each labels it differently, so each is asked in turn; the
+    // spelling is preserved because the deprecated construct *is* a spelling — folding utf8 to
+    // utf8mb3 here would erase the very thing being reported on.
+    private static string? CharacterSetName(MariaDBParser.DataTypeContext dataType)
+        => dataType switch
+        {
+            MariaDBParser.StringDataTypeContext s => s.charsetName()?.GetText(),
+            MariaDBParser.CollectionDataTypeContext c => c.charsetName()?.GetText(),
+            MariaDBParser.LongVarcharDataTypeContext l => l.charsetName()?.GetText(),
+            _ => null,
+        };
 
     // A trailing VARYING turns a fixed-width character type into its varying counterpart, which
     // the grammar carries as a separate token rather than folding into typeName (issue #162).

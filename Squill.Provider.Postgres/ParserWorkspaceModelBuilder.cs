@@ -632,6 +632,11 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 throw new NotSupportedException(NegativeScaleMessage(column));
             }
 
+            // A separate axis from the version checks around it: a deprecated construct is
+            // accepted by every supported major, so no target version is at fault and raising
+            // one would not resolve it (issue #190).
+            PostgresDeprecationChecker.CheckColumn(file, columnDefinition, column, warnings);
+
             foreach (var columnConstraint in columnDefinition.Constraints)
             {
                 var constraint = columnConstraint is NamedColumnConstraint named

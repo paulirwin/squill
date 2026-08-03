@@ -86,6 +86,21 @@ public sealed class DataType(string typeName)
 
     /// <summary>Whether the type was declared UNSIGNED (numeric types only).</summary>
     public bool IsUnsigned { get; set; }
+
+    /// <summary>
+    /// Whether the type was declared ZEROFILL (numeric types only), which left-pads the displayed
+    /// value with zeroes to the display width. Carried because it is deprecated as of MySQL 8.0.17
+    /// and so has to be reportable (issue #190), not because Squill models it.
+    /// </summary>
+    public bool IsZerofill { get; set; }
+
+    /// <summary>
+    /// The character set named by a type-level <c>CHARACTER SET</c>, exactly as written, or
+    /// <c>null</c> when the type declared none. Carried for the same reason as
+    /// <see cref="IsZerofill"/>: <c>utf8</c> is a deprecated alias for <c>utf8mb3</c> and a check
+    /// cannot report a spelling the syntax tree discarded (issue #190).
+    /// </summary>
+    public string? CharacterSet { get; set; }
 }
 
 // ---- Column constraints ----
