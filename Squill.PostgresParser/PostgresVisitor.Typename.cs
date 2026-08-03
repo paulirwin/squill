@@ -5,6 +5,42 @@ namespace Squill.PostgresParser;
 
 public partial class PostgresVisitor
 {
+    // PostgreSQL's internal type-name aliases (issue #197). None of these is a keyword in the
+    // grammar, so each arrives as a generic type name and would otherwise become an
+    // UnresolvedDataType carrying the name as written -- while the catalog reports only the
+    // canonical spelling, so the column would re-diff on every deploy.
+    //
+    // Every entry was measured against postgres:latest by declaring a column of the alias and
+    // reading back information_schema.columns.data_type, rather than inferred from the grammar.
+    // The set is closed and matched whole: a user-defined type whose name merely resembles an
+    // alias is still a custom type.
+    //
+    // bpchar is absent because it is only conditionally an alias -- it depends on whether a
+    // length is given -- so it is handled separately below rather than as a flat mapping.
+    //
+    // Matched case-insensitively because PostgreSQL folds unquoted identifiers to lower case.
+    // https://www.postgresql.org/docs/current/datatype.html
+    private static readonly Dictionary<string, PostgresBuiltInDataType> TypeNameAliases =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["int2"] = PostgresBuiltInDataType.SmallInt,
+            ["int4"] = PostgresBuiltInDataType.Integer,
+            ["int8"] = PostgresBuiltInDataType.BigInt,
+            ["float4"] = PostgresBuiltInDataType.Real,
+            ["float8"] = PostgresBuiltInDataType.Double,
+            ["bool"] = PostgresBuiltInDataType.Boolean,
+            ["varbit"] = PostgresBuiltInDataType.BitVarying,
+            ["timetz"] = PostgresBuiltInDataType.TimeWithTimeZone,
+            ["timestamptz"] = PostgresBuiltInDataType.TimestampWithTimeZone,
+            // The serial aliases name the serial shorthands rather than the integer types: the
+            // column still gets its backing sequence, which is what distinguishes serial8 from
+            // int8. Lowering to the underlying integer type is the provider's job, as it already
+            // is for the spelled-out serial forms.
+            ["serial2"] = PostgresBuiltInDataType.SmallSerial,
+            ["serial4"] = PostgresBuiltInDataType.Serial,
+            ["serial8"] = PostgresBuiltInDataType.BigSerial,
+        };
+
     public override SyntaxNode VisitTypename(PostgreSQLParser.TypenameContext context)
     {
         if (context.simpletypename() is not { } simpletypenameContext)
@@ -222,6 +258,25 @@ public partial class PostgresVisitor
                     // TODO: modify parser/lexer to support these types and PR upstream
                     dataType = new BuiltInDataType(builtInUnparsedType, text);
                 }
+                else if (TypeNameAliases.TryGetValue(text, out var aliasedType))
+                {
+                    // An internal alias for a built-in (issue #197). The source spelling is kept
+                    // as the type name, exactly as it is for the spelled-out forms, so only the
+                    // canonical name is affected.
+                    dataType = new BuiltInDataType(aliasedType, text);
+                }
+                else if (text.Equals("bpchar", StringComparison.OrdinalIgnoreCase)
+                         && typeModifiers.Count > 0)
+                {
+                    // bpchar aliases `character` only when it carries a length. Measured on
+                    // postgres:latest, bpchar(4) is rendered `character(4)` by format_type() and
+                    // reported as `character` with length 4, identical to a column declared
+                    // character(4) -- but a *bare* bpchar column is unbounded and format_type()
+                    // reports it as `bpchar`, whereas a bare `character` column is character(1).
+                    // So only the length-bearing spelling is an alias; the bare one is its own
+                    // type and stays unresolved below.
+                    dataType = new BuiltInDataType(PostgresBuiltInDataType.Char, text);
+                }
                 else
                 {
                     dataType = new UnresolvedDataType(text);
@@ -230,7 +285,12 @@ public partial class PostgresVisitor
 
             if (typeModifiers.Count > 0)
             {
-                if (dataType is not UnresolvedDataType)
+                // An aliased built-in takes its modifier the same way the spelled-out form does:
+                // varbit(8) is bit varying(8) and bpchar(4) is character(4), and dropping the
+                // length would silently change the column's width. Every other built-in reaching
+                // this path takes no modifier here.
+                if (dataType is not (UnresolvedDataType
+                        or BuiltInDataType { Type: PostgresBuiltInDataType.BitVarying or PostgresBuiltInDataType.Char }))
                 {
                     throw new NotImplementedException(
                         $"Type modifiers are not yet supported for type {generictype.GetText()}");

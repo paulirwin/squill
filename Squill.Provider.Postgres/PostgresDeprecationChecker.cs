@@ -60,21 +60,11 @@ internal static class PostgresDeprecationChecker
         {
             ArrayDataType array => DeprecatedFeatureOfType(array.ElementType),
 
-            // The keyword spelling, which the parser resolves to a built-in.
+            // Both spellings, since the parser resolves the `timetz` alias to the same built-in as
+            // the spelled-out keyword form (issue #197). They are one type by two names — Postgres
+            // itself reports `time with time zone` for a column declared `timetz` — so matching
+            // only one would make the warning trivially avoidable by choosing the other.
             BuiltInDataType { Type: PostgresBuiltInDataType.TimeWithTimeZone } =>
-                PostgresDeprecatedFeature.TimeWithTimeZone,
-
-            // The `timetz` alias, which is not a keyword in the grammar and so arrives unresolved,
-            // carrying the name as written. It is the same type by another name — Postgres itself
-            // reports `time with time zone` for a column declared `timetz` — so leaving it out
-            // would make the warning trivially avoidable by choosing the shorter spelling.
-            //
-            // Matched case-insensitively because Postgres folds unquoted identifiers to lower
-            // case. Not matched schema-qualified (pg_catalog.timetz): the parser rejects a
-            // qualified generic type before the model builder sees it, so stripping a schema here
-            // would be handling a case that cannot arrive.
-            UnresolvedDataType unresolved
-                when string.Equals(unresolved.TypeName, "timetz", StringComparison.OrdinalIgnoreCase) =>
                 PostgresDeprecatedFeature.TimeWithTimeZone,
 
             _ => null,

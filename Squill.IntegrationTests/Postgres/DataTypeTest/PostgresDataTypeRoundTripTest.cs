@@ -139,4 +139,56 @@ public class PostgresDataTypeRoundTripTest : PostgresIntegrationTestBase
     [InlineData("numeric(10, 2)[]")]
     public async Task ArrayTypes_RoundTrip(string columnType)
         => await AssertColumnRoundTripsAsync(columnType, TestContext.Current.CancellationToken);
+
+    /// <summary>
+    /// The internal aliases PostgreSQL accepts for its built-in types (issue #197). None is a
+    /// keyword in the grammar, so before the fix each was modeled as written while the catalog
+    /// reported only the spelled-out name — the two never hash-matched and the column re-diffed on
+    /// every deploy. Each spelled-out form is already covered above; what these prove is that the
+    /// abbreviation produces the identical model.
+    /// </summary>
+    [Theory]
+    [InlineData("int2")]
+    [InlineData("int4")]
+    [InlineData("int8")]
+    [InlineData("float4")]
+    [InlineData("float8")]
+    [InlineData("bool")]
+    [InlineData("varbit")]
+    [InlineData("varbit(8)")]
+    [InlineData("timetz")]
+    [InlineData("timestamptz")]
+    public async Task TypeNameAliases_RoundTrip(string columnType)
+        => await AssertColumnRoundTripsAsync(columnType, TestContext.Current.CancellationToken);
+
+    /// <summary>
+    /// An alias as an array element type, which is a separate path through the visitor: the
+    /// element type is resolved inside the array rather than at the top level.
+    /// </summary>
+    [Theory]
+    [InlineData("int8[]")]
+    [InlineData("timestamptz[]")]
+    public async Task TypeNameAliasArrays_RoundTrip(string columnType)
+        => await AssertColumnRoundTripsAsync(columnType, TestContext.Current.CancellationToken);
+
+    /// <summary>
+    /// <c>bpchar(n)</c> is the one <c>bpchar</c> spelling that is genuinely an alias: measured on
+    /// postgres:latest, a <c>bpchar(4)</c> column is rendered <c>character(4)</c> by
+    /// <c>format_type()</c> and reported as <c>character</c> with length 4, exactly as a column
+    /// declared <c>character(4)</c> is (issue #197).
+    ///
+    /// <para>
+    /// Bare <c>bpchar</c> is deliberately absent, and is <em>not</em> an alias for bare
+    /// <c>character</c>: measured, a bare <c>character</c> column is <c>character(1)</c> while a
+    /// bare <c>bpchar</c> column is unbounded, with <c>format_type()</c> reporting <c>bpchar</c>.
+    /// It does not round-trip today — extraction reports it as <c>character</c> with no length,
+    /// a shape the parser has no way to declare — but that is a pre-existing gap in the unbounded
+    /// character types rather than anything the alias work touches, and folding it into
+    /// <c>character</c> would model a column as a type the server would disagree with.
+    /// </para>
+    /// </summary>
+    [Theory]
+    [InlineData("bpchar(4)")]
+    public async Task Bpchar_RoundTrips(string columnType)
+        => await AssertColumnRoundTripsAsync(columnType, TestContext.Current.CancellationToken);
 }
