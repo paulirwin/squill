@@ -99,6 +99,26 @@ CREATE TABLE shift
     }
 
     /// <summary>
+    /// SQ1006 reports two different grounds — a vendor scheduling a construct for removal, and a
+    /// vendor saying outright not to use one — and the message must not confuse them. PostgreSQL
+    /// supports <c>time with time zone</c> "for compliance with the SQL standard" and never says
+    /// it is going away, so claiming a removal here would overstate what the cited page says.
+    /// The MySQL-side warnings do claim one, because their pages do.
+    /// </summary>
+    [Fact]
+    public async Task TimeWithTimeZone_DoesNotClaimTheTypeWillBeRemoved()
+    {
+        var result = await BuilderFor(
+                new Postgresql16DatabaseSchemaProvider(), ("Shift.sql", TimeWithTimeZoneSql))
+            .ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        var warning = Assert.Single(result.Warnings);
+
+        Assert.Contains("not recommended", warning.Message);
+        Assert.DoesNotContain("remove", warning.Message);
+    }
+
+    /// <summary>
     /// <c>timetz</c> is the same type by its shorter name — Postgres reports a column declared
     /// that way as <c>time with time zone</c>. It reaches the syntax tree by a different route
     /// (unresolved, rather than a keyword-resolved built-in), so if it were missed the warning

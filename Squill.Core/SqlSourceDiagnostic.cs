@@ -85,7 +85,17 @@ public readonly record struct SqlSourceDiagnostic(
 
     /// <summary>
     /// Diagnostic code for a construct every supported version of the target engine still
-    /// accepts, but whose documentation says it is scheduled for removal (issue #190).
+    /// accepts, but which the vendor's own documentation either schedules for removal or states
+    /// outright is not recommended (issue #190).
+    ///
+    /// <para>
+    /// Both grounds report under this one code because they leave the author in the same
+    /// position — the construct works today, and the vendor says to stop writing it — while
+    /// differing only in what is promised about its future. PostgreSQL's <c>time with time zone</c>
+    /// is the second kind: it is "supported […] for compliance with the SQL standard" and so
+    /// unlikely ever to be removed, but the documentation still says not to use it. Splitting the
+    /// two apart would give an author two codes to suppress for one kind of decision.
+    /// </para>
     ///
     /// <para>
     /// This is deliberately not <see cref="FeatureNotInTargetVersion"/>. That code says the
@@ -108,8 +118,8 @@ public readonly record struct SqlSourceDiagnostic(
     ///
     /// <para>
     /// The construct is still modeled, as with every other <c>SQ1xxx</c>: it deploys correctly
-    /// today, and the warning is about its future. A project that wants it fatal escalates it
-    /// with <c>&lt;MSBuildWarningsAsErrors&gt;SQ1006&lt;/…&gt;</c>.
+    /// today, and the warning is about whether it should be written at all. A project that wants
+    /// it fatal escalates it with <c>&lt;MSBuildWarningsAsErrors&gt;SQ1006&lt;/…&gt;</c>.
     /// </para>
     /// </summary>
     public const string DeprecatedConstruct = "SQ1006";

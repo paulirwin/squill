@@ -40,9 +40,13 @@ internal static class PostgresDeprecationChecker
 
         // Unlike MariaDB's, a Postgres ColumnDefinition is a SyntaxNode and records its own
         // position, so the warning points at the column rather than the whole statement.
+        // "Not recommended" rather than "will be removed", and the remedy is phrased as a
+        // suggestion rather than a preparation: PostgreSQL supports this type for SQL-standard
+        // compliance and never says it is going away, so promising a removal would overstate
+        // what the cited page actually claims.
         warnings.Add(new SqlSourceDiagnostic(
             $"Column '{columnName}' is declared {feature.Description}, which PostgreSQL "
-            + $"documents as not recommended. To prepare, {feature.Remedy}. "
+            + $"documents as not recommended. Instead, {feature.Remedy}. "
             + $"See {feature.DocumentationUrl}.",
             file.Name, column.Line, column.Column,
             SqlSourceDiagnostic.DeprecatedConstruct));

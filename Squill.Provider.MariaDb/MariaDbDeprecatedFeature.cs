@@ -5,6 +5,13 @@ namespace Squill.Provider.MariaDb;
 /// it is scheduled for removal (issue #190) — reported as SQ1006.
 ///
 /// <para>
+/// SQ1006 covers non-recommendation as well as scheduled removal, but every entry in this type is
+/// the latter: each cites a MySQL page saying outright to expect the construct's support to be
+/// removed. That is why the warning built here states a removal, which the Postgres side's does
+/// not — <c>time with time zone</c> is advised against without ever being promised an end.
+/// </para>
+///
+/// <para>
 /// This is a different axis from <see cref="MariaDbVersionedFeature"/>, which is why it is a
 /// separate type rather than another field on that one. There the question is whether the target
 /// version is old enough to be a problem, and the remedy is to raise it; here the target version

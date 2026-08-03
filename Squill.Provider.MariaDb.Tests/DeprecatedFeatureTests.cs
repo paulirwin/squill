@@ -121,6 +121,20 @@ public class DeprecatedFeatureTests
     }
 
     /// <summary>
+    /// The converse of the Postgres side's assertion. SQ1006 reports both scheduled removal and
+    /// mere non-recommendation, and every construct here is the former — each cites a MySQL page
+    /// saying to expect support to be removed — so unlike the Postgres warnings, these say so.
+    /// </summary>
+    [Fact]
+    public async Task Deprecation_StatesThatSupportWillBeRemoved()
+    {
+        var warning = Assert.Single(
+            await DeprecationsFor(new MySql8DatabaseSchemaProvider(), "c int zerofill"));
+
+        Assert.Contains("remove", warning.Message);
+    }
+
+    /// <summary>
     /// MySQL 8.4 rejects AUTO_INCREMENT on a floating-point column outright rather than merely
     /// deprecating it. Squill targets a major, which cannot tell 8.0 from 8.4, so the note is how
     /// an author learns the construct may already be fatal on their server.
