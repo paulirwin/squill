@@ -90,6 +90,23 @@ public class PostgresTargetVersionFeatureTest : PostgresIntegrationTestBase
     }
 
     /// <summary>
+    /// A negative numeric scale is accepted from PostgreSQL 15, and rejected by the pinned 14
+    /// server (issue #191). Squill rejects it at build time on every version, but for a
+    /// different reason than the version boundary — it cannot round-trip, since the catalog
+    /// reports a -2 scale as 2046. This confirms the half of that story the pinned server can
+    /// show: that 14 genuinely refuses the DDL.
+    /// </summary>
+    [Fact]
+    public async Task NegativeNumericScale_IsRejectedByPostgres14()
+    {
+        var ex = await ExecuteExpectingFailureAsync(
+            "CREATE TABLE tv_neg_scale (id integer PRIMARY KEY, rounded numeric(4, -2));");
+
+        // 22023 invalid_parameter_value: "NUMERIC scale -2 must be between 0 and precision 4".
+        Assert.Equal("22023", ex.SqlState);
+    }
+
+    /// <summary>
     /// The same source against a target that does support it: no warning, and the index still
     /// carries the property, so the warning never changed what was built.
     /// </summary>

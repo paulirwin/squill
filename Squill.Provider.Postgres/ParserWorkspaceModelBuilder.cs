@@ -307,6 +307,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
             AddUnmodeledTableWarnings(file, createTableStatement, warnings);
 
+            AddTableTargetVersionWarnings(file, createTableStatement, schemaProvider, warnings);
+
             foreach (var element in MakeCreateTableElements(createTableStatement))
             {
                 model.Elements.Add(element);
@@ -319,12 +321,26 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             // Reported alongside the model rather than instead of it: the index is still built
             // as declared, because dropping NULLS NOT DISTINCT would deploy the opposite
             // uniqueness semantics from the source's (issue #142).
+            var indexTable = SplitSchema(createIndexStatement.OnRelation.Name).Name.UnqualifiedName;
+
             PostgresTargetVersionChecker.Check(
                 file,
                 createIndexStatement,
-                SplitSchema(createIndexStatement.OnRelation.Name).Name.UnqualifiedName,
+                indexTable,
                 schemaProvider,
                 warnings);
+
+            // A partial index's predicate is one of the three places an arbitrary expression
+            // reaches the model, so it is one of the three places a too-new literal can hide.
+            if (createIndexStatement.WhereClause is { } indexPredicate)
+            {
+                PostgresTargetVersionChecker.CheckExpression(
+                    file,
+                    indexPredicate,
+                    $"The predicate of an index on '{indexTable}'",
+                    schemaProvider,
+                    warnings);
+            }
 
             var element = MakeCreateIndexElement(createIndexStatement);
 
@@ -563,6 +579,98 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         file.Name,
                         constraint.Line ?? createTableStatement.Line,
                         constraint.Column ?? createTableStatement.Column));
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Reports constructs in a table's expressions that the target major does not accept
+    /// (issue #191). A table lets an arbitrary expression through in three places — a column
+    /// <c>DEFAULT</c>, a <c>CHECK</c> predicate (either column- or table-level), and a generated
+    /// column's generation expression — and all three are checked here. The fourth, an index
+    /// predicate, is checked where <c>CREATE INDEX</c> is handled.
+    ///
+    /// <para>
+    /// A view body would be a fifth, but this builder does not parse one into expressions yet: it
+    /// refuses the <c>SELECT</c> outright. When that changes, the view body has to be added here,
+    /// because a definition is stored as written.
+    /// </para>
+    /// </summary>
+    private static void AddTableTargetVersionWarnings(IFile file,
+        CreateTableStatement createTableStatement,
+        PostgresqlDatabaseSchemaProvider schemaProvider,
+        List<SqlSourceDiagnostic> warnings)
+    {
+        var table = SplitSchema(createTableStatement.Name).Name.UnqualifiedName;
+
+        foreach (var tableConstraint in createTableStatement.Elements.OfType<TableConstraint>())
+        {
+            var constraint = tableConstraint is NamedTableConstraint named
+                ? named.Constraint
+                : tableConstraint;
+
+            if (constraint is CheckTableConstraint check)
+            {
+                PostgresTargetVersionChecker.CheckExpression(
+                    file,
+                    check.Expression,
+                    $"A CHECK constraint on table '{table}'",
+                    schemaProvider,
+                    warnings);
+            }
+        }
+
+        foreach (var columnDefinition in createTableStatement.Elements.OfType<ColumnDefinition>())
+        {
+            var column = $"{table}.{columnDefinition.Name.Name}";
+
+            // Raised here rather than where the type specifier is built, because that helper is
+            // shared with domains and composite-type attributes and does not know a column name.
+            if (columnDefinition.DataType is BuiltInDataType builtIn && HasNegativeScale(builtIn))
+            {
+                throw new NotSupportedException(NegativeScaleMessage(column));
+            }
+
+            foreach (var columnConstraint in columnDefinition.Constraints)
+            {
+                var constraint = columnConstraint is NamedColumnConstraint named
+                    ? named.Constraint
+                    : columnConstraint;
+
+                switch (constraint)
+                {
+                    case DefaultColumnConstraint defaultConstraint:
+                        PostgresTargetVersionChecker.CheckExpression(
+                            file,
+                            defaultConstraint.Expression,
+                            $"The DEFAULT on column '{column}'",
+                            schemaProvider,
+                            warnings);
+                        break;
+
+                    case CheckColumnConstraint checkConstraint:
+                        PostgresTargetVersionChecker.CheckExpression(
+                            file,
+                            checkConstraint.Expression,
+                            $"The CHECK constraint on column '{column}'",
+                            schemaProvider,
+                            warnings);
+                        break;
+
+                    // A generation expression matters more here than a DEFAULT, not less. A
+                    // DEFAULT is canonicalized to the value the engine stores on its way into the
+                    // model, so a non-decimal literal is already decimal by the time it is
+                    // deployed. A generation expression is carried back out verbatim, so a
+                    // too-new literal in one really would reach the server as written.
+                    case GeneratedColumnConstraint generatedConstraint:
+                        PostgresTargetVersionChecker.CheckExpression(
+                            file,
+                            generatedConstraint.Expression,
+                            $"The generation expression for column '{column}'",
+                            schemaProvider,
+                            warnings);
+                        break;
                 }
             }
         }
@@ -1604,6 +1712,39 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     // name is the canonical PostgreSQL type name (matching what the DB builder reads back
     // via format_type()/udt_name), and any length/precision/scale modifiers are attached
     // as properties so a parsed model hash-matches one extracted from a real database.
+    /// <summary>
+    /// Whether a numeric/decimal type declares a negative scale, e.g. <c>numeric(4, -2)</c>. The
+    /// sign parses as a <see cref="UnaryExpression"/> wrapping the literal rather than as part of
+    /// it, so this is a structural test rather than a value comparison.
+    /// </summary>
+    private static bool HasNegativeScale(BuiltInDataType dataType) =>
+        dataType.Type == PostgresBuiltInDataType.Decimal
+        && dataType.Modifiers.Count == 2
+        && dataType.Modifiers[1] is UnaryExpression
+            { Operator: PostgresBuiltInUnaryOperator.Negate };
+
+    /// <summary>
+    /// Explains why a negative scale is rejected rather than modeled (issue #191). Measured on
+    /// PostgreSQL 16: <c>numeric(4,-2)</c> reads back out of
+    /// <c>information_schema.columns.numeric_scale</c> as <c>2046</c>, an unsigned reading of the
+    /// typmod, and that view is what <c>PostgresDatabaseModelBuilder</c> reads. Modeling the
+    /// declared <c>-2</c> would therefore never compare equal to what is extracted back, and the
+    /// column would be redeployed on every deploy.
+    ///
+    /// <para>
+    /// Rejected rather than warned-and-dropped because the scale is not droppable: deploying
+    /// <c>numeric(4)</c> in its place would silently store different numbers than the source
+    /// asked for, which is the failure #141 called out for typed literals.
+    /// </para>
+    /// </summary>
+    private static string NegativeScaleMessage(string? column) =>
+        (column is null
+            ? "A negative scale on numeric/decimal is not supported"
+            : $"The negative scale on column '{column}' is not supported")
+        + ": PostgreSQL reports it back as an unsigned value (a scale of -2 reads as 2046), so it "
+        + "cannot be compared against the database and the column would be redeployed on every "
+        + "deploy.";
+
     private static Element BuildTypeSpecifier(DataType dataType)
     {
         // An array type declares as its element type's name with `[]` appended (the
@@ -1667,6 +1808,23 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     if (builtInDataType.Modifiers.Count != 2)
                     {
                         throw new InvalidOperationException("Expected only 2 modifiers for numeric/decimal type");
+                    }
+
+                    // A negative scale — numeric(4, -2), rounding to hundreds — is valid
+                    // PostgreSQL from 15 onward, and parses here as a Negate over the literal
+                    // rather than as a negative literal. It is rejected rather than modeled
+                    // because it cannot make the round trip (issue #191): measured on 16,
+                    // information_schema.columns.numeric_scale reports a -2 scale as 2046, an
+                    // unsigned reading of the typmod, and that view is what the database model
+                    // builder reads. Modeling -2 would therefore compare unequal to the 2046
+                    // extracted back and re-diff the column on every deploy.
+                    //
+                    // Rejected rather than warned-and-dropped because the scale is not
+                    // droppable: deploying numeric(4) instead would silently store different
+                    // numbers than the source asked for.
+                    if (HasNegativeScale(builtInDataType))
+                    {
+                        throw new NotSupportedException(NegativeScaleMessage(null));
                     }
 
                     if (builtInDataType.Modifiers[0] is not LiteralExpression { Value: long precision }
