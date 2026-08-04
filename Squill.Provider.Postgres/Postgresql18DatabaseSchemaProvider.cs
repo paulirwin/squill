@@ -1,3 +1,5 @@
+using Squill.Dacpac;
+
 namespace Squill.Provider.Postgres;
 
 /// <summary>
@@ -7,6 +9,22 @@ namespace Squill.Provider.Postgres;
 /// </summary>
 public sealed class Postgresql18DatabaseSchemaProvider : PostgresqlDatabaseSchemaProvider
 {
+    /// <summary>The canonical instance, discovered by reflection and cached by the registry.</summary>
+    public Postgresql18DatabaseSchemaProvider()
+    {
+    }
+
+    /// <summary>
+    /// A per-build instance carrying the declared target floor, so a project that names a point
+    /// release (PostgreSQL 18.x.y) gates against what it actually declared rather than this major's
+    /// oldest release. The registry finds this constructor by reflection and silently falls back
+    /// to the unversioned instance when it is absent, so its absence is invisible at compile time.
+    /// </summary>
+    public Postgresql18DatabaseSchemaProvider(TargetVersion? targetVersion)
+        : base(targetVersion)
+    {
+    }
+
     public override int MajorVersion => 18;
 
     // SET EXPRESSION arrived in PostgreSQL 17.

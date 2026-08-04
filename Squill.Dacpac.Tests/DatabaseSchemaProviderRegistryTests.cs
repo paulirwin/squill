@@ -38,6 +38,63 @@ public class DatabaseSchemaProviderRegistryTests
             DatabaseSchemaProviderRegistry.Resolve("Postgresql", 13));
     }
 
+    /// <summary>
+    /// Every discovered provider must expose the <c>(TargetVersion?)</c> constructor the registry
+    /// carries a declared point release through. The lookup is by reflection and falls back to the
+    /// unversioned instance when it is missing, so an engine that omits it silently gates at its
+    /// major's oldest release: a project declaring 10.5.3 would be answered for 10.0.0, and the
+    /// omission is invisible at compile time.
+    ///
+    /// Asserted over the whole discovered set rather than a list of names, so a schema provider
+    /// added for a new major fails here rather than shipping with the gap.
+    /// </summary>
+    [Fact]
+    public void EveryProvider_CanCarryADeclaredTargetVersion()
+    {
+        var missing = DatabaseSchemaProviderRegistry.All
+            .Where(p => p.GetType().GetConstructor([typeof(TargetVersion?)]) is null)
+            .Select(p => p.GetType().FullName)
+            .ToList();
+
+        Assert.True(
+            missing.Count == 0,
+            "These schema providers have no (TargetVersion?) constructor, so a declared point "
+            + "release would be silently dropped: " + string.Join(", ", missing));
+    }
+
+    /// <summary>
+    /// The same property stated through the public API, for every engine the registry knows.
+    /// A declared point release must reach <see cref="DatabaseSchemaProvider.Floor"/>, which is
+    /// what the feature gates actually read.
+    /// </summary>
+    [Theory]
+    [InlineData("Postgresql", "16.2.1")]
+    [InlineData("MariaDb", "10.5.3")]
+    [InlineData("MySql", "8.0.13")]
+    public void ADeclaredPointRelease_ReachesTheFloor(string providerName, string declared)
+    {
+        var provider = DatabaseSchemaProviderRegistry.Resolve(
+            providerName, TargetVersion.Parse(declared));
+
+        Assert.Equal(TargetVersion.Parse(declared), provider.Floor);
+    }
+
+    /// <summary>
+    /// A provider name accepted by a host provider's <c>Matches</c> must also resolve here. The
+    /// two run off the same raw name, so a name only one side accepts fails partway through a
+    /// build reporting an unsupported target version rather than an unknown provider.
+    /// </summary>
+    [Theory]
+    [InlineData("Postgresql")]
+    [InlineData("PostgreSQL")]
+    [InlineData("Postgres")]
+    public void ResolveLatest_AcceptsEveryPostgresSpelling(string providerName)
+    {
+        Assert.Equal(
+            "Postgresql",
+            DatabaseSchemaProviderRegistry.ResolveLatest(providerName).ProviderName);
+    }
+
     [Theory]
     [InlineData("Postgresql", 14)]
     [InlineData("Postgresql", 18)]
