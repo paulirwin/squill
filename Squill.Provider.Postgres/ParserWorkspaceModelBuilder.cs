@@ -2142,7 +2142,10 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     }
 
     // A range type (issue #122). The subtype is normalized to its canonical name so a declared
-    // `float8` matches the `double precision` the catalog reports.
+    // `float8` matches the `double precision` the catalog reports -- which matters here in
+    // particular because PostgreSQL's own CREATE TYPE ... AS RANGE documentation writes
+    // SUBTYPE = float8. The alias itself is resolved by the parser (issue #197), so the ordinary
+    // canonical-name rules are all this needs.
     private static Element MakeCreateRangeTypeElement(
         CreateRangeTypeStatement createRangeTypeStatement)
     {
@@ -2151,7 +2154,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         return PostgresModelFactory.CreateRangeType(
             name,
             schema,
-            CanonicalRangeSubtypeName(createRangeTypeStatement.Subtype),
+            CanonicalTypeName(createRangeTypeStatement.Subtype),
             createRangeTypeStatement.SubtypeOperatorClass,
             createRangeTypeStatement.Collation);
     }
@@ -2191,37 +2194,6 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             lcCollate: isIcu ? null : statement.LcCollate ?? statement.Locale,
             lcCtype: isIcu ? null : statement.LcCtype ?? statement.Locale,
             isDeterministic: statement.Deterministic ?? true);
-    }
-
-    // The internal type-name aliases PostgreSQL accepts, mapped to the canonical names
-    // format_type() reports. The grammar recognizes only the spelled-out forms (DOUBLE
-    // PRECISION, INTEGER, …), so an alias parses as an UnresolvedDataType and would otherwise
-    // reach the model uncanonicalized — making a declared range type differ from the extracted
-    // one on every deploy. This matters here in particular because PostgreSQL's own
-    // CREATE TYPE ... AS RANGE documentation writes SUBTYPE = float8.
-    private static readonly Dictionary<string, string> TypeNameAliases =
-        new(StringComparer.OrdinalIgnoreCase)
-        {
-            ["int2"] = "smallint",
-            ["int4"] = "integer",
-            ["int"] = "integer",
-            ["int8"] = "bigint",
-            ["float4"] = "real",
-            ["float8"] = "double precision",
-            ["bool"] = "boolean",
-            ["varbit"] = "bit varying",
-            ["timestamptz"] = "timestamp with time zone",
-            ["timetz"] = "time with time zone",
-        };
-
-    // A range type's SUBTYPE, canonicalized. Only the alias mapping is applied on top of the
-    // normal canonical-name rules; the aliases are a general parser gap (a table column has
-    // the same limitation) and are handled here rather than broadened in this change.
-    private static string CanonicalRangeSubtypeName(DataType dataType)
-    {
-        var canonical = CanonicalTypeName(dataType);
-
-        return TypeNameAliases.TryGetValue(canonical, out var mapped) ? mapped : canonical;
     }
 
     // A standalone sequence (issue #122). The declared options are handed to the factory

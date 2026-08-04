@@ -107,6 +107,12 @@ CREATE TABLE logins
     [InlineData("smallserial", "smallint")]
     [InlineData("serial", "integer")]
     [InlineData("bigserial", "bigint")]
+    // The serial2/4/8 aliases (issue #197). They name the serial shorthands rather than the
+    // integer types, so each must still lower to an identity column over the underlying integer
+    // -- the sequence is exactly what distinguishes serial8 from int8.
+    [InlineData("serial2", "smallint")]
+    [InlineData("serial4", "integer")]
+    [InlineData("serial8", "bigint")]
     public async Task SerialColumn_RoundTripsAsIdentityOverUnderlyingType(
         string serialType, string expectedType)
     {

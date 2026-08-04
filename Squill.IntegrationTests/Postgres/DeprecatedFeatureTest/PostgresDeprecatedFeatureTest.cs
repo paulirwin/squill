@@ -71,13 +71,10 @@ public class PostgresDeprecatedFeatureTest : PostgresIntegrationTestBase
     /// abbreviation must not be a way around the warning.
     ///
     /// <para>
-    /// Only the warning is asserted here, not a round trip. <c>timetz</c> does not currently
-    /// round-trip: the parser models the alias as written while extraction reports the spelled-out
-    /// name the catalog gives, so the two models never hash-match and the column re-diffs on every
-    /// deploy. That is a pre-existing modeling gap rather than anything this warning introduces —
-    /// it reproduces on <c>main</c> with no deprecation code present — and is tracked as issue
-    /// #197. Asserting the round trip here would tie an SQ1006 test to a defect it neither caused
-    /// nor can fix; the assertion belongs here once #197 is closed.
+    /// The round trip is asserted here too, now that issue #197 resolves the alias to the same
+    /// built-in as the spelled-out form. Before that fix the parser modeled the alias as written
+    /// while extraction reported the canonical name, so the two models never hash-matched and the
+    /// column re-diffed on every deploy.
     /// </para>
     /// </summary>
     [Fact]
@@ -96,6 +93,14 @@ public class PostgresDeprecatedFeatureTest : PostgresIntegrationTestBase
         var warning = Assert.Single(result.Warnings);
         Assert.Equal(SqlSourceDiagnostic.DeprecatedConstruct, warning.Code);
         Assert.Contains("dep_shift_tz.starts_at", warning.Message);
+
+        await RoundTripHarness.AssertRoundTripAsync(
+            new PostgresDatabaseProvider(ConnectionString),
+            ws => new ParserWorkspaceModelBuilder(ws, new AntlrPostgresParser()),
+            sql,
+            "postgres",
+            assertRedeployNoOp: true,
+            TestContext.Current.CancellationToken);
     }
 
     /// <summary>
