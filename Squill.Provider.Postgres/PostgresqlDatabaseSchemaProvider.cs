@@ -23,6 +23,16 @@ public abstract class PostgresqlDatabaseSchemaProvider : DatabaseSchemaProvider
     public override string ProviderName => "Postgresql";
 
     /// <summary>
+    /// Accepts the same spellings as <c>PostgresSquillProvider.Matches</c>, which additionally
+    /// admits the bare <c>Postgres</c>. The two resolve independently from the same raw name, so
+    /// a name only one of them accepts selects a provider and then fails partway through the
+    /// build with a message about an unsupported target version.
+    /// </summary>
+    public sealed override bool MatchesProviderName(string candidate)
+        => base.MatchesProviderName(candidate)
+            || string.Equals(candidate, "Postgres", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// PostgreSQL's limit is <c>NAMEDATALEN - 1</c> = 63 <em>bytes</em>, not characters, and it
     /// does not reject a longer identifier — it silently truncates to fit. Truncation is the
     /// worse failure of the two: the object deploys under a name the model never predicted and

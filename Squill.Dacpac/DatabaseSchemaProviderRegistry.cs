@@ -38,7 +38,7 @@ public static class DatabaseSchemaProviderRegistry
     public static DatabaseSchemaProvider Resolve(string providerName, int majorVersion)
     {
         var provider = All.FirstOrDefault(p =>
-            string.Equals(p.ProviderName, providerName, StringComparison.OrdinalIgnoreCase)
+            p.MatchesProviderName(providerName)
             && p.MajorVersion == majorVersion);
 
         return provider
@@ -116,7 +116,7 @@ public static class DatabaseSchemaProviderRegistry
     public static DatabaseSchemaProvider ResolveLatest(string providerName)
     {
         var provider = All
-            .Where(p => string.Equals(p.ProviderName, providerName, StringComparison.OrdinalIgnoreCase))
+            .Where(p => p.MatchesProviderName(providerName))
             .MaxBy(p => p.MajorVersion);
 
         // Reuses the DSP-name overload's phrasing: for an unknown engine there is no version to

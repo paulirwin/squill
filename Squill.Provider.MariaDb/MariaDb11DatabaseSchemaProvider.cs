@@ -1,3 +1,5 @@
+using Squill.Dacpac;
+
 namespace Squill.Provider.MariaDb;
 
 /// <summary>
@@ -7,5 +9,21 @@ namespace Squill.Provider.MariaDb;
 /// </summary>
 public sealed class MariaDb11DatabaseSchemaProvider : MariaDbDatabaseSchemaProviderBase
 {
+    /// <summary>The canonical instance, discovered by reflection and cached by the registry.</summary>
+    public MariaDb11DatabaseSchemaProvider()
+    {
+    }
+
+    /// <summary>
+    /// A per-build instance carrying the declared target floor, so a project that names a point
+    /// release (MariaDB 11.x.y) gates against what it actually declared rather than this major's
+    /// oldest release. The registry finds this constructor by reflection and silently falls back
+    /// to the unversioned instance when it is absent, so its absence is invisible at compile time.
+    /// </summary>
+    public MariaDb11DatabaseSchemaProvider(TargetVersion? targetVersion)
+        : base(targetVersion)
+    {
+    }
+
     public override int MajorVersion => 11;
 }
