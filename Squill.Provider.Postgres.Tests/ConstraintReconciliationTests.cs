@@ -173,6 +173,149 @@ CREATE TABLE staging.customers (id integer PRIMARY KEY);
     }
 
     /// <summary>
+    /// A constraint on a column being added in the same change must be scripted AFTER the column
+    /// exists (issue #200). The standalone CreateDelta for the constraint and the AlterDelta
+    /// adding the column are separate deltas, and ordering the creates first put the constraint
+    /// ahead of its own column — Postgres rejects that with "column ... named in key does not
+    /// exist" and the deploy aborts half-applied.
+    /// </summary>
+    [Fact]
+    public async Task AddColumnAndConstraintOnIt_ScriptsTheColumnFirst()
+    {
+        var comparison = await CompareAsync(
+            "CREATE TABLE orders (id integer PRIMARY KEY);",
+            """
+CREATE TABLE orders (id integer PRIMARY KEY, email text,
+    CONSTRAINT uq_orders_email UNIQUE (email));
+""");
+
+        var sql = Script(comparison);
+
+        var addColumn = sql.IndexOf("ADD COLUMN", StringComparison.Ordinal);
+        var addConstraint = sql.IndexOf("ADD CONSTRAINT", StringComparison.Ordinal);
+
+        Assert.True(addColumn >= 0, $"Expected the new column to be added in:\n{sql}");
+        Assert.True(
+            addConstraint > addColumn,
+            $"Expected the constraint added after the column it references in:\n{sql}");
+    }
+
+    /// <summary>
+    /// The same ordering, for a CHECK constraint on a new column: the constraint is a different
+    /// element type but rides the identical delta-phasing path.
+    /// </summary>
+    [Fact]
+    public async Task AddColumnAndCheckConstraintOnIt_ScriptsTheColumnFirst()
+    {
+        var comparison = await CompareAsync(
+            "CREATE TABLE orders (id integer PRIMARY KEY);",
+            """
+CREATE TABLE orders (id integer PRIMARY KEY, quantity integer,
+    CONSTRAINT ck_orders_quantity CHECK (quantity > 0));
+""");
+
+        var sql = Script(comparison);
+
+        var addColumn = sql.IndexOf("ADD COLUMN", StringComparison.Ordinal);
+        var addConstraint = sql.IndexOf("ADD CONSTRAINT", StringComparison.Ordinal);
+
+        Assert.True(addColumn >= 0, $"Expected the new column to be added in:\n{sql}");
+        Assert.True(
+            addConstraint > addColumn,
+            $"Expected the constraint added after the column it references in:\n{sql}");
+    }
+
+    /// <summary>
+    /// An index on a column being added in the same change has the same hazard: CREATE INDEX
+    /// names the column, so it cannot precede the ALTER that adds it.
+    /// </summary>
+    [Fact]
+    public async Task AddColumnAndIndexOnIt_ScriptsTheColumnFirst()
+    {
+        var comparison = await CompareAsync(
+            "CREATE TABLE orders (id integer PRIMARY KEY);",
+            """
+CREATE TABLE orders (id integer PRIMARY KEY, email text);
+CREATE INDEX ix_orders_email ON orders (email);
+""");
+
+        var sql = Script(comparison);
+
+        var addColumn = sql.IndexOf("ADD COLUMN", StringComparison.Ordinal);
+        var createIndex = sql.IndexOf("CREATE INDEX", StringComparison.Ordinal);
+
+        Assert.True(addColumn >= 0, $"Expected the new column to be added in:\n{sql}");
+        Assert.True(
+            createIndex > addColumn,
+            $"Expected the index created after the column it references in:\n{sql}");
+    }
+
+    /// <summary>
+    /// Two same-named tables in different schemas each carry a constraint of the same name
+    /// (Postgres names both primary keys <c>orders_pkey</c>). Matching a dependent must scope
+    /// its owning table by schema (issue #200); keying on the bare table name made both target
+    /// constraints match one source constraint, and the compare threw "Sequence contains more
+    /// than one matching element" before producing any delta at all.
+    /// </summary>
+    [Fact]
+    public async Task SameNamedConstraintsOnSameNamedTablesInDifferentSchemas_DoNotCollide()
+    {
+        const string Both = """
+CREATE SCHEMA staging;
+CREATE TABLE orders (id integer PRIMARY KEY, email text);
+CREATE TABLE staging.orders (id integer PRIMARY KEY);
+""";
+
+        var comparison = await CompareAsync(
+            Both,
+            Both + "\nCREATE INDEX ix_orders_email ON orders (email);\n");
+
+        var create = Assert.IsType<CreateDelta>(Assert.Single(comparison.Deltas));
+        Assert.Equal(PostgresElementTypes.SqlIndex, create.Element.Type);
+    }
+
+    /// <summary>
+    /// Dropping a table only carries away ITS OWN dependents. A same-named table in another
+    /// schema that survives must still have its removed constraints dropped (issue #200): the
+    /// dropped-table set was keyed by bare name, so <c>staging.orders</c> going away suppressed
+    /// the drop of a constraint on the surviving <c>public.orders</c>, which then outlived its
+    /// removal from source and re-diffed on every deploy.
+    /// </summary>
+    [Fact]
+    public async Task DroppingATable_DoesNotSuppressConstraintDrops_OnASameNamedTableInAnotherSchema()
+    {
+        var comparison = await CompareAsync(
+            """
+CREATE SCHEMA staging;
+CREATE TABLE orders (id integer PRIMARY KEY, email text,
+    CONSTRAINT uq_orders_email UNIQUE (email));
+CREATE TABLE staging.orders (id integer PRIMARY KEY);
+""",
+            """
+CREATE SCHEMA staging;
+CREATE TABLE orders (id integer PRIMARY KEY, email text);
+""",
+            new DeployOptions { DropObjectsNotInSource = true, BlockOnPossibleDataLoss = false });
+
+        // staging.orders is dropped; public.orders survives and loses its unique constraint.
+        Assert.Single(
+            comparison.Deltas.OfType<DropDelta>(),
+            i => i.Element.Type == PostgresElementTypes.SqlTable);
+
+        var constraintDrop = Assert.Single(
+            comparison.Deltas.OfType<DropDelta>(),
+            i => i.Element.Type == PostgresElementTypes.SqlUniqueConstraint);
+        Assert.Equal("uq_orders_email", constraintDrop.Element.Name?.ToString());
+
+        var sql = Script(comparison);
+
+        // The dropped table is the staging one; the constraint drop targets the surviving
+        // public one, and is emitted rather than suppressed by the same-named table going away.
+        Assert.Contains("DROP TABLE \"staging\".\"orders\"", sql);
+        Assert.Contains("ALTER TABLE \"orders\" DROP CONSTRAINT IF EXISTS \"uq_orders_email\";", sql);
+    }
+
+    /// <summary>
     /// The regression guard for the deferred-FK machinery: when the tables themselves are being
     /// created, their constraints ride along on the CREATE TABLE. Making an FK reconcilable
     /// standalone must not also produce a second, duplicate CreateDelta for it.

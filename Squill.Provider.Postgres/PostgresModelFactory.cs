@@ -171,7 +171,9 @@ public static class PostgresModelFactory
         return element;
     }
 
-    public static Element CreatePrimaryKey(SqlName name, SqlName definingTable, IEnumerable<IndexedColumn> columns)
+    public static Element CreatePrimaryKey(
+        SqlName name, SqlName definingTable, IEnumerable<IndexedColumn> columns,
+        string schema = "public")
     {
         var columnSpecs = new Relationship(PostgresRelationshipNames.ColumnSpecifications);
 
@@ -189,6 +191,16 @@ public static class PostgresModelFactory
                 new Relationship(PostgresRelationshipNames.DefiningTable)
                 {
                     new Reference(definingTable)
+                },
+                // A primary key lives in its table's schema, and carries it for the same reason
+                // a unique constraint does. It is also what tells two same-named keys apart:
+                // Postgres names the primary key of both `public.orders` and `staging.orders`
+                // `orders_pkey`, and the defining-table reference is a bare name, so without
+                // the schema the two elements are indistinguishable and the compare matches one
+                // against both (issue #200).
+                new Relationship(PostgresRelationshipNames.Schema)
+                {
+                    new Reference(schema) { ExternalSource = "BuiltIns" }
                 }
             }
         };
@@ -1014,7 +1026,8 @@ public static class PostgresModelFactory
         ReferentialAction onDelete,
         ReferentialAction onUpdate,
         bool isDeferrable = false,
-        bool isInitiallyDeferred = false)
+        bool isInitiallyDeferred = false,
+        string schema = "public")
     {
         var columnRelationship = new Relationship(PostgresRelationshipNames.ForeignKeyColumns);
 
@@ -1045,6 +1058,13 @@ public static class PostgresModelFactory
                     new Reference(foreignTable)
                 },
                 foreignColumnRelationship,
+                // Carried for the same reason as on a primary key: the defining-table reference
+                // is a bare name, so the schema is what distinguishes two same-named foreign
+                // keys on same-named tables in different schemas (issue #200).
+                new Relationship(PostgresRelationshipNames.Schema)
+                {
+                    new Reference(schema) { ExternalSource = "BuiltIns" }
+                },
             }
         };
 

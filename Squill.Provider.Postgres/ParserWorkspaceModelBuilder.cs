@@ -1344,7 +1344,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         {
             var pkName = tableName.Sibling(explicitPkName ?? $"{tableName.UnqualifiedName}_pkey");
 
-            yield return PostgresModelFactory.CreatePrimaryKey(pkName, tableName, primaryKeyColumns);
+            yield return PostgresModelFactory.CreatePrimaryKey(
+                pkName, tableName, primaryKeyColumns, schema);
         }
 
         // Postgres names an unnamed unique constraint <table>_<col>_..._key. Predicting it
@@ -1375,11 +1376,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
         foreach (var foreignKey in foreignKeys)
         {
-            yield return MakeForeignKeyElement(tableName, foreignKey);
+            yield return MakeForeignKeyElement(tableName, foreignKey, schema);
         }
     }
 
-    private static Element MakeForeignKeyElement(SqlName tableName, ForeignKeySpec spec)
+    private static Element MakeForeignKeyElement(
+        SqlName tableName, ForeignKeySpec spec, string schema)
     {
         var referencedTable = NormalizeReferencedTable(spec.ReferencedTable);
 
@@ -1401,7 +1403,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             spec.OnDelete,
             spec.OnUpdate,
             spec.IsDeferrable,
-            spec.IsInitiallyDeferred);
+            spec.IsInitiallyDeferred,
+            schema);
     }
 
     // Walks the table-level constraints, appending table-level PK columns, unique specs and

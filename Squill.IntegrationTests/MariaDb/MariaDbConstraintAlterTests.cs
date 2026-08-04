@@ -605,6 +605,130 @@ public abstract class MariaDbConstraintAlterTests
             new DeployOptions { DropObjectsNotInSource = true });
     }
 
+    // ---- Adding a column and a dependent defined on it in the same deploy (issue #200) ----
+
+    /// <summary>
+    /// A CHECK constraint on a column added in the same change. The constraint's delta and the
+    /// column's ALTER are separate, and the constraint used to be ordered into the creates phase
+    /// ahead of the ALTER adding its column — so the deploy ran ADD CONSTRAINT against a column
+    /// that did not exist yet and aborted half-applied. The ordering lives in the shared
+    /// <see cref="SchemaCompare"/>, so this fails on both engines exactly as it does on Postgres.
+    /// </summary>
+    [Fact]
+    public async Task AddColumnAndCheckConstraintOnIt_Deploys_AndEnforcesTheConstraint()
+    {
+        await RunUpgradeAsync(
+            """
+            CREATE TABLE Orders
+            (
+                Id int NOT NULL PRIMARY KEY
+            );
+            """,
+            """
+            CREATE TABLE Orders
+            (
+                Id       int NOT NULL PRIMARY KEY,
+                Quantity int NULL,
+                CONSTRAINT CK_Orders_Quantity CHECK (Quantity > 0)
+            );
+            """,
+            async (testDb, builder, comparison) =>
+            {
+                var cancellationToken = TestContext.Current.CancellationToken;
+
+                // The publish is the assertion: before the fix the engine rejected the first
+                // statement because Quantity did not exist yet.
+                await testDb.PublishAsync(comparison, cancellationToken);
+
+                await testDb.RunScriptAsync(
+                    "INSERT INTO Orders (Id, Quantity) VALUES (1, 5);",
+                    cancellationToken: cancellationToken);
+
+                // The constraint is live: a violating row is refused.
+                await Assert.ThrowsAnyAsync<DbException>(() => testDb.RunScriptAsync(
+                    "INSERT INTO Orders (Id, Quantity) VALUES (2, 0);",
+                    cancellationToken: cancellationToken));
+            },
+            assertModelsDiffer: true);
+    }
+
+    /// <summary>
+    /// The same for an index on a newly added column, which names the column in CREATE INDEX
+    /// rather than in an ALTER.
+    /// </summary>
+    [Fact]
+    public async Task AddColumnAndIndexOnIt_Deploys()
+    {
+        await RunUpgradeAsync(
+            """
+            CREATE TABLE Orders
+            (
+                Id int NOT NULL PRIMARY KEY
+            );
+            """,
+            """
+            CREATE TABLE Orders
+            (
+                Id    int NOT NULL PRIMARY KEY,
+                Email varchar(255) NULL
+            );
+            CREATE INDEX IX_Orders_Email ON Orders (Email);
+            """,
+            async (testDb, builder, comparison) =>
+            {
+                var cancellationToken = TestContext.Current.CancellationToken;
+
+                await testDb.PublishAsync(comparison, cancellationToken);
+
+                // The index exists on the column that was added in the same deploy.
+                Assert.Equal(1, await NonUniqueAsync(testDb, "Orders", "IX_Orders_Email"));
+                Assert.Equal(["Email"], await IndexColumnsAsync(testDb, "Orders", "IX_Orders_Email"));
+            },
+            assertModelsDiffer: true);
+    }
+
+    /// <summary>
+    /// A UNIQUE constraint on a column added in the same change. MariaDB models this as a unique
+    /// index rather than a SqlUniqueConstraint, so it exercises the same ordering through a
+    /// different element type.
+    /// </summary>
+    [Fact]
+    public async Task AddColumnAndUniqueConstraintOnIt_Deploys_AndEnforcesTheConstraint()
+    {
+        await RunUpgradeAsync(
+            """
+            CREATE TABLE Orders
+            (
+                Id int NOT NULL PRIMARY KEY
+            );
+            """,
+            """
+            CREATE TABLE Orders
+            (
+                Id    int NOT NULL PRIMARY KEY,
+                Email varchar(255) NULL,
+                CONSTRAINT AK_Orders_Email UNIQUE (Email)
+            );
+            """,
+            async (testDb, builder, comparison) =>
+            {
+                var cancellationToken = TestContext.Current.CancellationToken;
+
+                await testDb.PublishAsync(comparison, cancellationToken);
+
+                Assert.Equal(0, await NonUniqueAsync(testDb, "Orders", "AK_Orders_Email"));
+
+                await testDb.RunScriptAsync(
+                    "INSERT INTO Orders (Id, Email) VALUES (1, 'a@example.com');",
+                    cancellationToken: cancellationToken);
+
+                await Assert.ThrowsAnyAsync<DbException>(() => testDb.RunScriptAsync(
+                    "INSERT INTO Orders (Id, Email) VALUES (2, 'a@example.com');",
+                    cancellationToken: cancellationToken));
+            },
+            assertModelsDiffer: true);
+    }
+
     // ---- information_schema helpers ----
 
     // NON_UNIQUE for the named index (0 = unique, 1 = not), or null if no such index exists.
