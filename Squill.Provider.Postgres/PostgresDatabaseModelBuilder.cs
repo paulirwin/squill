@@ -1188,7 +1188,8 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 accumulator.OnDelete,
                 accumulator.OnUpdate,
                 accumulator.IsDeferrable,
-                accumulator.IsInitiallyDeferred));
+                accumulator.IsInitiallyDeferred,
+                table.Schema));
         }
     }
 
@@ -1437,7 +1438,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         var columns = await ExtractPrimaryKeyColumnsAsync(constraintSchema, name, tableSqlName, cancellationToken);
 
         model.Elements.Add(PostgresModelFactory.CreatePrimaryKey(
-            SqlName.Object(name), tableSqlName, columns));
+            SqlName.Object(name), tableSqlName, columns, table.Schema));
     }
 
     // Extracts the table's UNIQUE constraints (issue #121). Read from pg_constraint rather

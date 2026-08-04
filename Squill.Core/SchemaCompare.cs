@@ -177,14 +177,20 @@ public class SchemaCompare
     private static void AddDropDeltas(
         SchemaComparison comparison, IDatabaseDependencyAnalyzer analyzer, Model source, Model target)
     {
-        // The tables going away in this deploy, by name, so a dependent can tell whether its
-        // own table outlives it.
-        var droppedTables = target.Elements
-            .Where(i => analyzer.IsTableElementType(i.Type)
-                && i.Name is not null
-                && !source.Elements.Any(j => ElementsMatch(analyzer, j, i)))
-            .Select(i => (string)i.Name!)
-            .ToHashSet(StringComparer.Ordinal);
+        // The dependents carried away by a table being dropped in this deploy, so each can tell
+        // whether its own table outlives it. Collected as the dependent ELEMENTS themselves,
+        // via the analyzer's own table-to-dependent rule, rather than by table name: a bare name
+        // would let `staging.orders` being dropped suppress the drop of a dependent on a
+        // surviving `public.orders`, which would then outlive its removal from source and
+        // re-diff on every deploy (issue #200). Going through the analyzer also means the
+        // schema disambiguation lives in one place instead of being restated here as a
+        // string format the two sides have to agree on.
+        var carriedByDroppedTable = new HashSet<Element>(
+            target.Elements
+                .Where(i => analyzer.IsTableElementType(i.Type)
+                    && i.Name is not null
+                    && !source.Elements.Any(j => ElementsMatch(analyzer, j, i)))
+                .SelectMany(i => analyzer.GetDependentElements(i, target) ?? []));
 
         foreach (var targetElement in target.Elements)
         {
@@ -198,8 +204,7 @@ public class SchemaCompare
                     continue;
                 }
 
-                if (GetOwningTableName(targetElement) is { } owningTable
-                    && droppedTables.Contains(owningTable))
+                if (carriedByDroppedTable.Contains(targetElement))
                 {
                     continue;
                 }
@@ -254,16 +259,26 @@ public class SchemaCompare
 
     // Orders the deltas so deploy steps run in dependency order: creates first (a schema
     // before the tables in it, an extension before a table using it), then in-place changes,
-    // then drops in the reverse of the create order (a table before the schema that holds
-    // it). A stable ordering preserves the existing relative order within each rank.
+    // then the indexes and constraints added to tables that already existed, then drops in the
+    // reverse of the create order (a table before the schema that holds it). A stable ordering
+    // preserves the existing relative order within each rank.
     private static void OrderDeltas(
         SchemaComparison comparison, IDatabaseDependencyAnalyzer analyzer, Model source)
     {
-        // Phase groups: creates (0) run before alters/rebuilds (1) before drops (2).
-        static int Phase(SchemaDelta delta) => delta switch
+        // Phase groups: creates (0) run before alters/rebuilds (1), then the standalone
+        // dependents (2), then drops (3).
+        //
+        // A standalone dependent (an index or constraint on a table that already exists) has to
+        // follow the alters, not lead them: the same change may add the very column it is
+        // defined on, and that column arrives in its table's AlterDelta. Creating it first
+        // scripts a constraint against a column that does not exist yet, which the engine
+        // rejects and which aborts the deploy half-applied (issue #200). A dependent on a table
+        // being CREATEd never reaches here — it rides that table's CREATE as a dependent element.
+        int Phase(SchemaDelta delta) => delta switch
         {
+            CreateDelta create when analyzer.IsDependentElementType(create.Element.Type) => 2,
             CreateDelta => 0,
-            DropDelta => 2,
+            DropDelta => 3,
             _ => 1,
         };
 
@@ -292,8 +307,10 @@ public class SchemaCompare
 
         ordered = SortCreatesByDependency(ordered, analyzer, source, Phase, Rank, deferred);
 
-        // Deferred constraints go after all creates but before alters and drops, so the
-        // tables they join are guaranteed to exist by the time they run.
+        // Deferred constraints go straight after the creates, so the tables they join are
+        // guaranteed to exist by the time they run. They belong there rather than with the
+        // standalone dependents in phase 2: both tables they reference are being CREATEd in
+        // this same deploy, so there is no later ALTER they could be waiting on.
         if (deferred.Count > 0)
         {
             var afterCreates = ordered.FindLastIndex(i => Phase(i) == 0) + 1;
@@ -469,7 +486,8 @@ public class SchemaCompare
             return true;
         }
 
-        return string.Equals(GetOwningTableName(a), GetOwningTableName(b), StringComparison.Ordinal);
+        return string.Equals(
+            GetOwningTableKey(analyzer, a), GetOwningTableKey(analyzer, b), StringComparison.Ordinal);
     }
 
     // The name of the table a dependent element belongs to, or null when it names none. An
@@ -483,6 +501,31 @@ public class SchemaCompare
 
         return element.GetRelationship(relationshipName)
             ?.Entries.OfType<Reference>().FirstOrDefault()?.Name;
+    }
+
+    // The identity of a dependent's owning table, qualified by schema so two same-named tables
+    // in different schemas are distinct owners (issue #200). The DefiningTable/IndexedObject
+    // reference is a BARE table name, so on its own it makes `public.orders` and
+    // `staging.orders` read as one table: two same-named dependents (Postgres names both
+    // primary keys `orders_pkey`) then match each other across schemas, and the
+    // SingleOrDefault in AddRecreateDeltas throws "Sequence contains more than one matching
+    // element" before the compare produces a single delta.
+    //
+    // A dependent that carries a schema (every one a schema-scoped provider models: index,
+    // unique/check constraint, and — since #200 — primary and foreign keys) is qualified by it.
+    // One that carries none falls back to the bare name, which is what a provider without
+    // schemas (MariaDB, where a database IS the schema) wants.
+    private static string? GetOwningTableKey(IDatabaseDependencyAnalyzer analyzer, Element element)
+    {
+        if (GetOwningTableName(element) is not { } tableName)
+        {
+            return null;
+        }
+
+        return analyzer.GetElementSchema(element) is { } schema
+            && !tableName.StartsWith($"{schema}.", StringComparison.Ordinal)
+                ? $"{schema}.{tableName}"
+                : tableName;
     }
 
     // Produces the delta for an element present in both models whose definitions differ.

@@ -131,6 +131,59 @@ public class ConstraintReconciliationTests
     }
 
     /// <summary>
+    /// A constraint on a column being added in the same change must be scripted AFTER the column
+    /// exists (issue #200). The standalone CreateDelta for the constraint and the AlterDelta
+    /// adding the column are separate deltas, and ordering the creates first put the constraint
+    /// ahead of its own column, which the engine rejects — aborting the deploy half-applied.
+    /// The defect is in the shared <see cref="SchemaCompare"/>, so it shows up here identically.
+    /// </summary>
+    [Fact]
+    public async Task AddColumnAndCheckConstraintOnIt_ScriptsTheColumnFirst()
+    {
+        var comparison = await CompareAsync(
+            "CREATE TABLE Orders (Id int NOT NULL PRIMARY KEY);",
+            """
+            CREATE TABLE Orders (Id int NOT NULL PRIMARY KEY, Quantity int NULL,
+                CONSTRAINT CK_Orders_Quantity CHECK (Quantity > 0));
+            """);
+
+        var sql = Script(comparison);
+
+        var addColumn = sql.IndexOf("ADD COLUMN", StringComparison.Ordinal);
+        var addConstraint = sql.IndexOf("ADD CONSTRAINT", StringComparison.Ordinal);
+
+        Assert.True(addColumn >= 0, $"Expected the new column to be added in:\n{sql}");
+        Assert.True(
+            addConstraint > addColumn,
+            $"Expected the constraint added after the column it references in:\n{sql}");
+    }
+
+    /// <summary>
+    /// The same ordering for an index on a newly added column: CREATE INDEX names the column,
+    /// so it cannot precede the ALTER that adds it.
+    /// </summary>
+    [Fact]
+    public async Task AddColumnAndIndexOnIt_ScriptsTheColumnFirst()
+    {
+        var comparison = await CompareAsync(
+            "CREATE TABLE Orders (Id int NOT NULL PRIMARY KEY);",
+            """
+            CREATE TABLE Orders (Id int NOT NULL PRIMARY KEY, Email varchar(255) NULL);
+            CREATE INDEX IX_Orders_Email ON Orders (Email);
+            """);
+
+        var sql = Script(comparison);
+
+        var addColumn = sql.IndexOf("ADD COLUMN", StringComparison.Ordinal);
+        var createIndex = sql.IndexOf("CREATE INDEX", StringComparison.Ordinal);
+
+        Assert.True(addColumn >= 0, $"Expected the new column to be added in:\n{sql}");
+        Assert.True(
+            createIndex > addColumn,
+            $"Expected the index created after the column it references in:\n{sql}");
+    }
+
+    /// <summary>
     /// The regression guard for the deferred-FK machinery: when the tables themselves are being
     /// created, their constraints ride along on the CREATE TABLE (or, for a cycle, on a deferred
     /// <see cref="AddConstraintDelta"/>). Making an FK reconcilable standalone must not also
