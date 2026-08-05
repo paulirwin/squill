@@ -669,6 +669,46 @@ public abstract class MariaDbIndexFidelityTests
         Assert.Equal(1059, exception.Number);
     }
 
+    /// <summary>
+    /// An expression key in a PRIMARY KEY is rejected by the build with a source-anchored
+    /// <c>SQ0004</c> diagnostic (issue #209). It previously crashed the build with an unhandled
+    /// <c>NullReferenceException</c>, because the primary-key path dereferenced the column of a
+    /// key that names none.
+    ///
+    /// <para>
+    /// Neither engine accepts the DDL, so there is no correct deploy to produce: MySQL rejects
+    /// it with <c>ERROR 3756</c> ("The primary key cannot be a functional index") and MariaDB,
+    /// which has no functional indexes at all, with a syntax error (<c>ERROR 1064</c>). Both
+    /// verdicts are asserted against the server so the build error stays justified by the
+    /// target rather than by Squill being stricter than it.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task ExpressionPrimaryKey_IsRejectedByTheBuild()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        const string sql = """
+            CREATE TABLE totals
+            (
+                a int NOT NULL,
+                PRIMARY KEY ((a + 1))
+            );
+            """;
+
+        var ex = Assert.Throws<SqlSourceException>(() => ParseModel(sql, ct));
+
+        Assert.Equal(SqlSourceException.InvalidConstraint, ex.Code);
+        Assert.Contains("expression", ex.Message, StringComparison.OrdinalIgnoreCase);
+
+        // 3756 = ER_FUNCTIONAL_INDEX_PRIMARY_KEY on MySQL; MariaDB cannot even parse the key,
+        // so it answers 1064 = ER_PARSE_ERROR.
+        var exception = await Assert.ThrowsAsync<MySqlException>(
+            () => ExecuteInFreshDatabaseAsync(sql, ct));
+
+        Assert.Equal(IsMySql ? 3756 : 1064, exception.Number);
+    }
+
     private async Task ExecuteAsync(string databaseName, string sql, CancellationToken cancellationToken)
     {
         await using var connection = new MySqlConnection(
