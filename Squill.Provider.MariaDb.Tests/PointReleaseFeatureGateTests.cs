@@ -134,6 +134,31 @@ public class PointReleaseFeatureGateTests
     }
 
     /// <summary>
+    /// A declared point release must reach <see cref="DatabaseSchemaProvider.Floor"/> for every
+    /// engine, not only the ones that happen to have a point-release gate today. The registry
+    /// carries the floor through a reflection lookup for a <c>(TargetVersion?)</c> constructor
+    /// and silently returns the unversioned instance when there is none, so an engine that has
+    /// not added one would gate at its major's oldest release while the build looks correct.
+    ///
+    /// MariaDB and PostgreSQL have no point-release gate yet, which is exactly why this is
+    /// asserted on Floor rather than on a capability: it pins the plumbing before there is a
+    /// feature depending on it, so adding the first gate cannot silently answer 10.0.0 for a
+    /// project that declared 10.5.3.
+    /// </summary>
+    [Theory]
+    [InlineData("MariaDb", "10.5.3")]
+    [InlineData("MariaDb", "11.4.2")]
+    [InlineData("MySql", "8.0.13")]
+    public void ADeclaredPointRelease_ReachesTheFloor_ForEveryEngine(
+        string providerName, string declared)
+    {
+        var provider = DatabaseSchemaProviderRegistry.Resolve(
+            providerName, TargetVersion.Parse(declared));
+
+        Assert.Equal(TargetVersion.Parse(declared), provider.Floor);
+    }
+
+    /// <summary>
     /// The build path must hand the schema provider the <em>whole</em> declared target, not just
     /// its major. Resolving on the major alone would leave every gate reading a bare-major floor,
     /// so the plumbing would look correct while the feature did nothing.

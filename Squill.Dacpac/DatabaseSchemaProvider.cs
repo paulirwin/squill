@@ -39,6 +39,21 @@ public abstract class DatabaseSchemaProvider
     /// </summary>
     public abstract string ProviderName { get; }
 
+    /// <summary>
+    /// Whether this provider answers to <paramref name="candidate"/>. Defaults to a
+    /// case-insensitive match on <see cref="ProviderName"/>; an engine whose
+    /// <see cref="ISquillProvider.Matches"/> accepts alternative spellings overrides this to
+    /// accept the same set.
+    ///
+    /// The two must agree. The host resolves the provider with
+    /// <see cref="ISquillProvider.Matches"/> and then resolves a schema provider from the same
+    /// raw name through <see cref="DatabaseSchemaProviderRegistry"/> — so a name only the first
+    /// accepts selects a provider and then fails partway through the build, reporting an
+    /// unsupported target <em>version</em> for what is really an accepted provider alias.
+    /// </summary>
+    public virtual bool MatchesProviderName(string candidate)
+        => string.Equals(ProviderName, candidate, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>The target engine major version this provider represents (e.g. <c>16</c>).</summary>
     public abstract int MajorVersion { get; }
 
