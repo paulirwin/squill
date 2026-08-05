@@ -59,6 +59,68 @@ public class UnicodeIdentifierTests
     }
 
     /// <summary>
+    /// A doubled escape character stands for one literal escape character, and PostgreSQL
+    /// collapses it before storing the name. Measured against postgres:latest:
+    /// <c>CREATE TABLE U&amp;"a\\b"</c> creates a table named <c>a\b</c>, three characters.
+    ///
+    /// So this is not an "escape sequence" to reject — it is representable — but it is also not
+    /// the raw body, which would carry four characters and re-diff on every deploy against the
+    /// three the server reports.
+    /// </summary>
+    [Fact]
+    public void UnicodeQuotedIdentifier_WithADoubledEscape_CollapsesToOneEscapeCharacter()
+    {
+        var statement = Assert.IsType<CreateTableStatement>(
+            Assert.Single(Parse("""CREATE TABLE U&"a\\b" (id int);""").Statements));
+
+        Assert.Equal("""a\b""", statement.Name.ToString());
+    }
+
+    /// <summary>
+    /// The same under a redeclared escape character, where the doubled form is the declared
+    /// character rather than the backslash.
+    /// </summary>
+    [Fact]
+    public void UnicodeQuotedIdentifier_WithADoubledCustomEscape_CollapsesToOneEscapeCharacter()
+    {
+        var statement = Assert.IsType<CreateTableStatement>(
+            Assert.Single(Parse("""CREATE TABLE U&"a!!b" UESCAPE '!' (id int);""").Statements));
+
+        Assert.Equal("a!b", statement.Name.ToString());
+    }
+
+    /// <summary>
+    /// With the escape character redeclared, a BACKSLASH is just an ordinary character: it is
+    /// no longer the escape, so it needs no collapsing and starts no sequence.
+    /// </summary>
+    [Fact]
+    public void UnicodeQuotedIdentifier_WithACustomEscape_TreatsBackslashAsOrdinary()
+    {
+        var statement = Assert.IsType<CreateTableStatement>(
+            Assert.Single(Parse("""CREATE TABLE U&"a\b" UESCAPE '!' (id int);""").Statements));
+
+        Assert.Equal("""a\b""", statement.Name.ToString());
+    }
+
+    /// <summary>
+    /// PostgreSQL accepts any string-constant spelling for the UESCAPE operand, not just the
+    /// plain single-quoted form: <c>UESCAPE E'!'</c> and <c>UESCAPE $$!$$</c> both parse and
+    /// both declare <c>!</c> as the escape (measured against postgres:latest, each creating a
+    /// table named <c>dat</c>).
+    ///
+    /// Reading the operand's second character would take <c>'</c> from <c>E'!'</c> — the wrong
+    /// escape character — and so mis-detect which sequences need rejecting. These must not be
+    /// silently accepted with the wrong escape.
+    /// </summary>
+    [Theory]
+    [InlineData("""CREATE TABLE U&"d!0061t" UESCAPE E'!' (id int);""")]
+    [InlineData("""CREATE TABLE U&"d!0061t" UESCAPE $$!$$ (id int);""")]
+    public void UnicodeQuotedIdentifier_WithANonPlainUescapeOperand_IsRejected(string sql)
+    {
+        Assert.ThrowsAny<Exception>(() => Parse(sql));
+    }
+
+    /// <summary>
     /// An ordinary quoted identifier is untouched by any of this.
     /// </summary>
     [Fact]
