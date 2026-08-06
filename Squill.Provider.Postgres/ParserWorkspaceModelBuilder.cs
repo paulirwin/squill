@@ -305,11 +305,13 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             // CREATE SEQUENCE and CREATE VIEW, which CREATE TABLE was simply inconsistent with.
             if (createTableStatement.Persistence is { } persistence)
             {
-                // The modifier is echoed as written, so the message names what the author
-                // typed, but the sentence still spells out "temporary or unlogged", since TEMP
-                // alone would otherwise leave the reason implicit.
+                // Echoed as written rather than upper-cased, so the message quotes what the
+                // author actually typed. The sentence still spells out "temporary or unlogged"
+                // because TEMP alone would leave the reason implicit. Internal whitespace is
+                // collapsed only because SourceText spans the raw text, so LOCAL<newline>TEMP
+                // would otherwise reach the message with the line break in it.
                 throw new NotSupportedException(
-                    $"{persistence.ToUpperInvariant()} on table "
+                    $"{CollapseWhitespace(persistence)} on table "
                     + $"'{SplitSchema(createTableStatement.Name).Name.UnqualifiedName}' is not supported: "
                     + "a temporary or unlogged table is not part of a declared schema, and deploying "
                     + "it as an ordinary permanent table would not match what is declared.");
@@ -2767,6 +2769,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             _ => builtIn.Type.CanonicalName(),
         };
     }
+
+    // Source text spanning more than one token keeps whatever whitespace separated them, which
+    // can include a line break. Collapsed to single spaces so it reads as one phrase inside a
+    // diagnostic message, without otherwise changing the author's spelling.
+    private static string CollapseWhitespace(string text)
+        => string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     private static (string Schema, SqlName Name) SplitSchema(QualifiedName qualifiedName)
     {

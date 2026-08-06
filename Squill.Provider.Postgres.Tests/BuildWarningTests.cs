@@ -194,10 +194,19 @@ CREATE TABLE measurement_y2024 PARTITION OF measurement
     /// can never be part of a schema a deploy converges on. Postgres already rejects TEMP on
     /// a sequence and a view; this is the same policy applied to the table it was missing on.
     /// </summary>
+    /// <remarks>
+    /// The message opens with the modifier exactly as the author wrote it, lower case
+    /// included, rather than a normalized form: the point of carrying it verbatim is that the
+    /// diagnostic quotes the source back. The sentence that follows names the concept, so
+    /// TEMP alone still reads as a reason.
+    /// </remarks>
     [Theory]
     [InlineData("TEMP")]
     [InlineData("TEMPORARY")]
+    [InlineData("temporary")]
+    [InlineData("LOCAL TEMP")]
     [InlineData("LOCAL TEMPORARY")]
+    [InlineData("GLOBAL TEMP")]
     [InlineData("GLOBAL TEMPORARY")]
     public async Task TemporaryTable_IsABuildError(string modifier)
     {
@@ -206,9 +215,28 @@ CREATE TABLE measurement_y2024 PARTITION OF measurement
         var ex = await Assert.ThrowsAsync<SqlSourceException>(
             () => builder.ExtractModelAsync(TestContext.Current.CancellationToken));
 
-        Assert.Contains("scratch", ex.Message, StringComparison.Ordinal);
+        Assert.StartsWith($"{modifier} on table 'scratch'", ex.Message, StringComparison.Ordinal);
         Assert.Contains("temporary", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("Scratch.sql", ex.SourceFile);
+    }
+
+    /// <summary>
+    /// A modifier split across lines still reads as one phrase in the message: SourceText spans
+    /// the raw source, so the line break would otherwise land in the middle of the diagnostic.
+    /// </summary>
+    [Fact]
+    public async Task TemporaryTable_ModifierSpanningLines_ReadsAsOnePhrase()
+    {
+        const string sql = """
+CREATE LOCAL
+    TEMPORARY TABLE scratch (id integer);
+""";
+        var builder = BuilderFor(("Scratch.sql", sql));
+
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(
+            () => builder.ExtractModelAsync(TestContext.Current.CancellationToken));
+
+        Assert.StartsWith("LOCAL TEMPORARY on table 'scratch'", ex.Message, StringComparison.Ordinal);
     }
 
     /// <summary>

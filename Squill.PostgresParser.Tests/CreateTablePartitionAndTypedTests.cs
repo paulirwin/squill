@@ -164,6 +164,7 @@ CREATE TABLE cities (name text NOT NULL, state char(2)) PARTITION BY LIST (state
     [InlineData("temporary", "temporary")]
     [InlineData("LOCAL TEMP", "LOCAL TEMP")]
     [InlineData("LOCAL TEMPORARY", "LOCAL TEMPORARY")]
+    [InlineData("GLOBAL TEMP", "GLOBAL TEMP")]
     [InlineData("GLOBAL TEMPORARY", "GLOBAL TEMPORARY")]
     [InlineData("UNLOGGED", "UNLOGGED")]
     public void CreateTable_Persistence_IsCarriedAsWritten(string modifier, string expected)
