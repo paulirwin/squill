@@ -6,7 +6,6 @@ public partial class PostgresVisitor
 {
     public override SyntaxNode VisitCreatestmt(PostgreSQLParser.CreatestmtContext context)
     {
-        // TODO: support opttemp
         // TODO: support if not exists
 
         if (context.qualified_name().Length == 0)
@@ -20,6 +19,15 @@ public partial class PostgresVisitor
         }
 
         var createTable = At(new CreateTableStatement(qualifiedName), context);
+
+        // Carried as written (SourceText rather than GetText, so LOCAL TEMPORARY keeps the
+        // space between its two words) for the provider to reject against the statement's
+        // position; see CreateTableStatement.Persistence. Every opttemp alternative matches at
+        // least one token, so a present context is always a real modifier.
+        if (context.opttemp() is { } opttemp)
+        {
+            createTable.Persistence = SourceText(opttemp);
+        }
 
         // Three shapes share this rule: the ordinary parenthesized element list, the typed
         // table (OF a_type), and the partition child (PARTITION OF parent FOR VALUES ...).

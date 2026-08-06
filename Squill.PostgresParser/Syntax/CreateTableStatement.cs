@@ -42,4 +42,13 @@ public class CreateTableStatement : Statement
     /// it is now carried so the provider can warn.
     /// </summary>
     public string? PartitionBy { get; set; }
+
+    /// <summary>
+    /// The persistence modifier written before <c>TABLE</c> (<c>TEMPORARY</c>, <c>TEMP</c>,
+    /// <c>LOCAL TEMPORARY</c>, <c>GLOBAL TEMPORARY</c> or <c>UNLOGGED</c>), carried verbatim
+    /// as written, or null for an ordinary persistent table. Carried rather than acted on
+    /// here so the provider can reject it against the statement's position; a throw from the
+    /// visitor happens before there is a statement to anchor to (issue #204).
+    /// </summary>
+    public string? Persistence { get; set; }
 }

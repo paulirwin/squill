@@ -153,6 +153,11 @@ internal static class MariaDbStatementMapper
         var name = MapQualifiedName(columnCreate.tableName().fullId());
         var statement = At(new CreateTableStatement(name), columnCreate);
 
+        // Carried, not rejected here: the provider reports it against the statement's position
+        // (issue #204). The copy/query forms above never reach this point, so a TEMPORARY one
+        // of those is already covered by their unmodeled warning.
+        statement.IsTemporary = columnCreate.TEMPORARY() is not null;
+
         foreach (var definition in columnCreate.createDefinitions().createDefinition())
         {
             switch (definition)

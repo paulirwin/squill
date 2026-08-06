@@ -530,4 +530,29 @@ public class CreateTableTests
         Assert.Single(
             Unwrapped(Column(table, "rental_id")).OfType<AutoIncrementColumnConstraint>());
     }
+
+    /// <summary>
+    /// TEMPORARY is carried on the statement so the provider can reject it against the
+    /// statement's position (issue #204). Before that it was parsed and then dropped, so a
+    /// temporary table deployed as a permanent one.
+    /// </summary>
+    [Theory]
+    [InlineData("CREATE TEMPORARY TABLE scratch (id int);")]
+    [InlineData("CREATE temporary TABLE scratch (id int);")]
+    public void CreateTable_Temporary_IsCarried(string sql)
+    {
+        var table = ParseOne(sql);
+
+        Assert.True(table.IsTemporary);
+
+        // The rest of the statement still parses normally.
+        Assert.Equal("scratch", table.Name.Name);
+        Assert.Single(table.Elements.OfType<ColumnDefinition>());
+    }
+
+    [Fact]
+    public void CreateTable_Ordinary_IsNotTemporary()
+    {
+        Assert.False(ParseOne("CREATE TABLE keeper (id int PRIMARY KEY);").IsTemporary);
+    }
 }

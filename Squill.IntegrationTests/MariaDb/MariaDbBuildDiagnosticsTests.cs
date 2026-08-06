@@ -200,6 +200,54 @@ CREATE TABLE pfx_child
             await ExecuteAsync(connection, viewSql);
         });
     }
+
+    /// <summary>
+    /// CREATE TEMPORARY TABLE is a build error (issue #204), and unlike the cases above the
+    /// engine accepts the DDL quite happily, so the justification has to be measured
+    /// differently. What is demonstrated here is that the table the engine creates is
+    /// invisible to the schema catalog Squill extracts from, and gone entirely on the next
+    /// connection. That is why it cannot be declared: a deploy would create it, the next
+    /// extraction would not find it, and every subsequent deploy would create it again.
+    /// </summary>
+    [Fact]
+    public async Task TemporaryTable_IsRejectedByBuildBecauseTheEngineDoesNotKeepIt()
+    {
+        const string sql = "CREATE TEMPORARY TABLE temp_scratch (id INT PRIMARY KEY);";
+
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(() => BuildAsync(("Scratch.sql", sql)));
+
+        Assert.Contains("temporary", ex.Message, StringComparison.OrdinalIgnoreCase);
+
+        await InDatabaseAsync(async connection =>
+        {
+            // The engine accepts it: this is valid SQL, which is exactly why it would
+            // otherwise have deployed silently as something the model cannot track.
+            await ExecuteAsync(connection, sql);
+
+            // Yet it belongs to this connection alone: a second one cannot see it, because the
+            // table died with the session that made it. Measured on both engines (MariaDB
+            // 12.3, MySQL 9.7): 1146 = ER_NO_SUCH_TABLE.
+            //
+            // Deliberately *not* asserted via information_schema, where the two engines
+            // disagree (MariaDB lists a temporary table there and MySQL does not), so a
+            // catalog-visibility check would encode one engine's behaviour as if it were
+            // universal. Not surviving the session is the property both share, and it is the
+            // one that makes the table undeployable.
+            //
+            // Built from the fixture rather than connection.ConnectionString, which no longer
+            // carries the password once the connection is open.
+            await using var other = new MySqlConnection(Fixture.ConnectionString);
+            await other.OpenAsync(TestContext.Current.CancellationToken);
+            await other.ChangeDatabaseAsync(connection.Database, TestContext.Current.CancellationToken);
+
+            await using var select = new MySqlCommand("SELECT 1 FROM temp_scratch;", other);
+
+            var missing = await Assert.ThrowsAsync<MySqlException>(
+                () => select.ExecuteScalarAsync(TestContext.Current.CancellationToken));
+
+            Assert.Equal(1146, missing.Number);
+        });
+    }
 }
 
 // ---- Per-engine bindings: each scenario runs once against MariaDB and once against MySQL. ----
