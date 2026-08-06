@@ -876,7 +876,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                             && unique.Columns is [{ KeyExpression: not null }, ..])
                         {
                             AddError(new SqlSourceException(
-                                $"Unique constraint on table '{table}' leads with an expression "
+                                $"Unique constraint on table '{table}' starts with an expression "
                                 + "key and has no name. Name it explicitly: the name MySQL "
                                 + "derives for a functional key cannot be predicted at build "
                                 + "time.",
