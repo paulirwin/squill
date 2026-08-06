@@ -990,8 +990,13 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     // report it as a duplicate rather than deploy a name that won't match.
                     if (constraintName is null)
                     {
+                        // Includes the INCLUDE columns, because the server's derived name does
+                        // (issue #210) -- the validator and element construction must predict
+                        // the same name or these checks would guard one that never ships.
                         var derived = DeriveUniqueConstraintName(
-                            table, unique.Columns.Select(c => c.Name));
+                            table,
+                            unique.Columns.Select(c => c.Name),
+                            unique.IncludeColumns.Select(c => c.Name));
 
                         CheckUniqueConstraintNameIsPredictable(
                             file, line, column, table, derived);
@@ -1282,7 +1287,14 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
     // A UNIQUE constraint gathered while walking a CREATE TABLE, before it becomes an
     // element (its name may be explicit or derived from the Postgres convention).
-    private sealed record UniqueConstraintSpec(string? ExplicitName, IReadOnlyList<string> Columns);
+    // IncludeColumns and StorageParameters carry the INCLUDE (...) and WITH (...) clauses a
+    // UNIQUE constraint shares with the index backing it (issue #210). IncludeColumns also
+    // feeds the derived name, which folds them in -- see DeriveUniqueConstraintName.
+    private sealed record UniqueConstraintSpec(
+        string? ExplicitName,
+        IReadOnlyList<string> Columns,
+        IReadOnlyList<string> IncludeColumns,
+        string? StorageParameters);
 
     // A CHECK constraint gathered from a CREATE TABLE. Column is the column an inline CHECK
     // was written on (null for a table-level one), which is what Postgres folds into the
@@ -1296,6 +1308,40 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     private static string DeriveCheckConstraintName(string table, string? column)
         => column is null ? $"{table}_check" : $"{table}_{column}_check";
 
+    // The INCLUDE / WITH clauses gathered from a table-level PRIMARY KEY while walking a
+    // CREATE TABLE (issue #210). A holder rather than out-parameters because the collection
+    // walk already threads several accumulators through, and a PK contributes at most one set.
+    private sealed class IndexBackedConstraintOptions
+    {
+        public List<string> IncludeColumns { get; } = [];
+
+        public string? StorageParameters { get; set; }
+    }
+
+    // The WITH (...) storage parameters of an index-backed constraint, rendered into the same
+    // canonical string an index uses (issue #210), or null when none were declared -- so an
+    // ordinary constraint carries no property and hashes as it did before.
+    private static string? RenderStorageParametersOrNull(ICollection<IndexWithOption> options)
+        => options.Count > 0 ? RenderStorageParameters(options) : null;
+
+    // USING INDEX TABLESPACE on a constraint is rejected rather than modeled, matching what
+    // CREATE INDEX already does (issue #160): measured there, an index in pg_default records
+    // reltablespace = 0 exactly as one with no clause does, so naming the default is a genuine
+    // no-op, while any other tablespace is a real placement decision the model cannot carry and
+    // would silently lose. Converging both spellings on one answer is the point of issue #210.
+    private static void RejectNonDefaultConstraintTablespace(
+        IIndexBackedTableConstraint constraint, string table)
+    {
+        if (constraint.TableSpace is { } tablespace
+            && !string.Equals(tablespace.Name, "pg_default", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new NotSupportedException(
+                $"A constraint on table '{table}' declares USING INDEX TABLESPACE "
+                + $"'{tablespace.Name}', which Squill does not model. Only the default "
+                + "tablespace (pg_default) is supported.");
+        }
+    }
+
     // The name Postgres gives an unnamed unique constraint: <table>_<col>_..._key. Shared by
     // the validator (to detect a collision between two derived names) and by element
     // construction, so the predicted name and the validated name cannot drift apart.
@@ -1306,8 +1352,13 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     // name too long to predict by CheckUniqueConstraintNameIsPredictable; a collision with an
     // object that exists only in the target database remains unpredictable from source alone,
     // so naming the constraint explicitly is the reliable option.
-    private static string DeriveUniqueConstraintName(string table, IEnumerable<string> columns)
-        => $"{table}_{string.Join('_', columns)}_key";
+    //
+    // The INCLUDE columns take part in the name too: measured, `UNIQUE (a, b) INCLUDE (c)` is
+    // named <table>_a_b_c_key, not <table>_a_b_key (issue #210). Passing key columns alone
+    // would predict a name the server never uses, so the constraint would re-diff forever.
+    private static string DeriveUniqueConstraintName(
+        string table, IEnumerable<string> columns, IEnumerable<string>? includeColumns = null)
+        => $"{table}_{string.Join('_', columns.Concat(includeColumns ?? []))}_key";
 
     private static IEnumerable<Element> MakeCreateTableElements(CreateTableStatement createTableStatement)
     {
@@ -1323,13 +1374,18 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         var uniqueConstraints = new List<UniqueConstraintSpec>();
         var checkConstraints = new List<CheckConstraintSpec>();
 
+        // The INCLUDE and WITH clauses of a table-level PRIMARY KEY (issue #210). Only a
+        // table-level PK can carry them -- the inline column spelling has no such clause -- so
+        // they are filled in by CollectTableLevelConstraints alone.
+        var primaryKeyOptions = new IndexBackedConstraintOptions();
+
         var inlinePkName = AddTableColumnsRelationship(
             tableElement, tableName, createTableStatement, primaryKeyColumns, foreignKeys,
             uniqueConstraints, checkConstraints);
 
         var tableLevelPkName = CollectTableLevelConstraints(
             createTableStatement, tableName, primaryKeyColumns, foreignKeys, uniqueConstraints,
-            checkConstraints);
+            checkConstraints, primaryKeyOptions);
 
         // A named PK can be written inline on its column (CONSTRAINT pk_x PRIMARY KEY) or as
         // a table-level clause; at most one applies, so either source is the explicit name.
@@ -1345,7 +1401,9 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             var pkName = tableName.Sibling(explicitPkName ?? $"{tableName.UnqualifiedName}_pkey");
 
             yield return PostgresModelFactory.CreatePrimaryKey(
-                pkName, tableName, primaryKeyColumns, schema);
+                pkName, tableName, primaryKeyColumns, schema,
+                primaryKeyOptions.IncludeColumns.Select(c => tableName.Child(c)),
+                primaryKeyOptions.StorageParameters);
         }
 
         // Postgres names an unnamed unique constraint <table>_<col>_..._key. Predicting it
@@ -1354,13 +1412,16 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         foreach (var unique in uniqueConstraints)
         {
             var uniqueName = tableName.Sibling(unique.ExplicitName
-                ?? DeriveUniqueConstraintName(tableName.UnqualifiedName, unique.Columns));
+                ?? DeriveUniqueConstraintName(
+                    tableName.UnqualifiedName, unique.Columns, unique.IncludeColumns));
 
             var columns = unique.Columns
                 .Select(c => new PostgresModelFactory.IndexedColumn(tableName.Child(c)));
 
             yield return PostgresModelFactory.CreateUniqueConstraint(
-                uniqueName, tableName, columns, schema);
+                uniqueName, tableName, columns, schema,
+                unique.IncludeColumns.Select(c => tableName.Child(c)),
+                unique.StorageParameters);
         }
 
         // CHECK constraints follow the unique constraints and precede the FKs, matching the
@@ -1414,7 +1475,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         List<PostgresModelFactory.IndexedColumn> primaryKeyColumns,
         List<ForeignKeySpec> foreignKeys,
         List<UniqueConstraintSpec> uniqueConstraints,
-        List<CheckConstraintSpec> checkConstraints)
+        List<CheckConstraintSpec> checkConstraints,
+        IndexBackedConstraintOptions primaryKeyOptions)
     {
         string? explicitPkName = null;
 
@@ -1439,12 +1501,22 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     primaryKeyColumns.Add(new PostgresModelFactory.IndexedColumn(tableName.Child(column.Name)));
                 }
 
+                RejectNonDefaultConstraintTablespace(pk, table: tableName.UnqualifiedName);
+
+                primaryKeyOptions.IncludeColumns.AddRange(pk.IncludeColumns.Select(c => c.Name));
+                primaryKeyOptions.StorageParameters = RenderStorageParametersOrNull(pk.WithOptions);
+
                 explicitPkName = explicitName;
             }
             else if (constraint is UniqueTableConstraint unique)
             {
+                RejectNonDefaultConstraintTablespace(unique, table: tableName.UnqualifiedName);
+
                 uniqueConstraints.Add(new UniqueConstraintSpec(
-                    explicitName, unique.Columns.Select(c => c.Name).ToList()));
+                    explicitName,
+                    unique.Columns.Select(c => c.Name).ToList(),
+                    unique.IncludeColumns.Select(c => c.Name).ToList(),
+                    RenderStorageParametersOrNull(unique.WithOptions)));
             }
             else if (constraint is ForeignKeyTableConstraint fk)
             {
@@ -1558,9 +1630,11 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 else if (constraint is UniqueColumnConstraint)
                 {
                     // An inline UNIQUE is a single-column unique constraint; a
-                    // CONSTRAINT <name> UNIQUE wrapper names it.
+                    // CONSTRAINT <name> UNIQUE wrapper names it. The inline spelling has no
+                    // INCLUDE or WITH clause -- those belong to the table-level form -- so it
+                    // contributes neither (issue #210).
                     uniqueConstraints.Add(new UniqueConstraintSpec(
-                        explicitName, [columnDefinition.Name.Name]));
+                        explicitName, [columnDefinition.Name.Name], [], null));
                 }
                 else if (constraint is DefaultColumnConstraint defaultConstraint)
                 {

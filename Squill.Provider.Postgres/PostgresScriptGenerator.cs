@@ -2066,7 +2066,40 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
 
         var columnList = string.Join(", ", columns.Select(c => $"\"{SqlName.UnqualifiedOf(c)}\""));
 
-        return $"CONSTRAINT {SqlName.Parse(pkName).QuotedUnqualified} PRIMARY KEY ({columnList})";
+        return $"CONSTRAINT {SqlName.Parse(pkName).QuotedUnqualified} PRIMARY KEY ({columnList})"
+            + GetIndexBackedConstraintSuffix(primaryKey);
+    }
+
+    // The INCLUDE (...) and WITH (...) clauses a PRIMARY KEY or UNIQUE constraint shares with
+    // the index backing it (issue #210), in the order PostgreSQL's grammar requires -- the same
+    // order and rendering GenerateCreateIndexScript uses, so the two spellings of one
+    // declaration produce matching SQL. Empty when the constraint declares neither, so an
+    // ordinary constraint scripts exactly as it did before.
+    //
+    // No tablespace clause: a non-default one is rejected at build time rather than modeled,
+    // matching the index path (issue #160).
+    private static string GetIndexBackedConstraintSuffix(Element constraint)
+    {
+        var sb = new StringBuilder();
+
+        var includedColumns = constraint
+            .GetRelationship(PostgresRelationshipNames.IncludedColumns)
+            ?.Entries.OfType<Reference>()
+            .Select(r => $"\"{SqlName.UnqualifiedOf(r.Name)}\"")
+            .ToList();
+
+        if (includedColumns is { Count: > 0 })
+        {
+            sb.Append(" INCLUDE (").Append(string.Join(", ", includedColumns)).Append(')');
+        }
+
+        // The stored value is already the canonical "name=value, ..." list.
+        if (constraint.GetProperty<string>(PostgresPropertyNames.StorageParameters) is { } storage)
+        {
+            sb.Append(" WITH (").Append(storage).Append(')');
+        }
+
+        return sb.ToString();
     }
 
     // The CONSTRAINT "<name>" UNIQUE ("col", ...) clause for a unique constraint. A unique
@@ -2088,7 +2121,8 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
 
         var columnList = string.Join(", ", columns.Select(c => $"\"{SqlName.UnqualifiedOf(c)}\""));
 
-        return $"CONSTRAINT {SqlName.Parse(uniqueName).QuotedUnqualified} UNIQUE ({columnList})";
+        return $"CONSTRAINT {SqlName.Parse(uniqueName).QuotedUnqualified} UNIQUE ({columnList})"
+            + GetIndexBackedConstraintSuffix(uniqueConstraint);
     }
 
     // CONSTRAINT <name> CHECK (<predicate>), for a CHECK constraint written into a

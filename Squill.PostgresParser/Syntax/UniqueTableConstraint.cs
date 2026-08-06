@@ -4,7 +4,7 @@ namespace Squill.PostgresParser.Syntax;
 /// A table-level uniqueness constraint: <c>UNIQUE (col, ...)</c>. Used for composite
 /// unique keys (and single-column ones written at the table level rather than inline).
 /// </summary>
-public class UniqueTableConstraint : TableConstraint
+public class UniqueTableConstraint : TableConstraint, IIndexBackedTableConstraint
 {
     public UniqueTableConstraint(IEnumerable<Identifier> columns)
     {
@@ -20,4 +20,13 @@ public class UniqueTableConstraint : TableConstraint
     /// <see cref="PrimaryKeyTableConstraint.UsingIndex"/>.
     /// </summary>
     public Identifier? UsingIndex { get; set; }
+
+    /// <inheritdoc />
+    public IList<Identifier> IncludeColumns { get; } = new List<Identifier>();
+
+    /// <inheritdoc />
+    public IList<IndexWithOption> WithOptions { get; } = new List<IndexWithOption>();
+
+    /// <inheritdoc />
+    public Identifier? TableSpace { get; set; }
 }
