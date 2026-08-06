@@ -310,4 +310,75 @@ public class MariaDbIndexKeyFidelityTests
 
         Assert.Contains(expected, sql);
     }
+
+    /// <summary>
+    /// A PRIMARY KEY may not take an expression key on either engine, so one is a build error
+    /// rather than something to model (issue #209).
+    ///
+    /// <para>
+    /// Measured: MySQL 9.7 rejects <c>PRIMARY KEY ((a + 1))</c> with <c>ERROR 3756</c>, "The
+    /// primary key cannot be a functional index", and MariaDB 12.3 rejects the same text as a
+    /// syntax error (<c>ERROR 1064</c>) because it has no functional indexes at all. The
+    /// MariaDB grammar accepts it regardless — <c>primaryKeyTableConstraint</c> reuses the same
+    /// <c>indexColumnNames</c> every other index form uses — so the rejection has to happen
+    /// here, anchored at the source, instead of surfacing mid-deploy.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task PrimaryKey_ExpressionKey_IsABuildError()
+    {
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(() => BuildModelAsync("""
+            CREATE TABLE t
+            (
+                a int NOT NULL,
+                PRIMARY KEY ((a + 1))
+            );
+            """));
+
+        Assert.Equal(SqlSourceException.InvalidConstraint, ex.Code);
+        Assert.Contains("Primary key on table 't'", ex.Message);
+        Assert.Contains("expression", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The regression guard for the fix: a UNIQUE key over the same expression is valid MySQL
+    /// and must keep being modeled, so the rejection above is scoped to the primary key alone.
+    /// </summary>
+    [Fact]
+    public async Task UniqueKey_ExpressionKey_RemainsModeled()
+    {
+        var model = await BuildModelAsync("""
+            CREATE TABLE t
+            (
+                a int NOT NULL,
+                UNIQUE KEY u ((a + 1))
+            );
+            """);
+
+        var key = Assert.Single(KeysOf(model, MariaDbElementTypes.SqlIndex, "u"));
+
+        Assert.NotNull(key.GetProperty<string>(MariaDbPropertyNames.KeyExpression));
+        Assert.Null(key.GetRelationship(MariaDbRelationshipNames.Column));
+    }
+
+    /// <summary>
+    /// An unnamed UNIQUE takes its name from its first column, which an expression key does not
+    /// have — the same missing-column dereference as the primary key above (issue #209). MySQL
+    /// derives the name from the whole functional key rather than from a column, so it cannot
+    /// be predicted at build time and an explicit name is required instead.
+    /// </summary>
+    [Fact]
+    public async Task UnnamedUniqueKey_LeadingExpressionKey_IsABuildError()
+    {
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(() => BuildModelAsync("""
+            CREATE TABLE t
+            (
+                a int NOT NULL,
+                UNIQUE ((a + 1))
+            );
+            """));
+
+        Assert.Equal(SqlSourceException.InvalidConstraint, ex.Code);
+        Assert.Contains("expression", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
 }

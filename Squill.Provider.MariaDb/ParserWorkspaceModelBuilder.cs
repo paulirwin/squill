@@ -845,6 +845,21 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 switch (constraint)
                 {
                     case PrimaryKeyTableConstraint pk:
+                        // Neither engine accepts a functional key in a primary key: MySQL
+                        // rejects it with ERROR 3756 ("The primary key cannot be a functional
+                        // index") and MariaDB, which has no functional indexes, with a syntax
+                        // error. The grammar admits one anyway, because a PK reuses the same
+                        // indexColumnNames every other index form uses (issue #209).
+                        if (pk.Columns.Any(c => c.KeyExpression is not null))
+                        {
+                            AddError(new SqlSourceException(
+                                $"Primary key on table '{table}' uses an expression key. "
+                                + "A primary key must name columns; neither MariaDB nor MySQL "
+                                + "accepts a functional index as a primary key.",
+                                file.Name, line, column,
+                                SqlSourceException.InvalidConstraint));
+                        }
+
                         CheckOwnColumns(file, line, column,
                             $"Primary key on table '{table}'", table, columns,
                             KeyColumnNames(pk.Columns));
@@ -853,6 +868,22 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         break;
 
                     case UniqueKeyTableConstraint unique:
+                        // An unnamed unique index is named after its first column, which an
+                        // expression key does not have (issue #209). MySQL derives the name
+                        // from the functional key itself, which cannot be predicted here, so
+                        // an explicit name is required rather than guessed.
+                        if ((constraintName ?? unique.IndexName) is null
+                            && unique.Columns is [{ KeyExpression: not null }, ..])
+                        {
+                            AddError(new SqlSourceException(
+                                $"Unique constraint on table '{table}' starts with an expression "
+                                + "key and has no name. Name it explicitly: the name MySQL "
+                                + "derives for a functional key cannot be predicted at build "
+                                + "time.",
+                                file.Name, line, column,
+                                SqlSourceException.InvalidConstraint));
+                        }
+
                         CheckOwnColumns(file, line, column,
                             $"Unique constraint on table '{table}'", table, columns,
                             KeyColumnNames(unique.Columns));
@@ -1223,9 +1254,16 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
         // UNIQUE constraints/indexes become unique SqlIndex elements. MariaDB names a unique
         // index after its first column (uniquified with _2, _3, … on collision); with only
-        // the common single-unique case in scope, use the first column's name.
+        // the common single-unique case in scope, use the first column's name. An unnamed one
+        // leading with an expression key names no column and is rejected by the validator
+        // before this runs (issue #209).
         foreach (var (explicitName, columns) in uniqueIndexes)
         {
+            if (explicitName is null && columns[0].Column is null)
+            {
+                continue;
+            }
+
             var indexName = tableName.Sibling(explicitName ?? columns[0].Column!.Name);
 
             var indexedColumns = columns.Select(c =>
@@ -1295,12 +1333,19 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             switch (constraint)
             {
                 case PrimaryKeyTableConstraint pk:
+                    // A PK key carries a plain column with an optional prefix length; the
+                    // catalog reports no direction for one, so none is modeled (issue #161).
+                    // An expression key is rejected by the validator before this runs, so a
+                    // key naming no column is skipped rather than dereferenced (issue #209).
                     foreach (var column in pk.Columns)
                     {
-                        // A PK key is always a plain column with an optional prefix length; the
-                        // catalog reports no direction for one, so none is modeled (issue #161).
+                        if (column.Column is not { } keyColumn)
+                        {
+                            continue;
+                        }
+
                         primaryKeyColumns.Add(new MariaDbModelFactory.IndexedColumn(
-                            tableName.Child(column.Column!.Name),
+                            tableName.Child(keyColumn.Name),
                             PrefixLength: column.PrefixLength));
                     }
                     break;
