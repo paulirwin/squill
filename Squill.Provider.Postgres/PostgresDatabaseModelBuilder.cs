@@ -1437,8 +1437,10 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
         var columns = await ExtractPrimaryKeyColumnsAsync(constraintSchema, name, tableSqlName, cancellationToken);
 
+        // Keyed on constraint_schema, the same schema ExtractPrimaryKeyColumnsAsync uses, so
+        // both lookups of this one constraint agree on where it lives.
         var (includedColumns, storageParameters) =
-            await ExtractConstraintIndexFacetsAsync(schema, name, tableSqlName, cancellationToken);
+            await ExtractConstraintIndexFacetsAsync(constraintSchema, name, tableSqlName, cancellationToken);
 
         model.Elements.Add(PostgresModelFactory.CreatePrimaryKey(
             SqlName.Object(name), tableSqlName, columns, table.Schema,
