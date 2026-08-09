@@ -308,7 +308,8 @@ public static class PostgresModelFactory
     /// <c>&lt;table&gt;_&lt;column&gt;_check</c> name.
     /// </summary>
     public static Element CreateCheckConstraint(
-        SqlName name, SqlName definingTable, string checkExpression, string schema = "public")
+        SqlName name, SqlName definingTable, string checkExpression, string schema = "public",
+        bool isNoInherit = false)
     {
         var element = new Element(PostgresElementTypes.SqlCheckConstraint)
         {
@@ -333,6 +334,13 @@ public static class PostgresModelFactory
             PostgresPropertyNames.CheckExpression,
             PostgresPropertyNames.NormalizedCheckExpression,
             checkExpression);
+
+        // Inheritable is the Postgres default (connoinherit = false), so the property is stored
+        // only when the constraint is NO INHERIT (issue #205).
+        if (isNoInherit)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.IsNoInherit, true));
+        }
 
         return element;
     }
@@ -1078,7 +1086,8 @@ public static class PostgresModelFactory
         ReferentialAction onUpdate,
         bool isDeferrable = false,
         bool isInitiallyDeferred = false,
-        string schema = "public")
+        string schema = "public",
+        bool isMatchFull = false)
     {
         var columnRelationship = new Relationship(PostgresRelationshipNames.ForeignKeyColumns);
 
@@ -1139,6 +1148,17 @@ public static class PostgresModelFactory
         if (isInitiallyDeferred)
         {
             element.Properties.Add(new Property(PostgresPropertyNames.IsInitiallyDeferred, true));
+        }
+
+        // MATCH SIMPLE is the Postgres default and is what an omitted clause means, so only
+        // MATCH FULL is stored (issue #205) -- storing the default would make `REFERENCES p (x)`
+        // and `REFERENCES p (x) MATCH SIMPLE` hash differently despite being the same
+        // constraint. MATCH PARTIAL never reaches here: the provider rejects it at build time,
+        // because PostgreSQL does not implement it.
+        if (isMatchFull)
+        {
+            element.Properties.Add(new Property(
+                PostgresPropertyNames.MatchType, ForeignKeyMatchType.Full.ToString()));
         }
 
         return element;

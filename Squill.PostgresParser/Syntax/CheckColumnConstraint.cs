@@ -15,4 +15,11 @@ public class CheckColumnConstraint : ColumnConstraint
     }
 
     public Expression Expression { get; }
+
+    /// <summary>
+    /// Whether the constraint carries <c>NO INHERIT</c> (issue #205). Inline this is the
+    /// <c>no_inherit_</c> rule on the CHECK alternative itself (grammar :724), the counterpart
+    /// to <see cref="CheckTableConstraint.IsNoInherit"/>.
+    /// </summary>
+    public bool IsNoInherit { get; set; }
 }

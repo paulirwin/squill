@@ -30,4 +30,12 @@ public class ForeignKeyTableConstraint : TableConstraint
     public ReferentialAction? OnDelete { get; }
 
     public ReferentialAction? OnUpdate { get; }
+
+    /// <summary>
+    /// The <c>MATCH</c> clause (issue #205). Defaults to <see cref="ForeignKeyMatchType.Simple"/>,
+    /// which is both the PostgreSQL default and what an omitted clause means, so the explicit
+    /// and omitted spellings of the default land on one value and cannot re-diff against each
+    /// other.
+    /// </summary>
+    public ForeignKeyMatchType MatchType { get; set; } = ForeignKeyMatchType.Simple;
 }

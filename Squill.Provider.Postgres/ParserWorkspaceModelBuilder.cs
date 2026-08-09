@@ -580,6 +580,23 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     constraint.Line ?? createTableStatement.Line,
                     constraint.Column ?? createTableStatement.Column));
             }
+
+            // NOT VALID is not modeled (issue #205). Measured against PostgreSQL 18, the clause
+            // is accepted and ignored inside CREATE TABLE -- the constraint comes back
+            // convalidated = t -- and is honoured only by ALTER TABLE ADD CONSTRAINT. Since a
+            // constraint is scripted inline or as a standalone ADD CONSTRAINT depending on
+            // dependency order, modeling it would round-trip on one path and re-diff on the
+            // other, so it is dropped with a warning instead.
+            if (constraint.IsNotValid)
+            {
+                warnings.Add(new SqlSourceDiagnostic(
+                    $"NOT VALID on a constraint on table '{table}' is not modeled; the "
+                    + "constraint will be deployed as validated. PostgreSQL itself ignores the "
+                    + "clause in a CREATE TABLE, where there are no existing rows to skip.",
+                    file.Name,
+                    constraint.Line ?? createTableStatement.Line,
+                    constraint.Column ?? createTableStatement.Column));
+            }
         }
 
         foreach (var columnDefinition in createTableStatement.Elements.OfType<ColumnDefinition>())
@@ -1305,7 +1322,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         ReferentialAction OnDelete,
         ReferentialAction OnUpdate,
         bool IsDeferrable = false,
-        bool IsInitiallyDeferred = false);
+        bool IsInitiallyDeferred = false,
+        bool IsMatchFull = false);
 
     // A UNIQUE constraint gathered while walking a CREATE TABLE, before it becomes an
     // element (its name may be explicit or derived from the Postgres convention).
@@ -1322,7 +1340,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     // was written on (null for a table-level one), which is what Postgres folds into the
     // name it derives for an unnamed constraint.
     private sealed record CheckConstraintSpec(
-        string? ExplicitName, string? Column, string Expression);
+        string? ExplicitName, string? Column, string Expression, bool IsNoInherit = false);
 
     // Postgres names an unnamed CHECK constraint <table>_<column>_check for one written
     // inline on a column, and <table>_check for a table-level one. Predicting the name lets
@@ -1361,6 +1379,20 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 $"A constraint on table '{table}' declares USING INDEX TABLESPACE "
                 + $"'{tablespace.Name}', which Squill does not model. Only the default "
                 + "tablespace (pg_default) is supported.");
+        }
+    }
+
+    // MATCH PARTIAL parses, but PostgreSQL does not implement it: a server given one answers
+    // "MATCH PARTIAL not yet implemented" and refuses the statement (measured on PG 18). It is
+    // rejected here rather than modeled, so the build fails on the declaration instead of the
+    // deploy failing later against a server that was never going to accept it (issue #205).
+    private static void RejectMatchPartial(ForeignKeyMatchType matchType, string table)
+    {
+        if (matchType == ForeignKeyMatchType.Partial)
+        {
+            throw new NotSupportedException(
+                $"A foreign key on table '{table}' declares MATCH PARTIAL, which PostgreSQL "
+                + "does not implement. Use MATCH FULL or MATCH SIMPLE.");
         }
     }
 
@@ -1454,7 +1486,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 ?? DeriveCheckConstraintName(tableName.UnqualifiedName, check.Column));
 
             yield return PostgresModelFactory.CreateCheckConstraint(
-                checkName, tableName, check.Expression, schema);
+                checkName, tableName, check.Expression, schema, check.IsNoInherit);
         }
 
         foreach (var foreignKey in foreignKeys)
@@ -1487,7 +1519,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             spec.OnUpdate,
             spec.IsDeferrable,
             spec.IsInitiallyDeferred,
-            schema);
+            schema,
+            spec.IsMatchFull);
     }
 
     // Walks the table-level constraints, appending table-level PK columns, unique specs and
@@ -1542,6 +1575,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             }
             else if (constraint is ForeignKeyTableConstraint fk)
             {
+                RejectMatchPartial(fk.MatchType, table: tableName.UnqualifiedName);
+
                 foreignKeys.Add(new ForeignKeySpec(
                     explicitName,
                     fk.Columns.Select(c => c.Name).ToList(),
@@ -1552,14 +1587,16 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     // The visitor has already collapsed INITIALLY DEFERRED ⇒ DEFERRABLE, so
                     // unlike the inline path there is nothing left to resolve here (issue #160).
                     fk.IsDeferrable,
-                    fk.IsInitiallyDeferred));
+                    fk.IsInitiallyDeferred,
+                    fk.MatchType == ForeignKeyMatchType.Full));
             }
             else if (constraint is CheckTableConstraint check)
             {
                 // A table-level CHECK has no column of its own; its predicate may span any
                 // columns of the table (issue #120).
                 checkConstraints.Add(new CheckConstraintSpec(
-                    explicitName, Column: null, ExpressionSqlRenderer.Render(check.Expression)));
+                    explicitName, Column: null, ExpressionSqlRenderer.Render(check.Expression),
+                    check.IsNoInherit));
             }
         }
 
@@ -1686,6 +1723,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 }
                 else if (constraint is ForeignKeyColumnConstraint fk)
                 {
+                    RejectMatchPartial(fk.MatchType, table: tableName.UnqualifiedName);
+
                     // Held rather than added, because a DEFERRABLE / INITIALLY DEFERRED written
                     // after this clause is a sibling constraint node not yet seen (#159).
                     inlineForeignKey = new ForeignKeySpec(
@@ -1694,7 +1733,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         fk.ReferencedTable,
                         fk.ReferencedColumn is { } refCol ? new[] { refCol.Name } : Array.Empty<string>(),
                         fk.OnDelete ?? ReferentialAction.NoAction,
-                        fk.OnUpdate ?? ReferentialAction.NoAction);
+                        fk.OnUpdate ?? ReferentialAction.NoAction,
+                        IsMatchFull: fk.MatchType == ForeignKeyMatchType.Full);
                 }
                 else if (constraint is CollateColumnConstraint collate)
                 {
@@ -1714,7 +1754,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     checkConstraints.Add(new CheckConstraintSpec(
                         explicitName,
                         columnDefinition.Name.Name,
-                        ExpressionSqlRenderer.Render(check.Expression)));
+                        ExpressionSqlRenderer.Render(check.Expression),
+                        check.IsNoInherit));
                 }
                 else if (constraint is GeneratedColumnConstraint generated)
                 {

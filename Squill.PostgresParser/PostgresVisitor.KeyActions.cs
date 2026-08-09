@@ -26,6 +26,35 @@ public partial class PostgresVisitor
         return (onDelete, onUpdate);
     }
 
+    // key_match : MATCH (FULL | PARTIAL | SIMPLE) -- optional, and reachable from both the
+    // table-level FOREIGN KEY (constraintelem) and the inline REFERENCES (colconstraintelem),
+    // so both spellings read it here (issue #205). Absent means MATCH SIMPLE, which is
+    // PostgreSQL's default, so the omitted and explicit spellings collapse to one value.
+    private static ForeignKeyMatchType ParseKeyMatch(PostgreSQLParser.Key_matchContext? context)
+    {
+        if (context is null)
+        {
+            return ForeignKeyMatchType.Simple;
+        }
+
+        if (context.FULL() is not null)
+        {
+            return ForeignKeyMatchType.Full;
+        }
+
+        if (context.PARTIAL() is not null)
+        {
+            return ForeignKeyMatchType.Partial;
+        }
+
+        if (context.SIMPLE() is not null)
+        {
+            return ForeignKeyMatchType.Simple;
+        }
+
+        throw new PostgresParseException($"Unable to parse MATCH type: {context.GetText()}");
+    }
+
     private ReferentialAction ParseKeyAction(PostgreSQLParser.Key_actionContext context)
     {
         if (context.CASCADE() is not null)

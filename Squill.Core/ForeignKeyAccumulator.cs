@@ -19,13 +19,15 @@ public sealed class ForeignKeyAccumulator<TName, TAction>
         TAction onDelete,
         TAction onUpdate,
         bool isDeferrable = false,
-        bool isInitiallyDeferred = false)
+        bool isInitiallyDeferred = false,
+        bool isMatchFull = false)
     {
         ReferencedTable = referencedTable;
         OnDelete = onDelete;
         OnUpdate = onUpdate;
         IsDeferrable = isDeferrable;
         IsInitiallyDeferred = isInitiallyDeferred;
+        IsMatchFull = isMatchFull;
     }
 
     public TName ReferencedTable { get; }
@@ -39,6 +41,14 @@ public sealed class ForeignKeyAccumulator<TName, TAction>
     /// </summary>
     public bool IsDeferrable { get; }
     public bool IsInitiallyDeferred { get; }
+
+    /// <summary>
+    /// Whether the foreign key is <c>MATCH FULL</c>, so a composite key must be either entirely
+    /// NULL or entirely non-NULL. False means <c>MATCH SIMPLE</c>, which is the default on both
+    /// engines and what an omitted clause means; <c>MATCH PARTIAL</c> never reaches here,
+    /// because PostgreSQL does not implement it (issue #205).
+    /// </summary>
+    public bool IsMatchFull { get; }
 
     public List<TName> Columns { get; } = new();
     public List<TName> ReferencedColumns { get; } = new();

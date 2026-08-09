@@ -28,4 +28,10 @@ public class ForeignKeyColumnConstraint : ColumnConstraint
     public ReferentialAction? OnDelete { get; }
 
     public ReferentialAction? OnUpdate { get; }
+
+    /// <summary>
+    /// The <c>MATCH</c> clause (issue #205), reachable inline as well as at table level.
+    /// Defaults to <see cref="ForeignKeyMatchType.Simple"/>, matching PostgreSQL's own default.
+    /// </summary>
+    public ForeignKeyMatchType MatchType { get; set; } = ForeignKeyMatchType.Simple;
 }

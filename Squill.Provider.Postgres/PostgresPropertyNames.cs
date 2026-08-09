@@ -18,6 +18,16 @@ public sealed class PostgresPropertyNames : SqlPropertyNames
     // DEFERRABLE (PostgreSQL rejects the combination without it).
     public const string IsDeferrable = nameof(IsDeferrable);
     public const string IsInitiallyDeferred = nameof(IsInitiallyDeferred);
+    // A foreign key's MATCH type (issue #205), stored only when it is MATCH FULL: pg_constraint
+    // reports confmatchtype 's' for both an omitted clause and an explicit MATCH SIMPLE, so
+    // storing the default would make the two spellings of one declaration re-diff. MATCH
+    // PARTIAL is never stored -- PostgreSQL itself rejects it ("MATCH PARTIAL not yet
+    // implemented"), so the provider refuses it at build time instead.
+    public const string MatchType = nameof(MatchType);
+    // Whether a CHECK constraint is NO INHERIT (issue #205), stored only when true. Measured:
+    // pg_constraint.connoinherit is false for an ordinary CHECK, and a child table created by
+    // INHERITS does not receive a NO INHERIT constraint at all.
+    public const string IsNoInherit = nameof(IsNoInherit);
     public const string IsIdentity = nameof(IsIdentity);
     public const string IdentityGeneration = nameof(IdentityGeneration);
     // Identity sequence options (issue #13), stored only when they differ from the
