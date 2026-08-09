@@ -4,7 +4,7 @@ namespace Squill.PostgresParser.Syntax;
 /// A table-level primary key: <c>PRIMARY KEY (col, ...)</c>. Used for composite keys
 /// (and single-column keys written at the table level rather than inline).
 /// </summary>
-public class PrimaryKeyTableConstraint : TableConstraint
+public class PrimaryKeyTableConstraint : TableConstraint, IIndexBackedTableConstraint
 {
     public PrimaryKeyTableConstraint(IEnumerable<Identifier> columns)
     {
@@ -20,4 +20,13 @@ public class PrimaryKeyTableConstraint : TableConstraint
     /// (issue #143): the model cannot express a constraint bound to one specific index.
     /// </summary>
     public Identifier? UsingIndex { get; set; }
+
+    /// <inheritdoc />
+    public IList<Identifier> IncludeColumns { get; } = new List<Identifier>();
+
+    /// <inheritdoc />
+    public IList<IndexWithOption> WithOptions { get; } = new List<IndexWithOption>();
+
+    /// <inheritdoc />
+    public Identifier? TableSpace { get; set; }
 }

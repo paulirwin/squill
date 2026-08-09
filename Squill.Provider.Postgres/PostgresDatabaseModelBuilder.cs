@@ -1437,8 +1437,71 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
         var columns = await ExtractPrimaryKeyColumnsAsync(constraintSchema, name, tableSqlName, cancellationToken);
 
+        // Keyed on constraint_schema, the same schema ExtractPrimaryKeyColumnsAsync uses, so
+        // both lookups of this one constraint agree on where it lives.
+        var (includedColumns, storageParameters) =
+            await ExtractConstraintIndexFacetsAsync(constraintSchema, name, tableSqlName, cancellationToken);
+
         model.Elements.Add(PostgresModelFactory.CreatePrimaryKey(
-            SqlName.Object(name), tableSqlName, columns, table.Schema));
+            SqlName.Object(name), tableSqlName, columns, table.Schema,
+            includedColumns, storageParameters));
+    }
+
+    /// <summary>
+    /// The INCLUDE columns and WITH (...) storage parameters of a constraint, read from the
+    /// index backing it (issue #210).
+    ///
+    /// Both live on that index rather than on the constraint row: the covering columns are the
+    /// attributes past <c>pg_index.indnkeyatts</c>, and the storage parameters are the index's
+    /// <c>pg_class.reloptions</c>, which <c>pg_get_constraintdef</c> does not render at all.
+    /// </summary>
+    private async Task<(IReadOnlyList<SqlName> Included, string? StorageParameters)>
+        ExtractConstraintIndexFacetsAsync(
+            string schema, string constraintName, SqlName tableSqlName,
+            CancellationToken cancellationToken)
+    {
+        // attnum > indnkeyatts is exactly the INCLUDE set: PostgreSQL stores the covering
+        // columns after the key columns, and indnkeyatts is the count of the key ones.
+        const string sql = """
+            SELECT a.attname AS column_name,
+                   array_to_string(i.reloptions, ', ') AS storage_parameters
+            FROM pg_constraint c
+            JOIN pg_class i ON i.oid = c.conindid
+            JOIN pg_namespace n ON n.oid = c.connamespace
+            JOIN pg_index ix ON ix.indexrelid = c.conindid
+            LEFT JOIN pg_attribute a
+                   ON a.attrelid = i.oid AND a.attnum > ix.indnkeyatts
+            WHERE n.nspname = @schema
+              AND c.conname = @name
+            ORDER BY a.attnum;
+            """;
+
+        var parameters = new[]
+        {
+            new DatabaseParameter<string>("@schema", schema),
+            new DatabaseParameter<string>("@name", constraintName),
+        };
+
+        var included = new List<SqlName>();
+        string? storageParameters = null;
+
+        await using var reader = await _database.RunScriptReaderAsync(sql, parameters, cancellationToken);
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            // The LEFT JOIN yields one row with a null column when there are no INCLUDE
+            // columns, so the storage parameters are still read from it.
+            storageParameters ??= reader.IsDBNull("storage_parameters")
+                ? null
+                : reader.GetString("storage_parameters");
+
+            if (!reader.IsDBNull("column_name"))
+            {
+                included.Add(tableSqlName.Child(reader.GetString("column_name")));
+            }
+        }
+
+        return (included, storageParameters);
     }
 
     // Extracts the table's UNIQUE constraints (issue #121). Read from pg_constraint rather
@@ -1499,9 +1562,12 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
         foreach (var constraintName in order)
         {
+            var (includedColumns, storageParameters) = await ExtractConstraintIndexFacetsAsync(
+                table.Schema, constraintName, tableSqlName, cancellationToken);
+
             model.Elements.Add(PostgresModelFactory.CreateUniqueConstraint(
                 SqlName.Object(constraintName), tableSqlName, constraints[constraintName],
-                table.Schema));
+                table.Schema, includedColumns, storageParameters));
         }
     }
 

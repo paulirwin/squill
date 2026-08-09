@@ -171,9 +171,50 @@ public static class PostgresModelFactory
         return element;
     }
 
+    /// <summary>
+    /// Adds the facets a constraint shares with the index that backs it (issue #210): the
+    /// <c>INCLUDE (...)</c> covering columns and the <c>WITH (...)</c> storage parameters.
+    ///
+    /// Deliberately the same relationship and property an index uses, so the constraint
+    /// spelling and the CREATE INDEX spelling of the same declaration converge on one
+    /// representation instead of two that cannot be compared. Each is added only when present,
+    /// so an ordinary constraint hashes exactly as it did before and cannot start re-diffing.
+    ///
+    /// Tablespace is not among them: the index path rejects any non-default one rather than
+    /// modeling it (issue #160, measured), and the constraint path does the same.
+    /// </summary>
+    private static void AddIndexBackedConstraintFacets(
+        Element element,
+        IEnumerable<SqlName>? includedColumns,
+        string? storageParameters)
+    {
+        if (includedColumns is not null)
+        {
+            var included = new Relationship(PostgresRelationshipNames.IncludedColumns);
+
+            foreach (var includedColumn in includedColumns)
+            {
+                included.Add(new Reference(includedColumn));
+            }
+
+            if (included.Entries.Count > 0)
+            {
+                element.Relationships.Add(included);
+            }
+        }
+
+        if (storageParameters is not null)
+        {
+            element.Properties.Add(
+                new Property(PostgresPropertyNames.StorageParameters, storageParameters));
+        }
+    }
+
     public static Element CreatePrimaryKey(
         SqlName name, SqlName definingTable, IEnumerable<IndexedColumn> columns,
-        string schema = "public")
+        string schema = "public",
+        IEnumerable<SqlName>? includedColumns = null,
+        string? storageParameters = null)
     {
         var columnSpecs = new Relationship(PostgresRelationshipNames.ColumnSpecifications);
 
@@ -182,7 +223,7 @@ public static class PostgresModelFactory
             columnSpecs.Add(CreateIndexedColumnSpecification(column));
         }
 
-        return new Element(PostgresElementTypes.SqlPrimaryKeyConstraint)
+        var element = new Element(PostgresElementTypes.SqlPrimaryKeyConstraint)
         {
             Name = name,
             Relationships =
@@ -204,6 +245,10 @@ public static class PostgresModelFactory
                 }
             }
         };
+
+        AddIndexBackedConstraintFacets(element, includedColumns, storageParameters);
+
+        return element;
     }
 
     /// <summary>
@@ -213,7 +258,9 @@ public static class PostgresModelFactory
     /// </summary>
     public static Element CreateUniqueConstraint(
         SqlName name, SqlName definingTable, IEnumerable<IndexedColumn> columns,
-        string schema = "public")
+        string schema = "public",
+        IEnumerable<SqlName>? includedColumns = null,
+        string? storageParameters = null)
     {
         var columnSpecs = new Relationship(PostgresRelationshipNames.ColumnSpecifications);
 
@@ -222,7 +269,7 @@ public static class PostgresModelFactory
             columnSpecs.Add(CreateIndexedColumnSpecification(column));
         }
 
-        return new Element(PostgresElementTypes.SqlUniqueConstraint)
+        var element = new Element(PostgresElementTypes.SqlUniqueConstraint)
         {
             Name = name,
             Relationships =
@@ -241,6 +288,10 @@ public static class PostgresModelFactory
                 }
             }
         };
+
+        AddIndexBackedConstraintFacets(element, includedColumns, storageParameters);
+
+        return element;
     }
 
     /// <summary>

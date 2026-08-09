@@ -32,7 +32,9 @@ public partial class PostgresVisitor
 
             return At(
                 WithConstraintAttributes(
-                    new PrimaryKeyTableConstraint(ParseColumnList(columnlist)), context),
+                    WithIndexOptions(
+                        new PrimaryKeyTableConstraint(ParseColumnList(columnlist)), context),
+                    context),
                 context);
         }
 
@@ -49,7 +51,9 @@ public partial class PostgresVisitor
 
             return At(
                 WithConstraintAttributes(
-                    new UniqueTableConstraint(ParseColumnList(uniqueColumnlist)), context),
+                    WithIndexOptions(
+                        new UniqueTableConstraint(ParseColumnList(uniqueColumnlist)), context),
+                    context),
                 context);
         }
 
@@ -78,6 +82,58 @@ public partial class PostgresVisitor
         }
 
         throw new NotImplementedException("Table constraint type not yet implemented");
+    }
+
+    /// <summary>
+    /// Reads the index-shaped clauses a PRIMARY KEY or UNIQUE constraint accepts alongside its
+    /// key columns (issue #210): <c>c_include_</c>, <c>definition_</c> and
+    /// <c>optconstablespace</c>. All three parsed and were then discarded, so the same
+    /// declaration behaved differently depending on whether it was written as a constraint or
+    /// as a CREATE INDEX -- which already reads all three.
+    ///
+    /// <c>nulls_distinct</c> is deliberately not read here: the grammar threads it into
+    /// <c>indexstmt</c> only, so the constraint spelling does not parse at all and there is
+    /// nothing to read (issue #187, blocked on a grammar re-vendor).
+    /// </summary>
+    private T WithIndexOptions<T>(T constraint, PostgreSQLParser.ConstraintelemContext context)
+        where T : TableConstraint, IIndexBackedTableConstraint
+    {
+        // INCLUDE (cols). Plain column names here, unlike CREATE INDEX's include_, which reuses
+        // index_elem -- so these parse through ParseColumnList rather than the index visitor.
+        if (context.c_include_()?.columnlist() is { } includeColumns)
+        {
+            foreach (var column in ParseColumnList(includeColumns))
+            {
+                constraint.IncludeColumns.Add(column);
+            }
+        }
+
+        // WITH (name = value, ...). definition_ : WITH definition, and definition's def_elem is
+        // `colLabel (EQUAL def_arg)?` -- the same name/value shape CREATE INDEX's reloption_elem
+        // has, minus the namespaced `ns.option` alternative, so there is no namespace case to
+        // reject here.
+        if (context.definition_()?.definition()?.def_list() is { } defList)
+        {
+            foreach (var defElem in defList.def_elem())
+            {
+                constraint.WithOptions.Add(new IndexWithOption(
+                    defElem.colLabel().GetText(), defElem.def_arg()?.GetText()));
+            }
+        }
+
+        // USING INDEX TABLESPACE name.
+        if (context.optconstablespace()?.name() is { } tablespaceName)
+        {
+            if (VisitName(tablespaceName) is not Identifier tablespace)
+            {
+                throw new PostgresParseException(
+                    "Unable to parse USING INDEX TABLESPACE name for constraint");
+            }
+
+            constraint.TableSpace = tablespace;
+        }
+
+        return constraint;
     }
 
     /// <summary>
