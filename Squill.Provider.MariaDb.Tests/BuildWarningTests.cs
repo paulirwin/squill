@@ -238,4 +238,75 @@ CREATE TABLE book
 
         Assert.Empty(result.Warnings);
     }
+
+    /// <summary>
+    /// A temporary table models and deploys as a *permanent* one, which is not what the source
+    /// declares (issue #204). It exists only for the connection that created it and is dropped
+    /// when that connection closes, so it can never be part of a schema a deploy converges on
+    /// the very next connection would find it missing and recreate it forever.
+    /// </summary>
+    [Fact]
+    public async Task TemporaryTable_IsABuildError()
+    {
+        var builder = BuilderFor(("Scratch.sql", "CREATE TEMPORARY TABLE scratch (id int);"));
+
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(
+            () => builder.ExtractModelAsync(TestContext.Current.CancellationToken));
+
+        Assert.Contains("scratch", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("temporary", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Scratch.sql", ex.SourceFile);
+    }
+
+    /// <summary>
+    /// MySQL takes the same rejection as MariaDB: TEMPORARY means the same thing on both, so
+    /// the answer must not vary by engine.
+    /// </summary>
+    [Fact]
+    public async Task OnMySql_TemporaryTable_IsABuildError()
+    {
+        var builder = BuilderFor(
+            new MySql9DatabaseSchemaProvider(), ("Scratch.sql", "CREATE TEMPORARY TABLE scratch (id int);"));
+
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(
+            () => builder.ExtractModelAsync(TestContext.Current.CancellationToken));
+
+        Assert.Contains("temporary", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The error must point at the offending statement rather than merely naming the file, so
+    /// the host can put the squiggle in the right place.
+    /// </summary>
+    [Fact]
+    public async Task TemporaryTable_ErrorIsAnchoredToTheStatement()
+    {
+        const string sql = """
+CREATE TABLE keeper (id int PRIMARY KEY);
+
+CREATE TEMPORARY TABLE scratch (id int);
+""";
+        var builder = BuilderFor(("Mixed.sql", sql));
+
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(
+            () => builder.ExtractModelAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal("Mixed.sql", ex.SourceFile);
+        Assert.Equal(3, ex.Line);
+    }
+
+    /// <summary>
+    /// The rejection keys off the modifier, not the word "temp" in a name. An ordinary table
+    /// called <c>temp_readings</c> is a perfectly good permanent table.
+    /// </summary>
+    [Fact]
+    public async Task OrdinaryTableNamedTemp_StillBuilds()
+    {
+        var builder = BuilderFor(("Readings.sql", "CREATE TABLE temp_readings (id int PRIMARY KEY);"));
+
+        var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains(result.Model.Elements,
+            e => e.Type == MariaDbElementTypes.SqlTable && e.Name?.Contains("temp_readings") == true);
+    }
 }

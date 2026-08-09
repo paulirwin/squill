@@ -286,6 +286,22 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 switch (statement)
                 {
                     case CreateTableStatement createTable:
+                        // A temporary table models and deploys as an ordinary permanent one,
+                        // which is not what the source declares (issue #204). It belongs to the
+                        // connection that created it and is dropped when that connection closes,
+                        // so it can never be part of a schema a deploy converges on: the next
+                        // extraction would not find it, and every deploy would recreate it.
+                        // Rejected before the validator registers it, so a reference to it reads
+                        // as unresolved rather than silently binding to a table that will not
+                        // exist. Postgres rejects the same declaration for the same reason.
+                        if (createTable.IsTemporary)
+                        {
+                            throw new NotSupportedException(
+                                $"TEMPORARY on table '{createTable.Name.Name}' is not supported: "
+                                + "a temporary table is not part of a declared schema, and deploying "
+                                + "it as an ordinary permanent table would not match what is declared.");
+                        }
+
                         validator.AddCreateTable(file, createTable);
 
                         if (validator.IsDuplicateTable(createTable))

@@ -55,6 +55,14 @@ public sealed class CreateTableStatement(QualifiedName name) : Statement
 
     /// <summary>Column definitions and table-level constraints, in declaration order.</summary>
     public IList<ITableElement> Elements { get; } = new List<ITableElement>();
+
+    /// <summary>
+    /// True when the table was declared <c>CREATE TEMPORARY TABLE</c>. Carried rather than
+    /// rejected in the mapper so the provider can anchor the error to the statement's
+    /// position. MariaDB and MySQL have no UNLOGGED counterpart, so this is a flag rather
+    /// than the persistence string the Postgres side carries (issue #204).
+    /// </summary>
+    public bool IsTemporary { get; set; }
 }
 
 /// <summary>A member of a CREATE TABLE body: a column definition or a table constraint.</summary>

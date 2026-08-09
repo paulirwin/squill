@@ -149,5 +149,32 @@ CREATE TABLE cities (name text NOT NULL, state char(2)) PARTITION BY LIST (state
         Assert.Null(createTable.PartitionOf);
         Assert.Null(createTable.PartitionBound);
         Assert.Null(createTable.PartitionBy);
+        Assert.Null(createTable.Persistence);
+    }
+
+    /// <summary>
+    /// The persistence modifier is carried as written rather than normalized, so the provider
+    /// can echo back the spelling the author used (issue #204). SourceText rather than
+    /// GetText: the latter concatenates tokens, which would render LOCAL TEMPORARY as one
+    /// word.
+    /// </summary>
+    [Theory]
+    [InlineData("TEMP", "TEMP")]
+    [InlineData("TEMPORARY", "TEMPORARY")]
+    [InlineData("temporary", "temporary")]
+    [InlineData("LOCAL TEMP", "LOCAL TEMP")]
+    [InlineData("LOCAL TEMPORARY", "LOCAL TEMPORARY")]
+    [InlineData("GLOBAL TEMP", "GLOBAL TEMP")]
+    [InlineData("GLOBAL TEMPORARY", "GLOBAL TEMPORARY")]
+    [InlineData("UNLOGGED", "UNLOGGED")]
+    public void CreateTable_Persistence_IsCarriedAsWritten(string modifier, string expected)
+    {
+        var createTable = ParseOne($"CREATE {modifier} TABLE scratch (id integer);");
+
+        Assert.Equal(expected, createTable.Persistence);
+
+        // The rest of the statement still parses normally.
+        Assert.Equal("scratch", createTable.Name.ToString());
+        Assert.Single(createTable.Elements);
     }
 }

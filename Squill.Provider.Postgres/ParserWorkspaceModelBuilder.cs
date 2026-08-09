@@ -295,6 +295,28 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     + "table unpartitioned would not match what is declared.");
             }
 
+            // Same failure mode again: a TEMPORARY or UNLOGGED table models and deploys
+            // perfectly happily, as an ordinary permanent table, which is not what the source
+            // declares (issue #204). A temp table belongs to the session that created it and
+            // vanishes with it, so it can never be part of a schema a deploy converges on:
+            // the extraction step would never find it, and every deploy would recreate it.
+            // Rejected rather than warned for the reason PARTITION BY is: the modifier is the
+            // point of the declaration. Matches the TEMP rejection Postgres already applies to
+            // CREATE SEQUENCE and CREATE VIEW, which CREATE TABLE was simply inconsistent with.
+            if (createTableStatement.Persistence is { } persistence)
+            {
+                // Echoed as written rather than upper-cased, so the message quotes what the
+                // author actually typed. The sentence still spells out "temporary or unlogged"
+                // because TEMP alone would leave the reason implicit. Internal whitespace is
+                // collapsed only because SourceText spans the raw text, so LOCAL<newline>TEMP
+                // would otherwise reach the message with the line break in it.
+                throw new NotSupportedException(
+                    $"{CollapseWhitespace(persistence)} on table "
+                    + $"'{SplitSchema(createTableStatement.Name).Name.UnqualifiedName}' is not supported: "
+                    + "a temporary or unlogged table is not part of a declared schema, and deploying "
+                    + "it as an ordinary permanent table would not match what is declared.");
+            }
+
             validator.AddCreateTable(file, createTableStatement);
 
             // A duplicate table would otherwise contribute a second set of elements for the
@@ -2747,6 +2769,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             _ => builtIn.Type.CanonicalName(),
         };
     }
+
+    // Source text spanning more than one token keeps whatever whitespace separated them, which
+    // can include a line break. Collapsed to single spaces so it reads as one phrase inside a
+    // diagnostic message, without otherwise changing the author's spelling.
+    private static string CollapseWhitespace(string text)
+        => string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     private static (string Schema, SqlName Name) SplitSchema(QualifiedName qualifiedName)
     {

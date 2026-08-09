@@ -187,6 +187,115 @@ CREATE TABLE measurement_y2024 PARTITION OF measurement
         Assert.Equal("Measurement.sql", ex.SourceFile);
     }
 
+    /// <summary>
+    /// A temporary table is the same failure mode as a partitioned parent (issue #204): it
+    /// models and deploys perfectly happily, as a *permanent* table, which is not what the
+    /// source declares. A temp table lives only as long as the session that created it, so it
+    /// can never be part of a schema a deploy converges on. Postgres already rejects TEMP on
+    /// a sequence and a view; this is the same policy applied to the table it was missing on.
+    /// </summary>
+    /// <remarks>
+    /// The message opens with the modifier exactly as the author wrote it, lower case
+    /// included, rather than a normalized form: the point of carrying it verbatim is that the
+    /// diagnostic quotes the source back. The sentence that follows names the concept, so
+    /// TEMP alone still reads as a reason.
+    /// </remarks>
+    [Theory]
+    [InlineData("TEMP")]
+    [InlineData("TEMPORARY")]
+    [InlineData("temporary")]
+    [InlineData("LOCAL TEMP")]
+    [InlineData("LOCAL TEMPORARY")]
+    [InlineData("GLOBAL TEMP")]
+    [InlineData("GLOBAL TEMPORARY")]
+    public async Task TemporaryTable_IsABuildError(string modifier)
+    {
+        var builder = BuilderFor(("Scratch.sql", $"CREATE {modifier} TABLE scratch (id integer);"));
+
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(
+            () => builder.ExtractModelAsync(TestContext.Current.CancellationToken));
+
+        Assert.StartsWith($"{modifier} on table 'scratch'", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("temporary", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Scratch.sql", ex.SourceFile);
+    }
+
+    /// <summary>
+    /// A modifier split across lines still reads as one phrase in the message: SourceText spans
+    /// the raw source, so the line break would otherwise land in the middle of the diagnostic.
+    /// </summary>
+    [Fact]
+    public async Task TemporaryTable_ModifierSpanningLines_ReadsAsOnePhrase()
+    {
+        const string sql = """
+CREATE LOCAL
+    TEMPORARY TABLE scratch (id integer);
+""";
+        var builder = BuilderFor(("Scratch.sql", sql));
+
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(
+            () => builder.ExtractModelAsync(TestContext.Current.CancellationToken));
+
+        Assert.StartsWith("LOCAL TEMPORARY on table 'scratch'", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// UNLOGGED is rejected alongside TEMPORARY rather than modeled. It is not session-scoped,
+    /// so it is a weaker case than TEMP, but the table's contents do not survive a crash and
+    /// nothing in the model can express the distinction, so deploying it logged would again
+    /// be different semantics than the source declares. Rejecting states the gap out loud; if
+    /// UNLOGGED is later modeled as a table property, this becomes a build that succeeds.
+    /// </summary>
+    [Fact]
+    public async Task UnloggedTable_IsABuildError()
+    {
+        var builder = BuilderFor(("Staging.sql", "CREATE UNLOGGED TABLE staging (id integer);"));
+
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(
+            () => builder.ExtractModelAsync(TestContext.Current.CancellationToken));
+
+        Assert.Contains("staging", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("UNLOGGED", ex.Message, StringComparison.Ordinal);
+        Assert.Equal("Staging.sql", ex.SourceFile);
+    }
+
+    /// <summary>
+    /// The error must point at the offending statement, not merely at the file: a
+    /// NotImplementedException thrown from inside the visitor would surface with no position
+    /// at all (see ProcessFile), which is why the rejection lives in the provider.
+    /// </summary>
+    [Fact]
+    public async Task TemporaryTable_ErrorIsAnchoredToTheStatement()
+    {
+        const string sql = """
+CREATE TABLE keeper (id integer PRIMARY KEY);
+
+CREATE TEMPORARY TABLE scratch (id integer);
+""";
+        var builder = BuilderFor(("Mixed.sql", sql));
+
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(
+            () => builder.ExtractModelAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal("Mixed.sql", ex.SourceFile);
+        Assert.Equal(3, ex.Line);
+    }
+
+    /// <summary>
+    /// The rejection keys off the modifier, not the word "temp" appearing in a name: an
+    /// ordinary table called <c>temp_readings</c> is a perfectly good permanent table.
+    /// </summary>
+    [Fact]
+    public async Task OrdinaryTableNamedTemp_StillBuilds()
+    {
+        var builder = BuilderFor(("Readings.sql", "CREATE TABLE temp_readings (id integer PRIMARY KEY);"));
+
+        var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains(result.Model.Elements,
+            e => e.Type == PostgresElementTypes.SqlTable && e.Name?.Contains("temp_readings") == true);
+    }
+
     [Fact]
     public async Task PrimaryKeyUsingIndex_WarnsAndTheConstraintIsNotModeled()
     {

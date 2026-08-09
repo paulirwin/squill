@@ -157,4 +157,77 @@ CREATE TABLE warn_event
 
         Assert.Null(column.GetProperty<string>(PostgresPropertyNames.DefaultValue));
     }
+
+    /// <summary>
+    /// CREATE TEMPORARY TABLE is a build error (issue #204), and unlike the cases above the
+    /// server accepts the DDL, so the justification is measured differently. What is shown
+    /// here is that the table does not survive the session that created it: it is created in
+    /// a pg_temp schema rather than the declared one, and the very next connection cannot see
+    /// it. A deploy would create it, the next extraction would not find it, and the deploy
+    /// after that would create it again, forever.
+    /// </summary>
+    [Fact]
+    public async Task TemporaryTable_IsRejectedByBuildBecausePostgresDoesNotKeepIt()
+    {
+        const string sql = "CREATE TEMPORARY TABLE temp_scratch (id integer PRIMARY KEY);";
+
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(() => BuildAsync(("Scratch.sql", sql)));
+
+        Assert.Contains("temporary", ex.Message, StringComparison.OrdinalIgnoreCase);
+
+        // The server accepts it: this is valid SQL, which is exactly why it would otherwise
+        // have deployed silently as something the model cannot track. ExecuteAsync opens its
+        // own connection and closes it, which ends the session and takes the table with it.
+        await ExecuteAsync(sql);
+
+        // A later connection finds nothing: not the table, and no row in the catalog the
+        // model builder reads.
+        var missing = await ExecuteExpectingFailureAsync("SELECT 1 FROM temp_scratch;");
+
+        // 42P01 is undefined_table.
+        Assert.Equal("42P01", missing.SqlState);
+
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+
+        await using var query = new NpgsqlCommand(
+            """
+            SELECT count(*) FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'temp_scratch';
+            """, connection);
+
+        // Measured on PostgreSQL 18: never in the declared schema. While the session lives the
+        // table exists under a pg_temp_N schema instead, which is not a schema the source can
+        // declare or the model can name.
+        Assert.Equal(0L, await query.ExecuteScalarAsync(TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>
+    /// UNLOGGED is rejected too, for a weaker but still real reason: the table persists, so
+    /// unlike TEMP it is visible to extraction, but its contents do not survive a crash and
+    /// the model has nowhere to record the distinction. Deploying it logged would be a
+    /// different table than the one declared, so it is rejected rather than silently altered.
+    /// </summary>
+    [Fact]
+    public async Task UnloggedTable_IsRejectedByBuildAndPostgresRecordsThePersistenceItself()
+    {
+        const string sql = "CREATE UNLOGGED TABLE unlogged_staging (id integer PRIMARY KEY);";
+
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(() => BuildAsync(("Staging.sql", sql)));
+
+        Assert.Contains("UNLOGGED", ex.Message, StringComparison.Ordinal);
+
+        await ExecuteAsync(sql);
+
+        // The server keeps the distinction the model cannot: relpersistence is 'u' for an
+        // unlogged table and 'p' for a permanent one, so deploying this as an ordinary table
+        // really would produce a different object than the source declares.
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+
+        await using var query = new NpgsqlCommand(
+            "SELECT relpersistence FROM pg_class WHERE relname = 'unlogged_staging';", connection);
+
+        Assert.Equal('u', await query.ExecuteScalarAsync(TestContext.Current.CancellationToken));
+    }
 }
