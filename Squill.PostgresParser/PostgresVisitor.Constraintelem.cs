@@ -78,7 +78,10 @@ public partial class PostgresVisitor
                 referencedTable,
                 referencedColumns,
                 onDelete,
-                onUpdate), context), context);
+                onUpdate)
+            {
+                MatchType = ParseKeyMatch(context.key_match()),
+            }, context), context);
         }
 
         throw new NotImplementedException("Table constraint type not yet implemented");
@@ -157,9 +160,9 @@ public partial class PostgresVisitor
 
         foreach (var elem in spec.constraintattributeElem())
         {
-            // The rule also carries NOT VALID and NO INHERIT, which are not deferrability at
-            // all. Gate on the DEFERRABLE / INITIALLY keywords rather than on NOT, or the NOT
-            // of NOT VALID reads as NOT DEFERRABLE.
+            // Each alternative is gated on its own distinguishing keyword rather than on NOT,
+            // which two of them share: NOT DEFERRABLE and NOT VALID mean unrelated things, so
+            // testing NOT alone would read one as the other.
             if (elem.DEFERRABLE() is not null)
             {
                 deferrable = elem.NOT() is null;
@@ -167,6 +170,19 @@ public partial class PostgresVisitor
             else if (elem.INITIALLY() is not null)
             {
                 initiallyDeferred = elem.DEFERRED() is not null;
+            }
+            else if (elem.VALID() is not null)
+            {
+                // NOT VALID (issue #205). Carried so the provider can warn SQ1002; not modeled,
+                // because CREATE TABLE accepts and ignores it -- see TableConstraint.IsNotValid.
+                constraint.IsNotValid = true;
+            }
+            else if (elem.INHERIT() is not null && constraint is CheckTableConstraint check)
+            {
+                // NO INHERIT (issue #205). The table-level CHECK alternative has no
+                // no_inherit_ of its own, so this list is the only route by which it arrives.
+                // PostgreSQL accepts it on CHECK constraints only.
+                check.IsNoInherit = true;
             }
         }
 

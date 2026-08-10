@@ -631,6 +631,16 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             text = text[prefix.Length..].Trim();
         }
 
+        // A NO INHERIT check renders as `CHECK ((b > 0)) NO INHERIT` -- the clause is a suffix
+        // outside the predicate's parentheses, and is carried as its own property (issue #205).
+        // Left in place it would both defeat the paren-stripping below and bake the clause into
+        // the predicate, so the constraint would re-diff on every deploy.
+        const string noInheritSuffix = " NO INHERIT";
+        if (text.EndsWith(noInheritSuffix, StringComparison.Ordinal))
+        {
+            text = text[..^noInheritSuffix.Length].Trim();
+        }
+
         // Remove exactly one balanced pair of outer parentheses (the wrapper), leaving any
         // inner parenthesization the predicate itself carries.
         if (text.Length >= 2 && text[0] == '(' && text[^1] == ')')
@@ -1114,6 +1124,10 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 -- is the Postgres default, so the model stores each only when true.
                 c.condeferrable AS is_deferrable,
                 c.condeferred AS is_initially_deferred,
+                -- MATCH type (issue #205), a single char: 'f' = FULL, 's' = SIMPLE,
+                -- 'p' = PARTIAL. Both an omitted clause and an explicit MATCH SIMPLE report
+                -- 's', so only 'f' is modeled.
+                c.confmatchtype AS match_type,
                 k.ordinality AS key_ordinal,
                 la.attname AS column_name,
                 fa.attname AS referenced_column
@@ -1163,7 +1177,8 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                         MapReferentialAction(reader.GetFieldValue<char>("delete_action")),
                         MapReferentialAction(reader.GetFieldValue<char>("update_action")),
                         reader.GetBoolean("is_deferrable"),
-                        reader.GetBoolean("is_initially_deferred"));
+                        reader.GetBoolean("is_initially_deferred"),
+                        reader.GetFieldValue<char>("match_type") == 'f');
 
                     foreignKeys.Add(constraintName, accumulator);
                     order.Add(constraintName);
@@ -1189,7 +1204,8 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 accumulator.OnUpdate,
                 accumulator.IsDeferrable,
                 accumulator.IsInitiallyDeferred,
-                table.Schema));
+                table.Schema,
+                accumulator.IsMatchFull));
         }
     }
 
@@ -1589,7 +1605,11 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         // the parent's declaration rather than this table's.
         const string sql = """
             SELECT c.conname AS constraint_name,
-                   pg_get_constraintdef(c.oid) AS constraint_def
+                   pg_get_constraintdef(c.oid) AS constraint_def,
+                   -- NO INHERIT (issue #205). Read as a boolean rather than parsed out of the
+                   -- definition text, which renders it as a suffix outside the predicate's
+                   -- parentheses (`CHECK ((b > 0)) NO INHERIT`).
+                   c.connoinherit AS is_no_inherit
             FROM pg_constraint c
             JOIN pg_class t ON t.oid = c.conrelid
             JOIN pg_namespace n ON n.oid = t.relnamespace
@@ -1606,18 +1626,19 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             new DatabaseParameter<string>("@name", table.BareName),
         };
 
-        var checks = new List<(string Name, string Definition)>();
+        var checks = new List<(string Name, string Definition, bool IsNoInherit)>();
 
         await using (var reader = await _database.RunScriptReaderAsync(sql, parameters, cancellationToken))
         {
             while (await reader.ReadAsync(cancellationToken))
             {
                 checks.Add((reader.GetString("constraint_name"),
-                    reader.GetString("constraint_def")));
+                    reader.GetString("constraint_def"),
+                    reader.GetBoolean("is_no_inherit")));
             }
         }
 
-        foreach (var (name, definition) in checks)
+        foreach (var (name, definition, isNoInherit) in checks)
         {
             // A NOT NULL constraint surfaces here on PostgreSQL 18+; the column's
             // IsNullable property already carries it, so modeling it again would produce a
@@ -1629,7 +1650,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
 
             model.Elements.Add(PostgresModelFactory.CreateCheckConstraint(
                 SqlName.Object(name), tableSqlName, NormalizeCheckDefinition(definition),
-                table.Schema));
+                table.Schema, isNoInherit));
         }
     }
 

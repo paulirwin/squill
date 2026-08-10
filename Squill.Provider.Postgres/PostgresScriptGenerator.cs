@@ -1988,6 +1988,15 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             sb.Append(" (").Append(string.Join(", ", foreignColumns.Select(c => $"\"{c}\""))).Append(')');
         }
 
+        // MATCH precedes the ON DELETE / ON UPDATE actions: the grammar is
+        // `REFERENCES ... key_match? key_actions?`, so emitting it after them would not parse.
+        // Stored only for MATCH FULL, so an ordinary foreign key renders nothing (issue #205).
+        if (foreignKey.GetProperty<string>(PostgresPropertyNames.MatchType)
+            == ForeignKeyMatchType.Full.ToString())
+        {
+            sb.Append(" MATCH FULL");
+        }
+
         var deleteAction = foreignKey.GetProperty<string>(PostgresPropertyNames.DeleteAction);
         if (deleteAction != null)
         {
@@ -2142,7 +2151,15 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
                 $"Check constraint '{checkName}' has no expression");
         }
 
-        return $"CONSTRAINT {SqlName.Parse(checkName).QuotedUnqualified} CHECK ({expression})";
+        // NO INHERIT follows the predicate, and is stored only when true, so an ordinary CHECK
+        // renders exactly as it did before (issue #205).
+        var noInherit =
+            checkConstraint.GetProperty<bool?>(PostgresPropertyNames.IsNoInherit) == true
+                ? " NO INHERIT"
+                : string.Empty;
+
+        return $"CONSTRAINT {SqlName.Parse(checkName).QuotedUnqualified} CHECK ({expression})"
+            + noInherit;
     }
 
     // The ordered key columns of an index-backed constraint (a primary key or a unique

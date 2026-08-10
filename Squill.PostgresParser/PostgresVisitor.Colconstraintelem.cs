@@ -57,7 +57,10 @@ public partial class PostgresVisitor
                 referencedTable,
                 referencedColumns.Count == 1 ? referencedColumns[0] : null,
                 onDelete,
-                onUpdate), context);
+                onUpdate)
+            {
+                MatchType = ParseKeyMatch(context.key_match()),
+            }, context);
         }
 
         if (context.GENERATED() is not null && context.IDENTITY_P() is not null)
@@ -129,7 +132,13 @@ public partial class PostgresVisitor
                 throw new PostgresParseException("Unable to parse CHECK constraint expression");
             }
 
-            return At(new CheckColumnConstraint(context.GetText(), checkExpression), context);
+            return At(new CheckColumnConstraint(context.GetText(), checkExpression)
+            {
+                // no_inherit_ : NO INHERIT -- read rather than dropped (issue #205), the inline
+                // counterpart to the table-level spelling that arrives via
+                // constraintattributespec.
+                IsNoInherit = context.no_inherit_() is not null,
+            }, context);
         }
 
         if (context.GENERATED() is not null && context.STORED() is not null)
