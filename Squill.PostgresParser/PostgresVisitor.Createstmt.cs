@@ -109,6 +109,41 @@ public partial class PostgresVisitor
             }
         }
 
+        // The three trailing storage clauses, each of which parsed and was then never read, so it
+        // vanished with no error or warning (issue #206). All three are carried rather than acted
+        // on here, so the provider can reject or warn against the statement's own position.
+        //
+        // The fourth clause of the group, oncommitoption, is deliberately not carried. It is
+        // legal only on a temporary table: PostgreSQL itself refuses it otherwise ("ON COMMIT can
+        // only be used on temporary tables", measured on 18), and a temporary table is already
+        // rejected by the build (issue #204), so no reachable declaration could act on it.
+        if (context.table_access_method_clause()?.name() is { } accessMethodName)
+        {
+            if (VisitName(accessMethodName) is not Identifier accessMethod)
+            {
+                throw new PostgresParseException("Unable to parse USING access method for table");
+            }
+
+            createTable.AccessMethod = accessMethod;
+        }
+
+        // optwith : WITH reloptions | WITHOUT OIDS. Only the first alternative has parameters to
+        // read; WITHOUT OIDS reaches here with a null reloptions() and correctly adds nothing.
+        if (context.optwith()?.reloptions()?.reloption_list() is { } reloptionList)
+        {
+            AddStorageParameters(reloptionList, createTable.WithOptions);
+        }
+
+        if (context.opttablespace()?.name() is { } tablespaceName)
+        {
+            if (VisitName(tablespaceName) is not Identifier tablespace)
+            {
+                throw new PostgresParseException("Unable to parse TABLESPACE for table");
+            }
+
+            createTable.TableSpace = tablespace;
+        }
+
         return createTable;
     }
 

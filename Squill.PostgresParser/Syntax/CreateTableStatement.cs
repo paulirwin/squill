@@ -52,4 +52,32 @@ public class CreateTableStatement : Statement
     /// statement to anchor to (issue #204).
     /// </summary>
     public string? Persistence { get; set; }
+
+    /// <summary>
+    /// The table access method from a <c>USING &lt;method&gt;</c> clause, or null when absent.
+    /// Carried rather than dropped because a table declared <c>USING columnar</c> that deploys as
+    /// a heap table is a large behavioural difference to lose silently (issue #206); the provider
+    /// accepts only the default method and rejects any other.
+    /// </summary>
+    public Identifier? AccessMethod { get; set; }
+
+    /// <summary>
+    /// The tablespace from a <c>TABLESPACE</c> clause, or null when absent. Carried so the table
+    /// spelling can be treated exactly as <c>CREATE INDEX</c>'s already is (issue #160): naming
+    /// the default is a measured no-op, any other placement is rejected rather than lost.
+    /// </summary>
+    public Identifier? TableSpace { get; set; }
+
+    /// <summary>
+    /// The storage parameters from a <c>WITH (...)</c> clause (<c>fillfactor</c>,
+    /// <c>autovacuum_*</c>, <c>toast.*</c>), empty when absent. Reuses the index's option type
+    /// because both come from the same <c>reloptions</c> grammar rule.
+    ///
+    /// <para>
+    /// <c>optwith</c>'s other alternative, <c>WITHOUT OIDS</c>, contributes nothing here: it
+    /// declares no parameter, and PostgreSQL 12 removed the OID columns it once controlled, so it
+    /// leaves this list empty rather than being recorded as an option.
+    /// </para>
+    /// </summary>
+    public IList<IndexWithOption> WithOptions { get; } = new List<IndexWithOption>();
 }
