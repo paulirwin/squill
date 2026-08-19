@@ -590,7 +590,21 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
 
         var sb = new StringBuilder();
 
-        sb.Append("CREATE VIEW ").Append(SqlName.Parse(name).Sql);
+        sb.Append("CREATE ");
+
+        // Issue #208. ALGORITHM and SQL SECURITY come before the VIEW keyword, in the order
+        // both engines accept them; WITH CHECK OPTION trails the query.
+        if (view.GetProperty<string>(MariaDbPropertyNames.ViewAlgorithm) is { } algorithm)
+        {
+            sb.Append("ALGORITHM=").Append(algorithm).Append(' ');
+        }
+
+        if (view.GetProperty<bool?>(MariaDbPropertyNames.IsSecurityInvoker) == true)
+        {
+            sb.Append("SQL SECURITY INVOKER ");
+        }
+
+        sb.Append("VIEW ").Append(SqlName.Parse(name).Sql);
 
         var columns = ViewColumnNames(view).ToList();
 
@@ -601,7 +615,14 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
                 .Append(')');
         }
 
-        sb.AppendLine(" AS").Append(definition).AppendLine(";");
+        sb.AppendLine(" AS").Append(definition);
+
+        if (view.GetProperty<string>(MariaDbPropertyNames.CheckOption) is { } checkOption)
+        {
+            sb.AppendLine().Append("WITH ").Append(checkOption).Append(" CHECK OPTION");
+        }
+
+        sb.AppendLine(";");
 
         return sb.ToString();
     }

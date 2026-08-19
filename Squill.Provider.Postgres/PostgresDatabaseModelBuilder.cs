@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Data;
 using Squill.Core;
 using Squill.PostgresParser.Syntax;
@@ -687,7 +688,17 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                        FROM pg_attribute a
                        WHERE a.attrelid = c.oid
                          AND a.attnum > 0
-                         AND NOT a.attisdropped), '') AS column_names
+                         AND NOT a.attisdropped), '') AS column_names,
+                   -- Issue #208. Read from reloptions, which is where PostgreSQL puts both
+                   -- the WITH (...) options and the trailing WITH CHECK OPTION clause: the
+                   -- clause form is stored as check_option=cascaded/local, indistinguishable
+                   -- from the reloption spelling, so one read covers both.
+                   (SELECT o FROM unnest(c.reloptions) o
+                    WHERE o LIKE 'check_option=%') AS check_option,
+                   (SELECT o FROM unnest(c.reloptions) o
+                    WHERE o LIKE 'security_invoker=%') AS security_invoker,
+                   (SELECT o FROM unnest(c.reloptions) o
+                    WHERE o LIKE 'security_barrier=%') AS security_barrier
             FROM pg_class c
             JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE c.relkind = 'v'
@@ -717,7 +728,10 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                         ? []
                         : columnNames.Split(ViewColumnSeparator),
                     // The database's own query text is never modeled — see above.
-                    definition: null));
+                    definition: null,
+                    ReloptionValue(reader, "check_option")?.ToUpperInvariant(),
+                    ReloptionFlag(reader, "security_invoker"),
+                    ReloptionFlag(reader, "security_barrier")));
             }
         }
 
@@ -730,6 +744,32 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
     // Column names are joined with a record separator, which cannot occur in an identifier.
     private const char ViewColumnSeparator = '';
 
+
+    // A reloptions entry arrives as the whole "name=value" string, so the value is what
+    // follows the first '='. Null when the view declared no such option.
+    private static string? ReloptionValue(DbDataReader reader, string column)
+    {
+        var ordinal = reader.GetOrdinal(column);
+
+        if (reader.IsDBNull(ordinal))
+        {
+            return null;
+        }
+
+        var entry = reader.GetString(ordinal);
+        var separator = entry.IndexOf('=');
+
+        return separator < 0 ? null : entry[(separator + 1)..];
+    }
+
+    // Null when absent, which is a different state from an explicitly written false:
+    // PostgreSQL records security_invoker=false in reloptions rather than dropping it
+    // (measured), so both must survive the round trip distinctly or a view declaring the
+    // default would re-diff on every deploy.
+    private static bool? ReloptionFlag(DbDataReader reader, string column)
+        => ReloptionValue(reader, column) is { } value
+            ? value.Equals("true", StringComparison.OrdinalIgnoreCase)
+            : null;
     private async Task ExtractFunctionsAsync(Model model, CancellationToken cancellationToken = default)
     {
         // prokind = 'f' selects plain functions (as opposed to procedures 'p', aggregates 'a'

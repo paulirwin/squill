@@ -151,6 +151,53 @@ public class PostgresViewTest : PostgresIntegrationTestBase
         }
     }
 
+    // Issue #208. The property round-tripping is necessary but not sufficient: what the
+    // clause is for is constraining writes through the view. This proves the deployed view
+    // actually enforces it, which is what silently dropping the clause stopped happening.
+    [Fact]
+    public async Task DeployedCheckOption_RejectsANonConformingWrite()
+    {
+        IDatabaseProvider provider = new PostgresDatabaseProvider(ConnectionString);
+
+        var model = await BuildModelAsync(
+            "CREATE TABLE widget (id integer PRIMARY KEY, active boolean NOT NULL);"
+            + "CREATE VIEW active_widget AS SELECT id, active FROM widget WHERE active "
+            + "WITH CASCADED CHECK OPTION;");
+
+        var testDb = await provider.CreateDatabaseAsync(
+            $"squill_test_{Guid.NewGuid():n}", TestContext.Current.CancellationToken);
+        var dbModelBuilder = provider.CreateDatabaseModelBuilder(testDb);
+
+        try
+        {
+            var emptyModel = await dbModelBuilder.ExtractModelAsync(TestContext.Current.CancellationToken);
+
+            await testDb.PublishAsync(
+                SchemaCompare.Compare(provider, model, emptyModel),
+                TestContext.Current.CancellationToken);
+
+            await testDb.ConnectAsync(TestContext.Current.CancellationToken);
+
+            // Conforming: the row satisfies the view's predicate.
+            await testDb.RunScriptAsync(
+                "INSERT INTO active_widget (id, active) VALUES (1, true);",
+                cancellationToken: TestContext.Current.CancellationToken);
+
+            // Non-conforming: the row would fall outside the view, so the server must refuse
+            // it. Without the CHECK OPTION reaching the deployed view this insert succeeds.
+            var rejected = await Assert.ThrowsAnyAsync<Exception>(() =>
+                testDb.RunScriptAsync(
+                    "INSERT INTO active_widget (id, active) VALUES (2, false);",
+                    cancellationToken: TestContext.Current.CancellationToken));
+
+            Assert.Contains("check option", rejected.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            await testDb.DropAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
     private static async Task<Model> BuildModelAsync(string sql)
     {
         var workspace = new Workspace();
@@ -168,7 +215,7 @@ public class PostgresViewTest : PostgresIntegrationTestBase
     {
         var views = model.Elements.Where(i => i.Type == PostgresElementTypes.SqlView).ToList();
 
-        Assert.Equal(4, views.Count);
+        Assert.Equal(9, views.Count);
 
         var activeAuthor = Assert.Single(views, i => (string?)i.Name == "public.active_author");
         Assert.Equal(
@@ -203,5 +250,29 @@ public class PostgresViewTest : PostgresIntegrationTestBase
                 "public.all_books.copies",
             },
             ColumnNames(allBooks));
+
+        // Issue #208: the execution and security clauses. These are asserted on both the
+        // parsed and the extracted model (AssertViews runs against each), so a mismatch
+        // between the two sides fails here rather than silently re-diffing on every deploy.
+        var checkedView = Assert.Single(views, i => (string?)i.Name == "public.active_author_checked");
+        Assert.Equal("CASCADED", checkedView.GetProperty<string>(PostgresPropertyNames.CheckOption));
+
+        var localView = Assert.Single(views, i => (string?)i.Name == "public.active_author_local");
+        Assert.Equal("LOCAL", localView.GetProperty<string>(PostgresPropertyNames.CheckOption));
+
+        var invoker = Assert.Single(views, i => (string?)i.Name == "public.author_invoker");
+        Assert.True(invoker.GetProperty<bool?>(PostgresPropertyNames.SecurityInvoker));
+
+        // The explicitly written default, which PostgreSQL records rather than dropping.
+        var invokerFalse = Assert.Single(views, i => (string?)i.Name == "public.author_invoker_false");
+        Assert.False(invokerFalse.GetProperty<bool?>(PostgresPropertyNames.SecurityInvoker));
+
+        var barrier = Assert.Single(views, i => (string?)i.Name == "public.author_barrier");
+        Assert.True(barrier.GetProperty<bool?>(PostgresPropertyNames.SecurityBarrier));
+
+        // A view that declares none records none, which is what keeps it hash-matching its
+        // extracted counterpart.
+        Assert.Null(activeAuthor.GetProperty<string>(PostgresPropertyNames.CheckOption));
+        Assert.Null(activeAuthor.GetProperty<bool?>(PostgresPropertyNames.SecurityInvoker));
     }
 }

@@ -61,8 +61,77 @@ public partial class PostgresVisitor
             statement.SourceTables.Add(table);
         }
 
+        ApplyViewOptions(statement, context);
+
         return statement;
     }
+
+    // Issue #208: the clauses that decide how a view executes were parsed and dropped.
+    //
+    // Both the WITH (...) reloptions and the trailing WITH CHECK OPTION clause are read here
+    // because PostgreSQL stores them as one set: measured on 18, `WITH (check_option='local')`
+    // and `WITH LOCAL CHECK OPTION` both land in pg_class.reloptions as check_option=local,
+    // indistinguishable afterwards. Keeping them as two syntax facets would make one of the
+    // two spellings re-diff against its own database on every deploy.
+    private static void ApplyViewOptions(
+        CreateViewStatement statement, PostgreSQLParser.ViewstmtContext context)
+    {
+        if (context.reloptions_()?.reloptions()?.reloption_list() is { } reloptionList)
+        {
+            var options = new List<IndexWithOption>();
+
+            AddStorageParameters(reloptionList, options);
+
+            foreach (var option in options)
+            {
+                switch (option.Name.ToLowerInvariant())
+                {
+                    case "check_option":
+                        statement.CheckOption = NormalizeCheckOption(option.Value);
+                        break;
+
+                    case "security_invoker":
+                        statement.SecurityInvoker = ParseReloptionBoolean(option.Value);
+                        break;
+
+                    case "security_barrier":
+                        statement.SecurityBarrier = ParseReloptionBoolean(option.Value);
+                        break;
+
+                    default:
+                        // Kept so the model builder can warn rather than let it vanish, which
+                        // is the failure issue #208 reported.
+                        statement.UnmodeledOptions.Add(option.Name);
+                        break;
+                }
+            }
+        }
+
+        // The trailing clause wins over a check_option reloption, matching PostgreSQL: writing
+        // both is accepted and the clause is what takes effect.
+        if (context.check_option_() is { } checkOption)
+        {
+            // The rule is `WITH (CASCADED | LOCAL)? CHECK OPTION`, so a bare WITH CHECK OPTION
+            // has neither keyword. Measured: PostgreSQL stores that as check_option=cascaded,
+            // so it is recorded as CASCADED rather than as a third state.
+            statement.CheckOption = checkOption.LOCAL() is not null ? "LOCAL" : "CASCADED";
+        }
+    }
+
+    // A reloption value is unquoted here so 'local' and local reduce to one token, matching
+    // the catalog, which stores the bare word either way.
+    private static string NormalizeCheckOption(string? value)
+        => value is null ? "CASCADED" : TrimQuotes(value).ToUpperInvariant();
+
+    // A boolean reloption written with no value is true, as PostgreSQL reads it.
+    private static bool ParseReloptionBoolean(string? value)
+        => value is null
+            || TrimQuotes(value).ToLowerInvariant() is "true" or "on" or "yes" or "1";
+
+    private static string TrimQuotes(string value)
+        => value.Length >= 2 && value[0] == '\'' && value[^1] == '\''
+            ? value[1..^1]
+            : value;
 
     private IEnumerable<Identifier> ParseViewColumnList(
         PostgreSQLParser.Column_list_Context? context)

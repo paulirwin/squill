@@ -914,7 +914,35 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
                 .Append(')');
         }
 
-        sb.AppendLine(" AS").Append(definition).AppendLine(";");
+        // Issue #208. The security options are reloptions and belong before AS; the CHECK
+        // OPTION is written as the trailing clause rather than as a check_option reloption,
+        // because the two are the same facet to PostgreSQL (measured) and the clause is the
+        // spelling the documentation leads with.
+        var reloptions = new List<string>();
+
+        if (view.GetProperty<bool?>(PostgresPropertyNames.SecurityInvoker) is { } securityInvoker)
+        {
+            reloptions.Add($"security_invoker={(securityInvoker ? "true" : "false")}");
+        }
+
+        if (view.GetProperty<bool?>(PostgresPropertyNames.SecurityBarrier) is { } securityBarrier)
+        {
+            reloptions.Add($"security_barrier={(securityBarrier ? "true" : "false")}");
+        }
+
+        if (reloptions.Count > 0)
+        {
+            sb.Append(" WITH (").Append(string.Join(", ", reloptions)).Append(')');
+        }
+
+        sb.AppendLine(" AS").Append(definition);
+
+        if (view.GetProperty<string>(PostgresPropertyNames.CheckOption) is { } checkOption)
+        {
+            sb.AppendLine().Append("WITH ").Append(checkOption).Append(" CHECK OPTION");
+        }
+
+        sb.AppendLine(";");
 
         return sb.ToString();
     }

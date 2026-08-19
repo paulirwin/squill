@@ -75,6 +75,22 @@ public sealed class PostgresPropertyNames : SqlPropertyNames
     public const string ArgumentTypes = nameof(ArgumentTypes);
     public const string Language = nameof(Language);
     public const string IsSecurityDefiner = nameof(IsSecurityDefiner);
+    // View execution facets (issue #208), all read from pg_class.reloptions.
+    //
+    // CheckOption is CASCADED or LOCAL. One property covers both spellings because PostgreSQL
+    // stores them as one facet: measured on 18, WITH LOCAL CHECK OPTION and
+    // WITH (check_option='local') are the same reloptions entry, and a bare WITH CHECK OPTION
+    // is stored as cascaded.
+    //
+    // SecurityInvoker and SecurityBarrier are stored whenever they are written, including
+    // when written as false. That is the opposite of the omit-when-default rule most facets
+    // follow, and it is what the catalog requires: measured, security_invoker=false is
+    // recorded in reloptions rather than dropped, so a view declaring it and a view declaring
+    // nothing are genuinely different states. Folding them together would make the explicit
+    // form re-diff forever.
+    public const string CheckOption = nameof(CheckOption);
+    public const string SecurityInvoker = nameof(SecurityInvoker);
+    public const string SecurityBarrier = nameof(SecurityBarrier);
     // User-defined types (issue #75). An enum type carries its labels in declaration order
     // (their significant sort order) as an ordered list. A domain carries the canonical text
     // of its CHECK constraint expression (inherited as CheckExpression from

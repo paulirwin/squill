@@ -544,6 +544,27 @@ internal static class MariaDbStatementMapper
             }
         }
 
+        // Issue #208: the clauses that decide how a view executes. algType/secContext/
+        // checkOption are the grammar's own labels; reading the bare DEFINER token instead
+        // would confuse `SQL SECURITY DEFINER` with the `DEFINER = user` owner clause, which
+        // share that token.
+        statement.Algorithm = createView.algType?.Text.ToUpperInvariant();
+        statement.SecurityType = createView.secContext?.Text.ToUpperInvariant();
+
+        if (createView.ownerStatement() is { } owner)
+        {
+            statement.Definer = SourceText(owner);
+        }
+
+        // CHECK is the whole of the clause: `checkOption` labels only the optional
+        // CASCADED/LOCAL keyword, so a bare WITH CHECK OPTION leaves it null. Measured on
+        // both engines, that bare form is reported as CASCADED, so it is recorded that way
+        // rather than as a distinct third state.
+        if (createView.CHECK() is not null)
+        {
+            statement.CheckOption = createView.checkOption?.Text.ToUpperInvariant() ?? "CASCADED";
+        }
+
         var select = createView.selectStatement();
 
         statement.Body = SourceText(select);

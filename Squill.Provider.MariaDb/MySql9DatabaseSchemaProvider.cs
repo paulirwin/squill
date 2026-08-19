@@ -24,4 +24,11 @@ public sealed class MySql9DatabaseSchemaProvider : MySqlDatabaseSchemaProviderBa
 
     /// <summary>Measured on 9: unchanged from MySQL 8.</summary>
     public override string DefaultCollation => "utf8mb4_0900_ai_ci";
+
+    /// <summary>
+    /// Measured: MySQL's <c>information_schema.VIEWS</c> has no <c>ALGORITHM</c> column at all,
+    /// so a declared algorithm cannot be read back and is left unmodeled with a warning. The
+    /// engine still honours it and echoes it from <c>SHOW CREATE VIEW</c>.
+    /// </summary>
+    public override bool ReportsViewAlgorithm => false;
 }

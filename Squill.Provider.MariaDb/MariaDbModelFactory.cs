@@ -546,7 +546,10 @@ public static class MariaDbModelFactory
     public static Element CreateView(
         SqlName name,
         IEnumerable<string> columnNames,
-        string? definition)
+        string? definition,
+        string? checkOption = null,
+        bool isSecurityInvoker = false,
+        string? algorithm = null)
     {
         var columns = new Relationship(MariaDbRelationshipNames.Columns);
 
@@ -568,6 +571,33 @@ public static class MariaDbModelFactory
         {
             element.Properties.Add(new Property(
                 MariaDbPropertyNames.Definition, definition, participatesInIdentity: false));
+        }
+
+        // Issue #208: the facets that decide how the view executes. Unlike the query these do
+        // round-trip -- information_schema.VIEWS reports each one back -- so they take part in
+        // the element's identity, and a view whose CHECK OPTION or security setting changed is
+        // detected as changed.
+        if (checkOption is not null)
+        {
+            element.Properties.Add(new Property(MariaDbPropertyNames.CheckOption, checkOption));
+        }
+
+        // Stored only when INVOKER, the non-default. Measured on both engines, an explicitly
+        // written SQL SECURITY DEFINER is indistinguishable in the catalog from declaring
+        // nothing, so recording it would leave the extracted view without a property the
+        // declared one has, and re-diff on every deploy.
+        if (isSecurityInvoker)
+        {
+            element.Properties.Add(new Property(MariaDbPropertyNames.IsSecurityInvoker, true));
+        }
+
+        // UNDEFINED is the default and is never stored, for the same reason. Whether this is
+        // recorded at all is decided by the caller from
+        // MariaDbFamilyDatabaseSchemaProvider.ReportsViewAlgorithm: MySQL cannot report an
+        // algorithm back, so on that engine it stays unmodeled and warned about instead.
+        if (algorithm is not null)
+        {
+            element.Properties.Add(new Property(MariaDbPropertyNames.ViewAlgorithm, algorithm));
         }
 
         return element;

@@ -206,6 +206,139 @@ public abstract class MariaDbViewTests
         }
     }
 
+
+    // ---- Issue #208: view execution and security clauses ----
+
+    [Theory]
+    [InlineData("WITH CHECK OPTION", "CASCADED")]
+    [InlineData("WITH CASCADED CHECK OPTION", "CASCADED")]
+    [InlineData("WITH LOCAL CHECK OPTION", "LOCAL")]
+    public async Task ViewWithCheckOption_RoundTrips(string clause, string expected)
+    {
+        var model = await AssertRoundTripAsync($"""
+            {Users}
+            CREATE VIEW active_users AS SELECT id, name FROM users WHERE active = 1 {clause};
+            """,
+            TestContext.Current.CancellationToken);
+
+        var view = Assert.Single(model.Elements, i => i.Type == MariaDbElementTypes.SqlView);
+
+        Assert.Equal(expected, view.GetProperty<string>(MariaDbPropertyNames.CheckOption));
+    }
+
+    [Fact]
+    public async Task ViewWithSqlSecurityInvoker_RoundTrips()
+    {
+        var model = await AssertRoundTripAsync($"""
+            {Users}
+            CREATE SQL SECURITY INVOKER VIEW active_users AS SELECT id FROM users;
+            """,
+            TestContext.Current.CancellationToken);
+
+        var view = Assert.Single(model.Elements, i => i.Type == MariaDbElementTypes.SqlView);
+
+        Assert.True(view.GetProperty<bool?>(MariaDbPropertyNames.IsSecurityInvoker));
+    }
+
+    [Fact]
+    public async Task ViewWithSqlSecurityDefiner_RoundTrips()
+    {
+        // The explicit default. It records nothing, so what this proves is that the deployed
+        // view still comes back matching -- the case a naive "model what was written" fix
+        // would break, since the catalog cannot report the difference.
+        var model = await AssertRoundTripAsync($"""
+            {Users}
+            CREATE SQL SECURITY DEFINER VIEW active_users AS SELECT id FROM users;
+            """,
+            TestContext.Current.CancellationToken);
+
+        var view = Assert.Single(model.Elements, i => i.Type == MariaDbElementTypes.SqlView);
+
+        Assert.Null(view.GetProperty<bool?>(MariaDbPropertyNames.IsSecurityInvoker));
+    }
+
+    [Fact]
+    public async Task ViewWithAlgorithm_RoundTrips()
+    {
+        // MariaDB reports ALGORITHM and so models it; MySQL has no such catalog column and
+        // leaves it unmodeled. Either way the view must round-trip, which is what the
+        // redeploy-no-op assertion inside AssertRoundTripAsync is checking.
+        var model = await AssertRoundTripAsync($"""
+            {Users}
+            CREATE ALGORITHM=TEMPTABLE VIEW active_users AS SELECT id FROM users;
+            """,
+            TestContext.Current.CancellationToken);
+
+        var view = Assert.Single(model.Elements, i => i.Type == MariaDbElementTypes.SqlView);
+
+        Assert.Equal(
+            Fixture.SchemaProviderOf().ReportsViewAlgorithm ? "TEMPTABLE" : null,
+            view.GetProperty<string>(MariaDbPropertyNames.ViewAlgorithm));
+    }
+
+    [Fact]
+    public async Task ViewWithNoOptions_RoundTripsWithoutThem()
+    {
+        var model = await AssertRoundTripAsync($"""
+            {Users}
+            CREATE VIEW active_users AS SELECT id FROM users;
+            """,
+            TestContext.Current.CancellationToken);
+
+        var view = Assert.Single(model.Elements, i => i.Type == MariaDbElementTypes.SqlView);
+
+        Assert.Null(view.GetProperty<string>(MariaDbPropertyNames.CheckOption));
+        Assert.Null(view.GetProperty<bool?>(MariaDbPropertyNames.IsSecurityInvoker));
+        Assert.Null(view.GetProperty<string>(MariaDbPropertyNames.ViewAlgorithm));
+    }
+
+    [Fact]
+    public async Task DeployedCheckOption_RejectsANonConformingWrite()
+    {
+        // The point of the whole issue: WITH CHECK OPTION constrains what may be written
+        // through the view. Asserting the property round-trips is not enough -- this proves
+        // the deployed view actually enforces it, which is what dropping the clause silently
+        // stopped happening.
+        var provider = new MariaDbDatabaseProvider(Fixture.ConnectionString);
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        var model = ParseModel($"""
+            {Users}
+            CREATE VIEW active_users AS
+                SELECT id, name, active FROM users WHERE active = 1
+                WITH CASCADED CHECK OPTION;
+            """, cancellationToken);
+
+        var testDb = await provider.CreateDatabaseAsync(
+            $"squill_test_{Guid.NewGuid():n}", cancellationToken);
+        var dbModelBuilder = provider.CreateDatabaseModelBuilder(testDb);
+
+        try
+        {
+            var empty = await dbModelBuilder.ExtractModelAsync(cancellationToken);
+
+            await testDb.PublishAsync(
+                SchemaCompare.Compare(provider, model, empty), cancellationToken);
+
+            // Conforming: active = 1 satisfies the view's predicate.
+            await testDb.RunScriptAsync(
+                "INSERT INTO active_users (id, name, active) VALUES (1, 'ok', 1);",
+                cancellationToken: cancellationToken);
+
+            // Non-conforming: the row would fall outside the view. The server must refuse it,
+            // which it only does if the CHECK OPTION actually reached the deployed view.
+            var rejected = await Assert.ThrowsAnyAsync<Exception>(() =>
+                testDb.RunScriptAsync(
+                    "INSERT INTO active_users (id, name, active) VALUES (2, 'no', 0);",
+                    cancellationToken: cancellationToken));
+
+            Assert.Contains("CHECK OPTION", rejected.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            await testDb.DropAsync(cancellationToken);
+        }
+    }
 }
 
 // ---- Per-engine bindings: each scenario runs once against MariaDB and once against MySQL. ----

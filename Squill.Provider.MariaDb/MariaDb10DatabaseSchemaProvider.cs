@@ -29,4 +29,10 @@ public sealed class MariaDb10DatabaseSchemaProvider : MariaDbDatabaseSchemaProvi
 
     /// <summary>Measured on 10.11: MariaDB 10 predates the UCA 14.0.0 collations that 11 defaults to.</summary>
     public override string DefaultCollation => "utf8mb4_general_ci";
+
+    /// <summary>
+    /// Measured: MariaDB's <c>information_schema.VIEWS</c> has an <c>ALGORITHM</c> column,
+    /// reporting <c>MERGE</c>, <c>TEMPTABLE</c> or <c>UNDEFINED</c> per view.
+    /// </summary>
+    public override bool ReportsViewAlgorithm => true;
 }

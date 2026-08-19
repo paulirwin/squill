@@ -104,7 +104,28 @@ public sealed class MariaDbPropertyNames : SqlPropertyNames
     // MariaDB records in information_schema.ROUTINES.
     public const string IsDeterministic = nameof(IsDeterministic);
     public const string SqlDataAccess = nameof(SqlDataAccess);
+    // Also a view facet (issue #208): SQL SECURITY INVOKER on a CREATE VIEW, which
+    // information_schema.VIEWS.SECURITY_TYPE reports in the same DEFINER/INVOKER terms as it
+    // does for a routine. Shared rather than given a view-specific name because it is the same
+    // question with the same two answers, and stored only when INVOKER for the same
+    // omit-when-default reason: measured on both engines, an explicitly written
+    // SQL SECURITY DEFINER is indistinguishable in the catalog from declaring nothing, so
+    // recording it would make that view re-diff on every deploy. (PostgreSQL is the opposite
+    // and does record its explicit default: see PostgresPropertyNames.SecurityInvoker.)
     public const string IsSecurityInvoker = nameof(IsSecurityInvoker);
+
+    // View execution facets (issue #208).
+    //
+    // CheckOption is CASCADED or LOCAL, absent when the view declares none. A bare
+    // WITH CHECK OPTION is recorded as CASCADED because that is what the catalog reports for
+    // it on both engines (measured), the same normalization PostgreSQL applies.
+    //
+    // ViewAlgorithm is MERGE or TEMPTABLE, and is only modeled where the engine can report it
+    // back: MariaDB has an ALGORITHM column in information_schema.VIEWS, MySQL has none
+    // (measured), which is why it is gated on a schema-provider capability rather than always
+    // recorded. UNDEFINED is the default and is never stored.
+    public const string CheckOption = nameof(CheckOption);
+    public const string ViewAlgorithm = nameof(ViewAlgorithm);
 
     // Triggers (issue #100). A trigger fires at a Timing (shared) for an Event
     // (INSERT/UPDATE/DELETE) — which is what both engines return from

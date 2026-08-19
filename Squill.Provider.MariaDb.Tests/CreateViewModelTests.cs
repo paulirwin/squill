@@ -172,4 +172,146 @@ public class CreateViewModelTests
             < elements.FindIndex(i => i.Type == MariaDbElementTypes.SqlView),
             "A view must be ordered after the tables it may reference.");
     }
+
+    // Issue #208: the view clauses that decide how it executes. Both sides of the round trip
+    // have to agree, so what is modeled here is exactly what
+    // information_schema.VIEWS reports back (measured on mariadb:latest and mysql:latest).
+
+    private static async Task<(Element View, IReadOnlyList<SqlSourceDiagnostic> Warnings)>
+        BuildViewWithWarningsAsync(string sql, MariaDbFamilyDatabaseSchemaProvider schemaProvider)
+    {
+        var workspace = new Workspace();
+        workspace.Files.Add(new InMemoryStringFile("View.sql", FileKind.Compile, sql));
+
+        var builder = new ParserWorkspaceModelBuilder(
+            workspace, new AntlrMariaDbParser(), schemaProvider);
+
+        var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
+        var view = result.Model.Elements.Single(i => i.Type == MariaDbElementTypes.SqlView);
+
+        return (view, result.Warnings);
+    }
+
+    [Fact]
+    public async Task View_NoOptions_RecordsNothing()
+    {
+        var view = await BuildViewAsync($"""
+            {Users}
+            CREATE VIEW v AS SELECT id FROM users;
+            """);
+
+        Assert.Null(view.GetProperty<string>(MariaDbPropertyNames.CheckOption));
+        Assert.Null(view.GetProperty<bool?>(MariaDbPropertyNames.IsSecurityInvoker));
+        Assert.Null(view.GetProperty<string>(MariaDbPropertyNames.ViewAlgorithm));
+    }
+
+    [Theory]
+    [InlineData("WITH CHECK OPTION", "CASCADED")]
+    [InlineData("WITH CASCADED CHECK OPTION", "CASCADED")]
+    [InlineData("WITH LOCAL CHECK OPTION", "LOCAL")]
+    public async Task View_CheckOption_IsModeled(string clause, string expected)
+    {
+        var view = await BuildViewAsync($"""
+            {Users}
+            CREATE VIEW v AS SELECT id FROM users WHERE active = 1 {clause};
+            """);
+
+        Assert.Equal(expected, view.GetProperty<string>(MariaDbPropertyNames.CheckOption));
+    }
+
+    [Fact]
+    public async Task View_SqlSecurityInvoker_IsModeled()
+    {
+        var view = await BuildViewAsync($"""
+            {Users}
+            CREATE SQL SECURITY INVOKER VIEW v AS SELECT id FROM users;
+            """);
+
+        Assert.True(view.GetProperty<bool?>(MariaDbPropertyNames.IsSecurityInvoker));
+    }
+
+    [Fact]
+    public async Task View_SqlSecurityDefiner_RecordsNothing()
+    {
+        // Measured: an explicitly written DEFINER is indistinguishable in the catalog from
+        // declaring nothing, so recording it would make this view re-diff on every deploy.
+        var view = await BuildViewAsync($"""
+            {Users}
+            CREATE SQL SECURITY DEFINER VIEW v AS SELECT id FROM users;
+            """);
+
+        Assert.Null(view.GetProperty<bool?>(MariaDbPropertyNames.IsSecurityInvoker));
+    }
+
+    [Fact]
+    public async Task View_Algorithm_IsModeledOnMariaDb()
+    {
+        var view = await BuildViewAsync($"""
+            {Users}
+            CREATE ALGORITHM=TEMPTABLE VIEW v AS SELECT id FROM users;
+            """);
+
+        Assert.Equal("TEMPTABLE", view.GetProperty<string>(MariaDbPropertyNames.ViewAlgorithm));
+    }
+
+    [Fact]
+    public async Task View_AlgorithmUndefined_RecordsNothing()
+    {
+        var view = await BuildViewAsync($"""
+            {Users}
+            CREATE ALGORITHM=UNDEFINED VIEW v AS SELECT id FROM users;
+            """);
+
+        Assert.Null(view.GetProperty<string>(MariaDbPropertyNames.ViewAlgorithm));
+    }
+
+    [Fact]
+    public async Task View_Algorithm_IsNotModeledOnMySql_AndWarns()
+    {
+        // MySQL's information_schema.VIEWS has no ALGORITHM column (measured), so a modeled
+        // algorithm could never be read back and would re-diff forever.
+        var (view, warnings) = await BuildViewWithWarningsAsync($"""
+            {Users}
+            CREATE ALGORITHM=TEMPTABLE VIEW v AS SELECT id FROM users;
+            """, new MySql9DatabaseSchemaProvider());
+
+        Assert.Null(view.GetProperty<string>(MariaDbPropertyNames.ViewAlgorithm));
+
+        var warning = Assert.Single(warnings, w => w.Message.Contains("ALGORITHM"));
+
+        Assert.Equal(SqlSourceDiagnostic.UnmodeledConstruct, warning.Code);
+    }
+
+    [Fact]
+    public async Task View_Definer_IsNotModeled_AndWarns()
+    {
+        // Ownership is the broader question issue #221 covers; what matters here is that it
+        // does not vanish silently, which is what issue #208 reported.
+        var (_, warnings) = await BuildViewWithWarningsAsync($"""
+            {Users}
+            CREATE DEFINER=`admin`@`localhost` VIEW v AS SELECT id FROM users;
+            """, new MariaDb12DatabaseSchemaProvider());
+
+        var warning = Assert.Single(warnings, w => w.Message.Contains("DEFINER"));
+
+        Assert.Equal(SqlSourceDiagnostic.UnmodeledConstruct, warning.Code);
+    }
+
+    [Fact]
+    public async Task View_CheckOption_ChangesTheHash()
+    {
+        // The whole point of modeling these: a view whose CHECK OPTION changed must be
+        // detected as changed. It was previously invisible to the diff.
+        var without = await BuildViewAsync($"""
+            {Users}
+            CREATE VIEW v AS SELECT id FROM users WHERE active = 1;
+            """);
+
+        var with = await BuildViewAsync($"""
+            {Users}
+            CREATE VIEW v AS SELECT id FROM users WHERE active = 1 WITH CASCADED CHECK OPTION;
+            """);
+
+        Assert.False(HashUtility.HashesEqual(without.Hash, with.Hash));
+    }
 }

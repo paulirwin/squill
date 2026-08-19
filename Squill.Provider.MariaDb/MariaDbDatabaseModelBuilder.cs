@@ -299,9 +299,17 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
         // MySQL each rewrite the query when they store it — and differently from each other
         // — so it could never match the declared source. A view's modeled identity is its
         // name and column list instead; see MariaDbModelFactory.CreateView.
-        const string sql =
-            """
-            SELECT v.TABLE_NAME,
+        // Issue #208: CHECK_OPTION and SECURITY_TYPE decide how the view executes and are
+        // reported faithfully by both engines, so unlike the query they can be modeled.
+        //
+        // ALGORITHM is selected only where it exists: MariaDB's VIEWS has that column, MySQL's
+        // has none at all (measured), so naming it unconditionally would be an unknown-column
+        // error there, the same shape as the EXPRESSION column above.
+        var algorithmColumn = SchemaProvider.ReportsViewAlgorithm ? ",\n       v.ALGORITHM" : string.Empty;
+
+        var sql =
+            $"""
+            SELECT v.TABLE_NAME, v.CHECK_OPTION, v.SECURITY_TYPE{algorithmColumn},
                    (SELECT GROUP_CONCAT(c.COLUMN_NAME ORDER BY c.ORDINAL_POSITION SEPARATOR 0x1e)
                     FROM information_schema.COLUMNS c
                     WHERE c.TABLE_SCHEMA = v.TABLE_SCHEMA
@@ -324,11 +332,31 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
                     ? string.Empty
                     : reader.GetString("COLUMN_NAMES");
 
+                // NONE means the view has no CHECK OPTION; the parser records null for the
+                // same state, so it must not become a property here.
+                var checkOption = reader.GetStringOrNull("CHECK_OPTION") is { } declared
+                    && !declared.Equals("NONE", StringComparison.OrdinalIgnoreCase)
+                        ? declared.ToUpperInvariant()
+                        : null;
+
+                // UNDEFINED is the default and records nothing, matching the parse side.
+                var algorithm = SchemaProvider.ReportsViewAlgorithm
+                    && reader.GetStringOrNull("ALGORITHM") is { } reported
+                    && !reported.Equals("UNDEFINED", StringComparison.OrdinalIgnoreCase)
+                        ? reported.ToUpperInvariant()
+                        : null;
+
                 views.Add(MariaDbModelFactory.CreateView(
                     SqlName.Object(name),
                     columnNames.Length == 0 ? [] : columnNames.Split(ViewColumnSeparator),
                     // The database's own query text is never modeled — see above.
-                    definition: null));
+                    definition: null,
+                    checkOption,
+                    // DEFINER is the default and records nothing, so only INVOKER is stored.
+                    isSecurityInvoker: string.Equals(
+                        reader.GetStringOrNull("SECURITY_TYPE"), "INVOKER",
+                        StringComparison.OrdinalIgnoreCase),
+                    algorithm));
             }
         }
 

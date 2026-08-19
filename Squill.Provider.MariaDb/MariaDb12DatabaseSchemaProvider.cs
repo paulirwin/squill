@@ -29,4 +29,10 @@ public sealed class MariaDb12DatabaseSchemaProvider : MariaDbDatabaseSchemaProvi
 
     /// <summary>Measured on 12: unchanged from MariaDB 11.</summary>
     public override string DefaultCollation => "utf8mb4_uca1400_ai_ci";
+
+    /// <summary>
+    /// Measured: MariaDB's <c>information_schema.VIEWS</c> has an <c>ALGORITHM</c> column,
+    /// reporting <c>MERGE</c>, <c>TEMPTABLE</c> or <c>UNDEFINED</c> per view.
+    /// </summary>
+    public override bool ReportsViewAlgorithm => true;
 }

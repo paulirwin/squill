@@ -152,4 +152,102 @@ public class CreateViewTests
         Assert.Equal(3, statement.Line);
         Assert.Equal(1, statement.Column);
     }
+
+    // Issue #208: ALGORITHM, DEFINER, SQL SECURITY and WITH CHECK OPTION were all parsed
+    // and dropped. Measured against mariadb:latest and mysql:latest.
+
+    [Fact]
+    public void CreateView_NoOptions_AreNull()
+    {
+        var statement = ParseOne("CREATE VIEW v AS SELECT id FROM users;");
+
+        Assert.Null(statement.CheckOption);
+        Assert.Null(statement.SecurityType);
+        Assert.Null(statement.Algorithm);
+        Assert.Null(statement.Definer);
+    }
+
+    [Fact]
+    public void CreateView_BareCheckOption_IsCascaded()
+    {
+        // Measured on both engines: a bare WITH CHECK OPTION is reported as CASCADED, the
+        // same normalization PostgreSQL applies.
+        var statement = ParseOne("CREATE VIEW v AS SELECT id FROM users WITH CHECK OPTION;");
+
+        Assert.Equal("CASCADED", statement.CheckOption);
+    }
+
+    [Fact]
+    public void CreateView_CascadedCheckOption()
+    {
+        var statement = ParseOne("CREATE VIEW v AS SELECT id FROM users WITH CASCADED CHECK OPTION;");
+
+        Assert.Equal("CASCADED", statement.CheckOption);
+    }
+
+    [Fact]
+    public void CreateView_LocalCheckOption()
+    {
+        var statement = ParseOne("CREATE VIEW v AS SELECT id FROM users WITH LOCAL CHECK OPTION;");
+
+        Assert.Equal("LOCAL", statement.CheckOption);
+    }
+
+    [Fact]
+    public void CreateView_SqlSecurityInvoker()
+    {
+        var statement = ParseOne("CREATE SQL SECURITY INVOKER VIEW v AS SELECT id FROM users;");
+
+        Assert.Equal("INVOKER", statement.SecurityType);
+    }
+
+    [Fact]
+    public void CreateView_SqlSecurityDefiner()
+    {
+        var statement = ParseOne("CREATE SQL SECURITY DEFINER VIEW v AS SELECT id FROM users;");
+
+        Assert.Equal("DEFINER", statement.SecurityType);
+    }
+
+    [Theory]
+    [InlineData("MERGE")]
+    [InlineData("TEMPTABLE")]
+    [InlineData("UNDEFINED")]
+    public void CreateView_Algorithm(string algorithm)
+    {
+        var statement = ParseOne($"CREATE ALGORITHM={algorithm} VIEW v AS SELECT id FROM users;");
+
+        Assert.Equal(algorithm, statement.Algorithm);
+    }
+
+    [Fact]
+    public void CreateView_Algorithm_IsUpperCased()
+    {
+        var statement = ParseOne("CREATE ALGORITHM=merge VIEW v AS SELECT id FROM users;");
+
+        Assert.Equal("MERGE", statement.Algorithm);
+    }
+
+    [Fact]
+    public void CreateView_Definer_IsCaptured()
+    {
+        // Captured so the model builder can warn rather than let it vanish; ownership itself
+        // is out of scope here (issue #221).
+        var statement = ParseOne("CREATE DEFINER=`admin`@`localhost` VIEW v AS SELECT id FROM users;");
+
+        Assert.NotNull(statement.Definer);
+    }
+
+    [Fact]
+    public void CreateView_AllOptionsTogether()
+    {
+        var statement = ParseOne(
+            "CREATE ALGORITHM=TEMPTABLE DEFINER=`admin`@`localhost` SQL SECURITY INVOKER "
+            + "VIEW v AS SELECT id FROM users WITH LOCAL CHECK OPTION;");
+
+        Assert.Equal("TEMPTABLE", statement.Algorithm);
+        Assert.Equal("INVOKER", statement.SecurityType);
+        Assert.Equal("LOCAL", statement.CheckOption);
+        Assert.NotNull(statement.Definer);
+    }
 }

@@ -1024,7 +1024,10 @@ public static class PostgresModelFactory
         SqlName name,
         string schema,
         IEnumerable<string> columnNames,
-        string? definition)
+        string? definition,
+        string? checkOption = null,
+        bool? securityInvoker = null,
+        bool? securityBarrier = null)
     {
         var columns = new Relationship(PostgresRelationshipNames.Columns);
 
@@ -1056,6 +1059,31 @@ public static class PostgresModelFactory
             // reports back. The view's name and column list carry its identity instead.
             element.Properties.Add(new Property(
                 PostgresPropertyNames.Definition, definition, participatesInIdentity: false));
+        }
+
+        // Issue #208: the facets that decide how the view executes. Unlike the query these do
+        // round-trip -- pg_class.reloptions reports each one back exactly as declared -- so
+        // they take part in the element's identity, and a view whose CHECK OPTION or security
+        // setting changed is detected as changed.
+        if (checkOption is not null)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.CheckOption, checkOption));
+        }
+
+        // Recorded whenever written, including when written as false. Measured on 18,
+        // security_invoker=false is stored in reloptions rather than dropped, so an explicit
+        // default and an absent one are different states in the catalog and must stay
+        // different here -- the opposite of the omit-when-default rule most facets follow.
+        if (securityInvoker is not null)
+        {
+            element.Properties.Add(
+                new Property(PostgresPropertyNames.SecurityInvoker, securityInvoker.Value));
+        }
+
+        if (securityBarrier is not null)
+        {
+            element.Properties.Add(
+                new Property(PostgresPropertyNames.SecurityBarrier, securityBarrier.Value));
         }
 
         return element;

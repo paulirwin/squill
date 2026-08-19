@@ -183,4 +183,120 @@ public class CreateViewModelTests
         Assert.True(tableIndex < viewIndex,
             "A view must be ordered after the tables it may reference.");
     }
+
+    // Issue #208: the view clauses that decide how it executes. What is modeled here is
+    // exactly what pg_class.reloptions reports back (measured on PostgreSQL 18), so a
+    // declared view and its extracted counterpart hash-match.
+
+    [Fact]
+    public async Task View_NoOptions_RecordsNothing()
+    {
+        var view = await BuildViewAsync($"""
+            {Users}
+            CREATE VIEW v AS SELECT id FROM users;
+            """);
+
+        Assert.Null(view.GetProperty<string>(PostgresPropertyNames.CheckOption));
+        Assert.Null(view.GetProperty<bool?>(PostgresPropertyNames.SecurityInvoker));
+        Assert.Null(view.GetProperty<bool?>(PostgresPropertyNames.SecurityBarrier));
+    }
+
+    [Theory]
+    [InlineData("WITH CHECK OPTION", "CASCADED")]
+    [InlineData("WITH CASCADED CHECK OPTION", "CASCADED")]
+    [InlineData("WITH LOCAL CHECK OPTION", "LOCAL")]
+    public async Task View_CheckOptionClause_IsModeled(string clause, string expected)
+    {
+        var view = await BuildViewAsync($"""
+            {Users}
+            CREATE VIEW v AS SELECT id FROM users WHERE active {clause};
+            """);
+
+        Assert.Equal(expected, view.GetProperty<string>(PostgresPropertyNames.CheckOption));
+    }
+
+    [Fact]
+    public async Task View_CheckOptionReloption_ModelsTheSameFacet()
+    {
+        // Measured: WITH (check_option='local') and WITH LOCAL CHECK OPTION are the same
+        // reloptions entry, so they must reach the same property or one of the two spellings
+        // would re-diff against its own database.
+        var view = await BuildViewAsync($"""
+            {Users}
+            CREATE VIEW v WITH (check_option='local') AS SELECT id FROM users WHERE active;
+            """);
+
+        Assert.Equal("LOCAL", view.GetProperty<string>(PostgresPropertyNames.CheckOption));
+    }
+
+    [Fact]
+    public async Task View_SecurityInvoker_IsModeled()
+    {
+        var view = await BuildViewAsync($"""
+            {Users}
+            CREATE VIEW v WITH (security_invoker=true) AS SELECT id FROM users;
+            """);
+
+        Assert.True(view.GetProperty<bool?>(PostgresPropertyNames.SecurityInvoker));
+    }
+
+    [Fact]
+    public async Task View_SecurityInvokerFalse_IsStillModeled()
+    {
+        // Measured: PostgreSQL records security_invoker=false in reloptions rather than
+        // dropping it, so an explicitly written default is a different state from an absent
+        // one and must not be folded away. This is the opposite of the MariaDB family.
+        var view = await BuildViewAsync($"""
+            {Users}
+            CREATE VIEW v WITH (security_invoker=false) AS SELECT id FROM users;
+            """);
+
+        Assert.False(view.GetProperty<bool?>(PostgresPropertyNames.SecurityInvoker));
+    }
+
+    [Fact]
+    public async Task View_SecurityBarrier_IsModeled()
+    {
+        var view = await BuildViewAsync($"""
+            {Users}
+            CREATE VIEW v WITH (security_barrier=true) AS SELECT id FROM users;
+            """);
+
+        Assert.True(view.GetProperty<bool?>(PostgresPropertyNames.SecurityBarrier));
+    }
+
+    [Fact]
+    public async Task View_SecurityInvokerAbsentAndFalse_DifferInTheHash()
+    {
+        // The distinction the catalog draws has to survive into the model, or a view that
+        // declares the default would compare equal to one that declares nothing and the
+        // deploy would never correct it.
+        var absent = await BuildViewAsync($"""
+            {Users}
+            CREATE VIEW v AS SELECT id FROM users;
+            """);
+
+        var explicitFalse = await BuildViewAsync($"""
+            {Users}
+            CREATE VIEW v WITH (security_invoker=false) AS SELECT id FROM users;
+            """);
+
+        Assert.False(HashUtility.HashesEqual(absent.Hash, explicitFalse.Hash));
+    }
+
+    [Fact]
+    public async Task View_CheckOption_ChangesTheHash()
+    {
+        var without = await BuildViewAsync($"""
+            {Users}
+            CREATE VIEW v AS SELECT id FROM users WHERE active;
+            """);
+
+        var with = await BuildViewAsync($"""
+            {Users}
+            CREATE VIEW v AS SELECT id FROM users WHERE active WITH CASCADED CHECK OPTION;
+            """);
+
+        Assert.False(HashUtility.HashesEqual(without.Hash, with.Hash));
+    }
 }
