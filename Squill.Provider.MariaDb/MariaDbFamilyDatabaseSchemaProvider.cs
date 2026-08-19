@@ -157,4 +157,27 @@ public abstract class MariaDbFamilyDatabaseSchemaProvider : DatabaseSchemaProvid
     /// </para>
     /// </summary>
     public abstract string DefaultCollation { get; }
+
+    /// <summary>
+    /// Whether the engine reports a view's <c>ALGORITHM</c> back through
+    /// <c>information_schema.VIEWS</c>, and so whether a declared one can be modeled
+    /// (issue #208).
+    ///
+    /// <para>
+    /// Measured: MariaDB has an <c>ALGORITHM</c> column there and reports <c>MERGE</c>,
+    /// <c>TEMPTABLE</c> or <c>UNDEFINED</c> per view. MySQL's <c>VIEWS</c> has no such column
+    /// at all, so naming it in the extractor's query is an unknown-column error on that engine
+    /// (the same shape of divergence as <see cref="SupportsFunctionalIndexKeys"/>), and why
+    /// the query is built around this capability rather than always selecting it.
+    /// </para>
+    ///
+    /// <para>
+    /// MySQL does still honour a declared <c>ALGORITHM</c> and echoes it from
+    /// <c>SHOW CREATE VIEW</c>, so this is a statement about what the catalog can be asked for,
+    /// not about what the engine supports. Where it cannot be read back it is left unmodeled
+    /// and warned about, because a facet the extractor cannot see would re-diff on every
+    /// deploy.
+    /// </para>
+    /// </summary>
+    public abstract bool ReportsViewAlgorithm { get; }
 }

@@ -52,7 +52,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         // the referenced table's columns, which may be declared in a later file. This runs
         // before validation so a broken view is reported alongside every other source error
         // rather than on a later rebuild (issue #61).
-        AddViews(model, validator, views);
+        AddViews(model, validator, views, warnings, _schemaProvider);
 
         // Validated after every file so declaration order (within and across files) does
         // not matter, just like it doesn't for the deployed schema. Parse and mapping errors
@@ -76,14 +76,21 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     /// reads views in that order (information_schema has no notion of declaration order) and
     /// the Merkle hash is order-sensitive, so a parsed model must adopt the same order.
     /// </summary>
-    private static void AddViews(Model model, SourceValidator validator, List<PendingView> views)
+    private static void AddViews(Model model,
+        SourceValidator validator,
+        List<PendingView> views,
+        List<SqlSourceDiagnostic> warnings,
+        MariaDbFamilyDatabaseSchemaProvider schemaProvider)
     {
         // Ordinal, to match the database's byte-wise ordering of the same names.
         foreach (var view in views.OrderBy(i => i.Statement.Name.Name, StringComparer.Ordinal))
         {
             try
             {
-                model.Elements.Add(MakeCreateViewElement(view.Statement, validator));
+                model.Elements.Add(
+                    MakeCreateViewElement(view.Statement, validator, schemaProvider));
+
+                AddUnmodeledViewOptionWarnings(view.File, view.Statement, warnings, schemaProvider);
             }
             catch (Exception ex) when (ex is NotImplementedException or NotSupportedException
                 or InvalidOperationException)
@@ -1817,7 +1824,9 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     /// a <c>*</c> that cannot be resolved to a single table are build errors rather than
     /// guesses, since guessing wrong would silently model the wrong shape.
     /// </summary>
-    private static Element MakeCreateViewElement(CreateViewStatement statement, SourceValidator validator)
+    private static Element MakeCreateViewElement(CreateViewStatement statement,
+        SourceValidator validator,
+        MariaDbFamilyDatabaseSchemaProvider schemaProvider)
     {
         if (statement.Body is not { } definition)
         {
@@ -1835,8 +1844,60 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
         // A view is not schema-scoped within a database, so a leading db qualifier is
         // dropped exactly as it is for a table.
+        // Issue #208. UNDEFINED is the engine default and records nothing, matching what the
+        // catalog reports for a view that declared no algorithm. On MySQL nothing is recorded
+        // at all: its information_schema.VIEWS has no ALGORITHM column (measured), so a
+        // modeled algorithm could never be read back and would re-diff on every deploy --
+        // AddUnmodeledViewOptionWarnings warns there instead.
+        var algorithm = schemaProvider.ReportsViewAlgorithm
+            && statement.Algorithm is { } declared
+            && declared != "UNDEFINED"
+                ? declared
+                : null;
+
         return MariaDbModelFactory.CreateView(
-            SqlName.Object(statement.Name.Name), columnNames, definition);
+            SqlName.Object(statement.Name.Name), columnNames, definition,
+            statement.CheckOption,
+            // Only INVOKER is recorded: an explicit DEFINER is indistinguishable in the
+            // catalog from declaring nothing (measured on both engines).
+            isSecurityInvoker: statement.SecurityType == "INVOKER",
+            algorithm);
+    }
+
+    /// <summary>
+    /// Warns for the view clauses that are parsed but cannot be carried into the model
+    /// (issue #208), so a declared one does not vanish without a word -- which is the failure
+    /// that issue reported.
+    /// </summary>
+    private static void AddUnmodeledViewOptionWarnings(IFile file,
+        CreateViewStatement statement,
+        List<SqlSourceDiagnostic> warnings,
+        MariaDbFamilyDatabaseSchemaProvider schemaProvider)
+    {
+        var view = statement.Name.Name;
+
+        // Who owns an object is the broader question issue #221 covers. Modeling a DEFINER
+        // here would also tie a project to one server's user list, so it is warned for rather
+        // than carried.
+        if (statement.Definer is not null)
+        {
+            warnings.Add(new SqlSourceDiagnostic(
+                $"DEFINER on view '{view}' is not modeled and will not be deployed. The view "
+                + "will be created with the deploying user as its definer.",
+                file.Name, statement.Line, statement.Column));
+        }
+
+        // Only where the engine cannot report it back. On MariaDB it is modeled, so there is
+        // nothing to warn about.
+        if (statement.Algorithm is { } algorithm
+            && algorithm != "UNDEFINED"
+            && !schemaProvider.ReportsViewAlgorithm)
+        {
+            warnings.Add(new SqlSourceDiagnostic(
+                $"ALGORITHM on view '{view}' is not modeled on MySQL, whose "
+                + "information_schema.VIEWS does not report it, and will not be deployed.",
+                file.Name, statement.Line, statement.Column));
+        }
     }
 
     private static List<string> DeriveViewColumnNames(

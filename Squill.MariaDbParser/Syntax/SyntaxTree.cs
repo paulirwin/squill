@@ -468,6 +468,40 @@ public sealed class CreateViewStatement(QualifiedName name, bool orReplace) : St
 
     /// <summary>The query text, verbatim as written after <c>AS</c>.</summary>
     public string? Body { get; set; }
+
+    /// <summary>
+    /// The <c>WITH [CASCADED|LOCAL] CHECK OPTION</c> setting, as <c>CASCADED</c> or
+    /// <c>LOCAL</c>, or null when the view declares none (issue #208).
+    ///
+    /// <para>
+    /// A bare <c>WITH CHECK OPTION</c> is recorded as <c>CASCADED</c>: measured on both
+    /// engines, <c>information_schema.VIEWS.CHECK_OPTION</c> reports <c>CASCADED</c> for it,
+    /// the same normalization PostgreSQL applies.
+    /// </para>
+    /// </summary>
+    public string? CheckOption { get; set; }
+
+    /// <summary>
+    /// The <c>SQL SECURITY</c> setting, as <c>DEFINER</c> or <c>INVOKER</c>, or null when the
+    /// view declares none (issue #208). Decides whose privileges the view body runs under, so
+    /// dropping it moved a privilege boundary rather than losing a cosmetic facet.
+    /// </summary>
+    public string? SecurityType { get; set; }
+
+    /// <summary>
+    /// The <c>ALGORITHM</c> setting, upper-cased, or null when the view declares none.
+    /// Whether it can be modeled is an engine capability rather than a parser question:
+    /// MariaDB reports it in <c>information_schema.VIEWS</c>, MySQL has no such column
+    /// (measured), so the parser records it either way and the model builder decides.
+    /// </summary>
+    public string? Algorithm { get; set; }
+
+    /// <summary>
+    /// The <c>DEFINER</c> clause as written, or null when absent. Carried so the model builder
+    /// can warn rather than let it vanish; who owns an object is the broader question issue
+    /// #221 covers, and is deliberately not modeled here.
+    /// </summary>
+    public string? Definer { get; set; }
 }
 
 /// <summary>

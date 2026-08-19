@@ -47,4 +47,45 @@ public class CreateViewStatement : Statement
 
     /// <summary>The query text, verbatim as written after <c>AS</c>.</summary>
     public string? Body { get; set; }
+
+    /// <summary>
+    /// The <c>WITH [CASCADED|LOCAL] CHECK OPTION</c> setting, as <c>CASCADED</c> or
+    /// <c>LOCAL</c>, or null when the view declares none (issue #208).
+    ///
+    /// <para>
+    /// One property covers both spellings because PostgreSQL stores them as one facet:
+    /// measured on 18, the clause form and <c>WITH (check_option='local')</c> both land in
+    /// <c>pg_class.reloptions</c> as <c>check_option=local</c>, indistinguishable afterwards.
+    /// A bare <c>WITH CHECK OPTION</c> is stored as <c>cascaded</c>, so it is recorded that
+    /// way here rather than as a third state.
+    /// </para>
+    /// </summary>
+    public string? CheckOption { get; set; }
+
+    /// <summary>
+    /// The <c>security_invoker</c> reloption, or null when the view declares none.
+    ///
+    /// <para>
+    /// Nullable rather than defaulting to false, because the distinction is real: measured on
+    /// PostgreSQL 18, writing <c>security_invoker=false</c> records exactly that in
+    /// <c>reloptions</c>, where declaring nothing leaves them empty. Folding the explicit
+    /// default into "unset" would make a view that declares it re-diff on every deploy.
+    /// This is the opposite of the MariaDB family, where the explicit default is
+    /// indistinguishable from absent.
+    /// </para>
+    /// </summary>
+    public bool? SecurityInvoker { get; set; }
+
+    /// <summary>
+    /// The <c>security_barrier</c> reloption, or null when the view declares none. Recorded
+    /// on the same terms as <see cref="SecurityInvoker"/>.
+    /// </summary>
+    public bool? SecurityBarrier { get; set; }
+
+    /// <summary>
+    /// Reloptions written on the view that Squill does not model, in source order. Carried so
+    /// the model builder can warn that they will not reach the DACPAC (SQ1002) rather than
+    /// letting them vanish silently, which is what issue #208 was about.
+    /// </summary>
+    public IList<string> UnmodeledOptions { get; } = new List<string>();
 }

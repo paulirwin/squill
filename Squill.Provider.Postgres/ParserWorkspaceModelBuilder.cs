@@ -2579,7 +2579,10 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         }
 
         return PostgresModelFactory.CreateView(
-            SqlName.Object(schema, name.UnqualifiedName), schema, columnNames, definition);
+            SqlName.Object(schema, name.UnqualifiedName), schema, columnNames, definition,
+            statement.CheckOption,
+            statement.SecurityInvoker,
+            statement.SecurityBarrier);
     }
 
     private static List<string> DeriveViewColumnNames(
