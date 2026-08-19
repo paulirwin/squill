@@ -317,6 +317,128 @@ public abstract class MariaDbRoundTripTests
             """, TestContext.Current.CancellationToken);
     }
 
+    // ---- Table options (issue #207) ----
+
+    /// <summary>
+    /// The three options the model carries survive a full trip: declared in source, deployed,
+    /// and read back from the catalog into a model that hash-matches the parsed one. Before
+    /// this, the whole clause was dropped on both sides, so this table deployed as a plain
+    /// InnoDB one with no comment and the comparison never noticed.
+    /// </summary>
+    [Fact]
+    public async Task TableOptions_RoundTrip()
+    {
+        var model = await AssertRoundTripAsync("""
+            CREATE TABLE audit
+            (
+                id int NOT NULL PRIMARY KEY
+            ) ENGINE=MyISAM COLLATE=utf8mb4_bin COMMENT='audit log';
+            """, TestContext.Current.CancellationToken);
+
+        var table = model.Elements.Single(e => e.Type == MariaDbElementTypes.SqlTable);
+
+        Assert.Equal("myisam", table.GetProperty<string>(MariaDbPropertyNames.Engine));
+        Assert.Equal("utf8mb4_bin", table.GetProperty<string>(MariaDbPropertyNames.Collation));
+        Assert.Equal("audit log", table.GetProperty<string>(MariaDbPropertyNames.TableComment));
+    }
+
+    /// <summary>
+    /// A non-default engine is the case the issue leads with: <c>ENGINE=MyISAM</c> used to
+    /// deploy as InnoDB with nothing reporting the difference. Both engines ship MyISAM, so the
+    /// scenario is meaningful on each.
+    /// </summary>
+    [Fact]
+    public async Task NonDefaultEngine_RoundTrips()
+    {
+        var model = await AssertRoundTripAsync("""
+            CREATE TABLE legacy
+            (
+                id int NOT NULL PRIMARY KEY
+            ) ENGINE=MyISAM;
+            """, TestContext.Current.CancellationToken);
+
+        var table = model.Elements.Single(e => e.Type == MariaDbElementTypes.SqlTable);
+
+        Assert.Equal("myisam", table.GetProperty<string>(MariaDbPropertyNames.Engine));
+    }
+
+    /// <summary>
+    /// The engine's own casing for a declared name is not the one that was written, and differs
+    /// between MariaDB and MySQL, so a table declaring a lower-case engine still has to
+    /// hash-match what the catalog reports back.
+    /// </summary>
+    [Fact]
+    public async Task EngineDeclaredInLowerCase_RoundTrips()
+    {
+        await AssertRoundTripAsync("""
+            CREATE TABLE lowered
+            (
+                id int NOT NULL PRIMARY KEY
+            ) ENGINE=myisam;
+            """, TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>
+    /// Declaring the engine a table would get anyway has to round-trip too. The catalog names an
+    /// engine for every table, so the extractor cannot tell this apart from a table that
+    /// declared none; both sides drop it, and the table hash-matches either way.
+    /// </summary>
+    [Fact]
+    public async Task EngineNamingTheDefault_RoundTrips()
+    {
+        var model = await AssertRoundTripAsync("""
+            CREATE TABLE defaulted
+            (
+                id int NOT NULL PRIMARY KEY
+            ) ENGINE=InnoDB;
+            """, TestContext.Current.CancellationToken);
+
+        var table = model.Elements.Single(e => e.Type == MariaDbElementTypes.SqlTable);
+
+        Assert.Null(table.GetProperty<string>(MariaDbPropertyNames.Engine));
+    }
+
+    /// <summary>
+    /// A table that declares no options must still round-trip, which is the case that would
+    /// break if the extractor recorded the defaults the catalog fills in: the schema's default
+    /// collation and engine are reported for every table, and they differ between the engines.
+    /// </summary>
+    [Fact]
+    public async Task TableWithNoOptions_RoundTrips()
+    {
+        var model = await AssertRoundTripAsync("""
+            CREATE TABLE bare
+            (
+                id int NOT NULL PRIMARY KEY
+            );
+            """, TestContext.Current.CancellationToken);
+
+        var table = model.Elements.Single(e => e.Type == MariaDbElementTypes.SqlTable);
+
+        Assert.Null(table.GetProperty<string>(MariaDbPropertyNames.Engine));
+        Assert.Null(table.GetProperty<string>(MariaDbPropertyNames.Collation));
+        Assert.Null(table.GetProperty<string>(MariaDbPropertyNames.TableComment));
+    }
+
+    /// <summary>
+    /// A comment containing a quote has to survive the trip intact, since it is written back
+    /// into the deploy script as a string literal.
+    /// </summary>
+    [Fact]
+    public async Task TableCommentWithQuote_RoundTrips()
+    {
+        var model = await AssertRoundTripAsync("""
+            CREATE TABLE quoted
+            (
+                id int NOT NULL PRIMARY KEY
+            ) COMMENT='it''s an audit log';
+            """, TestContext.Current.CancellationToken);
+
+        var table = model.Elements.Single(e => e.Type == MariaDbElementTypes.SqlTable);
+
+        Assert.Equal("it's an audit log", table.GetProperty<string>(MariaDbPropertyNames.TableComment));
+    }
+
     private static string? ReferencedTable(Element foreignKey)
         => foreignKey.GetRelationship(MariaDbRelationshipNames.ForeignTable)
             ?.Entries.OfType<Reference>().FirstOrDefault()?.Name;

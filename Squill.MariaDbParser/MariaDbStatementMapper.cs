@@ -178,7 +178,77 @@ internal static class MariaDbStatementMapper
             }
         }
 
+        foreach (var option in columnCreate.tableOption())
+        {
+            statement.Options.Add(MapTableOption(option));
+        }
+
         return statement;
+    }
+
+    /// <summary>
+    /// Maps one trailing table option to its name/value pair (issue #207). Only the options the
+    /// provider can model have their value read; the rest carry their name alone, which is all a
+    /// warning needs to say what was dropped.
+    /// </summary>
+    private static TableOption MapTableOption(MariaDBParser.TableOptionContext option)
+    {
+        var mapped = option switch
+        {
+            // ENGINE's name is optional in the grammar (`ENGINE '='? engineName?`), so an engine
+            // written without one yields a null value rather than a missing option: the option
+            // was still declared, and dropping it here would lose the only thing to warn about.
+            MariaDBParser.TableOptionEngineContext engine =>
+                new TableOption("ENGINE", engine.engineName() is { } name ? name.GetText() : null),
+
+            MariaDBParser.TableOptionCollateContext collate =>
+                new TableOption("COLLATE", collate.collationName()?.GetText()),
+
+            // `CHARSET = DEFAULT` names no charset and reaches here with a null charsetName(),
+            // which is the same as declaring nothing: the server applies the database default
+            // either way.
+            MariaDBParser.TableOptionCharsetContext charset =>
+                new TableOption("CHARSET", charset.charsetName()?.GetText()),
+
+            MariaDBParser.TableOptionCommentContext comment =>
+                new TableOption("COMMENT", TrimStringLiteral(comment.STRING_LITERAL().GetText())),
+
+            // Everything below is carried by name so the provider can warn precisely, without
+            // reading a value it will not model.
+            MariaDBParser.TableOptionAutoIncrementContext => new TableOption("AUTO_INCREMENT", null),
+
+            _ => new TableOption(TableOptionKeyword(option), null),
+        };
+
+        return At(mapped, option);
+    }
+
+    /// <summary>
+    /// The leading keyword of an option this mapper does not read a value for, used to name it in
+    /// a warning. Taken from the parse tree's first token rather than a per-option switch, so an
+    /// option added by a future grammar re-vendor is still named correctly instead of falling
+    /// back to something generic.
+    /// </summary>
+    private static string TableOptionKeyword(MariaDBParser.TableOptionContext option)
+    {
+        // DEFAULT is a prefix on some options (`DEFAULT CHARSET=...`), never the option itself,
+        // so it is skipped to name the option after the keyword that identifies it.
+        foreach (var child in Enumerable.Range(0, option.ChildCount).Select(option.GetChild))
+        {
+            if (child is not ITerminalNode terminal)
+            {
+                continue;
+            }
+
+            var text = terminal.GetText();
+
+            if (!string.Equals(text, "DEFAULT", StringComparison.OrdinalIgnoreCase))
+            {
+                return text.ToUpperInvariant();
+            }
+        }
+
+        return option.GetText().ToUpperInvariant();
     }
 
     private static ColumnDefinition MapColumn(MariaDBParser.ColumnDeclarationContext column)

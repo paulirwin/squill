@@ -145,7 +145,7 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
         }
 
         sb.Append("    ").AppendLine(string.Join($",{Environment.NewLine}    ", lines));
-        sb.AppendLine(");");
+        sb.Append(')').Append(RenderTableOptions(table)).AppendLine(";");
 
         // Non-unique standalone indexes are emitted as separate CREATE INDEX statements.
         foreach (var index in dependentElements.Where(i =>
@@ -157,6 +157,35 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
         }
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// The trailing table options for a CREATE TABLE, or an empty string when the table declared
+    /// none (issue #207). Only the options the model carries are emitted; the rest were warned
+    /// about at build time and deploy with the server's defaults.
+    /// </summary>
+    private static string RenderTableOptions(Element table)
+    {
+        var options = new List<string>();
+
+        if (table.GetProperty<string>(MariaDbPropertyNames.Engine) is { } engine)
+        {
+            options.Add($"ENGINE={engine}");
+        }
+
+        // Emitted as COLLATE alone, with no companion CHARSET: the collation implies its
+        // character set, and both engines resolve the pair themselves.
+        if (table.GetProperty<string>(MariaDbPropertyNames.Collation) is { } collation)
+        {
+            options.Add($"COLLATE={collation}");
+        }
+
+        if (table.GetProperty<string>(MariaDbPropertyNames.TableComment) is { } comment)
+        {
+            options.Add($"COMMENT={QuoteLiteral(comment)}");
+        }
+
+        return options.Count == 0 ? string.Empty : " " + string.Join(" ", options);
     }
 
     private string RenderColumnDefinition(Element column)

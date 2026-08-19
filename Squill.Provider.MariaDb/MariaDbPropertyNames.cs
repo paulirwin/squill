@@ -11,6 +11,47 @@ namespace Squill.Provider.MariaDb;
 /// </summary>
 public sealed class MariaDbPropertyNames : SqlPropertyNames
 {
+    // Table options declared on a CREATE TABLE (issue #207). The whole tableOption clause used
+    // to be dropped on both sides of the round trip, so a table declaring ENGINE/COLLATE/COMMENT
+    // deployed and compared as if none of it were written.
+    //
+    // Only these three of the 40-odd options in the grammar are modeled, because only these
+    // three were measured to survive the trip intact on both engines. All follow the
+    // omit-when-default convention: a table that declares nothing records nothing, which matters
+    // more here than elsewhere because the defaults genuinely differ between the two engines (a
+    // bare table extracts as utf8mb4_uca1400_ai_ci on MariaDB 12 and utf8mb4_0900_ai_ci on
+    // MySQL 9), so resolving an absent clause to a default would make one source build to two
+    // different models.
+    //
+    // The rest of the clause is warned rather than modeled, for two distinct reasons. Options
+    // like ROW_FORMAT persist but are reported for a table that never declared them (a bare
+    // CREATE TABLE extracts ROW_FORMAT `Dynamic`), so a declared default cannot be told apart
+    // from an absent clause. AUTO_INCREMENT is worse than unmodelable: it is a live counter
+    // rather than a schema facet, and a table declared AUTO_INCREMENT=100 reports 103 after
+    // three inserts, so modeling it would re-diff against any table that has ever been written.
+
+    // The storage engine, from information_schema.TABLES.ENGINE. Stored case-folded on both
+    // sides, because the catalog's casing follows no rule the parse side could reproduce:
+    // measured, both engines accept any spelling on input and report back their own, and the two
+    // disagree about what that is (MariaDB 12 reports MRG_MyISAM where MySQL 9 reports
+    // MRG_MYISAM, and MySQL reports a lower-case ndbcluster). Folding is what lets a declared
+    // engine hash-match an extracted one without a hardcoded name table that would be wrong on
+    // one engine or the other.
+    public const string Engine = nameof(Engine);
+
+    // The table's default collation, from information_schema.TABLES.TABLE_COLLATION. Held as the
+    // collation alone rather than a charset/collation pair because information_schema.TABLES
+    // reports only TABLE_COLLATION: a table declared `DEFAULT CHARSET=latin1` reads back
+    // latin1_swedish_ci, so the charset is recoverable from the collation but not the reverse,
+    // and a separate charset property would be one the extractor could never fill.
+    public const string Collation = nameof(Collation);
+
+    // The table's COMMENT, reported by information_schema.TABLES.TABLE_COMMENT. Named apart
+    // from the event-level Comment below because the two are read from different catalog views
+    // and neither element type carries the other's facet; sharing one constant would tie a
+    // table's comment to an event's by name alone.
+    public const string TableComment = nameof(TableComment);
+
     public const string IsUnsigned = nameof(IsUnsigned);
     public const string IsAutoIncrement = nameof(IsAutoIncrement);
 

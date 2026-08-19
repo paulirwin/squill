@@ -310,6 +310,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         }
 
                         AddUnmodeledTableWarnings(file, createTable, warnings, _schemaProvider);
+                        AddUnmodeledTableOptionWarnings(file, createTable, warnings);
 
                         // Reported alongside the unmodeled-construct warnings, not in place of
                         // them: a construct can be both too new for the target and unmodeled,
@@ -431,6 +432,69 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         ImperativeKind.Query => ImperativeStatementKind.Query,
         _ => ImperativeStatementKind.SchemaChange,
     };
+
+    /// <summary>
+    /// Records a warning for every table option that is recognized but not carried into the
+    /// model (issue #207), so the loss is visible rather than the option silently vanishing.
+    ///
+    /// <para>
+    /// Two different reasons land here. Most options (ROW_FORMAT, KEY_BLOCK_SIZE, …) genuinely
+    /// persist, but the catalog reports a value for a table that never declared one, so a
+    /// declared default cannot be told apart from an absent clause. AUTO_INCREMENT is not a
+    /// schema facet at all: it is a live counter that moves as rows are inserted, so modeling it
+    /// would re-diff against any table that has ever been written to. Both are warned rather than
+    /// rejected, because unlike a Postgres access method none of them changes what the table
+    /// <em>is</em>: a table that ignores its ROW_FORMAT still holds the same rows under the same
+    /// constraints.
+    /// </para>
+    /// </summary>
+    private static void AddUnmodeledTableOptionWarnings(IFile file,
+        CreateTableStatement createTable,
+        List<SqlSourceDiagnostic> warnings)
+    {
+        var table = createTable.Name.Name;
+
+        foreach (var option in createTable.Options)
+        {
+            // A CHARSET is only unmodeled on its own. Written alongside an explicit COLLATE it is
+            // redundant rather than lost, since the collation it would have resolved to is stated
+            // outright and is what the catalog reports back.
+            if (option.Name == "CHARSET"
+                && createTable.Options.Any(o => o.Name == "COLLATE" && o.Value is not null))
+            {
+                continue;
+            }
+
+            if (ModeledTableOptions.Contains(option.Name) && option.Value is not null)
+            {
+                continue;
+            }
+
+            var reason = option.Name switch
+            {
+                // Said outright rather than as "not modeled", because raising it in a later
+                // release would not help: the value the catalog reports is the table's current
+                // counter, not the seed it was declared with.
+                "AUTO_INCREMENT" =>
+                    "is a live counter rather than a schema facet, and is not modeled",
+
+                // A bare CHARSET resolves to its charset's default collation, which differs
+                // between the engines, so the build cannot know which one this table will get.
+                "CHARSET" =>
+                    "resolves to a collation that differs between MariaDB and MySQL, and is not "
+                    + "modeled; declare COLLATE to model it",
+
+                _ => "is not modeled",
+            };
+
+            warnings.Add(new SqlSourceDiagnostic(
+                $"Table option {option.Name} on table '{table}' {reason}; it will not be "
+                + "deployed or compared.",
+                file.Name,
+                option.Line ?? createTable.Line,
+                option.Column ?? createTable.Column));
+        }
+    }
 
     /// <summary>
     /// Records a warning for every construct in a CREATE TABLE that is recognized but not
@@ -1217,6 +1281,79 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         ReferentialAction OnDelete,
         ReferentialAction OnUpdate);
 
+    /// <summary>
+    /// The table options that are carried into the model (issue #207). Everything else the
+    /// grammar accepts is warned for instead, by <see cref="AddUnmodeledTableOptionWarnings"/>.
+    /// </summary>
+    private static readonly HashSet<string> ModeledTableOptions =
+        new(StringComparer.Ordinal) { "ENGINE", "COLLATE", "COMMENT" };
+
+    /// <summary>
+    /// Records the three table options that survive a round trip on both engines: ENGINE,
+    /// COLLATE and COMMENT (issue #207). Each follows the omit-when-default convention and is
+    /// stored only when declared, so a table that writes no options records none and hash-matches
+    /// one extracted from either engine, whose defaults for these differ.
+    /// </summary>
+    private static void AddTableOptions(Element tableElement,
+        CreateTableStatement createTable,
+        MariaDbFamilyDatabaseSchemaProvider schemaProvider)
+    {
+        // Read last-to-first so a repeated option keeps its final spelling, which is the one
+        // both engines apply, while each property is still added at most once: the model holds
+        // one value per name, and a second Property of the same name would be a second facet
+        // rather than an overwrite.
+        var values = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var option in createTable.Options)
+        {
+            if (option.Value is { } value && ModeledTableOptions.Contains(option.Name))
+            {
+                values[option.Name] = value;
+            }
+        }
+
+        // Recorded only when it is not the engine a table would get anyway. The extractor cannot
+        // tell a declared default from an inherited one (the catalog names an engine for every
+        // table), so declaring the default has to leave the same mark as declaring nothing, or
+        // the two models would stop matching.
+        if (values.TryGetValue("ENGINE", out var engine)
+            && !string.Equals(engine, schemaProvider.DefaultStorageEngine, StringComparison.OrdinalIgnoreCase))
+        {
+            tableElement.Properties.Add(
+                new Property(MariaDbPropertyNames.Engine, CanonicalEngineName(engine)));
+        }
+
+        // Skipped when it names the collation a table would inherit anyway, for the same reason
+        // as the engine above: a table declaring its schema's default collation and one declaring
+        // nothing are byte-identical in the catalog, so the extractor records neither and the
+        // build has to match. The table is collated identically either way.
+        if (values.TryGetValue("COLLATE", out var collation)
+            && !string.Equals(collation, schemaProvider.DefaultCollation, StringComparison.OrdinalIgnoreCase))
+        {
+            tableElement.Properties.Add(
+                new Property(MariaDbPropertyNames.Collation, CanonicalCollationName(collation)));
+        }
+
+        if (values.TryGetValue("COMMENT", out var comment))
+        {
+            tableElement.Properties.Add(new Property(MariaDbPropertyNames.TableComment, comment));
+        }
+    }
+
+    /// <summary>
+    /// Case-folds a storage engine name so a declared one matches an extracted one. See
+    /// <see cref="MariaDbPropertyNames.Engine"/>: the catalog's own casing is arbitrary and
+    /// differs between the engines, so folding both sides is the only comparison that holds.
+    /// </summary>
+    internal static string CanonicalEngineName(string engine) => engine.ToLowerInvariant();
+
+    /// <summary>
+    /// Case-folds a collation name. Measured, both engines report TABLE_COLLATION in lower case
+    /// whatever casing was declared (<c>COLLATE=LATIN1_BIN</c> reads back <c>latin1_bin</c>), so
+    /// the declared spelling is folded to match.
+    /// </summary>
+    internal static string CanonicalCollationName(string collation) => collation.ToLowerInvariant();
+
     private static IEnumerable<Element> MakeCreateTableElements(
         CreateTableStatement createTable, MariaDbFamilyDatabaseSchemaProvider schemaProvider)
     {
@@ -1229,6 +1366,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         var uniqueIndexes = new List<(string? Name, IReadOnlyList<IndexColumn> Columns)>();
         var checkConstraints = new List<(string Name, string Expression)>();
         var specialIndexes = new List<(string Name, string Kind, IReadOnlyList<IndexColumn> Columns)>();
+
+        AddTableOptions(tableElement, createTable, schemaProvider);
 
         AddColumns(schemaProvider, tableElement, tableName, createTable, primaryKeyColumns, foreignKeys,
             uniqueIndexes, checkConstraints);
