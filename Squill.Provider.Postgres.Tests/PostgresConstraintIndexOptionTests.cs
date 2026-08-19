@@ -98,6 +98,31 @@ public class PostgresConstraintIndexOptionTests
     }
 
     /// <summary>
+    /// Quoted identifiers are case-sensitive in PostgreSQL. Measured on 18.4,
+    /// <c>USING INDEX TABLESPACE "PG_DEFAULT"</c> fails with
+    /// <c>tablespace "PG_DEFAULT" does not exist</c>, so the build must refuse it rather than
+    /// fold its case and pass a statement no server accepts.
+    /// </summary>
+    [Fact]
+    public async Task UniqueConstraint_QuotedNonDefaultCaseTablespace_IsABuildError()
+    {
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(() => BuildModelAsync(
+            """CREATE TABLE t (a integer, CONSTRAINT uq UNIQUE (a) USING INDEX TABLESPACE "PG_DEFAULT");"""));
+
+        Assert.Contains("PG_DEFAULT", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>Quoting the default in its own case still names the default.</summary>
+    [Fact]
+    public async Task UniqueConstraint_QuotedDefaultTablespace_IsAccepted()
+    {
+        var model = await BuildModelAsync(
+            """CREATE TABLE t (a integer, CONSTRAINT uq UNIQUE (a) USING INDEX TABLESPACE "pg_default");""");
+
+        Assert.Equal("uq", ConstraintOf(model, PostgresElementTypes.SqlUniqueConstraint).Name);
+    }
+
+    /// <summary>
     /// The INCLUDE columns take part in the name PostgreSQL derives for an unnamed constraint.
     /// Measured: <c>UNIQUE (a, b) INCLUDE (c)</c> is named <c>t_a_b_c_key</c>, not
     /// <c>t_a_b_key</c>. Predicting it wrongly would mean the parsed model never hash-matches

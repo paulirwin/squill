@@ -338,6 +338,56 @@ CREATE TABLE warn_event
     }
 
     /// <summary>
+    /// The default-spelling rule is case-sensitive for a quoted identifier and case-insensitive
+    /// for an unquoted one, because that is what the server does. Both halves are checked
+    /// against it here: the unquoted upper-case spellings are folded and create the table, while
+    /// the quoted upper-case ones are undefined objects the server refuses outright (42704), so
+    /// the build must refuse them too rather than accept a statement no deploy can run.
+    /// </summary>
+    [Fact]
+    public async Task DefaultStorageClauseNames_FoldCaseOnlyWhenUnquoted()
+    {
+        // Unquoted: folded by the server, accepted by the build, and still a plain heap table in
+        // the default tablespace.
+        const string unquotedSql =
+            "CREATE TABLE cs_unquoted (id integer PRIMARY KEY) USING HEAP TABLESPACE PG_DEFAULT;";
+
+        var unquoted = await BuildAsync(("Unquoted.sql", unquotedSql));
+
+        Assert.Empty(unquoted.Warnings);
+
+        await ExecuteAsync(unquotedSql);
+
+        Assert.Equal(
+            "heap",
+            await ScalarAsync(
+                """
+                SELECT am.amname FROM pg_class c JOIN pg_am am ON am.oid = c.relam
+                WHERE c.relname = 'cs_unquoted';
+                """));
+
+        // Quoted: taken verbatim, so these name objects that do not exist. 42704 is
+        // undefined_object for both -- `access method "HEAP" does not exist` and
+        // `tablespace "PG_DEFAULT" does not exist`.
+        foreach (var (file, sql, name) in new[]
+                 {
+                     ("QuotedAm.sql", """CREATE TABLE cs_am (id integer PRIMARY KEY) USING "HEAP";""", "HEAP"),
+                     ("QuotedTs.sql",
+                         """CREATE TABLE cs_ts (id integer PRIMARY KEY) TABLESPACE "PG_DEFAULT";""",
+                         "PG_DEFAULT"),
+                 })
+        {
+            var ex = await Assert.ThrowsAsync<SqlSourceException>(() => BuildAsync((file, sql)));
+
+            Assert.Contains(name, ex.Message, StringComparison.Ordinal);
+
+            var postgresException = await ExecuteExpectingFailureAsync(sql);
+
+            Assert.Equal("42704", postgresException.SqlState);
+        }
+    }
+
+    /// <summary>
     /// <c>ON COMMIT</c> is the fourth clause issue #206 lists, and it needs no handling of its
     /// own: the server accepts it only on a temporary table, and a temporary table is already
     /// rejected by the build. There is no declaration on which dropping it could change anything.

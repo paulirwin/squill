@@ -123,6 +123,66 @@ public class PostgresTableStorageClauseTests
         Assert.Empty(result.Warnings);
     }
 
+    /// <summary>
+    /// A quoted identifier is case-sensitive in PostgreSQL, so <c>"HEAP"</c> does not name the
+    /// default access method the way unquoted <c>HEAP</c> does. Measured on PostgreSQL 18.4,
+    /// <c>CREATE TABLE t (id int) USING "HEAP"</c> fails with <c>access method "HEAP" does not
+    /// exist</c> — so folding its case here would let a build accept a statement no server will
+    /// ever run, moving the failure from the build to the deploy.
+    /// </summary>
+    [Fact]
+    public async Task AccessMethod_QuotedNonDefaultCase_IsRejected()
+    {
+        var exception = await RejectedAsync("""CREATE TABLE t (id integer) USING "HEAP";""");
+
+        Assert.Contains("HEAP", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The other half of the same rule: quoting the default in its own case still names the
+    /// default. Measured, a table declared <c>USING "heap"</c> records the same <c>relam</c> as
+    /// one with no clause, so it stays a no-op.
+    /// </summary>
+    [Fact]
+    public async Task AccessMethod_QuotedDefault_IsAccepted()
+    {
+        var result = await BuildAsync("""CREATE TABLE t (id integer) USING "heap";""");
+
+        Assert.Empty(result.Warnings);
+    }
+
+    /// <summary>
+    /// The tablespace side of the same case-sensitivity rule. Measured on PostgreSQL 18.4,
+    /// <c>TABLESPACE "PG_DEFAULT"</c> fails with <c>tablespace "PG_DEFAULT" does not exist</c>.
+    /// </summary>
+    [Fact]
+    public async Task Tablespace_QuotedNonDefaultCase_IsRejected()
+    {
+        var exception = await RejectedAsync("""CREATE TABLE t (id integer) TABLESPACE "PG_DEFAULT";""");
+
+        Assert.Contains("PG_DEFAULT", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Tablespace_QuotedDefault_IsAccepted()
+    {
+        var result = await BuildAsync("""CREATE TABLE t (id integer) TABLESPACE "pg_default";""");
+
+        Assert.Empty(result.Warnings);
+    }
+
+    /// <summary>
+    /// Unquoted identifiers are folded by the server, so the upper-case spelling of the
+    /// tablespace default names the default and must keep building.
+    /// </summary>
+    [Fact]
+    public async Task Tablespace_UnquotedUpperCase_IsAccepted()
+    {
+        var result = await BuildAsync("CREATE TABLE t (id integer) TABLESPACE PG_DEFAULT;");
+
+        Assert.Empty(result.Warnings);
+    }
+
     [Fact]
     public async Task StorageParameters_WarnAndTheTableStillBuilds()
     {

@@ -1389,6 +1389,22 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     private static string? RenderStorageParametersOrNull(ICollection<IndexWithOption> options)
         => options.Count > 0 ? RenderStorageParameters(options) : null;
 
+    // Whether an identifier written in source names the given built-in default (pg_default,
+    // heap). PostgreSQL folds an unquoted identifier to lower case but takes a quoted one
+    // exactly as written, so the two spellings cannot share one comparison: measured on
+    // PostgreSQL 18.4, TABLESPACE PG_DEFAULT and USING HEAP both succeed, while
+    // TABLESPACE "PG_DEFAULT" fails with `tablespace "PG_DEFAULT" does not exist` and
+    // USING "HEAP" with `access method "HEAP" does not exist`.
+    //
+    // So case-folding a quoted identifier here would accept a declaration no server will run,
+    // moving the failure out of the build and into the deploy -- the opposite of what these
+    // checks exist for. Quoting the default in its own case ("pg_default", "heap") does name it
+    // and stays accepted.
+    private static bool NamesDefault(Identifier identifier, string defaultName)
+        => identifier is SimpleIdentifier { IsQuoted: true }
+            ? string.Equals(identifier.Name, defaultName, StringComparison.Ordinal)
+            : string.Equals(identifier.Name, defaultName, StringComparison.OrdinalIgnoreCase);
+
     // USING INDEX TABLESPACE on a constraint is rejected rather than modeled, matching what
     // CREATE INDEX already does (issue #160): measured there, an index in pg_default records
     // reltablespace = 0 exactly as one with no clause does, so naming the default is a genuine
@@ -1397,8 +1413,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     private static void RejectNonDefaultConstraintTablespace(
         IIndexBackedTableConstraint constraint, string table)
     {
-        if (constraint.TableSpace is { } tablespace
-            && !string.Equals(tablespace.Name, "pg_default", StringComparison.OrdinalIgnoreCase))
+        if (constraint.TableSpace is { } tablespace && !NamesDefault(tablespace, "pg_default"))
         {
             throw new NotSupportedException(
                 $"A constraint on table '{table}' declares USING INDEX TABLESPACE "
@@ -1424,7 +1439,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         var table = SplitSchema(createTableStatement.Name).Name.UnqualifiedName;
 
         if (createTableStatement.TableSpace is { } tablespace
-            && !string.Equals(tablespace.Name, "pg_default", StringComparison.OrdinalIgnoreCase))
+            && !NamesDefault(tablespace, "pg_default"))
         {
             throw new NotSupportedException(
                 $"Table '{table}' declares TABLESPACE '{tablespace.Name}', which Squill does not "
@@ -1435,7 +1450,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         // with; default_table_access_method may name another, but a build has no server to ask,
         // and assuming a non-standard one would be a worse guess than requiring the default.
         if (createTableStatement.AccessMethod is { } accessMethod
-            && !string.Equals(accessMethod.Name, "heap", StringComparison.OrdinalIgnoreCase))
+            && !NamesDefault(accessMethod, "heap"))
         {
             throw new NotSupportedException(
                 $"Table '{table}' declares USING '{accessMethod.Name}', which Squill does not "
@@ -2263,7 +2278,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         // other tablespace is a real placement decision that would be silently lost, so it is
         // rejected rather than ignored (issue #160).
         if (createIndexStatement.TableSpace is { } tablespace
-            && !string.Equals(tablespace.Name, "pg_default", StringComparison.OrdinalIgnoreCase))
+            && !NamesDefault(tablespace, "pg_default"))
         {
             throw new NotSupportedException(
                 $"Index '{createIndexStatement.Name.Name}' declares TABLESPACE "
