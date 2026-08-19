@@ -26,4 +26,7 @@ public sealed class MariaDb11DatabaseSchemaProvider : MariaDbDatabaseSchemaProvi
     }
 
     public override int MajorVersion => 11;
+
+    /// <summary>Measured on 11.8: MariaDB 11.4 moved the default to the UCA 14.0.0 collation.</summary>
+    public override string DefaultCollation => "utf8mb4_uca1400_ai_ci";
 }

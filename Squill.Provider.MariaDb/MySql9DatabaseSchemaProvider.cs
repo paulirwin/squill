@@ -21,4 +21,7 @@ public sealed class MySql9DatabaseSchemaProvider : MySqlDatabaseSchemaProviderBa
     }
 
     public override int MajorVersion => 9;
+
+    /// <summary>Measured on 9: unchanged from MySQL 8.</summary>
+    public override string DefaultCollation => "utf8mb4_0900_ai_ci";
 }

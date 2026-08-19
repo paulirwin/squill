@@ -114,4 +114,47 @@ public abstract class MariaDbFamilyDatabaseSchemaProvider : DatabaseSchemaProvid
     /// which is why the query is built around this capability rather than selecting it always.
     /// </summary>
     public abstract bool SupportsFunctionalIndexKeys { get; }
+
+    /// <summary>
+    /// The storage engine a table gets when its CREATE TABLE names none, used to decide whether a
+    /// declared <c>ENGINE</c> is worth recording (issue #207).
+    ///
+    /// <para>
+    /// A capability rather than a constant in the model builder because it is the build-time
+    /// half of a question the extractor answers from the live server
+    /// (<c>information_schema.ENGINES</c> where <c>SUPPORT = 'DEFAULT'</c>): both sides have to
+    /// reach the same answer or a table declaring the default engine would record an option its
+    /// extracted counterpart omits, and re-diff forever.
+    /// </para>
+    ///
+    /// <para>
+    /// Virtual rather than abstract, unlike most members here, because this is not a measured
+    /// divergence: both engines have defaulted to InnoDB since MySQL 5.5 and MariaDB 5.5, and
+    /// <c>default_storage_engine</c> is settable per server, so the value is a well-known default
+    /// rather than an engine trait. An engine whose default moves overrides it.
+    /// </para>
+    /// </summary>
+    public virtual string DefaultStorageEngine => "InnoDB";
+
+    /// <summary>
+    /// The collation a table inherits when neither it nor its schema names one (issue #207).
+    ///
+    /// <para>
+    /// A declared <c>COLLATE</c> equal to this is the one table option that cannot round-trip: a
+    /// table declaring its schema's default collation and one declaring nothing are
+    /// byte-identical in <c>information_schema</c> (measured), so the extractor cannot tell them
+    /// apart and records neither. The build matches that by not recording it either, which keeps
+    /// the two models agreeing; what the table is collated as is unaffected, since the server
+    /// applies the same collation either way.
+    /// </para>
+    ///
+    /// <para>
+    /// Abstract because the answer is a measured divergence: MariaDB 12 reports
+    /// <c>utf8mb4_uca1400_ai_ci</c> where MySQL 9 reports <c>utf8mb4_0900_ai_ci</c>. It is
+    /// necessarily best-effort, since the default is configurable per server and per schema and a
+    /// build has neither in front of it; a target whose default has been changed falls back to
+    /// the ordinary case of a collation that differs from it, which does round-trip.
+    /// </para>
+    /// </summary>
+    public abstract string DefaultCollation { get; }
 }

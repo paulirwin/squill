@@ -555,4 +555,106 @@ public class CreateTableTests
     {
         Assert.False(ParseOne("CREATE TABLE keeper (id int PRIMARY KEY);").IsTemporary);
     }
+    // ---- Table options (issue #207) ----
+
+    /// <summary>
+    /// The trailing option list is mapped rather than discarded. The mapper carries every option
+    /// it sees, including ones the provider will not model, so a warning can name what was
+    /// written instead of the option vanishing between the two layers.
+    /// </summary>
+    [Fact]
+    public void TableOptions_AreMapped()
+    {
+        var table = ParseOne("CREATE TABLE t (a int) ENGINE=InnoDB COMMENT='hi' ROW_FORMAT=DYNAMIC;");
+
+        Assert.Equal(
+            [("ENGINE", "InnoDB"), ("COMMENT", "hi"), ("ROW_FORMAT", null)],
+            table.Options.Select(o => (o.Name, o.Value)));
+    }
+
+    [Fact]
+    public void TableWithNoOptions_MapsNone()
+    {
+        Assert.Empty(ParseOne("CREATE TABLE t (a int);").Options);
+    }
+
+    /// <summary>
+    /// Both engines accept the options comma-separated as well as space-separated, and the
+    /// grammar admits either, so both spellings have to reach the same list.
+    /// </summary>
+    [Fact]
+    public void CommaSeparatedOptions_AreMapped()
+    {
+        var table = ParseOne("CREATE TABLE t (a int) ENGINE=InnoDB, COMMENT='hi';");
+
+        Assert.Equal(
+            [("ENGINE", "InnoDB"), ("COMMENT", "hi")],
+            table.Options.Select(o => (o.Name, o.Value)));
+    }
+
+    /// <summary>
+    /// A COMMENT's value arrives unquoted, with a doubled quote collapsed, since it is compared
+    /// against what information_schema reports rather than against the source spelling.
+    /// </summary>
+    [Fact]
+    public void CommentValue_IsUnquoted()
+    {
+        var table = ParseOne("CREATE TABLE t (a int) COMMENT='it''s mine';");
+
+        Assert.Equal("it's mine", Assert.Single(table.Options).Value);
+    }
+
+    /// <summary>
+    /// <c>DEFAULT</c> is a prefix on the charset and collation options rather than the option
+    /// itself, so it must not become the name a warning reports.
+    /// </summary>
+    [Theory]
+    [InlineData("DEFAULT CHARSET=utf8mb4", "CHARSET", "utf8mb4")]
+    // `CHARACTER SET` and `CHARSET` are the same option, and both reach the charset alternative,
+    // so both are named CHARSET rather than after the words that happen to spell them.
+    [InlineData("CHARACTER SET utf8mb4", "CHARSET", "utf8mb4")]
+    [InlineData("DEFAULT COLLATE=utf8mb4_bin", "COLLATE", "utf8mb4_bin")]
+    public void CharsetAndCollateOptions_AreNamedAfterTheirKeyword(
+        string option, string expectedName, string expectedValue)
+    {
+        var table = ParseOne($"CREATE TABLE t (a int) {option};");
+
+        var mapped = Assert.Single(table.Options);
+
+        Assert.Equal(expectedName, mapped.Name);
+        Assert.Equal(expectedValue, mapped.Value);
+    }
+
+    /// <summary>
+    /// ENGINE's name is optional in the grammar, so an engine written without one still maps to
+    /// an option: the declaration was made, and dropping it would leave nothing to warn about.
+    /// </summary>
+    [Fact]
+    public void EngineWithNoName_MapsWithNullValue()
+    {
+        var table = ParseOne("CREATE TABLE t (a int) ENGINE=;");
+
+        var mapped = Assert.Single(table.Options);
+
+        Assert.Equal("ENGINE", mapped.Name);
+        Assert.Null(mapped.Value);
+    }
+
+    /// <summary>
+    /// Each option records its own position, so a warning points at the line the reader has to
+    /// edit rather than at the statement it belongs to.
+    /// </summary>
+    [Fact]
+    public void TableOption_RecordsItsPosition()
+    {
+        var table = ParseOne("""
+            CREATE TABLE t
+            (
+                a int
+            ) ROW_FORMAT=COMPRESSED;
+            """);
+
+        Assert.Equal(4, Assert.Single(table.Options).Line);
+    }
+
 }

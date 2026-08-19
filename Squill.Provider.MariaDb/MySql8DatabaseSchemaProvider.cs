@@ -25,4 +25,7 @@ public sealed class MySql8DatabaseSchemaProvider : MySqlDatabaseSchemaProviderBa
     }
 
     public override int MajorVersion => 8;
+
+    /// <summary>Measured on 8.4: MySQL 8.0 moved the default here from latin1_swedish_ci.</summary>
+    public override string DefaultCollation => "utf8mb4_0900_ai_ci";
 }

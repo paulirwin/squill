@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Squill.Core;
 using Squill.Dacpac;
 using Squill.MariaDbParser.Syntax;
@@ -73,6 +74,58 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
     // the element. This pairs the two so extraction can do both.
     private sealed record TableRef(Element Element, string BareName);
 
+    /// <summary>
+    /// Records the table options that survive a round trip (issue #207), following the same
+    /// omit-when-default convention the parse side uses so the two models hash-match.
+    ///
+    /// <para>
+    /// The catalog fills every one of these in whether or not the table declared it, so an
+    /// absent clause and a declared default are indistinguishable here. Each is therefore stored
+    /// only when it differs from what an undeclared table would report: the schema's default
+    /// collation, the engine's default engine, and an empty comment.
+    /// </para>
+    /// </summary>
+    private static void AddTableOptions(Element element, DbDataReader reader)
+    {
+        // Compared against the server's default rather than recorded outright: the catalog names
+        // an engine for every table, so storing it unconditionally would record one here for a
+        // table whose source declared none, and the two models would stop matching.
+        var engine = reader.GetStringOrNull("ENGINE");
+        var defaultEngine = reader.GetStringOrNull("DEFAULT_ENGINE");
+
+        if (engine is not null
+            && !string.Equals(engine, defaultEngine, StringComparison.OrdinalIgnoreCase))
+        {
+            element.Properties.Add(new Property(
+                MariaDbPropertyNames.Engine, ParserWorkspaceModelBuilder.CanonicalEngineName(engine)));
+        }
+
+        // Recorded only when it differs from the schema's default, which is the one comparison
+        // the extractor can make. A table that declares its schema's default collation and one
+        // that declares nothing are byte-identical here (measured: in a schema defaulting to
+        // utf8mb4_bin, `COLLATE=utf8mb4_bin` and no COLLATE both report utf8mb4_bin), so no rule
+        // could tell them apart. Treating both as "inherited" is the half of that ambiguity the
+        // build can match: the parse side applies the same rule against the engine's known
+        // default, so a table declaring it records nothing on either side.
+        var collation = reader.GetStringOrNull("TABLE_COLLATION");
+        var schemaCollation = reader.GetStringOrNull("DEFAULT_COLLATION_NAME");
+
+        if (collation is not null
+            && !string.Equals(collation, schemaCollation, StringComparison.OrdinalIgnoreCase))
+        {
+            element.Properties.Add(new Property(
+                MariaDbPropertyNames.Collation,
+                ParserWorkspaceModelBuilder.CanonicalCollationName(collation)));
+        }
+
+        // Both engines report a table with no COMMENT as the empty string rather than null, so
+        // an empty one is the absent case and is not stored.
+        if (reader.GetStringOrNull("TABLE_COMMENT") is { Length: > 0 } comment)
+        {
+            element.Properties.Add(new Property(MariaDbPropertyNames.TableComment, comment));
+        }
+    }
+
     public async Task<Model> ExtractModelAsync(CancellationToken cancellationToken = default)
     {
         var model = new Model();
@@ -81,9 +134,25 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
 
         _schemaProvider = await DetectSchemaProviderAsync(cancellationToken);
 
+        // ENGINE, TABLE_COLLATION and TABLE_COMMENT are read alongside the name so a table's
+        // options survive the round trip (issue #207). They have to be read here rather than
+        // added on the parse side alone: neither side recorded them before, so modeling them in
+        // only one place would make every existing table re-diff against its own database.
+        //
+        // The schema's default collation and the server's default engine come along so an
+        // inherited option can be told from a declared one. The catalog fills both in for every
+        // table whether or not it declared them, and both defaults differ between the engines
+        // (measured: utf8mb4_uca1400_ai_ci on MariaDB 12 against utf8mb4_0900_ai_ci on MySQL 9),
+        // so comparing against a constant would record an option for every table on one engine
+        // and none on the other.
         const string sql =
-            "SELECT TABLE_NAME FROM information_schema.TABLES "
-            + "WHERE TABLE_SCHEMA = @db AND TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_NAME;";
+            "SELECT t.TABLE_NAME, t.ENGINE, t.TABLE_COLLATION, t.TABLE_COMMENT, "
+            + "s.DEFAULT_COLLATION_NAME, "
+            + "(SELECT e.ENGINE FROM information_schema.ENGINES e WHERE e.SUPPORT = 'DEFAULT' "
+            + "LIMIT 1) AS DEFAULT_ENGINE "
+            + "FROM information_schema.TABLES t "
+            + "JOIN information_schema.SCHEMATA s ON s.SCHEMA_NAME = t.TABLE_SCHEMA "
+            + "WHERE t.TABLE_SCHEMA = @db AND t.TABLE_TYPE = 'BASE TABLE' ORDER BY t.TABLE_NAME;";
 
         var dbParam = new[] { new DatabaseParameter<string>("@db", _database.Name) };
 
@@ -96,6 +165,8 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
                 var name = reader.GetString("TABLE_NAME");
 
                 var element = MariaDbModelFactory.CreateTable(SqlName.Object(name));
+
+                AddTableOptions(element, reader);
 
                 tables.Add(new TableRef(element, name));
             }

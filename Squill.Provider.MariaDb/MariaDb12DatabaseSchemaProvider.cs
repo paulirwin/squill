@@ -26,4 +26,7 @@ public sealed class MariaDb12DatabaseSchemaProvider : MariaDbDatabaseSchemaProvi
     }
 
     public override int MajorVersion => 12;
+
+    /// <summary>Measured on 12: unchanged from MariaDB 11.</summary>
+    public override string DefaultCollation => "utf8mb4_uca1400_ai_ci";
 }

@@ -63,6 +63,44 @@ public sealed class CreateTableStatement(QualifiedName name) : Statement
     /// than the persistence string the Postgres side carries (issue #204).
     /// </summary>
     public bool IsTemporary { get; set; }
+
+    /// <summary>
+    /// The table options written after the column list (<c>ENGINE=InnoDB</c>,
+    /// <c>COMMENT='...'</c>), in declaration order, or empty when none were written. The whole
+    /// clause used to be discarded here, so a table declaring any of it built and deployed as
+    /// if none of it were written (issue #207).
+    ///
+    /// <para>
+    /// Carried rather than acted on, exactly as <see cref="IsTemporary"/> is: the mapper records
+    /// what was written and the provider decides which options it can model and which only warn,
+    /// anchoring each diagnostic to the option's own position.
+    /// </para>
+    /// </summary>
+    public IList<TableOption> Options { get; } = new List<TableOption>();
+}
+
+/// <summary>
+/// One table option from a CREATE TABLE's trailing option list, as written (issue #207).
+///
+/// <para>
+/// Held as a name/value pair rather than one class per option because the provider models only
+/// three of the 40-odd options the grammar accepts and warns for the rest by name; a typed node
+/// per option would be 40 classes to express a distinction only three of them need. The name is
+/// the option keyword upper-cased (<c>ENGINE</c>, <c>ROW_FORMAT</c>) so a warning can name what
+/// was written, and <see cref="Value"/> is null for an option whose value the provider does not
+/// read.
+/// </para>
+/// </summary>
+public sealed class TableOption(string name, string? value) : SyntaxNode
+{
+    /// <summary>The option keyword, upper-cased, e.g. <c>ENGINE</c> or <c>AUTO_INCREMENT</c>.</summary>
+    public string Name { get; } = name;
+
+    /// <summary>
+    /// The option's value with any quoting removed, or null when the option declared none or
+    /// carries a value the provider has no use for.
+    /// </summary>
+    public string? Value { get; } = value;
 }
 
 /// <summary>A member of a CREATE TABLE body: a column definition or a table constraint.</summary>

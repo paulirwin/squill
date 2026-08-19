@@ -17,9 +17,7 @@ namespace Squill.IntegrationTests.MariaDb;
 ///     literal <c>DEFAULT</c>, which MySQL refuses and MariaDB allows);</item>
 ///   <item>a construct that silently vanishes from the deployed schema — a column
 ///     <c>COLLATE</c> or <c>COMMENT</c> warns SQ1002, but a table-level <c>COLLATE=</c> /
-///     <c>COMMENT=</c> is dropped without so much as a warning, because
-///     <c>MariaDbStatementMapper.MapCreateTable</c> never visits the table-option list, and a
-///     <c>json</c> column is rewritten to <c>longtext</c> before it reaches the server;</item>
+///     a <c>json</c> column is rewritten to <c>longtext</c> before it reaches the server;</item>
 ///   <item>a facet each engine stores or reports differently, where the risk is a phantom
 ///     diff on every deploy rather than a failure (a referential action's reported rule, a
 ///     string default containing a quote or a backslash).</item>
@@ -30,6 +28,10 @@ namespace Squill.IntegrationTests.MariaDb;
 /// the redeploy is clean and nothing ever surfaces the loss — which is exactly why these gaps
 /// went unnoticed. The tests below pin what is actually deployed by querying
 /// <c>information_schema</c> directly, not by reading Squill's own model back.
+///
+/// The table-option scenarios below were a third such defect, fixed under issue #207: the whole
+/// <c>tableOption</c> clause was dropped on both sides, so <c>ENGINE=MyISAM</c> deployed as
+/// InnoDB and <c>COMMENT=</c> vanished, with a clean redeploy hiding both.
 ///
 /// Two scenarios here were defects rather than documented trade-offs, and were fixed under issue
 /// #162: <c>NVARCHAR(45)</c> lost its length on the way to the DDL and deployed as a syntax error,
@@ -332,19 +334,21 @@ public abstract class MariaDbColumnFidelityTests
     }
 
     /// <summary>
-    /// The table-option form, and the worse of the two: <c>MapCreateTable</c> iterates only
-    /// <c>createDefinitions()</c> and never looks at the option list after the closing paren, so
-    /// a table-level <c>COLLATE</c> is discarded with <b>no diagnostic at all</b>. The build is
-    /// clean, the round trip is clean, and the deployed table has the server's default
-    /// collation.
+    /// The table-option form, which used to be the worse of the two: <c>MapCreateTable</c>
+    /// iterated only <c>createDefinitions()</c> and never looked at the option list after the
+    /// closing paren, so a table-level <c>COLLATE</c> was discarded with no diagnostic at all
+    /// and the deployed table got the server's default collation instead.
     ///
-    /// This is not cosmetic. A table's default character set determines the storage type of
+    /// This was not cosmetic. A table's default character set determines the storage type of
     /// every unqualified string column in it, so the same source deployed to two servers with
-    /// different defaults produces columns of different types — and, on a server whose default
+    /// different defaults produced columns of different types, and, on a server whose default
     /// is not what the source assumed, a <c>varchar(255)</c> may not even fit in an index.
+    ///
+    /// Fixed under issue #207: the collation is now carried into the model and deployed, and
+    /// this test guards against a regression by asking the server what it actually got.
     /// </summary>
     [Fact]
-    public async Task TableLevelCollation_IsDiscardedWithoutEvenAWarning()
+    public async Task TableLevelCollation_IsDeployed()
     {
         const string sql = """
             CREATE TABLE Mountains
@@ -357,7 +361,7 @@ public abstract class MariaDbColumnFidelityTests
 
         var build = await BuildAsync(sql, cancellationToken);
 
-        // The silent case: nothing tells the user the collation will not be deployed.
+        // A modeled option is not a gap, so nothing warns.
         Assert.Empty(build.Warnings);
 
         await AssertRoundTripAsync(sql, cancellationToken);
@@ -369,16 +373,16 @@ public abstract class MariaDbColumnFidelityTests
                 WHERE TABLE_SCHEMA = '{name}' AND TABLE_NAME = 'Mountains';
                 """, cancellationToken);
 
-            Assert.NotEqual("latin1_general_ci", tableCollation);
+            Assert.Equal("latin1_general_ci", tableCollation);
 
-            // What it got instead: the database default, which is a server-configuration
-            // property rather than anything the source said.
+            // And it is genuinely the source's collation rather than one it happened to inherit:
+            // the database default is something else entirely.
             var schemaCollation = await ScalarAsync(db, $"""
                 SELECT DEFAULT_COLLATION_NAME FROM information_schema.SCHEMATA
                 WHERE SCHEMA_NAME = '{name}';
                 """, cancellationToken);
 
-            Assert.Equal(schemaCollation, tableCollation);
+            Assert.NotEqual(schemaCollation, tableCollation);
         }, cancellationToken);
     }
 
@@ -387,15 +391,18 @@ public abstract class MariaDbColumnFidelityTests
     // ---------------------------------------------------------------------------------------
 
     /// <summary>
-    /// Comments are documentation a user deliberately writes into the schema, and both levels
-    /// are dropped — but only one of them says so. A column <c>COMMENT</c> reaches
-    /// <c>IgnoredColumnConstraint</c> and warns SQ1002; a table-level <c>COMMENT=</c> is a table
-    /// option, which <c>MapCreateTable</c> never visits, so it disappears in silence. The silent
-    /// half is the more dangerous one, and this test pins the asymmetry so that closing the gap
-    /// is a deliberate change rather than an accident.
+    /// Comments are documentation a user deliberately writes into the schema, and the two levels
+    /// are treated differently. The table-level <c>COMMENT=</c> used to be the silent half: it is
+    /// a table option, which <c>MapCreateTable</c> never visited, so it disappeared with no
+    /// diagnostic. Issue #207 closed that half, and it now deploys.
+    ///
+    /// The column-level <c>COMMENT</c> is still unmodeled, but it is the safe kind of gap: it
+    /// reaches <c>IgnoredColumnConstraint</c> and warns SQ1002, so the loss is visible rather
+    /// than silent. This test pins both halves, so closing the column one stays a deliberate
+    /// change rather than an accident.
     /// </summary>
     [Fact]
-    public async Task ColumnAndTableComments_AreDiscarded()
+    public async Task TableComment_IsDeployed_AndColumnCommentStillWarns()
     {
         const string sql = """
             CREATE TABLE People
@@ -409,7 +416,7 @@ public abstract class MariaDbColumnFidelityTests
 
         var build = await BuildAsync(sql, cancellationToken);
 
-        // Exactly one warning: the column's. The table's produces none.
+        // Exactly one warning: the column's. The table's is modeled now, so it produces none.
         var warning = Assert.Single(build.Warnings);
         Assert.Equal("SQ1002", warning.Code);
         Assert.Contains("People.Name", warning.Message);
@@ -424,7 +431,8 @@ public abstract class MariaDbColumnFidelityTests
                 WHERE TABLE_SCHEMA = '{name}' AND TABLE_NAME = 'People' AND COLUMN_NAME = 'Name';
                 """, cancellationToken));
 
-            Assert.Equal(string.Empty, await ScalarAsync(db, $"""
+            // The table's comment, unlike the column's, now reaches the server.
+            Assert.Equal("Table comment", await ScalarAsync(db, $"""
                 SELECT TABLE_COMMENT FROM information_schema.TABLES
                 WHERE TABLE_SCHEMA = '{name}' AND TABLE_NAME = 'People';
                 """, cancellationToken));
@@ -796,6 +804,129 @@ public abstract class MariaDbColumnFidelityTests
                 ],
                 actual);
         }, cancellationToken);
+    }
+
+    // ---- Table options (issue #207) ----
+
+    /// <summary>
+    /// The options the model carries reach the server, asked of <c>information_schema</c> rather
+    /// than of Squill's own model. This is the case the issue leads with: before the fix the
+    /// whole clause was dropped on both sides, so this table deployed as InnoDB with no comment
+    /// and the redeploy was still clean, which is exactly why the loss went unnoticed.
+    /// </summary>
+    [Fact]
+    public async Task TableOptions_ReachTheServer()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        const string sql = """
+            CREATE TABLE Ledger
+            (
+                Id int NOT NULL PRIMARY KEY
+            ) ENGINE=MyISAM COLLATE=utf8mb4_bin COMMENT='audit log';
+            """;
+
+        await AssertRoundTripAsync(sql, cancellationToken);
+
+        await DeployAndInspectAsync(sql, async (db, name) =>
+        {
+            Assert.Equal("MyISAM|utf8mb4_bin|audit log", await ScalarAsync(db, $"""
+                SELECT CONCAT_WS('|', ENGINE, TABLE_COLLATION, TABLE_COMMENT)
+                FROM information_schema.TABLES
+                WHERE TABLE_SCHEMA = '{name}' AND TABLE_NAME = 'Ledger';
+                """, cancellationToken));
+        }, cancellationToken);
+    }
+
+    /// <summary>
+    /// A table comment containing a quote has to survive being written back out as a string
+    /// literal, which is the one table option that goes through escaping.
+    /// </summary>
+    [Fact]
+    public async Task TableCommentWithQuote_ReachesTheServer()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        const string sql = """
+            CREATE TABLE Quoted
+            (
+                Id int NOT NULL PRIMARY KEY
+            ) COMMENT='it''s an audit log';
+            """;
+
+        await AssertRoundTripAsync(sql, cancellationToken);
+
+        await DeployAndInspectAsync(sql, async (db, name) =>
+        {
+            Assert.Equal("it's an audit log", await ScalarAsync(db, $"""
+                SELECT TABLE_COMMENT FROM information_schema.TABLES
+                WHERE TABLE_SCHEMA = '{name}' AND TABLE_NAME = 'Quoted';
+                """, cancellationToken));
+        }, cancellationToken);
+    }
+
+    /// <summary>
+    /// A declared COLLATE that happens to equal the target schema's default is the one table
+    /// option that cannot be told apart from an inherited one. Measured: in a schema defaulting
+    /// to <c>utf8mb4_0900_ai_ci</c>, a table declaring that collation and a table declaring none
+    /// are byte-identical in <c>information_schema</c>: same <c>TABLE_COLLATION</c>, and
+    /// nothing else to separate them.
+    ///
+    /// <para>
+    /// The ambiguity is irreducible rather than a rule waiting to be found: recording the
+    /// collation always would make the bare table mismatch, and recording it never would drop a
+    /// genuinely declared one. Both sides therefore treat "equal to the engine's default" as
+    /// inherited and record nothing, which keeps the two models agreeing. The table is collated
+    /// identically either way; only whether the model spells it out changes.
+    /// </para>
+    ///
+    /// <para>
+    /// This test proves the redeploy stays clean, which is the same guarantee the
+    /// unmodeled-default tests above provide.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task CollationMatchingTheEngineDefault_StillRoundTrips()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        // The default collation differs between the engines, so each asks for its own rather
+        // than sharing a literal that would be inherited on one and declared on the other.
+        var schemaDefault = IsMySql ? "utf8mb4_0900_ai_ci" : "utf8mb4_uca1400_ai_ci";
+
+        var sql = $"""
+            CREATE TABLE Inherited
+            (
+                Id int NOT NULL PRIMARY KEY
+            ) COLLATE={schemaDefault};
+            """;
+
+        await AssertRoundTripAsync(sql, cancellationToken);
+    }
+
+    /// <summary>
+    /// An unmodeled table option must not become a perpetual diff. ROW_FORMAT warns at build
+    /// time and deploys with the server's default, and this is the proof the redeploy stays
+    /// clean afterwards.
+    /// </summary>
+    [Fact]
+    public async Task UnmodeledTableOption_StillRoundTrips()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        const string sql = """
+            CREATE TABLE Compressed
+            (
+                Id int NOT NULL PRIMARY KEY
+            ) ROW_FORMAT=COMPRESSED;
+            """;
+
+        var result = await BuildAsync(sql, cancellationToken);
+
+        var warning = Assert.Single(result.Warnings);
+        Assert.Contains("ROW_FORMAT", warning.Message, StringComparison.OrdinalIgnoreCase);
+
+        await AssertRoundTripAsync(sql, cancellationToken);
     }
 
     private static Element Column(Model model, string columnName)
