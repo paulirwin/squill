@@ -235,6 +235,37 @@ CREATE UNIQUE INDEX ix ON people (name COLLATE "POSIX") INCLUDE (last_name)
         Assert.Contains("fast_ssd", inner.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A quoted identifier is case-sensitive, so <c>"PG_DEFAULT"</c> is not the default
+    /// tablespace. Measured on PostgreSQL 18.4, an index declared
+    /// <c>TABLESPACE "PG_DEFAULT"</c> fails with <c>tablespace "PG_DEFAULT" does not exist</c>,
+    /// so accepting it would let the build pass a statement the deploy cannot run.
+    /// </summary>
+    [Fact]
+    public async Task QuotedNonDefaultCaseTablespace_IsRejected()
+    {
+        var exception = await Assert.ThrowsAsync<SqlSourceException>(() => ParseModelAsync(
+            $"{PeopleTable}\nCREATE INDEX ix ON people (name) TABLESPACE \"PG_DEFAULT\";"));
+
+        var inner = Assert.IsType<NotSupportedException>(exception.InnerException);
+
+        Assert.Contains("PG_DEFAULT", inner.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Quoting the default in its own case still names the default, so it stays a no-op.
+    /// </summary>
+    [Fact]
+    public async Task QuotedDefaultTablespace_IsAcceptedAndNotModeled()
+    {
+        var withClause = await ParseModelAsync(
+            $"{PeopleTable}\nCREATE INDEX ix ON people (name) TABLESPACE \"pg_default\";");
+        var withoutClause = await ParseModelAsync(
+            $"{PeopleTable}\nCREATE INDEX ix ON people (name);");
+
+        Assert.True(HashUtility.HashesEqual(withClause.Hash, withoutClause.Hash));
+    }
+
     [Fact]
     public async Task TableLevelDeferrableForeignKey_IsStoredAndScripted()
     {

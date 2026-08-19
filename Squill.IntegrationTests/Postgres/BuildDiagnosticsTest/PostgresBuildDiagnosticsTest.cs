@@ -230,4 +230,175 @@ CREATE TABLE warn_event
 
         Assert.Equal('u', await query.ExecuteScalarAsync(TestContext.Current.CancellationToken));
     }
+
+    // ---- CREATE TABLE storage clauses (issue #206) ----
+
+    private async Task<object?> ScalarAsync(string sql)
+    {
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+
+        await using var query = new NpgsqlCommand(sql, connection);
+
+        return await query.ExecuteScalarAsync(TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>
+    /// The measurement the build's TABLESPACE rule rests on: naming <c>pg_default</c> is a
+    /// genuine no-op, recording the same <c>reltablespace = 0</c> as declaring no tablespace at
+    /// all. That is why the default spelling is accepted and dropped rather than rejected.
+    /// </summary>
+    [Fact]
+    public async Task DefaultTablespaceAndAccessMethod_AreAcceptedAndRecordedIdenticallyToOmittingThem()
+    {
+        const string sql =
+            "CREATE TABLE ts_spelled (id integer PRIMARY KEY) USING heap TABLESPACE pg_default;\n"
+            + "CREATE TABLE ts_omitted (id integer PRIMARY KEY);";
+
+        // The build accepts both spellings, with nothing to warn about.
+        var result = await BuildAsync(("Tables.sql", sql));
+
+        Assert.Empty(result.Warnings);
+
+        await ExecuteAsync(sql);
+
+        // And the server cannot tell them apart, which is what makes dropping the clause safe.
+        Assert.Equal(
+            1L,
+            await ScalarAsync(
+                """
+                SELECT count(DISTINCT (reltablespace, relam))
+                FROM pg_class WHERE relname IN ('ts_spelled', 'ts_omitted');
+                """));
+    }
+
+    /// <summary>
+    /// The counterpart, and the clause the issue calls most consequential. A non-default access
+    /// method is rejected at build time; the server confirms the name is a real object it
+    /// resolves, so accepting the declaration and deploying a heap table would have produced a
+    /// different kind of table than the source asked for.
+    /// </summary>
+    [Fact]
+    public async Task NonDefaultAccessMethod_IsRejectedByBuildAndIsNotSomethingPostgresIgnores()
+    {
+        const string sql = "CREATE TABLE am_columnar (id integer PRIMARY KEY) USING columnar;";
+
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(() => BuildAsync(("Columnar.sql", sql)));
+
+        Assert.Contains("columnar", ex.Message, StringComparison.Ordinal);
+
+        // Postgres resolves USING against pg_am rather than ignoring it: 42704 is
+        // undefined_object, "access method \"columnar\" does not exist". So the clause always
+        // means something to the server, and silently dropping it changed the deployed table.
+        var postgresException = await ExecuteExpectingFailureAsync(sql);
+
+        Assert.Equal("42704", postgresException.SqlState);
+    }
+
+    [Fact]
+    public async Task NonDefaultTablespace_IsRejectedByBuild()
+    {
+        // Not executed against the server: creating a real tablespace needs a writable directory
+        // on the container's filesystem. What matters here is the build decision, and the
+        // accepted-default half above is what was measured.
+        var ex = await Assert.ThrowsAsync<SqlSourceException>(() => BuildAsync(
+            ("Fast.sql", "CREATE TABLE ts_fast (id integer PRIMARY KEY) TABLESPACE fast_ssd;")));
+
+        Assert.Contains("fast_ssd", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Storage parameters warn rather than reject, so the table must still deploy. The warning is
+    /// honest about what happens: the server records the parameter the source asked for, and the
+    /// model does not carry it, so a deploy from this model would leave it at the default.
+    /// </summary>
+    [Fact]
+    public async Task StorageParameters_WarnAndTheTableStillDeploys()
+    {
+        const string sql =
+            "CREATE TABLE wo_fillfactor (id integer PRIMARY KEY) WITH (fillfactor = 70);";
+
+        var result = await BuildAsync(("Fillfactor.sql", sql));
+
+        var warning = Assert.Single(result.Warnings);
+        Assert.Equal("SQ1002", warning.Code);
+        Assert.Contains("fillfactor", warning.Message, StringComparison.Ordinal);
+
+        // The table is modeled, unlike the rejected cases above.
+        Assert.Contains(result.Model.Elements, e => e.Type == PostgresElementTypes.SqlTable);
+
+        await ExecuteAsync(sql);
+
+        // The parameter really does persist, which is why it warrants a warning rather than
+        // silence -- and why it cannot simply be modeled until table reloptions are extracted.
+        Assert.Equal(
+            "{fillfactor=70}",
+            await ScalarAsync(
+                "SELECT reloptions::text FROM pg_class WHERE relname = 'wo_fillfactor';"));
+    }
+
+    /// <summary>
+    /// The default-spelling rule is case-sensitive for a quoted identifier and case-insensitive
+    /// for an unquoted one, because that is what the server does. Both halves are checked
+    /// against it here: the unquoted upper-case spellings are folded and create the table, while
+    /// the quoted upper-case ones are undefined objects the server refuses outright (42704), so
+    /// the build must refuse them too rather than accept a statement no deploy can run.
+    /// </summary>
+    [Fact]
+    public async Task DefaultStorageClauseNames_FoldCaseOnlyWhenUnquoted()
+    {
+        // Unquoted: folded by the server, accepted by the build, and still a plain heap table in
+        // the default tablespace.
+        const string unquotedSql =
+            "CREATE TABLE cs_unquoted (id integer PRIMARY KEY) USING HEAP TABLESPACE PG_DEFAULT;";
+
+        var unquoted = await BuildAsync(("Unquoted.sql", unquotedSql));
+
+        Assert.Empty(unquoted.Warnings);
+
+        await ExecuteAsync(unquotedSql);
+
+        Assert.Equal(
+            "heap",
+            await ScalarAsync(
+                """
+                SELECT am.amname FROM pg_class c JOIN pg_am am ON am.oid = c.relam
+                WHERE c.relname = 'cs_unquoted';
+                """));
+
+        // Quoted: taken verbatim, so these name objects that do not exist. 42704 is
+        // undefined_object for both -- `access method "HEAP" does not exist` and
+        // `tablespace "PG_DEFAULT" does not exist`.
+        foreach (var (file, sql, name) in new[]
+                 {
+                     ("QuotedAm.sql", """CREATE TABLE cs_am (id integer PRIMARY KEY) USING "HEAP";""", "HEAP"),
+                     ("QuotedTs.sql",
+                         """CREATE TABLE cs_ts (id integer PRIMARY KEY) TABLESPACE "PG_DEFAULT";""",
+                         "PG_DEFAULT"),
+                 })
+        {
+            var ex = await Assert.ThrowsAsync<SqlSourceException>(() => BuildAsync((file, sql)));
+
+            Assert.Contains(name, ex.Message, StringComparison.Ordinal);
+
+            var postgresException = await ExecuteExpectingFailureAsync(sql);
+
+            Assert.Equal("42704", postgresException.SqlState);
+        }
+    }
+
+    /// <summary>
+    /// <c>ON COMMIT</c> is the fourth clause issue #206 lists, and it needs no handling of its
+    /// own: the server accepts it only on a temporary table, and a temporary table is already
+    /// rejected by the build. There is no declaration on which dropping it could change anything.
+    /// </summary>
+    [Fact]
+    public async Task OnCommit_IsRejectedByPostgresOnAnOrdinaryTable()
+    {
+        var postgresException = await ExecuteExpectingFailureAsync(
+            "CREATE TABLE oc_plain (id integer PRIMARY KEY) ON COMMIT DELETE ROWS;");
+
+        // 42P16 is invalid_table_definition: "ON COMMIT can only be used on temporary tables".
+        Assert.Equal("42P16", postgresException.SqlState);
+    }
 }

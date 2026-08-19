@@ -108,23 +108,33 @@ public partial class PostgresVisitor
         // a name with an optional value; the value text is captured verbatim.
         if (context.reloptions_()?.reloptions()?.reloption_list() is { } reloptionList)
         {
-            foreach (var reloptionElem in reloptionList.reloption_elem())
-            {
-                // reloption_elem: collabel (EQUAL def_arg | DOT collabel (EQUAL def_arg)?)?
-                // Only the simple "name = value" form is supported (no namespace.qualifier).
-                if (reloptionElem.DOT() is not null)
-                {
-                    throw new NotImplementedException(
-                        "Namespaced index storage parameters (namespace.option) are not yet supported");
-                }
-
-                var optionName = reloptionElem.colLabel(0).GetText();
-                var optionValue = reloptionElem.def_arg()?.GetText();
-
-                createIndex.WithOptions.Add(new IndexWithOption(optionName, optionValue));
-            }
+            AddStorageParameters(reloptionList, createIndex.WithOptions);
         }
 
         return createIndex;
+    }
+
+    /// <summary>
+    /// Reads a <c>reloptions</c> list into <paramref name="options"/>. Shared by <c>CREATE
+    /// INDEX</c> and <c>CREATE TABLE</c> (issue #206), which reach the same grammar rule.
+    /// </summary>
+    private static void AddStorageParameters(
+        PostgreSQLParser.Reloption_listContext context, IList<IndexWithOption> options)
+    {
+        foreach (var reloptionElem in context.reloption_elem())
+        {
+            // reloption_elem : colLabel (EQUAL def_arg | DOT colLabel (EQUAL def_arg)?)?
+            //
+            // The DOT alternative is a namespaced parameter -- `toast.autovacuum_enabled` and the
+            // rest of the toast.* family, which a table may well declare. Its two labels are
+            // rejoined into the one dotted name the catalog itself stores, rather than being
+            // refused: dropping the namespace half would silently turn a TOAST-relation setting
+            // into a same-named setting on the table.
+            var optionName = reloptionElem.DOT() is not null
+                ? $"{reloptionElem.colLabel(0).GetText()}.{reloptionElem.colLabel(1).GetText()}"
+                : reloptionElem.colLabel(0).GetText();
+
+            options.Add(new IndexWithOption(optionName, reloptionElem.def_arg()?.GetText()));
+        }
     }
 }

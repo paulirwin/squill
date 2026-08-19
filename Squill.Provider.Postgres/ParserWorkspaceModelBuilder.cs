@@ -317,6 +317,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     + "it as an ordinary permanent table would not match what is declared.");
             }
 
+            RejectNonDefaultTableStorage(createTableStatement);
+
             validator.AddCreateTable(file, createTableStatement);
 
             // A duplicate table would otherwise contribute a second set of elements for the
@@ -555,6 +557,29 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         List<SqlSourceDiagnostic> warnings)
     {
         var table = SplitSchema(createTableStatement.Name).Name.UnqualifiedName;
+
+        // WITH (...) storage parameters (issue #206). Unlike the tablespace and access method
+        // rejected above, these genuinely persist -- fillfactor = 70 comes back in
+        // pg_class.reloptions, and a toast.* parameter on the table's TOAST relation (both
+        // measured on PostgreSQL 18) -- but nothing extracts a table's reloptions yet, so
+        // modeling them here would make every deploy see a phantom change.
+        //
+        // Warned rather than rejected because every table storage parameter is a performance or
+        // maintenance knob: a table that ignores its fillfactor still holds the same rows with
+        // the same constraints, so the deployed schema still matches what was declared in every
+        // respect the model describes. That is not true of an access method, which is why the two
+        // are treated differently.
+        if (createTableStatement.WithOptions.Count > 0)
+        {
+            var parameters = string.Join(", ", createTableStatement.WithOptions.Select(o => o.Name));
+
+            warnings.Add(new SqlSourceDiagnostic(
+                $"Storage parameters on table '{table}' ({parameters}) are not modeled; the table "
+                + "will be deployed with the server's defaults for them.",
+                file.Name,
+                createTableStatement.Line,
+                createTableStatement.Column));
+        }
 
         foreach (var tableConstraint in createTableStatement.Elements.OfType<TableConstraint>())
         {
@@ -1364,6 +1389,22 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     private static string? RenderStorageParametersOrNull(ICollection<IndexWithOption> options)
         => options.Count > 0 ? RenderStorageParameters(options) : null;
 
+    // Whether an identifier written in source names the given built-in default (pg_default,
+    // heap). PostgreSQL folds an unquoted identifier to lower case but takes a quoted one
+    // exactly as written, so the two spellings cannot share one comparison: measured on
+    // PostgreSQL 18.4, TABLESPACE PG_DEFAULT and USING HEAP both succeed, while
+    // TABLESPACE "PG_DEFAULT" fails with `tablespace "PG_DEFAULT" does not exist` and
+    // USING "HEAP" with `access method "HEAP" does not exist`.
+    //
+    // So case-folding a quoted identifier here would accept a declaration no server will run,
+    // moving the failure out of the build and into the deploy -- the opposite of what these
+    // checks exist for. Quoting the default in its own case ("pg_default", "heap") does name it
+    // and stays accepted.
+    private static bool NamesDefault(Identifier identifier, string defaultName)
+        => identifier is SimpleIdentifier { IsQuoted: true }
+            ? string.Equals(identifier.Name, defaultName, StringComparison.Ordinal)
+            : string.Equals(identifier.Name, defaultName, StringComparison.OrdinalIgnoreCase);
+
     // USING INDEX TABLESPACE on a constraint is rejected rather than modeled, matching what
     // CREATE INDEX already does (issue #160): measured there, an index in pg_default records
     // reltablespace = 0 exactly as one with no clause does, so naming the default is a genuine
@@ -1372,13 +1413,49 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     private static void RejectNonDefaultConstraintTablespace(
         IIndexBackedTableConstraint constraint, string table)
     {
-        if (constraint.TableSpace is { } tablespace
-            && !string.Equals(tablespace.Name, "pg_default", StringComparison.OrdinalIgnoreCase))
+        if (constraint.TableSpace is { } tablespace && !NamesDefault(tablespace, "pg_default"))
         {
             throw new NotSupportedException(
                 $"A constraint on table '{table}' declares USING INDEX TABLESPACE "
                 + $"'{tablespace.Name}', which Squill does not model. Only the default "
                 + "tablespace (pg_default) is supported.");
+        }
+    }
+
+    // The two CREATE TABLE storage clauses whose non-default spellings cannot be modeled and must
+    // not be silently dropped (issue #206). Both were parsed and then never read, so a table
+    // declared USING columnar deployed as a heap table with no diagnostic at all.
+    //
+    // Each is accepted when it names the engine default and rejected otherwise, which is exactly
+    // the rule CREATE INDEX has applied to TABLESPACE since issue #160. Measured against
+    // PostgreSQL 18: a table created TABLESPACE pg_default records reltablespace = 0, and one
+    // created USING heap records the same relam, as a table with neither clause -- so the default
+    // spelling is a genuine no-op, while any other value is a real storage decision the model
+    // cannot carry. Rejected rather than warned because, unlike a storage parameter, the choice
+    // changes what the table *is*: warning would still deploy a heap table where the source asked
+    // for a different access method.
+    private static void RejectNonDefaultTableStorage(CreateTableStatement createTableStatement)
+    {
+        var table = SplitSchema(createTableStatement.Name).Name.UnqualifiedName;
+
+        if (createTableStatement.TableSpace is { } tablespace
+            && !NamesDefault(tablespace, "pg_default"))
+        {
+            throw new NotSupportedException(
+                $"Table '{table}' declares TABLESPACE '{tablespace.Name}', which Squill does not "
+                + "model. Only the default tablespace (pg_default) is supported.");
+        }
+
+        // "heap" is the built-in default and the only table access method a stock server ships
+        // with; default_table_access_method may name another, but a build has no server to ask,
+        // and assuming a non-standard one would be a worse guess than requiring the default.
+        if (createTableStatement.AccessMethod is { } accessMethod
+            && !NamesDefault(accessMethod, "heap"))
+        {
+            throw new NotSupportedException(
+                $"Table '{table}' declares USING '{accessMethod.Name}', which Squill does not "
+                + "model. Only the default table access method (heap) is supported, and deploying "
+                + "the table as a heap table would not match what is declared.");
         }
     }
 
@@ -2201,7 +2278,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         // other tablespace is a real placement decision that would be silently lost, so it is
         // rejected rather than ignored (issue #160).
         if (createIndexStatement.TableSpace is { } tablespace
-            && !string.Equals(tablespace.Name, "pg_default", StringComparison.OrdinalIgnoreCase))
+            && !NamesDefault(tablespace, "pg_default"))
         {
             throw new NotSupportedException(
                 $"Index '{createIndexStatement.Name.Name}' declares TABLESPACE "
