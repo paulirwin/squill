@@ -740,6 +740,57 @@ public sealed class CreateTriggerStatement(
 /// a recurring event with no <c>STARTS</c> (the catalog synthesizes one from "now"), and an
 /// <c>AT</c> whose value is not a constant (e.g. <c>CURRENT_TIMESTAMP + INTERVAL 1 DAY</c>).
 /// </summary>
+/// <summary>
+/// A <c>CREATE SEQUENCE</c> (issue #218). MariaDB-only: MySQL rejects the statement with a
+/// syntax error, so whether one may be authored is a target-engine question the model layer
+/// answers, not the parser.
+///
+/// <para>
+/// Every option is nullable and left unset when the source omits it, rather than being
+/// defaulted here. The defaults depend on the sequence's direction (a descending sequence
+/// starts at -1 with a negative floor, an ascending one at 1) and the model layer needs to
+/// know what was actually written to apply the omit-when-default rule, which it cannot
+/// recover once a default has been substituted.
+/// </para>
+/// </summary>
+public sealed class CreateSequenceStatement(QualifiedName name) : Statement
+{
+    public QualifiedName Name { get; } = name;
+
+    /// <summary>The <c>INCREMENT BY</c> step. Negative makes the sequence descending.</summary>
+    public long? Increment { get; set; }
+
+    /// <summary>
+    /// The <c>MINVALUE</c> floor. <c>NO MINVALUE</c> leaves this unset rather than recording a
+    /// sentinel: it asks for the type default, which is exactly what omitting the clause
+    /// means, and the two are indistinguishable in the catalog (measured).
+    /// </summary>
+    public long? MinValue { get; set; }
+
+    /// <summary>The <c>MAXVALUE</c> ceiling. <c>NO MAXVALUE</c> leaves it unset, as with <see cref="MinValue"/>.</summary>
+    public long? MaxValue { get; set; }
+
+    /// <summary>The <c>START WITH</c> value.</summary>
+    public long? StartValue { get; set; }
+
+    /// <summary>
+    /// The <c>CACHE</c> size. <c>NOCACHE</c> and <c>CACHE 0</c> are the same thing to the
+    /// server (both report <c>cache_size</c> 0, measured), so both land here as zero rather
+    /// than one of them meaning "unset".
+    /// </summary>
+    public long? CacheSize { get; set; }
+
+    /// <summary>Whether <c>CYCLE</c> was written; false for an explicit <c>NOCYCLE</c>.</summary>
+    public bool? IsCycling { get; set; }
+
+    /// <summary>
+    /// A <c>RESTART</c> clause, which the grammar admits on CREATE but the server rejects
+    /// there (measured: it is an ALTER-only option). Carried so the model layer can name it in
+    /// a diagnostic rather than deploying DDL the server will refuse.
+    /// </summary>
+    public bool HasRestart { get; set; }
+}
+
 public sealed class CreateEventStatement(QualifiedName name, string eventType) : Statement
 {
     public QualifiedName Name { get; } = name;

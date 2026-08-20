@@ -33,6 +33,9 @@ public abstract class MariaDbDatabaseSchemaProviderBase : MariaDbFamilyDatabaseS
     // as column defaults here, each stored under its own name.
     public override bool SupportsDateAndTimeFunctionDefaults => true;
 
+    // Sequences are a MariaDB feature (10.3+); every supported major here has them.
+    public override bool SupportsSequences => true;
+
     // MariaDB has no functional indexes: the DDL is a syntax error, and STATISTICS has no
     // EXPRESSION column to read one back from.
     public override bool SupportsFunctionalIndexKeys => false;

@@ -159,6 +159,21 @@ public abstract class MariaDbFamilyDatabaseSchemaProvider : DatabaseSchemaProvid
     public abstract string DefaultCollation { get; }
 
     /// <summary>
+    /// Whether the engine has sequences at all (issue #218): <c>CREATE SEQUENCE</c>,
+    /// <c>NEXTVAL()</c> and the <c>SEQUENCE</c> table type.
+    ///
+    /// <para>
+    /// A hard divergence rather than a reporting one: MariaDB has had them since 10.3, while
+    /// MySQL 9.7 rejects the statement with <c>ERROR 1064</c>, a <em>syntax error</em>
+    /// (measured). So unlike <see cref="ReportsViewAlgorithm"/>, where the construct works and
+    /// only the catalog is blind, here there is nothing to deploy to: a project declaring a
+    /// sequence against MySQL is an error at build time rather than an unmodeled warning,
+    /// because emitting the DDL would fail at the server.
+    /// </para>
+    /// </summary>
+    public abstract bool SupportsSequences { get; }
+
+    /// <summary>
     /// Whether the engine reports a view's <c>ALGORITHM</c> back through
     /// <c>information_schema.VIEWS</c>, and so whether a declared one can be modeled
     /// (issue #208).
