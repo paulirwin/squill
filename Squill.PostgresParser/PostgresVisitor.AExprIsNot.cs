@@ -19,9 +19,36 @@ public partial class PostgresVisitor
 
         bool negated = context.NOT() is not null;
 
-        // Only the boolean/null IS forms are supported; the more exotic tails
-        // (IS [NOT] DISTINCT FROM, IS [NOT] OF (...), DOCUMENT, NORMALIZED) are not
-        // yet modeled and would silently mis-render if we pretended otherwise.
+        // IS [NOT] DISTINCT FROM is a null-safe inequality and takes a right operand, so it is
+        // a binary operator rather than one of the unary IS tails below (issue #214). It is the
+        // idiom a trigger WHEN clause is normally written with, since NEW/OLD may be null.
+        if (context.DISTINCT() is not null)
+        {
+            if (context.a_expr() is not { } rightContext
+                || VisitA_expr(rightContext) is not Expression right)
+            {
+                throw new PostgresParseException(
+                    "Unable to parse IS DISTINCT FROM right operand");
+            }
+
+            var distinct = new BinaryExpression(
+                expr,
+                new BuiltInOperator(PostgresBuiltInBinaryOperator.IsDistinctFrom),
+                right);
+
+            // The negated form has no stored spelling of its own: measured, PostgreSQL stores
+            // `a IS NOT DISTINCT FROM b` as `NOT (a IS DISTINCT FROM b)`. Building that shape
+            // here means the declared and extracted spellings are already the same tree.
+            return negated
+                ? new UnaryExpression(
+                    PostgresBuiltInUnaryOperator.Not,
+                    new ParenthesizedExpression(distinct))
+                : distinct;
+        }
+
+        // Only the boolean/null IS forms are supported; the remaining tails
+        // (IS [NOT] OF (...), DOCUMENT, NORMALIZED) are not yet modeled and would silently
+        // mis-render if we pretended otherwise.
         PostgresBuiltInUnaryOperator op;
 
         if (context.NULL_P() is not null)
@@ -43,7 +70,7 @@ public partial class PostgresVisitor
         else
         {
             throw new NotImplementedException(
-                "Support for IS (NOT) DISTINCT FROM / OF / DOCUMENT / NORMALIZED not yet implemented");
+                "Support for IS (NOT) OF / DOCUMENT / NORMALIZED not yet implemented");
         }
 
         return new UnaryExpression(op, expr);

@@ -271,4 +271,79 @@ public class ExpressionNormalizerTests
     {
         Assert.NotEqual(Normalize("quantity IN (2, 1)"), Normalize("quantity IN (1, 2)"));
     }
+
+    /// <summary>
+    /// A qualified column reference keeps BOTH halves of its name (issue #214).
+    ///
+    /// Trigger <c>WHEN</c> predicates are the first modeled construct where a qualifier
+    /// survives into the catalog: a CHECK constraint's is stripped by the engine, measured, so
+    /// <c>CHECK (t.val &gt; 0)</c> comes back as <c>CHECK ((val &gt; 0))</c>. A
+    /// <c>WHEN (NEW.a &gt; 5)</c> comes back as <c>WHEN ((new.a &gt; 5))</c>, qualifier intact.
+    ///
+    /// Dropping the trailing segment would make <c>NEW.a</c> and <c>NEW.b</c> canonicalize
+    /// identically, so swapping the column a trigger watches would produce no delta at all.
+    /// </summary>
+    [Theory]
+    [InlineData("new.a > 5", "(new.a > 5)")]
+    [InlineData("old.a <> new.a", "(old.a <> new.a)")]
+    [InlineData("new.active", "new.active")]
+    public void QualifiedColumnReference_KeepsEverySegment(string predicate, string expected)
+    {
+        Assert.Equal(expected, Normalize(predicate));
+    }
+
+    /// <summary>
+    /// An unquoted qualifier folds to lower case, the way every other unquoted identifier does.
+    /// PostgreSQL reports the predicate back as <c>new.a</c> whichever case it was declared in
+    /// (measured), so without folding a <c>NEW.a</c> in source could never match the extracted
+    /// <c>new.a</c> and the trigger would re-diff on every deploy.
+    /// </summary>
+    [Fact]
+    public void QualifiedColumnReference_FoldsUnquotedCase()
+    {
+        Assert.Equal(Normalize("new.a > 5"), Normalize("NEW.a > 5"));
+        Assert.Equal(Normalize("new.a > 5"), Normalize("New.A > 5"));
+    }
+
+    /// <summary>
+    /// Distinct qualified references stay distinct: neither half of the name may be dropped.
+    /// </summary>
+    [Theory]
+    [InlineData("new.a > 5", "new.b > 5")]
+    [InlineData("new.a > 5", "old.a > 5")]
+    [InlineData("new.a > 5", "a > 5")]
+    public void QualifiedColumnReferences_ThatDiffer_NormalizeDifferently(string a, string b)
+    {
+        Assert.NotEqual(Normalize(b), Normalize(a));
+    }
+
+    /// <summary>
+    /// <c>IS DISTINCT FROM</c> is a null-safe inequality, and it is the idiom a trigger
+    /// <c>WHEN</c> clause is normally written with (issue #214) since NEW/OLD values may be
+    /// null. It renders as itself.
+    ///
+    /// The NEGATED form does not: measured, PostgreSQL stores
+    /// <c>a IS NOT DISTINCT FROM b</c> as <c>NOT (a IS DISTINCT FROM b)</c>, so the canonical
+    /// form is the wrapped negation rather than a spelling of its own.
+    /// </summary>
+    [Theory]
+    [InlineData("a IS DISTINCT FROM b", "(a IS DISTINCT FROM b)")]
+    [InlineData("a IS NOT DISTINCT FROM b", "(NOT (a IS DISTINCT FROM b))")]
+    [InlineData("NOT (a IS DISTINCT FROM b)", "(NOT (a IS DISTINCT FROM b))")]
+    public void IsDistinctFrom_MatchesTheStoredForm(string predicate, string expected)
+    {
+        Assert.Equal(expected, Normalize(predicate));
+    }
+
+    /// <summary>
+    /// The two directions stay distinct: they are opposite predicates, so collapsing them
+    /// would deploy a trigger that fires in exactly the cases it should not.
+    /// </summary>
+    [Fact]
+    public void IsDistinctFrom_AndItsNegation_NormalizeDifferently()
+    {
+        Assert.NotEqual(
+            Normalize("a IS NOT DISTINCT FROM b"),
+            Normalize("a IS DISTINCT FROM b"));
+    }
 }

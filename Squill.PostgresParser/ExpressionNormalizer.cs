@@ -110,6 +110,15 @@ public static class ExpressionNormalizer
         return true;
     }
 
+    // An unquoted identifier is case-insensitive and PostgreSQL reports it back folded, so a
+    // source `NEW.a` and the catalog's `new.a` are one name and must canonicalize alike. A
+    // QUOTED identifier is case-sensitive, so `"NEW"` is a different name from `new` and its
+    // case is left alone.
+    private static string CanonicalIdentifier(Identifier identifier)
+        => identifier is SimpleIdentifier { IsQuoted: false }
+            ? identifier.Name.ToLowerInvariant()
+            : identifier.Name;
+
     private static bool Write(StringBuilder sb, Expression expression)
     {
         switch (expression)
@@ -121,8 +130,11 @@ public static class ExpressionNormalizer
                 return Write(sb, parenthesized.Expression);
 
             case ColumnReferenceExpression column:
-                // Bare, so the source's `"price"` and the catalog's `price` agree.
-                sb.Append(column.Identifier.Name);
+                // Each segment bare, so the source's `"price"` and the catalog's `price`
+                // agree. A qualifier is kept (issue #214): PostgreSQL strips a table
+                // qualifier out of a CHECK predicate but keeps `new`/`old` in a trigger
+                // condition, where dropping it would confuse the two rows.
+                sb.AppendJoin('.', column.Segments.Select(CanonicalIdentifier));
                 return true;
 
             case LiteralExpression literal:
@@ -621,6 +633,9 @@ public static class ExpressionNormalizer
             PostgresBuiltInBinaryOperator.Or => "OR",
             PostgresBuiltInBinaryOperator.LeftShift => "<<",
             PostgresBuiltInBinaryOperator.RightShift => ">>",
+            // Measured: stored as itself. Its negation has no spelling of its own -- the engine
+            // rewrites IS NOT DISTINCT FROM into a NOT around this one (issue #214).
+            PostgresBuiltInBinaryOperator.IsDistinctFrom => "IS DISTINCT FROM",
             // SIMILAR TO is stored as a regex rewrite whose exact form is not measured.
             //
             // IN / NOT IN are deliberately absent rather than missing: they never render as

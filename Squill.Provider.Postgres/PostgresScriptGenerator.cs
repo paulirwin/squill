@@ -1089,14 +1089,103 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
         var function = trigger.GetRequiredProperty<string>(PostgresPropertyNames.TriggerFunction);
         var arguments = trigger.GetRequiredProperty<string>(PostgresPropertyNames.FunctionArguments);
 
+        var isConstraintTrigger =
+            trigger.GetProperty<bool?>(PostgresPropertyNames.IsConstraintTrigger) == true;
+
         var sb = new StringBuilder();
 
-        sb.Append("CREATE TRIGGER ").AppendLine(SqlName.Object(name).QuotedUnqualified);
-        sb.Append("    ").Append(timing).Append(' ').Append(events)
+        sb.Append(isConstraintTrigger ? "CREATE CONSTRAINT TRIGGER " : "CREATE TRIGGER ")
+            .AppendLine(SqlName.Object(name).QuotedUnqualified);
+
+        // UPDATE OF binds to the UPDATE event alone, so the column list is spliced into that
+        // one event rather than appended to the whole list (issue #214).
+        sb.Append("    ").Append(timing).Append(' ')
+            .Append(RenderTriggerEvents(events, trigger))
             .Append(" ON ").AppendLine(TriggerTableQualified(trigger));
+
+        if (RenderTransitionTables(trigger) is { } referencing)
+        {
+            sb.Append("    ").AppendLine(referencing);
+        }
+
+        // Deferrability sits before FOR EACH ROW on a constraint trigger, which is the only
+        // form that may carry it.
+        if (isConstraintTrigger)
+        {
+            if (trigger.GetProperty<bool?>(PostgresPropertyNames.IsDeferrable) == true)
+            {
+                sb.Append("    DEFERRABLE INITIALLY ")
+                    .AppendLine(
+                        trigger.GetProperty<bool?>(
+                            PostgresPropertyNames.IsInitiallyDeferred) == true
+                            ? "DEFERRED"
+                            : "IMMEDIATE");
+            }
+            else
+            {
+                sb.AppendLine("    NOT DEFERRABLE");
+            }
+        }
+
         sb.Append("    FOR EACH ").AppendLine(level);
+
+        // The raw predicate is scripted, not the canonical one: the canonical form exists to
+        // be compared, while what gets deployed should read as the user wrote it.
+        if (trigger.GetProperty<string>(PostgresPropertyNames.WhenCondition)
+            is { Length: > 0 } whenCondition)
+        {
+            sb.Append("    WHEN (").Append(whenCondition).AppendLine(")");
+        }
+
         sb.Append("    EXECUTE FUNCTION ").Append(RenderQualifiedFunctionName(function))
             .Append('(').Append(RenderTriggerArguments(arguments)).AppendLine(");");
+
+        return sb.ToString();
+    }
+
+    // Splices an UPDATE OF column list into the UPDATE event of the stored event list. The
+    // events are stored canonically (INSERT, DELETE, UPDATE, TRUNCATE) with the column list
+    // held separately, because the restriction applies to UPDATE alone.
+    private static string RenderTriggerEvents(string events, Element trigger)
+    {
+        if (trigger.GetProperty<string>(PostgresPropertyNames.UpdateOfColumns)
+            is not { Length: > 0 } updateOfColumns)
+        {
+            return events;
+        }
+
+        var columns = string.Join(
+            ", ",
+            updateOfColumns.Split(',', StringSplitOptions.TrimEntries
+                | StringSplitOptions.RemoveEmptyEntries)
+                .Select(i => SqlName.Object(i).QuotedUnqualified));
+
+        return events.Replace("UPDATE", $"UPDATE OF {columns}", StringComparison.Ordinal);
+    }
+
+    // REFERENCING OLD/NEW TABLE, when either transition table was declared. OLD precedes NEW,
+    // the order pg_get_triggerdef renders them in.
+    private static string? RenderTransitionTables(Element trigger)
+    {
+        var oldTable = trigger.GetProperty<string>(PostgresPropertyNames.OldTransitionTable);
+        var newTable = trigger.GetProperty<string>(PostgresPropertyNames.NewTransitionTable);
+
+        if (string.IsNullOrEmpty(oldTable) && string.IsNullOrEmpty(newTable))
+        {
+            return null;
+        }
+
+        var sb = new StringBuilder("REFERENCING");
+
+        if (!string.IsNullOrEmpty(oldTable))
+        {
+            sb.Append(" OLD TABLE AS ").Append(SqlName.Object(oldTable).QuotedUnqualified);
+        }
+
+        if (!string.IsNullOrEmpty(newTable))
+        {
+            sb.Append(" NEW TABLE AS ").Append(SqlName.Object(newTable).QuotedUnqualified);
+        }
 
         return sb.ToString();
     }
