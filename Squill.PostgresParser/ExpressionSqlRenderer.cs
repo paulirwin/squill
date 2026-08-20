@@ -39,19 +39,50 @@ public static class ExpressionSqlRenderer
     private static void Write(StringBuilder sb, Expression expression)
         => Write(sb, expression, NoBareIdentifiers);
 
+    // The trigger pseudo-relations NEW and OLD, which a WHEN predicate qualifies its columns
+    // with. They are keywords rather than relation names, so quoting one is not a stricter
+    // spelling of it but an error: measured, PostgreSQL rejects `WHEN ("NEW".a > 5)` with
+    // "missing FROM-clause entry for table \"NEW\"" (issue #214). Same failure mode as the
+    // domain VALUE keyword above.
+    private static readonly HashSet<string> PseudoRelations =
+        new(["NEW", "OLD"], StringComparer.OrdinalIgnoreCase);
+
+    // A reference segment, quoted unless quoting it would change what it means. Only a
+    // QUALIFIER may be a pseudo-relation; in the column position NEW and OLD are ordinary
+    // names and stay quoted.
+    private static void WriteReferenceSegment(
+        StringBuilder sb, Identifier segment, IReadOnlySet<string> bareIdentifiers,
+        bool isQualifier)
+    {
+        if (bareIdentifiers.Contains(segment.Name)
+            || (isQualifier && PseudoRelations.Contains(segment.Name)))
+        {
+            sb.Append(segment.Name);
+            return;
+        }
+
+        sb.Append('"').Append(segment.Name).Append('"');
+    }
+
     private static void Write(StringBuilder sb, Expression expression, IReadOnlySet<string> bareIdentifiers)
     {
         switch (expression)
         {
             case ColumnReferenceExpression columnReference:
-                if (bareIdentifiers.Contains(columnReference.Identifier.Name))
+                // Every segment of a qualified reference is rendered (issue #214). Dropping
+                // the qualifier would rewrite `NEW.a` as `a`, which in a trigger WHEN clause
+                // is a different predicate rather than a tidier spelling of the same one.
+                var qualifiers = columnReference.Qualifiers;
+
+                for (var i = 0; i < qualifiers.Count; i++)
                 {
-                    sb.Append(columnReference.Identifier.Name);
+                    WriteReferenceSegment(
+                        sb, qualifiers[i], bareIdentifiers, isQualifier: true);
+                    sb.Append('.');
                 }
-                else
-                {
-                    sb.Append('"').Append(columnReference.Identifier.Name).Append('"');
-                }
+
+                WriteReferenceSegment(
+                    sb, columnReference.Identifier, bareIdentifiers, isQualifier: false);
                 break;
 
             case LiteralExpression literal:
@@ -481,6 +512,7 @@ public static class ExpressionSqlRenderer
             PostgresBuiltInBinaryOperator.NotILike => "NOT ILIKE",
             PostgresBuiltInBinaryOperator.SimilarTo => "SIMILAR TO",
             PostgresBuiltInBinaryOperator.NotSimilarTo => "NOT SIMILAR TO",
+            PostgresBuiltInBinaryOperator.IsDistinctFrom => "IS DISTINCT FROM",
             _ => throw new NotImplementedException(
                 $"Rendering binary operator {builtIn.Operator} to SQL is not yet implemented"),
         };

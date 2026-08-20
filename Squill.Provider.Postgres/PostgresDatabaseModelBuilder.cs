@@ -1111,7 +1111,34 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                                 (SELECT string_to_array(
                                     encode(t.tgargs, 'escape'), E'\\000'))) WITH ORDINALITY AS ta(a, o)
                             WHERE a <> ''),
-                           ', '), '') AS function_arguments
+                           ', '), '') AS function_arguments,
+                   -- The WHEN predicate. pg_get_triggerdef is the only route to it: tgqual is
+                   -- a serialized node tree, not text, so it is sliced out of the rendered
+                   -- definition on the ' WHEN (' and ') EXECUTE ' delimiters the engine emits.
+                   --
+                   -- Both .* are GREEDY, which anchors the match on the LAST occurrence of each
+                   -- delimiter. That is load-bearing: a predicate may contain either delimiter
+                   -- inside a string literal, and measured, `WHEN (new.s <> ') EXECUTE ')` is
+                   -- stored verbatim, so a leftmost match would truncate it. The trailing
+                   -- EXECUTE names a function and its arguments and never introduces another
+                   -- WHEN, so the last delimiter is always the real one.
+                   CASE WHEN t.tgqual IS NOT NULL THEN
+                       regexp_replace(
+                           pg_get_triggerdef(t.oid),
+                           '^.* WHEN \((.*)\) EXECUTE .*$', '\1')
+                   END AS when_condition,
+                   -- tgattr holds the UPDATE OF column attnums in DECLARED order, which is the
+                   -- order PostgreSQL renders them back in, so the ordinality is preserved
+                   -- rather than sorted by attnum.
+                   (SELECT string_agg(a.attname, ', ' ORDER BY k.ord)
+                    FROM unnest(t.tgattr::int2[]) WITH ORDINALITY AS k(attnum, ord)
+                    JOIN pg_attribute a
+                      ON a.attrelid = t.tgrelid AND a.attnum = k.attnum) AS update_of_columns,
+                   t.tgoldtable AS old_transition_table,
+                   t.tgnewtable AS new_transition_table,
+                   t.tgconstraint <> 0 AS is_constraint_trigger,
+                   t.tgdeferrable AS is_deferrable,
+                   t.tginitdeferred AS is_initially_deferred
             FROM pg_trigger t
             JOIN pg_class c ON c.oid = t.tgrelid
             JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -1138,7 +1165,15 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                     reader.GetString("events"),
                     reader.GetString("level"),
                     reader.GetString("trigger_function"),
-                    reader.GetString("function_arguments")));
+                    reader.GetString("function_arguments"),
+                    new PostgresModelFactory.TriggerModifiers(
+                        WhenCondition: reader.IsDBNull("when_condition") ? null : reader.GetString("when_condition"),
+                        UpdateOfColumns: reader.IsDBNull("update_of_columns") ? null : reader.GetString("update_of_columns"),
+                        OldTransitionTable: reader.IsDBNull("old_transition_table") ? null : reader.GetString("old_transition_table"),
+                        NewTransitionTable: reader.IsDBNull("new_transition_table") ? null : reader.GetString("new_transition_table"),
+                        IsConstraintTrigger: reader.GetBoolean("is_constraint_trigger"),
+                        IsDeferrable: reader.GetBoolean("is_deferrable"),
+                        IsInitiallyDeferred: reader.GetBoolean("is_initially_deferred"))));
             }
         }
 

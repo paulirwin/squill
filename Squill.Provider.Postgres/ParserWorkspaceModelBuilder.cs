@@ -3045,7 +3045,22 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             RenderEvents(statement.Events),
             RenderLevel(statement.Level),
             storedFunction,
-            string.Join(", ", statement.FunctionArguments));
+            string.Join(", ", statement.FunctionArguments),
+            new PostgresModelFactory.TriggerModifiers(
+                // The predicate is rendered back to text rather than kept as the source
+                // substring, so the two builders hand the model the same starting point: the
+                // canonical form is derived from it, and the raw form is what gets scripted.
+                WhenCondition: statement.WhenCondition is { } when
+                    ? ExpressionSqlRenderer.Render(when)
+                    : null,
+                UpdateOfColumns: statement.UpdateOfColumns.Count > 0
+                    ? string.Join(", ", statement.UpdateOfColumns.Select(i => i.Name))
+                    : null,
+                OldTransitionTable: statement.OldTransitionTable,
+                NewTransitionTable: statement.NewTransitionTable,
+                IsConstraintTrigger: statement.IsConstraintTrigger,
+                IsDeferrable: statement.IsDeferrable,
+                IsInitiallyDeferred: statement.IsInitiallyDeferred));
     }
 
     private static string RenderTiming(TriggerTiming timing) => timing switch

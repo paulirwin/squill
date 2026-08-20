@@ -1075,6 +1075,10 @@ public static class PostgresModelFactory
     /// <c>pg_get_triggerdef</c>, so a parsed model hash-matches one extracted from a live
     /// database. The trigger carries its table's <paramref name="schema"/> so it can be
     /// schema-scoped for identity and dependency ordering.
+    ///
+    /// <paramref name="modifiers"/> carries the optional declaration clauses (issue #214).
+    /// Each is stored only when it was declared, so an ordinary trigger carries none of them
+    /// and a model built before they existed still hash-matches.
     /// </summary>
     public static Element CreateTrigger(
         string schema,
@@ -1084,9 +1088,10 @@ public static class PostgresModelFactory
         string events,
         string level,
         string triggerFunction,
-        string functionArguments)
+        string functionArguments,
+        TriggerModifiers modifiers = default)
     {
-        return new Element(PostgresElementTypes.SqlTrigger)
+        var element = new Element(PostgresElementTypes.SqlTrigger)
         {
             Name = SqlName.Object(schema, $"{table.UnqualifiedName}.{triggerName}"),
             Relationships =
@@ -1110,7 +1115,79 @@ public static class PostgresModelFactory
                 new Property(PostgresPropertyNames.FunctionArguments, functionArguments),
             },
         };
+
+        if (modifiers.WhenCondition is { } whenCondition)
+        {
+            AddExpressionProperties(
+                element,
+                PostgresPropertyNames.WhenCondition,
+                PostgresPropertyNames.NormalizedWhenCondition,
+                whenCondition);
+        }
+
+        // The column list keeps its declared order, so it is stored as written rather than
+        // sorted: measured, PostgreSQL renders UPDATE OF back in the order it was given.
+        if (!string.IsNullOrEmpty(modifiers.UpdateOfColumns))
+        {
+            element.Properties.Add(
+                new Property(PostgresPropertyNames.UpdateOfColumns, modifiers.UpdateOfColumns));
+        }
+
+        if (modifiers.OldTransitionTable is { } oldTransitionTable)
+        {
+            element.Properties.Add(
+                new Property(PostgresPropertyNames.OldTransitionTable, oldTransitionTable));
+        }
+
+        if (modifiers.NewTransitionTable is { } newTransitionTable)
+        {
+            element.Properties.Add(
+                new Property(PostgresPropertyNames.NewTransitionTable, newTransitionTable));
+        }
+
+        // Each stored only when true, matching pg_trigger's plain booleans, so an ordinary
+        // trigger carries no property at all.
+        if (modifiers.IsConstraintTrigger)
+        {
+            element.Properties.Add(
+                new Property(PostgresPropertyNames.IsConstraintTrigger, true));
+        }
+
+        if (modifiers.IsDeferrable)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.IsDeferrable, true));
+        }
+
+        if (modifiers.IsInitiallyDeferred)
+        {
+            element.Properties.Add(
+                new Property(PostgresPropertyNames.IsInitiallyDeferred, true));
+        }
+
+        return element;
     }
+
+    /// <summary>
+    /// The optional clauses of a <c>CREATE TRIGGER</c> declaration (issue #214). Every member
+    /// defaults to absent, which is what an ordinary trigger declares.
+    /// </summary>
+    /// <param name="WhenCondition">The raw <c>WHEN (...)</c> predicate, or null.</param>
+    /// <param name="UpdateOfColumns">
+    /// The comma-joined <c>UPDATE OF</c> column list in declared order, or empty.
+    /// </param>
+    /// <param name="OldTransitionTable">The REFERENCING OLD TABLE name, or null.</param>
+    /// <param name="NewTransitionTable">The REFERENCING NEW TABLE name, or null.</param>
+    /// <param name="IsConstraintTrigger">Whether this is a CREATE CONSTRAINT TRIGGER.</param>
+    /// <param name="IsDeferrable">Whether a constraint trigger may be deferred.</param>
+    /// <param name="IsInitiallyDeferred">Whether a constraint trigger defers by default.</param>
+    public readonly record struct TriggerModifiers(
+        string? WhenCondition = null,
+        string? UpdateOfColumns = null,
+        string? OldTransitionTable = null,
+        string? NewTransitionTable = null,
+        bool IsConstraintTrigger = false,
+        bool IsDeferrable = false,
+        bool IsInitiallyDeferred = false);
 
     /// <summary>
     /// Builds a view element (issue #42).

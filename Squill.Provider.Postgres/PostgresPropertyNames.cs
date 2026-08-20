@@ -145,6 +145,30 @@ public sealed class PostgresPropertyNames : SqlPropertyNames
     public const string Level = nameof(Level);
     public const string TriggerFunction = nameof(TriggerFunction);
     public const string FunctionArguments = nameof(FunctionArguments);
+    // Trigger declaration modifiers (issue #214), each stored only when declared so an
+    // ordinary trigger carries none of them and does not re-diff.
+    //
+    // WhenCondition is the gating predicate, paired with NormalizedWhenCondition the way a
+    // CHECK predicate is: measured, PostgreSQL rewrites what it is given, so a declared
+    // `WHEN (NEW.a > 5)` comes back as `WHEN ((new.a > 5))` and only the canonical form may
+    // take part in identity.
+    //
+    // UpdateOfColumns is the comma-joined column list of an UPDATE OF trigger, in DECLARED
+    // order: measured, PostgreSQL renders `UPDATE OF b, a` back as `b, a` rather than sorting,
+    // so the order is part of what round-trips.
+    //
+    // OldTransitionTable / NewTransitionTable name the REFERENCING transition tables, which the
+    // trigger body reads by name, so they are part of its contract with the function.
+    //
+    // IsConstraintTrigger marks the CREATE CONSTRAINT TRIGGER form. Its deferrability reuses
+    // IsDeferrable / IsInitiallyDeferred above, which pg_trigger reports as the same plain
+    // booleans pg_constraint does.
+    public const string WhenCondition = nameof(WhenCondition);
+    public const string NormalizedWhenCondition = nameof(NormalizedWhenCondition);
+    public const string UpdateOfColumns = nameof(UpdateOfColumns);
+    public const string OldTransitionTable = nameof(OldTransitionTable);
+    public const string NewTransitionTable = nameof(NewTransitionTable);
+    public const string IsConstraintTrigger = nameof(IsConstraintTrigger);
     // EXCLUDE constraints (issue #212). ExclusionOperator is one element's comparison
     // operator, stored canonically: measured, PostgreSQL reports an operator resolved in
     // pg_catalog unqualified and any other one schema-qualified, so `OPERATOR(pg_catalog.=)`
