@@ -382,7 +382,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         MariaDbDeprecationChecker.Check(
                             file, createTable, _schemaProvider, warnings);
 
-                        foreach (var element in MakeCreateTableElements(createTable, _schemaProvider))
+                        foreach (var element in MakeCreateTableElements(
+                                     createTable, _schemaProvider, file, warnings))
                         {
                             model.Elements.Add(element);
                         }
@@ -1512,6 +1513,71 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     }
 
     /// <summary>
+    /// Resolves a column's type-level <c>CHARACTER SET</c> and <c>BINARY</c> suffix onto the
+    /// collation the engines store for them (issue #217).
+    ///
+    /// <para>
+    /// Neither modifier can be modeled as written. Both engines resolve them when the column is
+    /// created and <c>information_schema</c> reports only the resulting <c>COLLATION_NAME</c>,
+    /// with no trace of which spelling produced it, measured, <c>CHARACTER SET latin1</c> reads
+    /// back as <c>latin1_swedish_ci</c> and <c>VARCHAR(10) BINARY</c> as <c>utf8mb4_bin</c>. So
+    /// resolving them here is not a convenience; it is the only shape an extracted column could
+    /// ever be compared against.
+    /// </para>
+    ///
+    /// <para>
+    /// The precedence mirrors the engines'. An explicit <c>COLLATE</c> wins outright, since a
+    /// character set only supplies a default. Otherwise the character set names its default
+    /// collation. A <c>BINARY</c> suffix then swaps whichever collation is in play for that
+    /// character set's <c>_bin</c> variant, including the one inherited from the table, which
+    /// is why <c>VARCHAR(10) BINARY</c> means <c>latin1_bin</c> in a <c>latin1</c> table and
+    /// <c>utf8mb4_bin</c> in a default one.
+    /// </para>
+    /// </summary>
+    private static string? ResolveDeclaredCollation(
+        DataType dataType,
+        string? declaredCollation,
+        string inheritedCollation,
+        MariaDbFamilyDatabaseSchemaProvider schemaProvider,
+        IFile file,
+        int? line,
+        int? column,
+        List<SqlSourceDiagnostic> warnings)
+    {
+        var characterSet = dataType.CharacterSet;
+
+        // An explicit COLLATE already says what the charset would only have implied, so the
+        // charset contributes nothing and needs no warning even if Squill does not know it.
+        if (declaredCollation is null && characterSet is not null)
+        {
+            declaredCollation = schemaProvider.DefaultCollationForCharacterSet(characterSet);
+
+            if (declaredCollation is null)
+            {
+                // Not guessed at: an invented collation deploys a column that sorts differently
+                // from the declaration, where recording none leaves the server to apply its own
+                // default. See DefaultCollationForCharacterSet.
+                warnings.Add(new SqlSourceDiagnostic(
+                    $"CHARACTER SET '{characterSet}' is not one Squill has a measured default "
+                    + "collation for, so the column's collation is left to the server. Declare "
+                    + "an explicit COLLATE to model it.",
+                    file.Name,
+                    line,
+                    column));
+            }
+        }
+
+        if (!dataType.IsBinary)
+        {
+            return declaredCollation;
+        }
+
+        // BINARY resolves against whatever collation the column would otherwise have had: its
+        // own, or the one it inherits from the table.
+        return schemaProvider.BinaryCollationFor(declaredCollation ?? inheritedCollation);
+    }
+
+    /// <summary>
     /// Case-folds a storage engine name so a declared one matches an extracted one. See
     /// <see cref="MariaDbPropertyNames.Engine"/>: the catalog's own casing is arbitrary and
     /// differs between the engines, so folding both sides is the only comparison that holds.
@@ -1526,7 +1592,10 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     internal static string CanonicalCollationName(string collation) => collation.ToLowerInvariant();
 
     private static IEnumerable<Element> MakeCreateTableElements(
-        CreateTableStatement createTable, MariaDbFamilyDatabaseSchemaProvider schemaProvider)
+        CreateTableStatement createTable,
+        MariaDbFamilyDatabaseSchemaProvider schemaProvider,
+        IFile file,
+        List<SqlSourceDiagnostic> warnings)
     {
         var tableName = TableName(createTable.Name);
 
@@ -1542,7 +1611,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         AddTableOptions(tableElement, createTable, schemaProvider);
 
         AddColumns(schemaProvider, tableElement, tableName, createTable, primaryKeyColumns, foreignKeys,
-            uniqueIndexes, checkConstraints);
+            uniqueIndexes, checkConstraints, file, warnings);
         CollectTableLevelConstraints(createTable, tableName, primaryKeyColumns, foreignKeys,
             uniqueIndexes, checkConstraints, specialIndexes);
 
@@ -1720,7 +1789,9 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         List<MariaDbModelFactory.IndexedColumn> primaryKeyColumns,
         List<ForeignKeySpec> foreignKeys,
         List<(string? Name, IReadOnlyList<IndexColumn> Columns, IIndexOptions? Options)> uniqueIndexes,
-        List<(string Name, string Expression)> checkConstraints)
+        List<(string Name, string Expression)> checkConstraints,
+        IFile file,
+        List<SqlSourceDiagnostic> warnings)
     {
         var columns = new Relationship(MariaDbRelationshipNames.Columns);
         tableElement.Relationships.Add(columns);
@@ -1891,6 +1962,20 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 tableElement.GetProperty<string>(MariaDbPropertyNames.Collation)
                 ?? schemaProvider.DefaultCollation;
 
+            // A type-level CHARACTER SET or BINARY suffix resolves to a collation here
+            // (issue #217). Neither can be modeled as itself: both engines resolve them when
+            // the column is created and information_schema reports only the resulting
+            // COLLATION_NAME, so this is the one form the extractor can ever match.
+            declaredCollation = ResolveDeclaredCollation(
+                columnDefinition.DataType,
+                declaredCollation,
+                inheritedCollation,
+                schemaProvider,
+                file,
+                createTable.Line,
+                createTable.Column,
+                warnings);
+
             if (declaredCollation is not null
                 && !string.Equals(
                     declaredCollation, inheritedCollation, StringComparison.OrdinalIgnoreCase))
@@ -1957,6 +2042,16 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
             typeSpec.Properties.Add(new Property(MariaDbPropertyNames.Precision, precision));
             typeSpec.Properties.Add(new Property(MariaDbPropertyNames.Scale, scale));
+        }
+        else if (MariaDbTypeCategories.IsVectorType(canonicalTypeName)
+                 && dataType.Modifiers.Count == 1)
+        {
+            // A vector's dimension (issue #217). Stored under Length, matching the extractor,
+            // which recovers it from COLUMN_TYPE rather than from the byte count the catalog
+            // reports as the column's length. Unlike a character length this is not optional:
+            // both engines reject a bare `vector`.
+            typeSpec.Properties.Add(
+                new Property(MariaDbPropertyNames.Length, (int)dataType.Modifiers[0]));
         }
         else if (MariaDbTypeCategories.IsTemporalPrecisionType(canonicalTypeName)
                  && dataType.Modifiers.Count == 1)

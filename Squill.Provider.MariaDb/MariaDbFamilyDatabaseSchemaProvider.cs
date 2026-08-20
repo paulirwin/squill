@@ -159,6 +159,74 @@ public abstract class MariaDbFamilyDatabaseSchemaProvider : DatabaseSchemaProvid
     public abstract string DefaultCollation { get; }
 
     /// <summary>
+    /// The collation a column takes from a bare <c>CHARACTER SET</c> naming
+    /// <c>utf8mb3</c> or <c>utf8mb4</c>, as a <c>(utf8mb3, utf8mb4)</c> pair (issue #217).
+    ///
+    /// <para>
+    /// Abstract, and split out from the character sets below, because these two are the ones
+    /// that move. Measured across the supported majors, <c>utf8mb4</c> defaults to
+    /// <c>utf8mb4_general_ci</c> on MariaDB 10, <c>utf8mb4_uca1400_ai_ci</c> on MariaDB 11 and
+    /// 12, and <c>utf8mb4_0900_ai_ci</c> on MySQL 8 and 9: three answers across four majors, so
+    /// there is no shared rule to fall back on and each has to state its own.
+    /// </para>
+    /// </summary>
+    protected abstract (string Utf8Mb3, string Utf8Mb4) DefaultUnicodeCollations { get; }
+
+    /// <summary>
+    /// The collation a column inherits from a type-level <c>CHARACTER SET</c>, or <c>null</c>
+    /// when Squill has no measured answer for that character set (issue #217).
+    ///
+    /// <para>
+    /// This exists because a character set is not something the model can hold: both engines
+    /// resolve <c>CHARACTER SET x</c> to a collation at creation time and
+    /// <c>information_schema</c> reports only the result, so a charset that reached the model as
+    /// itself could never be compared against an extracted column. Resolving it here is what
+    /// lets the declared spelling round-trip as the thing the server actually stored.
+    /// </para>
+    ///
+    /// <para>
+    /// An unrecognized character set returns <c>null</c> rather than a guess. The obvious
+    /// guess (<c>&lt;charset&gt;_general_ci</c>) is wrong for several of the sets measured
+    /// above, and a wrong collation is worse than none: it deploys a column that sorts
+    /// differently from the declaration, where recording nothing merely leaves the server to
+    /// apply its own default. The caller warns instead.
+    /// </para>
+    /// </summary>
+    public virtual string? DefaultCollationForCharacterSet(string characterSet)
+        => characterSet.ToLowerInvariant() switch
+        {
+            // Measured identical on MariaDB 10/11/12 and MySQL 8/9, so they are stated once
+            // here rather than five times. A future major that changes one overrides this.
+            "latin1" => "latin1_swedish_ci",
+            "ascii" => "ascii_general_ci",
+            "binary" => "binary",
+            "utf8mb3" or "utf8" => DefaultUnicodeCollations.Utf8Mb3,
+            "utf8mb4" => DefaultUnicodeCollations.Utf8Mb4,
+            _ => null,
+        };
+
+    /// <summary>
+    /// The collation a <c>BINARY</c> type suffix selects, given the collation the column would
+    /// otherwise have had (issue #217).
+    ///
+    /// <para>
+    /// <c>BINARY</c> is not a character set or a type of its own: it selects the binary
+    /// collation of whichever character set is already in play. Measured, that character set is
+    /// the collation's own prefix, in a <c>COLLATE=latin1_general_ci</c> table a
+    /// <c>VARCHAR(10) BINARY</c> column reports <c>latin1_bin</c>, so the suffix is resolved by
+    /// swapping the collation's tail for <c>_bin</c>.
+    /// </para>
+    /// </summary>
+    public virtual string BinaryCollationFor(string collation)
+    {
+        var separator = collation.IndexOf('_');
+
+        // A collation with no underscore is already a whole character set name standing in for
+        // its own collation (`binary`), so there is no tail to replace.
+        return separator < 0 ? collation : $"{collation[..separator]}_bin";
+    }
+
+    /// <summary>
     /// Whether the engine has sequences at all (issue #218): <c>CREATE SEQUENCE</c>,
     /// <c>NEXTVAL()</c> and the <c>SEQUENCE</c> table type.
     ///

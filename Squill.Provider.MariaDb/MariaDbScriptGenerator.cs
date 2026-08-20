@@ -1352,6 +1352,10 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
                 => $"{typeName}({maxLength})",
             "decimal" or "numeric" when precision != null => $"{typeName}({precision}, {scale ?? 0})",
             "enum" or "set" when collectionValues != null => $"{typeName}{collectionValues}",
+            // A vector's dimension is mandatory on both engines, so it is rendered from the
+            // same Length property the character types use (issue #217).
+            _ when maxLength != null && MariaDbTypeCategories.IsVectorType(typeName)
+                => $"{typeName}({maxLength})",
             // A fractional-seconds precision, e.g. datetime(3) (issue #144). Omitted when
             // absent, which is how a plain `datetime` is modeled.
             _ when precision != null && MariaDbTypeCategories.IsTemporalPrecisionType(typeName)

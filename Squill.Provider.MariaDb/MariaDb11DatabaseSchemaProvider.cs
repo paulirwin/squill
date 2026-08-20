@@ -30,6 +30,11 @@ public sealed class MariaDb11DatabaseSchemaProvider : MariaDbDatabaseSchemaProvi
     /// <summary>Measured on 11.8: MariaDB 11.4 moved the default to the UCA 14.0.0 collation.</summary>
     public override string DefaultCollation => "utf8mb4_uca1400_ai_ci";
 
+    /// <inheritdoc />
+    // Measured on 11.8: MariaDB moved both unicode sets to the UCA 14.0.0 collations.
+    protected override (string Utf8Mb3, string Utf8Mb4) DefaultUnicodeCollations
+        => ("utf8mb3_uca1400_ai_ci", "utf8mb4_uca1400_ai_ci");
+
     /// <summary>
     /// Measured: MariaDB's <c>information_schema.VIEWS</c> has an <c>ALGORITHM</c> column,
     /// reporting <c>MERGE</c>, <c>TEMPTABLE</c> or <c>UNDEFINED</c> per view.
