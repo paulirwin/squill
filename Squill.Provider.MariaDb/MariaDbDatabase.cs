@@ -16,9 +16,9 @@ namespace Squill.Provider.MariaDb;
 public class MariaDbDatabase : IDatabase
 {
     private readonly string _connectionString;
-    private readonly MariaDbScriptGenerator _scriptGenerator = new();
 
     private MySqlConnection? _connection;
+    private MariaDbScriptGenerator? _scriptGenerator;
 
     public MariaDbDatabase(string connectionString, string databaseName)
     {
@@ -206,11 +206,34 @@ public class MariaDbDatabase : IDatabase
         await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// The script generator for the engine actually on the other end of this connection.
+    ///
+    /// Built from the live server's version banner rather than fixed at construction, because
+    /// some DDL cannot be written engine-neutrally: MariaDB and MySQL spell index visibility
+    /// with keywords the other rejects as a syntax error (issue #211), so a generator that did
+    /// not know which engine it was targeting would emit DDL that fails to parse.
+    /// </summary>
+    private MariaDbScriptGenerator ScriptGenerator
+    {
+        get
+        {
+            if (_connection is null)
+            {
+                throw new InvalidOperationException(
+                    "Connect to the database before generating a script.");
+            }
+
+            return _scriptGenerator ??= new MariaDbScriptGenerator(
+                MariaDbEngineDetection.FromServerVersion(_connection.ServerVersion));
+        }
+    }
+
     public async Task PublishAsync(SchemaComparison comparison, CancellationToken cancellationToken = default)
     {
         foreach (var delta in comparison.Deltas)
         {
-            var sql = _scriptGenerator.GenerateScriptForDelta(delta);
+            var sql = ScriptGenerator.GenerateScriptForDelta(delta);
             await RunScriptAsync(sql, cancellationToken: cancellationToken);
         }
     }

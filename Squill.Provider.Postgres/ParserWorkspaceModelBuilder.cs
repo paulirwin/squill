@@ -2380,7 +2380,11 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             // the qualifier would make a qualified source re-diff against its own database.
             UnqualifiedNameOf(indexElement.OperatorClass),
             UnqualifiedNameOf(indexElement.Collation),
-            keyExpression);
+            keyExpression,
+            // Rendered with the same helper as the index-level WITH (...) clause: measured,
+            // pg_attribute.attoptions reports these in exactly that name=value spelling, so
+            // sharing it is what lets a parsed key hash-match an extracted one (issue #211).
+            RenderStorageParametersOrNull(indexElement.OperatorClassParameters));
     }
 
     private static Element MakeCreateIndexElement(CreateIndexStatement createIndexStatement)

@@ -195,4 +195,38 @@ public abstract class MariaDbFamilyDatabaseSchemaProvider : DatabaseSchemaProvid
     /// </para>
     /// </summary>
     public abstract bool ReportsViewAlgorithm { get; }
+
+    /// <summary>
+    /// How the engine spells "the optimizer should ignore this index", and how it reports it
+    /// back (issue #211).
+    ///
+    /// <para>
+    /// Measured, this is a hard divergence in both directions: MySQL takes <c>INVISIBLE</c> and
+    /// reports <c>information_schema.STATISTICS.IS_VISIBLE</c>; MariaDB takes <c>IGNORED</c>
+    /// and reports <c>STATISTICS.IGNORED</c>. Each engine rejects the other's keyword with a
+    /// <em>syntax error</em>, and neither has the other's catalog column, so naming the wrong
+    /// one in the extractor's query is itself an unknown-column error, the same shape of
+    /// divergence as <see cref="SupportsFunctionalIndexKeys"/>.
+    /// </para>
+    ///
+    /// <para>
+    /// Null for an engine that has neither. Abstract because there is no safe default: guessing
+    /// would emit DDL one of the two engines cannot parse.
+    /// </para>
+    /// </summary>
+    public abstract IndexVisibilityStyle? IndexVisibility { get; }
+}
+
+/// <summary>
+/// The spelling and catalog column an engine uses for index visibility (issue #211). Two
+/// members rather than a bool so the keyword and the column that reports it stay together:
+/// they always vary as a pair.
+/// </summary>
+public enum IndexVisibilityStyle
+{
+    /// <summary>MySQL: <c>INVISIBLE</c> / <c>VISIBLE</c>, read from <c>IS_VISIBLE</c>.</summary>
+    Invisible,
+
+    /// <summary>MariaDB: <c>IGNORED</c> / <c>NOT IGNORED</c>, read from <c>IGNORED</c>.</summary>
+    Ignored,
 }

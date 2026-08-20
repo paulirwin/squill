@@ -29,7 +29,13 @@ public abstract class DacpacDeployerBase
     /// </summary>
     protected abstract TargetVersion GetServerVersion(IDatabase database);
 
-    protected abstract IScriptGenerator CreateScriptGenerator();
+    /// <summary>
+    /// Creates the script generator for this deploy. Takes the DACPAC's metadata because an
+    /// engine family that serves more than one engine needs it to pick the right dialect: the
+    /// MariaDB provider covers both MariaDB and MySQL, which spell index visibility with
+    /// mutually-unparseable keywords (issue #211).
+    /// </summary>
+    protected abstract IScriptGenerator CreateScriptGenerator(ModelMetadata metadata);
 
     /// <summary>The engine name used in version-enforcement messages (e.g. "PostgreSQL", "MySQL").</summary>
     protected abstract string GetEngineName(ModelMetadata metadata);
@@ -95,7 +101,7 @@ public abstract class DacpacDeployerBase
             provider, sourceModel, targetModel,
             compareOptions with { BlockOnPossibleDataLoss = false });
 
-        var generator = CreateScriptGenerator();
+        var generator = CreateScriptGenerator(metadata);
 
         // The full script is the schema diff bracketed by the DACPAC's deploy scripts, so
         // `squill script` and a dry run preview exactly what a deploy would execute.

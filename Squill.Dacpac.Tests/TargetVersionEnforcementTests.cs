@@ -33,7 +33,7 @@ public class TargetVersionEnforcementTests
         protected override TargetVersion GetServerVersion(IDatabase database)
             => throw new NotSupportedException();
 
-        protected override IScriptGenerator CreateScriptGenerator()
+        protected override IScriptGenerator CreateScriptGenerator(ModelMetadata metadata)
             => throw new NotSupportedException();
 
         protected override string GetEngineName(ModelMetadata metadata) => "MySQL";

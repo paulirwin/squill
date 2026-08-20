@@ -191,7 +191,9 @@ public static class MariaDbModelFactory
         bool isUnique,
         string? indexMethod,
         IEnumerable<IndexedColumn> columns,
-        string? indexKind = null)
+        string? indexKind = null,
+        string? comment = null,
+        bool isHiddenFromOptimizer = false)
     {
         var columnSpecs = new Relationship(MariaDbRelationshipNames.ColumnSpecifications);
 
@@ -226,6 +228,21 @@ public static class MariaDbModelFactory
         if (indexKind is not null)
         {
             element.Properties.Add(new Property(MariaDbPropertyNames.IndexKind, indexKind));
+        }
+
+        // Index options (issue #211), added last so both builders agree on property order --
+        // the hash is order-sensitive. Each follows the omit-when-default convention: the
+        // catalog reports INDEX_COMMENT as the empty string and a visible index as the norm, so
+        // recording either unconditionally would make every ordinary index re-diff.
+        if (!string.IsNullOrEmpty(comment))
+        {
+            element.Properties.Add(new Property(MariaDbPropertyNames.Comment, comment));
+        }
+
+        if (isHiddenFromOptimizer)
+        {
+            element.Properties.Add(
+                new Property(MariaDbPropertyNames.IsHiddenFromOptimizer, true));
         }
 
         return element;

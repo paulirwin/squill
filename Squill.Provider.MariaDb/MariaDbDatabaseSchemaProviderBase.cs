@@ -39,4 +39,9 @@ public abstract class MariaDbDatabaseSchemaProviderBase : MariaDbFamilyDatabaseS
     // MariaDB has no functional indexes: the DDL is a syntax error, and STATISTICS has no
     // EXPRESSION column to read one back from.
     public override bool SupportsFunctionalIndexKeys => false;
+
+    // MariaDB spells this IGNORED / NOT IGNORED and reports STATISTICS.IGNORED. Measured, it
+    // rejects MySQL's INVISIBLE with a syntax error and has no IS_VISIBLE column.
+    // https://mariadb.com/kb/en/ignored-indexes/
+    public override IndexVisibilityStyle? IndexVisibility => IndexVisibilityStyle.Ignored;
 }

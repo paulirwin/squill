@@ -11,6 +11,24 @@ namespace Squill.Provider.MariaDb;
 /// </summary>
 public class MariaDbScriptGenerator : ScriptGeneratorBase
 {
+    private readonly MariaDbFamilyDatabaseSchemaProvider? _schemaProvider;
+
+    /// <summary>
+    /// Creates a generator for a given target engine. The engine matters because MariaDB and
+    /// MySQL spell index visibility with keywords the other rejects as a syntax error
+    /// (issue #211), so the two cannot share one rendering.
+    /// </summary>
+    /// <param name="schemaProvider">
+    /// The target engine, or null when the caller has none in hand. A null provider emits no
+    /// visibility keyword at all rather than guessing one: an index that is merely visible when
+    /// it should be hidden still returns the same rows, whereas guessing the wrong keyword would
+    /// emit DDL the server cannot parse.
+    /// </param>
+    public MariaDbScriptGenerator(MariaDbFamilyDatabaseSchemaProvider? schemaProvider = null)
+    {
+        _schemaProvider = schemaProvider;
+    }
+
     // Adds a constraint that was held back from its table's CREATE to break a circular
     // foreign key dependency. By the time this runs, every table in the cycle exists.
     protected override string GenerateAddConstraintScript(AddConstraintDelta delta)
@@ -274,7 +292,7 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
         return text;
     }
 
-    private static string RenderUniqueKeyClause(Element index)
+    private string RenderUniqueKeyClause(Element index)
     {
         if (index.Name is not string indexName)
         {
@@ -284,7 +302,48 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
         var columnList = string.Join(", ", RelationshipHelpers.GetColumnSpecifications(index)
             .Select(spec => RenderIndexKey(spec, indexName)));
 
-        return $"UNIQUE KEY `{SqlName.Parse(indexName).UnqualifiedName}` ({columnList})";
+        // A unique index is written into the table body rather than as a CREATE INDEX, so its
+        // options are rendered here too (issue #211): otherwise a UNIQUE KEY would silently
+        // lose the comment and visibility a non-unique index keeps.
+        return $"UNIQUE KEY `{SqlName.Parse(indexName).UnqualifiedName}` ({columnList})"
+            + RenderIndexOptions(index);
+    }
+
+    /// <summary>
+    /// The trailing index options shared by the <c>CREATE INDEX</c> and inline <c>UNIQUE KEY</c>
+    /// spellings (issue #211), so the two cannot drift apart.
+    /// </summary>
+    private string RenderIndexOptions(Element index)
+    {
+        var sb = new StringBuilder();
+
+        // Quoted as a string literal with embedded quotes doubled, the escaping both engines
+        // accept.
+        if (index.GetProperty<string>(MariaDbPropertyNames.Comment) is { } comment)
+        {
+            sb.Append(" COMMENT '").Append(comment.Replace("'", "''")).Append('\'');
+        }
+
+        // Index visibility, in whichever keyword the target engine parses. Measured, MariaDB
+        // rejects INVISIBLE and MySQL rejects IGNORED, each with a syntax error, so this is
+        // resolved from the schema provider rather than written one way for both. A generator
+        // built without one emits nothing rather than guessing: a visible index still returns
+        // the same rows, while a wrong keyword would not parse at all.
+        if (index.GetProperty<bool?>(MariaDbPropertyNames.IsHiddenFromOptimizer) == true)
+        {
+            switch (_schemaProvider?.IndexVisibility)
+            {
+                case IndexVisibilityStyle.Invisible:
+                    sb.Append(" INVISIBLE");
+                    break;
+
+                case IndexVisibilityStyle.Ignored:
+                    sb.Append(" IGNORED");
+                    break;
+            }
+        }
+
+        return sb.ToString();
     }
 
     /// <summary>
@@ -365,7 +424,7 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
         return depth == 0;
     }
 
-    private static string GenerateCreateIndexScript(Element index, string quotedTableName)
+    private string GenerateCreateIndexScript(Element index, string quotedTableName)
     {
         if (index.Name is not string indexName)
         {
@@ -409,6 +468,7 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
         }
 
         sb.Append(" (").Append(string.Join(", ", columnText)).Append(')');
+        sb.Append(RenderIndexOptions(index));
         sb.AppendLine(";");
 
         return sb.ToString();
