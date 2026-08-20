@@ -436,6 +436,14 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 return;
             }
 
+            AddUnmodeledProcedureWarnings(file, createProcedureStatement, warnings);
+
+            if (createProcedureStatement.TransformTypes.Count > 0
+                || createProcedureStatement.LinkSymbol is not null)
+            {
+                return;
+            }
+
             model.Elements.Add(MakeCreateProcedureElement(createProcedureStatement));
         }
         else if (statement is CreateViewStatement createViewStatement)
@@ -475,6 +483,17 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             validator.AddCreateFunction(file, createFunctionStatement);
 
             if (validator.IsDuplicateFunction(createFunctionStatement))
+            {
+                return;
+            }
+
+            AddUnmodeledFunctionWarnings(file, createFunctionStatement, warnings);
+
+            // WINDOW, TRANSFORM and a linked C body each describe an implementation that
+            // lives outside the declaration, so the function cannot be reproduced at all.
+            // Deploying it with those clauses dropped would create a *different* function,
+            // so the whole element is left out rather than silently degraded (issue #213).
+            if (IsUnreproducibleRoutine(createFunctionStatement))
             {
                 return;
             }
@@ -534,6 +553,189 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     /// set belongs to another object (issue #143). Unlike the per-construct warnings below,
     /// this one stands in for the entire table.
     /// </summary>
+    /// <summary>
+    /// Whether a function declares an implementation Squill cannot reproduce from the
+    /// declaration alone, so that no element should be produced for it at all (issue #213).
+    /// </summary>
+    private static bool IsUnreproducibleRoutine(CreateFunctionStatement statement)
+        => statement.IsWindow
+            || statement.TransformTypes.Count > 0
+            || statement.LinkSymbol is not null;
+
+    private static void AddUnmodeledFunctionWarnings(IFile file,
+        CreateFunctionStatement statement,
+        List<SqlSourceDiagnostic> warnings)
+    {
+        var name = SplitSchema(statement.Name).Name.UnqualifiedName;
+
+        // A window function's behaviour is implemented by a linked library rather than by
+        // its body, so there is nothing declarative to deploy.
+        if (statement.IsWindow)
+        {
+            warnings.Add(new SqlSourceDiagnostic(
+                $"Function '{name}' is declared WINDOW and is not modeled; a window "
+                + "function's implementation lives outside the declaration, so it will not "
+                + "be deployed or compared.",
+                file.Name, statement.Line, statement.Column));
+        }
+
+        if (statement.TransformTypes.Count > 0)
+        {
+            warnings.Add(new SqlSourceDiagnostic(
+                $"Function '{name}' declares TRANSFORM FOR TYPE and is not modeled; the "
+                + "transform changes how values are passed to the function's language, "
+                + "which Squill cannot express, so it will not be deployed or compared.",
+                file.Name, statement.Line, statement.Column));
+        }
+
+        AddLinkedRoutineWarning(file, statement.LinkSymbol, "Function", name,
+            statement.Line, statement.Column, warnings);
+
+        AddRoutineSettingWarnings(file, statement.Settings, "function", name,
+            statement.Line, statement.Column, warnings);
+
+        AddPlannerHintWarning(file, statement, name, warnings);
+    }
+
+    private static void AddUnmodeledProcedureWarnings(IFile file,
+        CreateProcedureStatement statement,
+        List<SqlSourceDiagnostic> warnings)
+    {
+        var name = SplitSchema(statement.Name).Name.UnqualifiedName;
+
+        if (statement.TransformTypes.Count > 0)
+        {
+            warnings.Add(new SqlSourceDiagnostic(
+                $"Procedure '{name}' declares TRANSFORM FOR TYPE and is not modeled; the "
+                + "transform changes how values are passed to the procedure's language, "
+                + "which Squill cannot express, so it will not be deployed or compared.",
+                file.Name, statement.Line, statement.Column));
+        }
+
+        AddLinkedRoutineWarning(file, statement.LinkSymbol, "Procedure", name,
+            statement.Line, statement.Column, warnings);
+
+        AddRoutineSettingWarnings(file, statement.Settings, "procedure", name,
+            statement.Line, statement.Column, warnings);
+    }
+
+    private static void AddLinkedRoutineWarning(IFile file,
+        string? linkSymbol,
+        string kind,
+        string name,
+        int? line,
+        int? column,
+        List<SqlSourceDiagnostic> warnings)
+    {
+        // AS 'obj_file', 'link_symbol' names a symbol in a shared library that must already
+        // be present on the server; the declaration carries no body to deploy.
+        if (linkSymbol is null)
+        {
+            return;
+        }
+
+        warnings.Add(new SqlSourceDiagnostic(
+            $"{kind} '{name}' is declared AS 'obj_file', 'link_symbol' and is not modeled; "
+            + "its implementation is a symbol in a shared library rather than a body Squill "
+            + "can deploy, so it will not be deployed or compared.",
+            file.Name, line, column));
+    }
+
+    /// <summary>
+    /// Warns about the SET clauses that cannot round-trip. A plain <c>SET name = value</c>
+    /// is modeled and produces no warning; the two exceptions were measured against
+    /// postgres:18.4 and are stored as something other than what was written.
+    /// </summary>
+    private static void AddRoutineSettingWarnings(IFile file,
+        IEnumerable<RoutineSetting> settings,
+        string kind,
+        string name,
+        int? line,
+        int? column,
+        List<SqlSourceDiagnostic> warnings)
+    {
+        foreach (var setting in settings)
+        {
+            // Measured: `SET search_path FROM CURRENT` stored `search_path="$user", public`,
+            // the creating session's value. What the database ends up holding therefore
+            // depends on who ran the deploy, so it can never be compared back.
+            if (setting.FromCurrent)
+            {
+                warnings.Add(new SqlSourceDiagnostic(
+                    $"SET {setting.Name} FROM CURRENT on {kind} '{name}' is not modeled; it "
+                    + "captures the value from the session that runs the deploy rather than a "
+                    + "declared one, so the clause will be omitted.",
+                    file.Name, line, column));
+
+                continue;
+            }
+
+            // Measured: a RESET on a declaration leaves proconfig null, exactly as writing no
+            // clause does, so there is no stored state for Squill to reproduce or compare.
+            if (setting.IsReset)
+            {
+                var clause = setting.IsAll ? "RESET ALL" : $"RESET {setting.Name}";
+
+                warnings.Add(new SqlSourceDiagnostic(
+                    $"{clause} on {kind} '{name}' is not modeled; PostgreSQL stores no "
+                    + "configuration for it, which is indistinguishable from declaring none, "
+                    + "so the clause will be omitted.",
+                    file.Name, line, column));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Warns about the planner attributes, which are accepted but not modeled. They do not
+    /// change what a function returns, but COST, ROWS and PARALLEL do change how the planner
+    /// may use it, so dropping them in silence would change behaviour without saying so.
+    /// </summary>
+    private static void AddPlannerHintWarning(IFile file,
+        CreateFunctionStatement statement,
+        string name,
+        List<SqlSourceDiagnostic> warnings)
+    {
+        var declared = new List<string>();
+
+        if (statement.Cost is not null)
+        {
+            declared.Add("COST");
+        }
+
+        if (statement.Rows is not null)
+        {
+            declared.Add("ROWS");
+        }
+
+        if (statement.Parallel is not null)
+        {
+            declared.Add("PARALLEL");
+        }
+
+        if (statement.Leakproof is not null)
+        {
+            declared.Add("LEAKPROOF");
+        }
+
+        if (statement.SupportFunction is not null)
+        {
+            declared.Add("SUPPORT");
+        }
+
+        if (declared.Count == 0)
+        {
+            return;
+        }
+
+        warnings.Add(new SqlSourceDiagnostic(
+            $"{string.Join(", ", declared)} on function '{name}' "
+            + $"{(declared.Count == 1 ? "is" : "are")} not modeled; "
+            + "the function will be deployed without "
+            + $"{(declared.Count == 1 ? "it" : "them")}, which may change how the planner "
+            + "uses it.",
+            file.Name, statement.Line, statement.Column));
+    }
+
     private static void AddUnmodeledTableStatementWarning(IFile file,
         CreateTableStatement createTableStatement,
         List<SqlSourceDiagnostic> warnings)
@@ -2904,7 +3106,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             language,
             body,
             parameters,
-            statement.SecurityDefiner);
+            statement.SecurityDefiner,
+            RenderRoutineConfiguration(statement.Settings));
     }
 
     private static Element MakeCreateFunctionElement(CreateFunctionStatement statement)
@@ -2962,7 +3165,27 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             parameters,
             statement.Volatility is { } volatility ? RenderVolatility(volatility) : null,
             statement.Strict ?? false,
-            statement.SecurityDefiner);
+            statement.SecurityDefiner,
+            RenderRoutineConfiguration(statement.Settings));
+    }
+
+    /// <summary>
+    /// Renders the modelable SET clauses into the form pg_proc.proconfig stores, so a parsed
+    /// model hash-matches one extracted from a live database.
+    ///
+    /// Measured on postgres:18.4: each clause becomes one <c>name=value</c> entry with the
+    /// list items comma-space joined, and the entries are kept in declaration order. RESET
+    /// and FROM CURRENT clauses store nothing, so they are dropped here (each having already
+    /// been warned about) rather than rendered.
+    /// </summary>
+    private static string? RenderRoutineConfiguration(IEnumerable<RoutineSetting> settings)
+    {
+        var entries = settings
+            .Where(i => !i.IsReset && !i.FromCurrent)
+            .Select(i => $"{i.Name}={string.Join(", ", i.Values)}")
+            .ToList();
+
+        return entries.Count == 0 ? null : string.Join(PostgresModelFactory.RoutineConfigurationSeparator, entries);
     }
 
     private static string RenderVolatility(FunctionVolatility volatility) => volatility switch
@@ -3123,6 +3346,9 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         ParameterMode.Out => "OUT",
         ParameterMode.InOut => "INOUT",
         ParameterMode.Variadic => "VARIADIC",
+        // A RETURNS TABLE column is stored as a TABLE-mode argument (proargmodes 't'), which
+        // is how the database model builder reads it back.
+        ParameterMode.Table => "TABLE",
         _ => throw new NotImplementedException($"Parameter mode {mode} is not supported"),
     };
 

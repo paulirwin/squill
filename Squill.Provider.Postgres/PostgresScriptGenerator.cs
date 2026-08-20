@@ -992,6 +992,8 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             sb.AppendLine().Append("    SECURITY DEFINER");
         }
 
+        AppendRoutineConfiguration(sb, procedure);
+
         sb.AppendLine().Append("AS ").Append(DollarQuote(body)).AppendLine(";");
 
         return sb.ToString();
@@ -1012,19 +1014,35 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
 
         var returnsSet = function.GetProperty<bool?>(PostgresPropertyNames.ReturnsSet) == true;
 
+        // A RETURNS TABLE column is stored as a TABLE-mode argument, but it is not written
+        // as one: `TABLE a integer` is a syntax error in an argument list, and re-declaring
+        // the columns as OUT parameters instead stores mode 'o' rather than 't' (measured on
+        // postgres:18.4), which would re-diff on every deploy. They must go back into a
+        // RETURNS TABLE clause, which is the only spelling that reproduces mode 't'.
+        var (declaredArguments, tableColumns) = SplitTableColumns(arguments);
+
         var sb = new StringBuilder();
 
         // OR REPLACE makes publish idempotent and updates an existing function's body in
         // place while the signature is unchanged (a changed signature is a different
         // function, surfaced as a separate create/drop).
         sb.Append("CREATE OR REPLACE FUNCTION ").Append(qualified)
-            .Append('(').Append(arguments).AppendLine(")");
+            .Append('(').Append(declaredArguments).AppendLine(")");
         sb.Append("    RETURNS ");
-        if (returnsSet)
+
+        if (tableColumns.Count > 0)
         {
-            sb.Append("SETOF ");
+            sb.Append("TABLE (").AppendJoin(", ", tableColumns).AppendLine(")");
         }
-        sb.AppendLine(returnType);
+        else
+        {
+            if (returnsSet)
+            {
+                sb.Append("SETOF ");
+            }
+
+            sb.AppendLine(returnType);
+        }
         sb.Append("    LANGUAGE ").Append(SqlName.Object(language).QuotedUnqualified);
 
         // Volatility is stored only when it is not the VOLATILE default; strictness only
@@ -1044,9 +1062,89 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             sb.AppendLine().Append("    SECURITY DEFINER");
         }
 
+        AppendRoutineConfiguration(sb, function);
+
         sb.AppendLine().Append("AS ").Append(DollarQuote(body)).AppendLine(";");
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Splits a rendered argument list into the arguments that are written in the
+    /// declaration's parentheses and the <c>RETURNS TABLE</c> columns, which are written in
+    /// the RETURNS clause instead. Each column is returned as <c>name type</c>, dropping the
+    /// TABLE mode marker that only exists to record which arguments these were.
+    /// </summary>
+    private static (string Arguments, IReadOnlyList<string> TableColumns) SplitTableColumns(
+        string arguments)
+    {
+        const string tableMode = "TABLE ";
+
+        if (arguments.Length == 0)
+        {
+            return (arguments, []);
+        }
+
+        var declared = new List<string>();
+        var columns = new List<string>();
+
+        foreach (var argument in arguments.Split(", "))
+        {
+            if (argument.StartsWith(tableMode, StringComparison.Ordinal))
+            {
+                columns.Add(argument[tableMode.Length..]);
+            }
+            else
+            {
+                declared.Add(argument);
+            }
+        }
+
+        return (string.Join(", ", declared), columns);
+    }
+
+    /// <summary>
+    /// Emits the routine's stored SET clauses, one per entry of the flattened proconfig.
+    ///
+    /// Each value is quoted individually rather than the whole list as one string. Measured
+    /// on postgres:18.4, this matters: <c>SET search_path TO 'pg_catalog', 'pg_temp'</c>
+    /// stores <c>search_path=pg_catalog, pg_temp</c> — matching what the declaration stored —
+    /// whereas <c>SET search_path TO 'pg_catalog, pg_temp'</c> stores a single quoted element
+    /// instead, which would re-diff on the next deploy.
+    /// </summary>
+    private static void AppendRoutineConfiguration(StringBuilder sb, Element routine)
+    {
+        if (routine.GetProperty<string>(PostgresPropertyNames.Configuration) is not { } configuration
+            || configuration.Length == 0)
+        {
+            return;
+        }
+
+        foreach (var entry in configuration.Split(PostgresModelFactory.RoutineConfigurationSeparator))
+        {
+            var separator = entry.IndexOf('=');
+
+            if (separator < 0)
+            {
+                throw new InvalidOperationException(
+                    $"Unable to parse routine configuration entry '{entry}'");
+            }
+
+            var name = entry[..separator];
+            var values = entry[(separator + 1)..];
+
+            // The GUC name is quoted because PostgreSQL canonicalizes some to a mixed-case
+            // spelling (measured: `timezone` is stored as `TimeZone`), which an unquoted
+            // identifier would fold back to lower case.
+            sb.AppendLine().Append("    SET ").Append(SqlName.Object(name).QuotedUnqualified)
+                .Append(" TO ");
+
+            // proconfig joins a list GUC's items with ", "; splitting on that reproduces the
+            // items the declaration named. A value containing a comma is stored as a single
+            // quoted item, so it is not split here.
+            sb.AppendJoin(", ", values.Split(", ")
+                .Select(value => $"'{value.Replace("'", "''")}'"));
+        }
     }
 
     // PostgreSQL has no CREATE OR REPLACE AGGREGATE, so an aggregate is always scripted as a

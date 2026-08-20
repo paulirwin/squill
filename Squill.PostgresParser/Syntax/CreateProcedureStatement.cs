@@ -38,4 +38,23 @@ public class CreateProcedureStatement : Statement
     /// means the procedure runs with the privileges of its caller.
     /// </summary>
     public bool SecurityDefiner { get; set; }
+
+    /// <summary>
+    /// The <c>SET</c>/<c>RESET</c> configuration clauses, in declaration order (issue #213).
+    /// A procedure carries these for the same reason a function does: attaching
+    /// <c>SET search_path</c> to a <c>SECURITY DEFINER</c> routine is the documented
+    /// hardening idiom.
+    /// </summary>
+    public IList<RoutineSetting> Settings { get; } = new List<RoutineSetting>();
+
+    /// <summary>
+    /// The type names of a <c>TRANSFORM FOR TYPE ...</c> clause, in declaration order.
+    /// </summary>
+    public IList<string> TransformTypes { get; } = new List<string>();
+
+    /// <summary>
+    /// The link symbol of the two-string <c>AS 'obj_file', 'link_symbol'</c> form. When set,
+    /// <see cref="Body"/> holds the object file rather than a routine body.
+    /// </summary>
+    public string? LinkSymbol { get; set; }
 }

@@ -13,6 +13,14 @@ namespace Squill.Provider.Postgres;
 public static class PostgresModelFactory
 {
     /// <summary>
+    /// Separates the entries of a routine's stored configuration (issue #213). pg_proc holds
+    /// proconfig as an array of <c>name=value</c> strings and the model flattens it into one
+    /// property, so the separator must be a character that cannot occur in a GUC name or
+    /// value — a comma cannot be used, since a list GUC's value contains one.
+    /// </summary>
+    public const char RoutineConfigurationSeparator = '\u001e';
+
+    /// <summary>
     /// Builds a Postgres schema (namespace) element. A schema is a top-level, standalone,
     /// declared object identified by its name — Squill never creates one implicitly, so it
     /// is modeled and deployed like a table or extension. Its objects reference it by name
@@ -931,7 +939,8 @@ public static class PostgresModelFactory
         string language,
         string body,
         IEnumerable<ProcedureParameter> parameters,
-        bool isSecurityDefiner = false)
+        bool isSecurityDefiner = false,
+        string? configuration = null)
     {
         var element = new Element(PostgresElementTypes.SqlProcedure)
         {
@@ -960,6 +969,13 @@ public static class PostgresModelFactory
             element.Properties.Add(new Property(PostgresPropertyNames.IsSecurityDefiner, true));
         }
 
+        // Absent rather than empty when no SET clause was declared, matching the null
+        // proconfig the database reports for such a procedure.
+        if (!string.IsNullOrEmpty(configuration))
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.Configuration, configuration));
+        }
+
         return element;
     }
 
@@ -985,7 +1001,8 @@ public static class PostgresModelFactory
         IEnumerable<ProcedureParameter> parameters,
         string? volatility = null,
         bool isStrict = false,
-        bool isSecurityDefiner = false)
+        bool isSecurityDefiner = false,
+        string? configuration = null)
     {
         var element = new Element(PostgresElementTypes.SqlFunction)
         {
@@ -1028,6 +1045,14 @@ public static class PostgresModelFactory
         if (isSecurityDefiner)
         {
             element.Properties.Add(new Property(PostgresPropertyNames.IsSecurityDefiner, true));
+        }
+
+        // A routine with no SET clause has a null proconfig, so the property stays absent
+        // rather than being stored empty — keeping the parsed shape identical to the
+        // extracted one for the common case.
+        if (!string.IsNullOrEmpty(configuration))
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.Configuration, configuration));
         }
 
         return element;
