@@ -160,17 +160,109 @@ public class CreateTableTests
             c => Assert.IsType<UniqueKeyColumnConstraint>(c));
     }
 
-    // COMMENT/COLLATE are recognized but not modeled — they must not derail parsing of the
-    // constraints around them.
+    // An attribute must not derail parsing of the constraints around it (issue #216).
     [Fact]
-    public void Column_UnmodeledConstraint_IsIgnoredButDoesNotBreakParsing()
+    public void Column_Attribute_DoesNotBreakParsingOfNeighbours()
     {
         var column = Column(
             ParseOne("CREATE TABLE t (c int NOT NULL COMMENT 'a note');"),
             "c");
 
         Assert.Single(Unwrapped(column).OfType<NullableColumnConstraint>());
-        Assert.Single(Unwrapped(column).OfType<IgnoredColumnConstraint>());
+        Assert.Equal("a note", Assert.Single(Unwrapped(column).OfType<CommentColumnConstraint>()).Comment);
+    }
+
+    // ---- Column attributes (issue #216) ----
+
+    /// <summary>
+    /// The comment text is unquoted, since it is compared against COLUMN_COMMENT, which reports
+    /// the value rather than the literal that produced it.
+    /// </summary>
+    [Fact]
+    public void Column_Comment_CapturesText()
+    {
+        var column = Column(ParseOne("CREATE TABLE t (c int COMMENT 'a note');"), "c");
+
+        Assert.Equal("a note", Assert.Single(Unwrapped(column).OfType<CommentColumnConstraint>()).Comment);
+    }
+
+    /// <summary>
+    /// An embedded quote is written doubled in MariaDB source; the captured text is the value the
+    /// server stores, so the escape must be resolved rather than carried through.
+    /// </summary>
+    [Fact]
+    public void Column_Comment_ResolvesDoubledQuote()
+    {
+        var column = Column(ParseOne("CREATE TABLE t (c int COMMENT 'it''s here');"), "c");
+
+        Assert.Equal("it's here", Assert.Single(Unwrapped(column).OfType<CommentColumnConstraint>()).Comment);
+    }
+
+    /// <summary>
+    /// On a string type the grammar absorbs a trailing COLLATE into <c>stringDataType</c>, so it
+    /// arrives on the type rather than as a column constraint. That is the spelling that matters
+    /// in practice, since only string types accept a collation at all.
+    /// </summary>
+    [Fact]
+    public void Column_Collate_IsCapturedOnTheDataType()
+    {
+        var column = Column(ParseOne("CREATE TABLE t (c varchar(10) COLLATE latin1_bin);"), "c");
+
+        Assert.Equal("latin1_bin", column.DataType.Collation);
+    }
+
+    /// <summary>
+    /// A quoted collation names the same collation as a bare one, so the quotes are not part of
+    /// the value being compared against COLLATION_NAME.
+    /// </summary>
+    [Fact]
+    public void Column_Collate_Quoted_IsUnquoted()
+    {
+        var column = Column(ParseOne("CREATE TABLE t (c varchar(10) COLLATE 'latin1_bin');"), "c");
+
+        Assert.Equal("latin1_bin", column.DataType.Collation);
+    }
+
+    [Fact]
+    public void Column_WithoutCollate_RecordsNone()
+    {
+        var column = Column(ParseOne("CREATE TABLE t (c varchar(10));"), "c");
+
+        Assert.Null(column.DataType.Collation);
+    }
+
+    [Fact]
+    public void Column_Invisible_IsCaptured()
+    {
+        var column = Column(ParseOne("CREATE TABLE t (k int, c int INVISIBLE);"), "c");
+
+        Assert.Single(Unwrapped(column).OfType<InvisibleColumnConstraint>());
+    }
+
+    /// <summary>
+    /// SERIAL DEFAULT VALUE is one token sequence standing for three constraints, so it is
+    /// captured as itself and expanded where the model is built rather than at parse time.
+    /// </summary>
+    [Fact]
+    public void Column_SerialDefaultValue_IsCaptured()
+    {
+        var column = Column(ParseOne("CREATE TABLE t (c bigint SERIAL DEFAULT VALUE);"), "c");
+
+        Assert.Single(Unwrapped(column).OfType<SerialDefaultColumnConstraint>());
+    }
+
+    /// <summary>
+    /// An attribute that cannot round-trip still names itself, so the diagnostic can say which
+    /// one was dropped instead of listing every possibility.
+    /// </summary>
+    [Theory]
+    [InlineData("COLUMN_FORMAT DYNAMIC", "COLUMN_FORMAT")]
+    [InlineData("STORAGE DISK", "STORAGE")]
+    public void Column_UnmodelableAttribute_NamesItself(string attribute, string expected)
+    {
+        var column = Column(ParseOne($"CREATE TABLE t (k int, c int {attribute});"), "c");
+
+        Assert.Equal(expected, Assert.Single(Unwrapped(column).OfType<UnmodeledColumnConstraint>()).Keyword);
     }
 
     // ---- Inline (column-level) PRIMARY KEY / UNIQUE ----

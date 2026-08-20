@@ -544,12 +544,22 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 var line = constraint.Line ?? createTable.Line;
                 var column = constraint.Column ?? createTable.Column;
 
-                if (constraint is IgnoredColumnConstraint)
+                if (constraint is UnmodeledColumnConstraint unmodeled)
+                {
+                    // Named rather than listed: the old wording offered "(COMMENT, COLLATE, …)"
+                    // for every attribute alike, pointing the reader at clauses they had not
+                    // written (issue #216).
+                    warnings.Add(new SqlSourceDiagnostic(
+                        $"{unmodeled.Keyword} on column '{table}.{columnDefinition.Name.Name}' "
+                        + "is not reported by information_schema on either engine, so it is not "
+                        + "modeled and will not be deployed or compared.",
+                        file.Name, line, column));
+                }
+                else if (constraint is IgnoredColumnConstraint)
                 {
                     warnings.Add(new SqlSourceDiagnostic(
                         $"A constraint on column '{table}.{columnDefinition.Name.Name}' "
-                        + "(COMMENT, COLLATE, …) is not modeled and will not be "
-                        + "deployed or compared.",
+                        + "is not modeled and will not be deployed or compared.",
                         file.Name, line, column));
                 }
                 else if (constraint is DefaultColumnConstraint defaultConstraint)
@@ -1118,8 +1128,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     {
                         AddUniqueColumnSet(table, [columnDefinition.Name.Name], isPrimaryKey: true);
                     }
-                    else if (constraint is UniqueKeyColumnConstraint)
+                    else if (constraint is UniqueKeyColumnConstraint
+                             or SerialDefaultColumnConstraint)
                     {
+                        // SERIAL DEFAULT VALUE expands to NOT NULL AUTO_INCREMENT UNIQUE, so it
+                        // contributes a unique column set exactly as an inline UNIQUE does
+                        // (issue #216): a foreign key may reference the column it creates.
                         AddUniqueColumnSet(table, [columnDefinition.Name.Name], isPrimaryKey: false);
                     }
                     else if (constraint is ForeignKeyColumnConstraint fk)
@@ -1567,6 +1581,9 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
             bool? isNullable = null;
             bool isAutoIncrement = false;
+            var isInvisible = false;
+            string? columnComment = null;
+            var declaredCollation = columnDefinition.DataType.Collation;
             string? defaultValue = null;
             string? onUpdateCurrentTimestamp = null;
             string? generatedExpression = null;
@@ -1601,6 +1618,37 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
                     case AutoIncrementColumnConstraint:
                         isAutoIncrement = true;
+                        break;
+
+                    // SERIAL DEFAULT VALUE is shorthand for NOT NULL AUTO_INCREMENT UNIQUE
+                    // (issue #216). Measured identically on MariaDB 12 and MySQL 9, so it is
+                    // expanded here rather than modeled as a facet of its own: each of the three
+                    // is separately visible in the deployed schema, and the unique index is a
+                    // UNIQUE KEY rather than a primary key even though both engines report the
+                    // column's COLUMN_KEY as 'PRI'.
+                    case SerialDefaultColumnConstraint:
+                        isAutoIncrement = true;
+                        isNullable = false;
+                        uniqueIndexes.Add((null, new[]
+                        {
+                            new IndexColumn(columnDefinition.Name, isAscending: null)
+                        }));
+                        break;
+
+                    case CommentColumnConstraint comment:
+                        columnComment = comment.Comment;
+                        break;
+
+                    // Both engines accept COLLATE either as part of the type specification or
+                    // after the nullability suffix (measured), and the grammar routes the two
+                    // spellings to different places: the leading one is absorbed into
+                    // stringDataType, the trailing one arrives here. Both mean the same thing.
+                    case CollateColumnConstraint collate:
+                        declaredCollation = collate.Collation;
+                        break;
+
+                    case InvisibleColumnConstraint:
+                        isInvisible = true;
                         break;
 
                     case DefaultColumnConstraint defaultConstraint:
@@ -1651,6 +1699,45 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             if (isAutoIncrement)
             {
                 element.Properties.Add(new Property(MariaDbPropertyNames.IsAutoIncrement, true));
+            }
+
+            // An empty COMMENT is what both engines report for a column that declared none, so
+            // writing one records nothing rather than an empty string the extractor never emits.
+            if (!string.IsNullOrEmpty(columnComment))
+            {
+                element.Properties.Add(
+                    new Property(MariaDbPropertyNames.ColumnComment, columnComment));
+            }
+
+            // Only an INVISIBLE column records the property; VISIBLE is the default and reports
+            // nothing in EXTRA, so a visible column must record nothing to match the extractor.
+            if (isInvisible)
+            {
+                element.Properties.Add(new Property(MariaDbPropertyNames.IsInvisible, true));
+            }
+
+            // A column collation, from the type-level COLLATE suffix the grammar absorbs into
+            // the data type. Recorded only when it differs from the collation the column would
+            // have inherited anyway, because every string column reports a COLLATION_NAME
+            // whether or not one was declared (issue #216, the same trap as the table-level
+            // COLLATE in #207).
+            //
+            // What it inherits is the *table's* collation, not the engine's: in a
+            // `COLLATE=latin1_general_ci` table every unqualified column reports
+            // latin1_general_ci (measured). Comparing against the engine default here would
+            // record nothing while the extractor recorded a collation on every such column.
+            // The table element's property is read rather than the statement's option list, so
+            // the two necessarily agree on what "the table's collation" is.
+            var inheritedCollation =
+                tableElement.GetProperty<string>(MariaDbPropertyNames.Collation)
+                ?? schemaProvider.DefaultCollation;
+
+            if (declaredCollation is not null
+                && !string.Equals(
+                    declaredCollation, inheritedCollation, StringComparison.OrdinalIgnoreCase))
+            {
+                element.Properties.Add(new Property(
+                    MariaDbPropertyNames.Collation, CanonicalCollationName(declaredCollation)));
             }
 
             if (defaultValue != null)

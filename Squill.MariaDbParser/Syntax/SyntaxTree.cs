@@ -147,6 +147,19 @@ public sealed class DataType(string typeName)
     /// cannot report a spelling the syntax tree discarded (issue #190).
     /// </summary>
     public string? CharacterSet { get; set; }
+
+    /// <summary>
+    /// The collation named by a type-level <c>COLLATE</c> suffix, exactly as written, or
+    /// <c>null</c> when the type declared none (issue #216).
+    ///
+    /// <para>
+    /// It lives on the type rather than among the column constraints because that is where the
+    /// grammar puts it: <c>stringDataType</c> absorbs a trailing <c>COLLATE</c>, so a
+    /// <c>varchar(50) COLLATE latin1_bin</c> never produces a <c>collateColumnConstraint</c>.
+    /// (That production still exists and is mapped, for the types that do reach it.)
+    /// </para>
+    /// </summary>
+    public string? Collation { get; set; }
 }
 
 // ---- Column constraints ----
@@ -228,7 +241,72 @@ public sealed class GeneratedColumnConstraint(string expression, bool isStored) 
     public bool IsStored { get; } = isStored;
 }
 
-/// <summary>A column constraint Squill recognizes but does not model (COMMENT, COLLATE, …).</summary>
+/// <summary>
+/// A column-level <c>COMMENT 'text'</c> (issue #216). Both engines report it back through
+/// <c>information_schema.COLUMNS.COLUMN_COMMENT</c>, so unlike COLUMN_FORMAT and STORAGE it
+/// round-trips and is modeled.
+/// </summary>
+public sealed class CommentColumnConstraint(string comment) : ColumnConstraint
+{
+    public string Comment { get; } = comment;
+}
+
+/// <summary>
+/// A column-level <c>COLLATE</c> (issue #216). Carries the collation name as written; whether
+/// it is recorded in the model depends on the target's default collation, since a column
+/// declaring that default is indistinguishable from one declaring nothing.
+/// </summary>
+public sealed class CollateColumnConstraint(string collation) : ColumnConstraint
+{
+    public string Collation { get; } = collation;
+}
+
+/// <summary>
+/// A column-level <c>INVISIBLE</c> (issue #216), which omits the column from <c>SELECT *</c>.
+/// Both engines accept it and report it in <c>information_schema.COLUMNS.EXTRA</c>.
+///
+/// <para>
+/// There is no node for the <c>VISIBLE</c> spelling: it names the default, MySQL reports
+/// nothing for it, and MariaDB rejects the keyword outright as a syntax error (measured), so
+/// it carries no information either engine could give back.
+/// </para>
+/// </summary>
+public sealed class InvisibleColumnConstraint : ColumnConstraint;
+
+/// <summary>
+/// A column-level <c>VISIBLE</c> (issue #216). Distinct from
+/// <see cref="IgnoredColumnConstraint"/> because it is not a loss: it names the default, so a
+/// column declaring it and one declaring nothing deploy identically and compare equal. Carrying
+/// it as its own node is what lets the builder record nothing <em>and</em> stay silent, rather
+/// than warning about a clause that cost the user nothing.
+/// </summary>
+public sealed class VisibleColumnConstraint : ColumnConstraint;
+
+/// <summary>
+/// A column attribute that parses but cannot be modeled, carrying the keyword that names it so
+/// the diagnostic can say which one was dropped (issue #216).
+///
+/// <para>
+/// <c>COLUMN_FORMAT</c> and <c>STORAGE</c> are the members of this set: MySQL accepts both and
+/// preserves them only inside a <c>SHOW CREATE TABLE</c> version comment, reporting nothing in
+/// <c>information_schema</c>, and MariaDB rejects both as syntax errors. A facet the extractor
+/// cannot read back would re-diff on every deploy, so it warns instead.
+/// </para>
+/// </summary>
+public sealed class UnmodeledColumnConstraint(string keyword) : ColumnConstraint
+{
+    public string Keyword { get; } = keyword;
+}
+
+/// <summary>
+/// <c>SERIAL DEFAULT VALUE</c> (issue #216): shorthand for
+/// <c>NOT NULL AUTO_INCREMENT UNIQUE</c>. Measured identically on MariaDB 12 and MySQL 9, it
+/// deploys as an auto-increment column plus a unique index named after the column, so dropping
+/// it lost both a generated value and an index rather than a cosmetic facet.
+/// </summary>
+public sealed class SerialDefaultColumnConstraint : ColumnConstraint;
+
+/// <summary>A column constraint Squill recognizes but does not model.</summary>
 public sealed class IgnoredColumnConstraint : ColumnConstraint;
 
 // ---- Table constraints ----

@@ -318,9 +318,37 @@ internal static class MariaDbStatementMapper
                     SourceText(generationExpression), isStored), generated);
             }
 
-            // COMMENT, COLLATE, VISIBLE, … are recognized but not modeled. (ON UPDATE
-            // CURRENT_TIMESTAMP is not among them: the grammar makes it part of the DEFAULT
-            // clause, handled by MapDefault above.)
+            case MariaDBParser.CommentColumnConstraintContext comment:
+                return At(new CommentColumnConstraint(
+                    TrimStringLiteral(comment.STRING_LITERAL().GetText())), comment);
+
+            case MariaDBParser.CollateColumnConstraintContext collate:
+                return At(new CollateColumnConstraint(
+                    UidText(collate.collationName().uid())), collate);
+
+            case MariaDBParser.InvisibilityColumnConstraintContext invisible:
+                return At(new InvisibleColumnConstraint(), invisible);
+
+            // VISIBLE names the default. MySQL reports nothing for it and MariaDB rejects the
+            // keyword outright (measured), so there is nothing for either side to compare and
+            // it records no constraint at all rather than an unmodeled one that would warn.
+            case MariaDBParser.VisibilityColumnConstraintContext visible:
+                return At(new VisibleColumnConstraint(), visible);
+
+            case MariaDBParser.SerialDefaultColumnConstraintContext serial:
+                return At(new SerialDefaultColumnConstraint(), serial);
+
+            // COLUMN_FORMAT and STORAGE parse but cannot round-trip: MySQL keeps them only in a
+            // SHOW CREATE TABLE version comment and reports nothing in information_schema, and
+            // MariaDB rejects both. Each names itself so the warning can say which was dropped.
+            case MariaDBParser.FormatColumnConstraintContext format:
+                return At(new UnmodeledColumnConstraint("COLUMN_FORMAT"), format);
+
+            case MariaDBParser.StorageColumnConstraintContext storage:
+                return At(new UnmodeledColumnConstraint("STORAGE"), storage);
+
+            // ON UPDATE CURRENT_TIMESTAMP is not among the unmodeled ones: the grammar makes it
+            // part of the DEFAULT clause, handled by MapDefault above.
             default:
                 return new IgnoredColumnConstraint();
         }
@@ -1226,6 +1254,7 @@ internal static class MariaDbStatementMapper
             // without touching every case.
             IsZerofill = Zerofill(dataType),
             CharacterSet = CharacterSetName(dataType),
+            Collation = CollationName(dataType),
         };
 
         foreach (var dimension in dimensions)
@@ -1305,6 +1334,20 @@ internal static class MariaDbStatementMapper
     // alternatives accept one and each labels it differently, so each is asked in turn; the
     // spelling is preserved because the deprecated construct *is* a spelling — folding utf8 to
     // utf8mb3 here would erase the very thing being reported on.
+    // The collation from a type-level COLLATE suffix (issue #216). Only the string-ish types
+    // admit one, matching the engines: COLLATE on a numeric column is a syntax error.
+    private static string? CollationName(MariaDBParser.DataTypeContext dataType)
+        => dataType switch
+        {
+            MariaDBParser.StringDataTypeContext s => CollationText(s.collationName()),
+            MariaDBParser.LongVarcharDataTypeContext l => CollationText(l.collationName()),
+            _ => null,
+        };
+
+    // A collation may be written bare or quoted; the value is the name either way.
+    private static string? CollationText(MariaDBParser.CollationNameContext? collation)
+        => collation is null ? null : TrimStringLiteral(collation.GetText());
+
     private static string? CharacterSetName(MariaDBParser.DataTypeContext dataType)
         => dataType switch
         {

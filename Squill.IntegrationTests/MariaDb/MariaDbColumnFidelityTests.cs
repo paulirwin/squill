@@ -114,6 +114,19 @@ public abstract class MariaDbColumnFidelityTests
             : null;
     }
 
+    // A COUNT(*) comes back as an integer rather than a string, and the two engines disagree on
+    // its exact CLR type, so it is read via the reader's own conversion rather than GetString.
+    private static async Task<long> CountAsync(
+        IDatabase database, string sql, CancellationToken cancellationToken)
+    {
+        await using var reader = await database.RunScriptReaderAsync(
+            sql, cancellationToken: cancellationToken);
+
+        Assert.True(await reader.ReadAsync(cancellationToken));
+
+        return Convert.ToInt64(reader.GetValue(0));
+    }
+
     // ---------------------------------------------------------------------------------------
     // 1. A literal DEFAULT on an unlimited-text column: accepted by MariaDB, rejected by MySQL.
     // ---------------------------------------------------------------------------------------
@@ -276,20 +289,19 @@ public abstract class MariaDbColumnFidelityTests
     // ---------------------------------------------------------------------------------------
 
     /// <summary>
-    /// A per-column <c>COLLATE</c> is mapped to <c>IgnoredColumnConstraint</c> and dropped. It
-    /// at least warns (SQ1002), but the deployed column silently gets the table's collation
-    /// instead of the declared one — and because the extractor's column query does not select
-    /// <c>COLLATION_NAME</c> either, both sides of the diff are blind to it and the redeploy is
-    /// a clean no-op. That symmetric blindness is precisely why the loss goes unnoticed.
+    /// A per-column <c>COLLATE</c> used to be dropped on both sides of the round trip, and the
+    /// consequence was not cosmetic: the column silently got the table's collation instead of
+    /// the declared one, so the deployed schema enforced a constraint the source never asked
+    /// for. Fixed under issue #216: the collation is now carried from the type specification
+    /// into the model and back out into the DDL.
     ///
-    /// The user-visible consequence is asserted rather than described: the column is declared
-    /// with a case-<i>sensitive</i> collation and made UNIQUE, so <c>'a'</c> and <c>'A'</c> are
-    /// two distinct values and both inserts should succeed. What is actually deployed is the
-    /// server's case-<i>insensitive</i> default, under which the second insert is a duplicate
-    /// key — the schema silently enforces a constraint the source did not ask for.
+    /// The assertion is the user-visible behaviour rather than the property: the column is
+    /// declared with a case-<i>sensitive</i> collation and made UNIQUE, so <c>'a'</c> and
+    /// <c>'A'</c> are two distinct values and <b>both</b> inserts must succeed. Under the
+    /// case-insensitive default that used to be deployed, the second was a duplicate-key error.
     /// </summary>
     [Fact]
-    public async Task ColumnLevelCollation_IsDiscarded()
+    public async Task ColumnLevelCollation_IsDeployed()
     {
         const string sql = """
             CREATE TABLE Mountains
@@ -303,12 +315,8 @@ public abstract class MariaDbColumnFidelityTests
 
         var build = await BuildAsync(sql, cancellationToken);
 
-        var warning = Assert.Single(build.Warnings);
-        Assert.Equal("SQ1002", warning.Code);
-        Assert.Contains("Mountains.Name", warning.Message);
-        Assert.Contains("COLLATE", warning.Message);
+        Assert.Empty(build.Warnings);
 
-        // Blind on both sides, so the round trip is clean despite the lost collation.
         await AssertRoundTripAsync(sql, cancellationToken);
 
         await DeployAndInspectAsync(sql, async (db, name) =>
@@ -318,18 +326,17 @@ public abstract class MariaDbColumnFidelityTests
                 WHERE TABLE_SCHEMA = '{name}' AND TABLE_NAME = 'Mountains' AND COLUMN_NAME = 'Name';
                 """, cancellationToken);
 
-            Assert.NotEqual("latin1_general_cs", collation);
+            Assert.Equal("latin1_general_cs", collation);
 
+            // Under the declared case-sensitive collation these are two distinct values, so
+            // both rows are accepted. This is the insert that used to fail.
             await db.RunScriptAsync(
                 "INSERT INTO Mountains (Name) VALUES ('a');", cancellationToken: cancellationToken);
+            await db.RunScriptAsync(
+                "INSERT INTO Mountains (Name) VALUES ('A');", cancellationToken: cancellationToken);
 
-            // Under the declared latin1_general_cs this is a second, distinct value. Under the
-            // case-insensitive collation actually deployed it is a duplicate, and the engine
-            // rejects a row the source's schema would have accepted.
-            var ex = await Assert.ThrowsAsync<MySqlException>(() => db.RunScriptAsync(
-                "INSERT INTO Mountains (Name) VALUES ('A');", cancellationToken: cancellationToken));
-
-            Assert.Contains("Duplicate entry", ex.Message);
+            Assert.Equal(2, await CountAsync(
+                db, "SELECT COUNT(*) FROM Mountains;", cancellationToken));
         }, cancellationToken);
     }
 
@@ -402,7 +409,7 @@ public abstract class MariaDbColumnFidelityTests
     /// change rather than an accident.
     /// </summary>
     [Fact]
-    public async Task TableComment_IsDeployed_AndColumnCommentStillWarns()
+    public async Task TableAndColumnComments_AreBothDeployed()
     {
         const string sql = """
             CREATE TABLE People
@@ -416,22 +423,19 @@ public abstract class MariaDbColumnFidelityTests
 
         var build = await BuildAsync(sql, cancellationToken);
 
-        // Exactly one warning: the column's. The table's is modeled now, so it produces none.
-        var warning = Assert.Single(build.Warnings);
-        Assert.Equal("SQ1002", warning.Code);
-        Assert.Contains("People.Name", warning.Message);
-        Assert.Contains("COMMENT", warning.Message);
+        // Neither level warns any more: the table's was modeled under #207 and the column's
+        // under #216, and both round-trip through information_schema.
+        Assert.Empty(build.Warnings);
 
         await AssertRoundTripAsync(sql, cancellationToken);
 
         await DeployAndInspectAsync(sql, async (db, name) =>
         {
-            Assert.Equal(string.Empty, await ScalarAsync(db, $"""
+            Assert.Equal("My comment", await ScalarAsync(db, $"""
                 SELECT COLUMN_COMMENT FROM information_schema.COLUMNS
                 WHERE TABLE_SCHEMA = '{name}' AND TABLE_NAME = 'People' AND COLUMN_NAME = 'Name';
                 """, cancellationToken));
 
-            // The table's comment, unlike the column's, now reaches the server.
             Assert.Equal("Table comment", await ScalarAsync(db, $"""
                 SELECT TABLE_COMMENT FROM information_schema.TABLES
                 WHERE TABLE_SCHEMA = '{name}' AND TABLE_NAME = 'People';
@@ -938,6 +942,210 @@ public abstract class MariaDbColumnFidelityTests
 
     private static string? DefaultOf(Model model, string columnName)
         => Column(model, columnName).GetProperty<string>(MariaDbPropertyNames.DefaultValue);
+
+    // ---------------------------------------------------------------------------------------
+    // 7. Column attributes: SERIAL DEFAULT VALUE, INVISIBLE, and the ones that cannot
+    //    round-trip (issue #216).
+    // ---------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// <c>SERIAL DEFAULT VALUE</c> is shorthand for <c>NOT NULL AUTO_INCREMENT UNIQUE</c>, and
+    /// used to reach <c>IgnoredColumnConstraint</c> under a warning that named
+    /// "(COMMENT, COLLATE, …)". That wording implied a cosmetic loss while the column actually
+    /// deployed with no generated value and no unique index.
+    ///
+    /// All three consequences are asserted behaviourally rather than by reading properties back:
+    /// two rows are inserted without supplying the column, so it must generate ascending values,
+    /// and a duplicate must then be rejected by the index the shorthand creates.
+    /// </summary>
+    [Fact]
+    public async Task SerialDefaultValue_DeploysAutoIncrementAndUniqueIndex()
+    {
+        const string sql = """
+            CREATE TABLE Tickets
+            (
+                Id   bigint SERIAL DEFAULT VALUE,
+                Note varchar(50) NULL
+            );
+            """;
+
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        var build = await BuildAsync(sql, cancellationToken);
+        Assert.Empty(build.Warnings);
+
+        await AssertRoundTripAsync(sql, cancellationToken);
+
+        await DeployAndInspectAsync(sql, async (db, name) =>
+        {
+            // The column generates its own values, so neither insert names it.
+            await db.RunScriptAsync(
+                "INSERT INTO Tickets (Note) VALUES ('a');", cancellationToken: cancellationToken);
+            await db.RunScriptAsync(
+                "INSERT INTO Tickets (Note) VALUES ('b');", cancellationToken: cancellationToken);
+
+            Assert.Equal(2, await CountAsync(
+                db, "SELECT COUNT(DISTINCT Id) FROM Tickets;", cancellationToken));
+
+            // NOT NULL and AUTO_INCREMENT, both halves of the shorthand.
+            Assert.Equal("NO", await ScalarAsync(db, $"""
+                SELECT IS_NULLABLE FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = '{name}' AND TABLE_NAME = 'Tickets' AND COLUMN_NAME = 'Id';
+                """, cancellationToken));
+
+            Assert.Contains("auto_increment", await ScalarAsync(db, $"""
+                SELECT EXTRA FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = '{name}' AND TABLE_NAME = 'Tickets' AND COLUMN_NAME = 'Id';
+                """, cancellationToken) ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+
+            // The third half: a unique index, so a duplicate is refused. This is the constraint
+            // that used to be missing entirely.
+            var ex = await Assert.ThrowsAsync<MySqlException>(() => db.RunScriptAsync(
+                "INSERT INTO Tickets (Id, Note) VALUES (1, 'dup');",
+                cancellationToken: cancellationToken));
+
+            Assert.Contains("Duplicate entry", ex.Message, StringComparison.Ordinal);
+        }, cancellationToken);
+    }
+
+    /// <summary>
+    /// It creates a UNIQUE index and not a primary key. Both engines report the column's
+    /// <c>COLUMN_KEY</c> as <c>PRI</c> (measured on MariaDB 12 and MySQL 9), because they report
+    /// the first NOT NULL unique index that way, so an extractor trusting that column would
+    /// model a primary key the source never declared, and the round trip above would diff.
+    /// </summary>
+    [Fact]
+    public async Task SerialDefaultValue_DeploysUniqueKeyRatherThanPrimaryKey()
+    {
+        const string sql = "CREATE TABLE Tickets (Id bigint SERIAL DEFAULT VALUE);";
+
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        await DeployAndInspectAsync(sql, async (db, name) =>
+        {
+            Assert.Equal(0, await CountAsync(db, $"""
+                SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
+                WHERE TABLE_SCHEMA = '{name}' AND TABLE_NAME = 'Tickets'
+                  AND CONSTRAINT_TYPE = 'PRIMARY KEY';
+                """, cancellationToken));
+
+            Assert.Equal(1, await CountAsync(db, $"""
+                SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
+                WHERE TABLE_SCHEMA = '{name}' AND TABLE_NAME = 'Tickets'
+                  AND CONSTRAINT_TYPE = 'UNIQUE';
+                """, cancellationToken));
+        }, cancellationToken);
+    }
+
+    /// <summary>
+    /// An <c>INVISIBLE</c> column is omitted from <c>SELECT *</c> but still readable by name.
+    /// Both engines accept the keyword and report it in <c>EXTRA</c>, so it round-trips. The
+    /// behaviour is asserted rather than the property, since being absent from <c>SELECT *</c>
+    /// is the whole point of the attribute.
+    /// </summary>
+    [Fact]
+    public async Task InvisibleColumn_IsDeployedAndOmittedFromSelectStar()
+    {
+        const string sql = """
+            CREATE TABLE Audit
+            (
+                Id     int NOT NULL PRIMARY KEY,
+                Hidden varchar(20) NULL INVISIBLE
+            );
+            """;
+
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        var build = await BuildAsync(sql, cancellationToken);
+        Assert.Empty(build.Warnings);
+
+        await AssertRoundTripAsync(sql, cancellationToken);
+
+        await DeployAndInspectAsync(sql, async (db, name) =>
+        {
+            Assert.Contains("INVISIBLE", await ScalarAsync(db, $"""
+                SELECT EXTRA FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = '{name}' AND TABLE_NAME = 'Audit' AND COLUMN_NAME = 'Hidden';
+                """, cancellationToken) ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+
+            await db.RunScriptAsync(
+                "INSERT INTO Audit (Id, Hidden) VALUES (1, 'secret');",
+                cancellationToken: cancellationToken);
+
+            // Absent from SELECT *, so the only column it yields is Id. The reader is scoped so
+            // it is closed before the next query: one connection serves the database.
+            int fieldCount;
+
+            await using (var reader = await db.RunScriptReaderAsync(
+                "SELECT * FROM Audit;", cancellationToken: cancellationToken))
+            {
+                Assert.True(await reader.ReadAsync(cancellationToken));
+                fieldCount = reader.FieldCount;
+            }
+
+            Assert.Equal(1, fieldCount);
+
+            // Still there when named explicitly.
+            Assert.Equal("secret", await ScalarAsync(
+                db, "SELECT Hidden FROM Audit;", cancellationToken));
+        }, cancellationToken);
+    }
+
+    /// <summary>
+    /// A column collation equal to the target's own default records nothing, on both sides of
+    /// the round trip. Every string column reports a <c>COLLATION_NAME</c> whether one was
+    /// declared or not, so recording it would make a column that names its own default re-diff
+    /// against its own database forever. The redeploy no-op is the assertion that matters here.
+    /// </summary>
+    [Fact]
+    public async Task ColumnCollation_NamingTheEngineDefault_RoundTripsCleanly()
+    {
+        var collation = Fixture.SchemaProviderOf().DefaultCollation;
+        var sql = $"CREATE TABLE Places (Name varchar(100) NOT NULL COLLATE {collation});";
+
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        var build = await BuildAsync(sql, cancellationToken);
+        Assert.Empty(build.Warnings);
+
+        await AssertRoundTripAsync(sql, cancellationToken);
+    }
+
+    /// <summary>
+    /// <c>COLUMN_FORMAT</c> and <c>STORAGE</c> cannot round-trip on either engine: MySQL accepts
+    /// them but reports nothing in <c>information_schema</c>, keeping them only inside a
+    /// <c>SHOW CREATE TABLE</c> version comment, and MariaDB rejects both outright. They warn by
+    /// name instead of being modeled, and the warning names the attribute rather than listing
+    /// every attribute that might have been written.
+    ///
+    /// Only the MySQL binding runs the deploy half: the DDL is a syntax error on MariaDB, which
+    /// is itself the reason the attribute cannot be modeled for one engine's DACPAC.
+    /// </summary>
+    [Fact]
+    public async Task ColumnFormatAndStorage_WarnByNameAndAreNotDeployed()
+    {
+        const string sql = """
+            CREATE TABLE Packed
+            (
+                Id   int NOT NULL PRIMARY KEY,
+                Payload varchar(50) NULL COLUMN_FORMAT DYNAMIC
+            );
+            """;
+
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        var build = await BuildAsync(sql, cancellationToken);
+
+        var warning = Assert.Single(build.Warnings);
+        Assert.Equal("SQ1002", warning.Code);
+        Assert.Contains("COLUMN_FORMAT", warning.Message, StringComparison.Ordinal);
+        Assert.Contains("Packed.Payload", warning.Message, StringComparison.Ordinal);
+
+        // The attribute is dropped, so what deploys is an ordinary column and the round trip is
+        // clean on both engines rather than emitting DDL MariaDB would reject.
+        await AssertRoundTripAsync(sql, cancellationToken);
+    }
+
 }
 
 // ---- Per-engine bindings: each scenario runs once against MariaDB and once against MySQL. ----

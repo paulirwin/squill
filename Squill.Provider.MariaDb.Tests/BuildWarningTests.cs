@@ -150,8 +150,15 @@ CREATE TABLE product
         Assert.Empty(result.Warnings);
     }
 
+    /// <summary>
+    /// A column COMMENT used to warn as unmodeled. It is modeled as of issue #216: both engines
+    /// report it in <c>information_schema.COLUMNS.COLUMN_COMMENT</c>, so it round-trips, and
+    /// warning about a facet that now deploys would be telling the user it was lost when it was
+    /// not. The attributes that genuinely cannot round-trip still warn; see
+    /// <see cref="MariaDbColumnAttributeTests.UnmodelableAttribute_Warns"/>.
+    /// </summary>
     [Fact]
-    public async Task ColumnComment_Warns()
+    public async Task ColumnComment_DoesNotWarn()
     {
         const string sql = """
 CREATE TABLE book
@@ -164,9 +171,7 @@ CREATE TABLE book
 
         var result = await builder.ExtractModelAsync(TestContext.Current.CancellationToken);
 
-        var warning = Assert.Single(result.Warnings);
-        Assert.Equal("SQ1002", warning.Code);
-        Assert.Contains("title", warning.Message);
+        Assert.Empty(result.Warnings);
     }
 
     [Fact]

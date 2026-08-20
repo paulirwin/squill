@@ -72,7 +72,11 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
 
     // MariaDB information_schema stores bare identifiers; we store the canonical SqlName on
     // the element. This pairs the two so extraction can do both.
-    private sealed record TableRef(Element Element, string BareName);
+    // TableCollation is the table's own collation as the catalog reports it, which is the
+    // default every unqualified string column in it inherits (issue #216). Carried on the ref
+    // so ExtractColumnsAsync can tell a column that declared a collation from one that merely
+    // inherited the table's.
+    private sealed record TableRef(Element Element, string BareName, string? TableCollation = null);
 
     /// <summary>
     /// Records the table options that survive a round trip (issue #207), following the same
@@ -168,7 +172,8 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
 
                 AddTableOptions(element, reader);
 
-                tables.Add(new TableRef(element, name));
+                tables.Add(new TableRef(
+                    element, name, reader.GetStringOrNull("TABLE_COLLATION")));
             }
         }
 
@@ -600,6 +605,11 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
                 -- (issue #144). Reported here rather than in NUMERIC_PRECISION.
                 DATETIME_PRECISION,
                 EXTRA,
+                -- A column's own COMMENT and COLLATE (issue #216). COLLATION_NAME is populated
+                -- for every string column whether or not one was declared, so a value equal to
+                -- the engine's default is dropped below to match what the parser records.
+                COLUMN_COMMENT,
+                COLLATION_NAME,
                 COLUMN_DEFAULT,
                 -- A generated (computed) column (issue #120). Both engines report the
                 -- rewritten expression here and mark the storage kind in EXTRA as
@@ -638,6 +648,11 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
             var datetimePrecision = reader.GetNullableInt64("DATETIME_PRECISION") ?? 0;
             var extra = reader.GetString("EXTRA");
             var isAutoIncrement = extra.Contains("auto_increment", StringComparison.OrdinalIgnoreCase);
+            // Both engines report an INVISIBLE column by putting the keyword in EXTRA, alongside
+            // whatever else it carries (issue #216).
+            var isInvisible = extra.Contains("INVISIBLE", StringComparison.OrdinalIgnoreCase);
+            var columnComment = reader.GetStringOrNull("COLUMN_COMMENT");
+            var collation = reader.GetStringOrNull("COLLATION_NAME");
             var isUnsigned = columnType.Contains("unsigned", StringComparison.Ordinal);
 
             var typeElement = new Element(MariaDbElementTypes.SqlTypeSpecifier)
@@ -718,6 +733,37 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
             if (isAutoIncrement)
             {
                 column.Properties.Add(new Property(MariaDbPropertyNames.IsAutoIncrement, true));
+            }
+
+            // A column that declared no COMMENT reports an empty string rather than NULL, so
+            // only a non-empty one is recorded, matching the parser side (issue #216).
+            if (!string.IsNullOrEmpty(columnComment))
+            {
+                column.Properties.Add(
+                    new Property(MariaDbPropertyNames.ColumnComment, columnComment));
+            }
+
+            if (isInvisible)
+            {
+                column.Properties.Add(new Property(MariaDbPropertyNames.IsInvisible, true));
+            }
+
+            // COLLATION_NAME is populated for every string column, declared or not, so one equal
+            // to this target's default is indistinguishable from an absent clause and is dropped.
+            // The parser side drops the same value, so the two models agree either way.
+            // The value to compare against is the table's own collation, not the engine's: an
+            // unqualified column inherits the table's, so in a `COLLATE=latin1_general_ci`
+            // table every column reports latin1_general_ci whether or not it declared one
+            // (measured). Comparing against the engine default instead would record a
+            // collation on every column of such a table, which the parse side never records.
+            var inheritedCollation = table.TableCollation ?? SchemaProvider.DefaultCollation;
+
+            if (collation is not null
+                && !string.Equals(collation, inheritedCollation, StringComparison.OrdinalIgnoreCase))
+            {
+                column.Properties.Add(new Property(
+                    MariaDbPropertyNames.Collation,
+                    ParserWorkspaceModelBuilder.CanonicalCollationName(collation)));
             }
 
             var columnDefault = reader.IsDBNull(reader.GetOrdinal("COLUMN_DEFAULT"))
