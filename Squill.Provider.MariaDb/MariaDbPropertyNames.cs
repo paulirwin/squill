@@ -39,11 +39,20 @@ public sealed class MariaDbPropertyNames : SqlPropertyNames
     // one engine or the other.
     public const string Engine = nameof(Engine);
 
-    // The table's default collation, from information_schema.TABLES.TABLE_COLLATION. Held as the
-    // collation alone rather than a charset/collation pair because information_schema.TABLES
-    // reports only TABLE_COLLATION: a table declared `DEFAULT CHARSET=latin1` reads back
-    // latin1_swedish_ci, so the charset is recoverable from the collation but not the reverse,
-    // and a separate charset property would be one the extractor could never fill.
+    // A collation: the table's default (information_schema.TABLES.TABLE_COLLATION) or, on a
+    // column element, that column's own (COLUMNS.COLLATION_NAME, issue #216). One constant
+    // serves both because the two never appear on the same element and mean the same thing.
+    //
+    // Held as the collation alone rather than a charset/collation pair because
+    // information_schema.TABLES reports only TABLE_COLLATION: a table declared
+    // `DEFAULT CHARSET=latin1` reads back latin1_swedish_ci, so the charset is recoverable from
+    // the collation but not the reverse, and a separate charset property would be one the
+    // extractor could never fill.
+    //
+    // At either level a declared collation equal to the target's default records nothing: every
+    // string column reports a COLLATION_NAME whether one was written or not, so the extractor
+    // cannot tell a declared default from an absent clause. See
+    // MariaDbFamilyDatabaseSchemaProvider.DefaultCollation.
     public const string Collation = nameof(Collation);
 
     // The table's COMMENT, reported by information_schema.TABLES.TABLE_COMMENT. Named apart
@@ -51,6 +60,18 @@ public sealed class MariaDbPropertyNames : SqlPropertyNames
     // and neither element type carries the other's facet; sharing one constant would tie a
     // table's comment to an event's by name alone.
     public const string TableComment = nameof(TableComment);
+
+    // A column's COMMENT, from information_schema.COLUMNS.COLUMN_COMMENT (issue #216). Named
+    // apart from the table-level TableComment above for the same reason that one is named apart
+    // from an event's: the two are read from different catalog views, and sharing a constant
+    // would tie a column's comment to a table's by name alone.
+    public const string ColumnComment = nameof(ColumnComment);
+
+    // Whether a column is INVISIBLE, i.e. omitted from SELECT * (issue #216). Both engines
+    // accept the keyword and report it in information_schema.COLUMNS.EXTRA, so it round-trips.
+    // Recorded only when true: VISIBLE is the default and reports nothing, so a visible column
+    // must record no property to match one read back from the catalog.
+    public const string IsInvisible = nameof(IsInvisible);
 
     public const string IsUnsigned = nameof(IsUnsigned);
     public const string IsAutoIncrement = nameof(IsAutoIncrement);

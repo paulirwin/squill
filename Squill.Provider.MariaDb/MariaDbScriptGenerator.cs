@@ -198,6 +198,14 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
         var columnType = GetTypeStringForColumn(column);
         var text = $"`{SqlName.UnqualifiedOf(columnName)}` {columnType}";
 
+        // A column collation belongs with the type, before the nullability suffix: both engines
+        // parse COLLATE as part of the type specification and reject it after NOT NULL
+        // (issue #216).
+        if (column.GetProperty<string>(MariaDbPropertyNames.Collation) is { } collation)
+        {
+            text += $" COLLATE {collation}";
+        }
+
         var nullable = column.GetProperty<bool?>(MariaDbPropertyNames.IsNullable);
 
         // A generated column's value is computed, so it takes no DEFAULT and no
@@ -228,6 +236,19 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
         }
 
         text += DefaultClause(column);
+
+        // INVISIBLE and COMMENT follow the DEFAULT clause. A comment is a string literal, so an
+        // embedded quote is doubled rather than backslash-escaped: that spelling is what both
+        // engines report back, and NO_BACKSLASH_ESCAPES would otherwise change its meaning.
+        if (column.GetProperty<bool?>(MariaDbPropertyNames.IsInvisible) == true)
+        {
+            text += " INVISIBLE";
+        }
+
+        if (column.GetProperty<string>(MariaDbPropertyNames.ColumnComment) is { } comment)
+        {
+            text += $" COMMENT '{comment.Replace("'", "''")}'";
+        }
 
         return text;
     }
