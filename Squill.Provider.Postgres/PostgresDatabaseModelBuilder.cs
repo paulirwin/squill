@@ -790,6 +790,10 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                        l.lanname AS language_name,
                        p.prosrc AS body,
                        p.prosecdef AS is_security_definer,
+                       -- proconfig is the SET clauses as `name=value` entries in declaration
+                       -- order (issue #213); flattened with the same separator the parsed
+                       -- model uses, which cannot occur in a GUC name or value.
+                       array_to_string(p.proconfig, chr(30)) AS configuration,
                        p.proretset AS returns_set,
                        format_type(p.prorettype, NULL) AS return_type,
                        CASE p.provolatile WHEN 'i' THEN 'IMMUTABLE'
@@ -821,6 +825,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                    r.language_name,
                    r.body,
                    r.is_security_definer,
+                   r.configuration,
                    r.returns_set,
                    r.return_type,
                    r.volatility,
@@ -867,7 +872,12 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                     ParseArguments(reader.GetString("arguments")),
                     reader.GetString("volatility"),
                     reader.GetBoolean("is_strict"),
-                    reader.GetBoolean("is_security_definer")));
+                    reader.GetBoolean("is_security_definer"),
+                    // A routine with no SET clause reports a null proconfig, which the model
+                    // stores as an absent property rather than an empty one.
+                    reader.IsDBNull(reader.GetOrdinal("configuration"))
+                        ? null
+                        : reader.GetString("configuration")));
             }
         }
 
@@ -900,6 +910,9 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                        l.lanname AS language_name,
                        p.prosrc AS body,
                        p.prosecdef AS is_security_definer,
+                       -- proconfig is the SET clauses as `name=value` entries in declaration
+                       -- order (issue #213), flattened with the separator the parsed model uses.
+                       array_to_string(p.proconfig, chr(30)) AS configuration,
                        -- proargtypes is an oidvector, which is 0-based; proargnames and
                        -- proargmodes are 1-based arrays. Rebuilding it through unnest
                        -- yields a 1-based array so the three line up — casting it
@@ -925,6 +938,7 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                    r.language_name,
                    r.body,
                    r.is_security_definer,
+                   r.configuration,
                    COALESCE((
                        SELECT string_agg(format_type(t, NULL), ',' ORDER BY o)
                        FROM unnest(r.identity_arg_types) WITH ORDINALITY AS a(t, o)), '')
@@ -966,7 +980,10 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                     reader.GetString("language_name"),
                     reader.GetString("body"),
                     ParseArguments(reader.GetString("arguments")),
-                    reader.GetBoolean("is_security_definer")));
+                    reader.GetBoolean("is_security_definer"),
+                    reader.IsDBNull(reader.GetOrdinal("configuration"))
+                        ? null
+                        : reader.GetString("configuration")));
             }
         }
 

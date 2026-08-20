@@ -36,11 +36,13 @@ public partial class PostgresVisitor
                 "A procedure without a LANGUAGE clause is not supported");
         }
 
+        // A body is only absent for the SQL-standard BEGIN ATOMIC form, which the grammar
+        // has no rule for (issue #213) — such a declaration fails as a syntax error before
+        // reaching here — so anything that arrives without one is genuinely bodyless.
         if (statement.Body is null)
         {
             throw new NotImplementedException(
-                "A procedure without an AS body is not supported; "
-                + "linked C-language procedures are not modeled");
+                "A procedure without an AS body is not supported");
         }
 
         return statement;
@@ -67,11 +69,13 @@ public partial class PostgresVisitor
                 "A function without a LANGUAGE clause is not supported");
         }
 
+        // The only standard form with no AS body is BEGIN ATOMIC, which the vendored
+        // grammar has no rule for (issue #213); such a declaration fails as a syntax error
+        // before reaching here, so anything arriving without a body is genuinely bodyless.
         if (statement.Body is null)
         {
             throw new NotImplementedException(
-                "A function without an AS body is not supported; "
-                + "linked C-language functions are not modeled");
+                "A function without an AS body is not supported");
         }
 
         return statement;
@@ -83,18 +87,37 @@ public partial class PostgresVisitor
     private void ParseFunctionReturn(CreateFunctionStatement statement,
         PostgreSQLParser.CreatefunctionstmtContext context)
     {
-        if (context.RETURNS() is null)
-        {
-            // A function with no RETURNS is unusual (only OUT parameters define the result);
-            // not supported yet.
-            throw new NotImplementedException(
-                "A function without a RETURNS clause is not yet supported");
-        }
-
+        // RETURNS TABLE (...) declares result columns rather than a return type. Measured on
+        // postgres:18.4: PostgreSQL stores them as ordinary arguments in TABLE mode
+        // (proargmodes 't') and sets proretset, so they are appended to the parameter list
+        // and the return type is derived exactly as the catalog derives it.
         if (context.TABLE() is not null)
         {
-            throw new NotImplementedException(
-                "RETURNS TABLE(...) is not yet supported");
+            foreach (var column in context.table_func_column_list().table_func_column())
+            {
+                statement.Parameters.Add(At(
+                    new RoutineParameter(
+                        ParseParameterName(column.param_name()),
+                        ParameterMode.Table,
+                        ParseFuncType(column.func_type(), "RETURNS TABLE column")),
+                    column));
+            }
+
+            statement.ReturnsSet = true;
+            statement.ReturnType = DeriveResultType(statement, ParameterMode.Table);
+
+            return;
+        }
+
+        // With no RETURNS clause the OUT parameters define the result, which is how
+        // PostgreSQL itself derives prorettype for such a function.
+        if (context.RETURNS() is null)
+        {
+            statement.ReturnType = DeriveResultType(statement, ParameterMode.Out)
+                ?? throw new PostgresParseException(
+                    "A function without a RETURNS clause must declare at least one OUT parameter");
+
+            return;
         }
 
         if (context.func_return()?.func_type() is not { } funcType)
@@ -102,19 +125,52 @@ public partial class PostgresVisitor
             throw new PostgresParseException("Unable to parse function return type");
         }
 
-        if (funcType.typename() is not { } typename)
+        var declared = ParseFuncType(funcType, "function return type");
+
+        statement.ReturnType = declared;
+        statement.ReturnsSet = funcType.typename()?.SETOF() is not null;
+    }
+
+    /// <summary>
+    /// Derives the result type of a function whose result comes from its OUT or TABLE
+    /// parameters. Measured on postgres:18.4: one such parameter reports prorettype as that
+    /// parameter's own type, and two or more report <c>record</c>.
+    /// </summary>
+    private static DataType? DeriveResultType(CreateFunctionStatement statement, ParameterMode mode)
+    {
+        var results = statement.Parameters
+            .Where(i => i.Mode == mode || i.Mode == ParameterMode.InOut)
+            .ToList();
+
+        return results.Count switch
+        {
+            0 => null,
+            1 => results[0].DataType,
+            _ => new UnresolvedDataType("record"),
+        };
+    }
+
+    // func_type : typename | SETOF? type_function_name attrs PERCENT TYPE_P
+    // The %TYPE alternative names another object's column rather than a type. PostgreSQL
+    // resolves it against the catalog when the routine is created — measured on
+    // postgres:18.4, `t.c%TYPE` is stored as plain `integer` — so the declared spelling is
+    // not what comes back, and modeling it would re-diff on every deploy.
+    private DataType ParseFuncType(PostgreSQLParser.Func_typeContext context, string what)
+    {
+        if (context.typename() is not { } typename)
         {
             throw new NotImplementedException(
-                "A %TYPE function return type is not yet supported");
+                $"A %TYPE {what} is not supported; PostgreSQL resolves %TYPE against the "
+                + "catalog when the routine is created, so the declared form is not what the "
+                + "database stores and could not be compared back.");
         }
 
-        if (VisitTypename(typename) is not DataType returnType)
+        if (VisitTypename(typename) is not DataType dataType)
         {
-            throw new PostgresParseException("Unable to parse function return type");
+            throw new PostgresParseException($"Unable to parse {what}");
         }
 
-        statement.ReturnType = returnType;
-        statement.ReturnsSet = typename.SETOF() is not null;
+        return dataType;
     }
 
     private void ApplyFunctionOptions(CreateFunctionStatement statement,
@@ -130,13 +186,17 @@ public partial class PostgresVisitor
 
             if (option.func_as() is { } funcAs)
             {
+                // The two-string form (AS 'obj_file', 'link_symbol') declares a function
+                // implemented in a linked C library. It is parsed so the model builder can
+                // report exactly what it is rejecting, rather than failing here as though
+                // the declaration were malformed.
+                statement.Body = GetRoutineBodyText(funcAs.sconst(0));
+
                 if (funcAs.sconst().Length > 1)
                 {
-                    throw new NotImplementedException(
-                        "A linked C-language function (AS 'obj_file', 'link_symbol') is not supported");
+                    statement.LinkSymbol = GetRoutineBodyText(funcAs.sconst(1));
                 }
 
-                statement.Body = GetRoutineBodyText(funcAs.sconst(0));
                 continue;
             }
 
@@ -148,20 +208,26 @@ public partial class PostgresVisitor
 
             if (option.WINDOW() is not null)
             {
-                throw new NotImplementedException("WINDOW functions are not yet supported");
+                statement.IsWindow = true;
+                continue;
             }
 
-            if (option.TRANSFORM() is not null)
+            if (option.transform_type_list() is { } transforms)
             {
-                throw new NotImplementedException(
-                    "TRANSFORM on CREATE FUNCTION is not yet supported");
+                foreach (var typename in transforms.typename())
+                {
+                    statement.TransformTypes.Add(
+                        VisitTypename(typename) is DataType dataType
+                            ? dataType.TypeName
+                            : typename.GetText());
+                }
             }
         }
     }
 
     // Unlike a procedure, a function's volatility (IMMUTABLE/STABLE/VOLATILE) and strictness
     // (STRICT / RETURNS NULL ON NULL INPUT vs CALLED ON NULL INPUT) are meaningful and modeled.
-    private static void ApplyFunctionCommonOption(CreateFunctionStatement statement,
+    private void ApplyFunctionCommonOption(CreateFunctionStatement statement,
         PostgreSQLParser.Common_func_opt_itemContext context)
     {
         if (context.SECURITY() is not null)
@@ -203,14 +269,127 @@ public partial class PostgresVisitor
             return;
         }
 
-        // LEAKPROOF, COST, ROWS, SUPPORT, PARALLEL are accepted but not modeled (they are
-        // planner hints that do not change the function's result). A SET clause does affect
-        // execution and is not yet supported.
-        if (context.functionsetresetclause() is not null)
+        // LEAKPROOF, COST, ROWS, SUPPORT and PARALLEL do not change a function's result, but
+        // they do change how the planner may use it, so they are captured here and reported
+        // by the model builder rather than dropped in silence (issue #213).
+        if (context.LEAKPROOF() is not null)
+        {
+            statement.Leakproof = context.NOT() is null;
+            return;
+        }
+
+        if (context.COST() is not null)
+        {
+            statement.Cost = context.numericonly().GetText();
+            return;
+        }
+
+        if (context.ROWS() is not null)
+        {
+            statement.Rows = context.numericonly().GetText();
+            return;
+        }
+
+        if (context.SUPPORT() is not null)
+        {
+            statement.SupportFunction = ParseAnyName(context.any_name()).Segments[^1].Name;
+            return;
+        }
+
+        // PARALLEL takes a colid rather than a keyword, so the level arrives as an
+        // identifier; fold it as PostgreSQL folds an unquoted one.
+        if (context.PARALLEL() is not null)
+        {
+            statement.Parallel = context.colid().GetText().ToUpperInvariant();
+            return;
+        }
+
+        if (context.functionsetresetclause() is { } setReset)
+        {
+            statement.Settings.Add(ParseRoutineSetting(setReset));
+        }
+    }
+
+    // functionsetresetclause : SET set_rest_more | variableresetstmt
+    //
+    // Only the generic `name = value` and `name FROM CURRENT` forms of set_rest_more can
+    // appear on a routine; the rest (TIME ZONE, ROLE, SESSION AUTHORIZATION, …) are session
+    // statements the grammar happens to share, and PostgreSQL rejects them here.
+    private RoutineSetting ParseRoutineSetting(
+        PostgreSQLParser.FunctionsetresetclauseContext context)
+    {
+        if (context.variableresetstmt() is { } reset)
+        {
+            var resetRest = reset.reset_rest();
+
+            if (resetRest.generic_reset() is not { } genericReset)
+            {
+                throw new NotImplementedException(
+                    $"RESET {resetRest.GetText()} is not valid on a routine declaration");
+            }
+
+            // RESET ALL names no parameter, so the setting carries only the ALL marker.
+            return At(
+                new RoutineSetting(genericReset.ALL() is not null
+                    ? "ALL"
+                    : ParseVariableName(genericReset.var_name()))
+                {
+                    IsReset = true,
+                    IsAll = genericReset.ALL() is not null,
+                },
+                context);
+        }
+
+        var setRest = context.set_rest_more();
+
+        if (setRest.FROM() is not null && setRest.CURRENT_P() is not null)
+        {
+            return At(
+                new RoutineSetting(ParseVariableName(setRest.var_name())) { FromCurrent = true },
+                context);
+        }
+
+        if (setRest.generic_set() is not { } genericSet)
         {
             throw new NotImplementedException(
-                "A SET clause on CREATE FUNCTION is not yet supported");
+                $"SET {setRest.GetText()} is not valid on a routine declaration");
         }
+
+        var setting = At(new RoutineSetting(ParseVariableName(genericSet.var_name())), context);
+
+        // `SET x = DEFAULT` resets the parameter to the server default, which is what an
+        // absent clause already does, so it carries no values and reads as a RESET.
+        if (genericSet.var_list() is not { } values)
+        {
+            setting.IsReset = true;
+
+            return setting;
+        }
+
+        foreach (var value in values.var_value())
+        {
+            setting.Values.Add(ParseVariableValue(value));
+        }
+
+        return setting;
+    }
+
+    // var_name : colid (DOT colid)*  — a namespaced GUC such as `plpgsql.check_asserts`.
+    private static string ParseVariableName(PostgreSQLParser.Var_nameContext context)
+        => string.Join('.', context.colid().Select(i => i.GetText().ToLowerInvariant()));
+
+    // var_value : boolean_or_string_ | numericonly.  A quoted value and the same value
+    // written bare are the same setting — measured on postgres:18.4, `SET work_mem = '64MB'`
+    // and `SET work_mem TO 64MB` both store `work_mem=64MB` — so the value is unwrapped to
+    // its text either way.
+    private string ParseVariableValue(PostgreSQLParser.Var_valueContext context)
+    {
+        if (context.boolean_or_string_()?.nonreservedword_or_sconst() is { } wordOrString)
+        {
+            return GetNonReservedWordOrSconstText(wordOrString);
+        }
+
+        return context.GetText();
     }
 
     private IEnumerable<RoutineParameter> ParseParameters(
@@ -251,19 +430,10 @@ public partial class PostgresVisitor
     {
         if (context.func_type() is not { } funcType)
         {
-            throw new PostgresParseException("Unable to parse procedure parameter type");
+            throw new PostgresParseException("Unable to parse routine parameter type");
         }
 
-        if (funcType.typename() is not { } typename)
-        {
-            throw new NotImplementedException(
-                "A %TYPE procedure parameter is not yet supported");
-        }
-
-        if (VisitTypename(typename) is not DataType dataType)
-        {
-            throw new PostgresParseException("Unable to parse procedure parameter type");
-        }
+        var dataType = ParseFuncType(funcType, "routine parameter");
 
         var name = context.param_name() is { } paramName ? ParseParameterName(paramName) : null;
 
@@ -378,18 +548,20 @@ public partial class PostgresVisitor
 
             if (option.func_as() is { } funcAs)
             {
-                // The two-string form (AS 'obj_file', 'link_symbol') declares a procedure
-                // implemented in a linked C library, which has no body Squill can model.
-                if (funcAs.sconst().Length > 1)
-                {
-                    throw new NotImplementedException(
-                        "A linked C-language procedure (AS 'obj_file', 'link_symbol') is not supported");
-                }
-
                 // Read the body verbatim: this is exactly the text PostgreSQL stores in
                 // pg_proc.prosrc, so no canonicalization is needed for the parsed and
                 // extracted models to agree.
+                //
+                // The two-string form (AS 'obj_file', 'link_symbol') declares a procedure
+                // implemented in a linked C library; it is parsed so the model builder can
+                // name what it is rejecting rather than failing as though it were malformed.
                 statement.Body = GetRoutineBodyText(funcAs.sconst(0));
+
+                if (funcAs.sconst().Length > 1)
+                {
+                    statement.LinkSymbol = GetRoutineBodyText(funcAs.sconst(1));
+                }
+
                 continue;
             }
 
@@ -399,15 +571,22 @@ public partial class PostgresVisitor
                 continue;
             }
 
+            // WINDOW is accepted by the shared grammar rule but PostgreSQL rejects it on a
+            // procedure, so a declaration carrying it is invalid rather than unmodeled.
             if (option.WINDOW() is not null)
             {
                 throw new NotImplementedException("WINDOW is not valid on a procedure");
             }
 
-            if (option.TRANSFORM() is not null)
+            if (option.transform_type_list() is { } transforms)
             {
-                throw new NotImplementedException(
-                    "TRANSFORM on CREATE PROCEDURE is not yet supported");
+                foreach (var typename in transforms.typename())
+                {
+                    statement.TransformTypes.Add(
+                        VisitTypename(typename) is DataType dataType
+                            ? dataType.TypeName
+                            : typename.GetText());
+                }
             }
         }
     }
@@ -449,7 +628,7 @@ public partial class PostgresVisitor
             : text[(start + 1)..^1];
     }
 
-    private static void ApplyCommonOption(
+    private void ApplyCommonOption(
         CreateProcedureStatement statement,
         PostgreSQLParser.Common_func_opt_itemContext context)
     {
@@ -462,11 +641,10 @@ public partial class PostgresVisitor
         // Volatility, strictness, cost and parallel safety are accepted by the grammar on a
         // procedure but PostgreSQL ignores them for one (they describe how a function may be
         // optimized in an expression, and a procedure is never called from one), so they are
-        // not modeled. SET clauses do affect execution and are not yet supported.
-        if (context.functionsetresetclause() is not null)
+        // not modeled. A SET clause does affect execution and is modeled (issue #213).
+        if (context.functionsetresetclause() is { } setReset)
         {
-            throw new NotImplementedException(
-                "A SET clause on CREATE PROCEDURE is not yet supported");
+            statement.Settings.Add(ParseRoutineSetting(setReset));
         }
     }
 }

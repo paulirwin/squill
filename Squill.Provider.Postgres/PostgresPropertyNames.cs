@@ -138,6 +138,16 @@ public sealed class PostgresPropertyNames : SqlPropertyNames
     public const string ReturnsSet = nameof(ReturnsSet);
     public const string Volatility = nameof(Volatility);
     public const string IsStrict = nameof(IsStrict);
+    // Routine SET clauses (issue #213), stored only when declared so a routine without one
+    // keeps the element shape it had before and does not re-diff.
+    //
+    // The value is pg_proc.proconfig verbatim: one `name=value` entry per SET clause, joined
+    // by U+001E when there is more than one. Measured on postgres:18.4, PostgreSQL folds the
+    // spellings together (`SET x = a, b` and `SET x TO 'a', 'b'` store one identical entry)
+    // and canonicalizes the GUC name (`timezone` comes back as `TimeZone`), so proconfig's
+    // own form is the only one both sides can agree on. U+001E is the separator because it
+    // cannot occur in a GUC name or value, unlike the comma that appears inside a list value.
+    public const string Configuration = nameof(Configuration);
     // Aggregates (issue #82). StateFunction is the state transition function name (SFUNC),
     // schema-qualified as pg_proc reports it; StateType is the canonical accumulator type
     // name (STYPE, as format_type reports it).
