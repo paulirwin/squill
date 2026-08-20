@@ -36,4 +36,14 @@ public sealed class PostgresElementTypes : SqlElementTypes
     // collation copied FROM another is stored identically to one spelling out that collation's
     // locale — so the element carries the resolved facets, not the source spelling.
     public const string SqlCollation = nameof(SqlCollation);
+    // An EXCLUDE constraint (issue #212). Generalises UNIQUE: instead of forbidding two rows
+    // whose keys are equal, it forbids any pair for which every element's operator returns
+    // true, so it is how a non-overlap rule is declared. Postgres-only -- MariaDB and MySQL
+    // have no equivalent -- which is why it lives here rather than in the shared vocabulary.
+    public const string SqlExclusionConstraint = nameof(SqlExclusionConstraint);
+    // One `key WITH operator` pair of an exclusion constraint. An indexed-column
+    // specification carries the key half already, so this element carries only the operator
+    // and holds the specification as a child, keeping the key's ordering, operator class,
+    // collation and expression handling on the one shape indexes use.
+    public const string SqlExclusionConstraintElement = nameof(SqlExclusionConstraintElement);
 }

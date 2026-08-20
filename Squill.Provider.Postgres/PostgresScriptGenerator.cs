@@ -65,7 +65,8 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             PostgresElementTypes.SqlUniqueConstraint
                 or PostgresElementTypes.SqlCheckConstraint
                 or PostgresElementTypes.SqlPrimaryKeyConstraint
-                or PostgresElementTypes.SqlForeignKeyConstraint =>
+                or PostgresElementTypes.SqlForeignKeyConstraint
+                or PostgresElementTypes.SqlExclusionConstraint =>
                 $"ALTER TABLE {ConstraintTableName(element)} DROP CONSTRAINT IF EXISTS "
                 + $"{parsed.QuotedUnqualified};{Environment.NewLine}",
 
@@ -624,8 +625,15 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
 
             switch (dependent.Type)
             {
+                // A UNIQUE or EXCLUDE constraint is renamed aside for a reason a foreign key
+                // is not: both are index-backed, so their names occupy the schema's relation
+                // namespace. Measured, `ALTER TABLE r RENAME TO r_old` leaves the old
+                // constraint owning its name, and recreating the table with the same
+                // constraint name then fails with "relation already exists".
                 case PostgresElementTypes.SqlPrimaryKeyConstraint:
                 case PostgresElementTypes.SqlForeignKeyConstraint:
+                case PostgresElementTypes.SqlUniqueConstraint:
+                case PostgresElementTypes.SqlExclusionConstraint:
                     sb.Append("ALTER TABLE ").Append(quotedOldTableName)
                         .Append(" RENAME CONSTRAINT ").Append(parsed.QuotedUnqualified)
                         .Append(" TO \"").Append(asideName).AppendLine("\";");
@@ -1527,6 +1535,13 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             columnText.Add(GetCheckConstraintClause(check));
         }
 
+        // EXCLUDE constraints follow the CHECK constraints and precede the foreign keys,
+        // matching the order both model builders emit them in (issue #212).
+        foreach (var exclusion in dependentElements.Where(i => i.Type == PostgresElementTypes.SqlExclusionConstraint))
+        {
+            columnText.Add(GetExclusionConstraintClause(exclusion));
+        }
+
         foreach (var foreignKey in dependentElements.Where(i => i.Type == PostgresElementTypes.SqlForeignKeyConstraint))
         {
             columnText.Add(GetForeignKeyClause(foreignKey));
@@ -1541,6 +1556,161 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
             sb.AppendLine();
             sb.Append(GenerateCreateIndexScript(index, quotedTableName));
         }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Renders one index key: the column or expression, then its COLLATE, operator class and
+    /// ordering, in the order the CREATE INDEX synopsis requires.
+    ///
+    /// Shared with an EXCLUDE constraint's keys (issue #212), whose grammar rule is literally
+    /// <c>index_elem WITH ...</c> -- so the same clauses apply in the same order, and rendering
+    /// them twice would let the two spellings of one key drift apart.
+    /// </summary>
+    private static string RenderIndexKey(
+        Element columnSpec, Reference? columnReference, string? keyExpression)
+    {
+        // Column references are stored table-qualified (e.g. film.title); the key list needs
+        // just the bare, quoted column name. An expression key carries text instead
+        // (issue #160), re-emitted parenthesized so a bare call and an operator expression are
+        // both valid here.
+        var text = keyExpression is not null
+            ? $"({keyExpression})"
+            : $"\"{SqlName.UnqualifiedOf(columnReference!.Name)}\"";
+
+        // COLLATE precedes the operator class in the CREATE INDEX synopsis (issue #160).
+        // A collation name is case-sensitive, so it is quoted rather than lower-cased.
+        if (columnSpec.GetProperty<string>(PostgresPropertyNames.Collation) is { } collation)
+        {
+            text += $" COLLATE {SqlName.Object(collation).QuotedUnqualified}";
+        }
+
+        // Operator class (opclass) follows the column, before ASC/DESC, matching the
+        // PostgreSQL CREATE INDEX synopsis. e.g. "embedding" vector_cosine_ops.
+        if (columnSpec.GetProperty<string>(PostgresPropertyNames.OperatorClass) is { } operatorClass)
+        {
+            text += $" {operatorClass}";
+        }
+
+        var isAscending = columnSpec.GetProperty<bool?>(PostgresPropertyNames.IsAscending);
+
+        if (isAscending == false)
+        {
+            text += " DESC";
+        }
+
+        // Postgres's default null ordering follows the sort direction: NULLS LAST for
+        // ASC, NULLS FIRST for DESC. Only emit an explicit NULLS clause when it differs
+        // from that default, so a model carrying the btree defaults (which both builders
+        // now record) does not produce redundant NULLS LAST / NULLS FIRST in the DDL.
+        if (columnSpec.GetProperty<bool?>(PostgresPropertyNames.NullsFirst) is bool nullsFirst)
+        {
+            var defaultNullsFirst = isAscending == false;
+
+            if (nullsFirst != defaultNullsFirst)
+            {
+                text += nullsFirst ? " NULLS FIRST" : " NULLS LAST";
+            }
+        }
+
+        return text;
+    }
+
+    // CONSTRAINT <name> EXCLUDE USING <method> (<key> WITH <op>, ...) INCLUDE (...) WITH (...)
+    // WHERE (...), for an EXCLUDE constraint written into a CREATE TABLE or added by
+    // ALTER TABLE (issue #212).
+    private static string GetExclusionConstraintClause(Element exclusionConstraint)
+    {
+        if (exclusionConstraint.Name is not string constraintName)
+        {
+            throw new ArgumentException("Exclusion constraints must have names");
+        }
+
+        var elements = exclusionConstraint
+            .GetRelationship(PostgresRelationshipNames.ExclusionElements)
+            ?.Entries.OfType<Element>()
+            .Where(i => i.Type == PostgresElementTypes.SqlExclusionConstraintElement)
+            .ToList();
+
+        if (elements is not { Count: > 0 })
+        {
+            throw new InvalidOperationException(
+                $"Exclusion constraint '{constraintName}' has no elements");
+        }
+
+        var elementText = new List<string>();
+
+        foreach (var element in elements)
+        {
+            var columnSpec = element.GetRelationship(PostgresRelationshipNames.ColumnSpecifications)
+                ?.Entries.OfType<Element>()
+                .SingleOrDefault(i => i.Type == PostgresElementTypes.SqlIndexedColumnSpecification);
+
+            if (columnSpec is null)
+            {
+                throw new InvalidOperationException(
+                    $"Exclusion constraint '{constraintName}' has an element with no key");
+            }
+
+            var columnReference = columnSpec.GetRelationship(PostgresRelationshipNames.Column)
+                ?.Entries.OfType<Reference>().SingleOrDefault();
+
+            var keyExpression = columnSpec.GetProperty<string>(PostgresPropertyNames.KeyExpression);
+
+            if (columnReference is null && keyExpression is null)
+            {
+                throw new InvalidOperationException(
+                    $"Exclusion constraint '{constraintName}' has an element with no key");
+            }
+
+            if (element.GetProperty<string>(PostgresPropertyNames.ExclusionOperator)
+                is not { } exclusionOperator)
+            {
+                throw new InvalidOperationException(
+                    $"Exclusion constraint '{constraintName}' has an element with no operator");
+            }
+
+            // The operator is emitted through OPERATOR(...) whenever it is schema-qualified,
+            // which is the only spelling that accepts a qualifier. A bare one is written as-is:
+            // it is punctuation, so quoting it would change what it means.
+            var renderedOperator = exclusionOperator.Contains('.')
+                ? $"OPERATOR({exclusionOperator})"
+                : exclusionOperator;
+
+            elementText.Add(
+                $"{RenderIndexKey(columnSpec, columnReference, keyExpression)} WITH {renderedOperator}");
+        }
+
+        var sb = new StringBuilder();
+
+        sb.Append("CONSTRAINT ")
+            .Append(SqlName.Parse(constraintName).QuotedUnqualified)
+            .Append(" EXCLUDE");
+
+        // btree is Postgres's default access method, so emitting "USING btree" is redundant --
+        // the same suppression GenerateCreateIndexScript applies. Both builders record it
+        // explicitly in the model, which is what stops a bare EXCLUDE from re-diffing.
+        if (exclusionConstraint.GetProperty<string>(PostgresPropertyNames.IndexMethod)
+            is { } indexMethod
+            && !string.Equals(indexMethod, "btree", StringComparison.OrdinalIgnoreCase))
+        {
+            sb.Append(" USING ").Append(indexMethod);
+        }
+
+        sb.Append(" (").Append(string.Join(", ", elementText)).Append(')');
+
+        // INCLUDE (...) and WITH (...) come next, in the order the grammar requires.
+        sb.Append(GetIndexBackedConstraintSuffix(exclusionConstraint));
+
+        // WHERE (...) follows them, and precedes the DEFERRABLE spec.
+        if (exclusionConstraint.GetProperty<string>(PostgresPropertyNames.FilterPredicate)
+            is { } filterPredicate)
+        {
+            sb.Append(" WHERE (").Append(filterPredicate).Append(')');
+        }
+
+        sb.Append(DeferrabilityClause(exclusionConstraint));
 
         return sb.ToString();
     }
@@ -1586,48 +1756,7 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
                 throw new InvalidOperationException($"Index {indexName} column specification has no column reference");
             }
 
-            // Column references are stored table-qualified (e.g. film.title); the
-            // CREATE INDEX column list needs just the bare, quoted column name.
-            var text = keyExpression is not null
-                ? $"({keyExpression})"
-                : $"\"{SqlName.UnqualifiedOf(columnReference!.Name)}\"";
-
-            // COLLATE precedes the operator class in the CREATE INDEX synopsis (issue #160).
-            // A collation name is case-sensitive, so it is quoted rather than lower-cased.
-            if (columnSpec.GetProperty<string>(PostgresPropertyNames.Collation) is { } collation)
-            {
-                text += $" COLLATE {SqlName.Object(collation).QuotedUnqualified}";
-            }
-
-            // Operator class (opclass) follows the column, before ASC/DESC — matching the
-            // PostgreSQL CREATE INDEX synopsis. e.g. "embedding" vector_cosine_ops.
-            if (columnSpec.GetProperty<string>(PostgresPropertyNames.OperatorClass) is { } operatorClass)
-            {
-                text += $" {operatorClass}";
-            }
-
-            var isAscending = columnSpec.GetProperty<bool?>(PostgresPropertyNames.IsAscending);
-
-            if (isAscending == false)
-            {
-                text += " DESC";
-            }
-
-            // Postgres's default null ordering follows the sort direction: NULLS LAST for
-            // ASC, NULLS FIRST for DESC. Only emit an explicit NULLS clause when it differs
-            // from that default, so a model carrying the btree defaults (which both builders
-            // now record) does not produce redundant NULLS LAST / NULLS FIRST in the DDL.
-            if (columnSpec.GetProperty<bool?>(PostgresPropertyNames.NullsFirst) is bool nullsFirst)
-            {
-                var defaultNullsFirst = isAscending == false;
-
-                if (nullsFirst != defaultNullsFirst)
-                {
-                    text += nullsFirst ? " NULLS FIRST" : " NULLS LAST";
-                }
-            }
-
-            columnText.Add(text);
+            columnText.Add(RenderIndexKey(columnSpec, columnReference, keyExpression));
         }
 
         var sb = new StringBuilder();
@@ -2074,13 +2203,14 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
 
     // The ADD-able clause for a table constraint, or null when the element is not one. Lets
     // the create and recreate paths dispatch on constraint-ness once rather than repeating the
-    // same four-way type test.
+    // same five-way type test.
     private string? ConstraintClause(Element element) => element.Type switch
     {
         PostgresElementTypes.SqlPrimaryKeyConstraint => GetPrimaryKeyClause(element),
         PostgresElementTypes.SqlForeignKeyConstraint => GetForeignKeyClause(element),
         PostgresElementTypes.SqlUniqueConstraint => GetUniqueConstraintClause(element),
         PostgresElementTypes.SqlCheckConstraint => GetCheckConstraintClause(element),
+        PostgresElementTypes.SqlExclusionConstraint => GetExclusionConstraintClause(element),
         _ => null,
     };
 

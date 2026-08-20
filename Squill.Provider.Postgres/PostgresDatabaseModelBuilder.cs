@@ -100,6 +100,10 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             // again matching the parser-based builder's order (issue #120).
             await ExtractCheckConstraintsAsync(model, table, cancellationToken);
 
+            // EXCLUDE constraints follow the CHECK constraints and precede the foreign keys,
+            // again matching the parser-based builder's order (issue #212).
+            await ExtractExclusionConstraintsAsync(model, table, cancellationToken);
+
             // Foreign keys precede indexes, matching the parser: a table's constraints are
             // written in its CREATE TABLE, while a standalone index comes from a separate
             // CREATE INDEX statement that follows it.
@@ -1625,6 +1629,193 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 SqlName.Object(constraintName), tableSqlName, constraints[constraintName],
                 table.Schema, includedColumns, storageParameters));
         }
+    }
+
+    /// <summary>
+    /// Extracts the table's EXCLUDE constraints (issue #212).
+    ///
+    /// Read from <c>pg_constraint</c> joined to the index backing it, not from
+    /// <c>pg_get_constraintdef</c>: measured, that function's output depends on the session
+    /// <c>search_path</c> (an operator resolvable through it is rendered unqualified, and the
+    /// same constraint therefore renders two ways in two sessions), so it cannot be the source
+    /// of an element's identity. The structured columns are stable.
+    ///
+    /// <c>pg_get_indexdef</c> is likewise not usable as a whole: measured, it drops the
+    /// operators entirely, rendering <c>EXCLUDE (a WITH =, b WITH =)</c> as
+    /// <c>USING btree (a, b)</c>. Only its per-column form is used, and only for expression
+    /// keys, exactly as the index path uses it.
+    /// </summary>
+    private async Task ExtractExclusionConstraintsAsync(Model model, TableRef table,
+        CancellationToken cancellationToken = default)
+    {
+        var tableSqlName = SqlName.Object(table.BareName);
+
+        // contype = 'x' is an exclusion constraint. The key columns are indkey positions
+        // 1..indnkeyatts -- slicing there is what keeps an INCLUDE column from being read as a
+        // key -- and conexclop is the parallel array of one operator per key, so the lateral
+        // ordinality lines the two up.
+        //
+        // indkey is an int2vector, which unlike a normal Postgres array is 0-based, so the
+        // key slice is [0:indnkeyatts-1]; conexclop is an ordinary 1-based array, hence the
+        // unshifted subscript on it and the -1 on indoption / indclass / indcollation.
+        //
+        // The operator is qualified only when it does not live in pg_catalog, which is the rule
+        // PostgreSQL itself applies when it reports one back -- measured, `OPERATOR(pg_catalog.=)`
+        // comes back as a bare `=` while an operator in another schema keeps its qualifier.
+        const string sql = """
+            SELECT
+                c.conname AS constraint_name,
+                am.amname AS index_method,
+                pg_get_expr(ix.indpred, ix.indrelid) AS filter_predicate,
+                c.condeferrable AS is_deferrable,
+                c.condeferred AS is_initially_deferred,
+                array_to_string(i.reloptions, ', ') AS storage_parameters,
+                k.ordinality AS column_ordinal,
+                a.attname AS column_name,
+                pg_get_indexdef(ix.indexrelid, k.ordinality::integer, true) AS key_expression,
+                ix.indoption[k.ordinality - 1] AS column_option,
+                CASE WHEN oc.opcdefault THEN NULL ELSE oc.opcname END AS operator_class,
+                CASE WHEN ix.indcollation[k.ordinality - 1] <> ty.typcollation
+                     THEN co.collname END AS collation_name,
+                CASE WHEN opn.nspname = 'pg_catalog' THEN op.oprname
+                     ELSE opn.nspname || '.' || op.oprname END AS exclusion_operator
+            FROM pg_constraint c
+            JOIN pg_class t ON t.oid = c.conrelid
+            JOIN pg_namespace n ON n.oid = t.relnamespace
+            JOIN pg_index ix ON ix.indexrelid = c.conindid
+            JOIN pg_class i ON i.oid = c.conindid
+            JOIN pg_am am ON am.oid = i.relam
+            JOIN LATERAL unnest(ix.indkey[0:ix.indnkeyatts - 1])
+                WITH ORDINALITY AS k(attnum, ordinality) ON TRUE
+            LEFT JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
+            LEFT JOIN pg_type ty ON ty.oid = a.atttypid
+            LEFT JOIN pg_opclass oc ON oc.oid = ix.indclass[k.ordinality - 1]
+            LEFT JOIN pg_collation co ON co.oid = ix.indcollation[k.ordinality - 1]
+            LEFT JOIN pg_operator op ON op.oid = c.conexclop[k.ordinality]
+            LEFT JOIN pg_namespace opn ON opn.oid = op.oprnamespace
+            WHERE n.nspname = @schema
+              AND t.relname = @name
+              AND c.contype = 'x'
+            ORDER BY c.conname, k.ordinality;
+            """;
+
+        var parameters = new[]
+        {
+            new DatabaseParameter<string>("@schema", table.Schema),
+            new DatabaseParameter<string>("@name", table.BareName),
+        };
+
+        var constraintRows = new Dictionary<string, ExclusionConstraintRow>();
+        var order = new List<string>();
+
+        await using (var reader = await _database.RunScriptReaderAsync(sql, parameters, cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var constraintName = reader.GetString("constraint_name");
+
+                if (!constraintRows.TryGetValue(constraintName, out var entry))
+                {
+                    // pg_get_expr returns NULL for a constraint with no WHERE clause.
+                    var filterPredicate = reader.IsDBNull("filter_predicate")
+                        ? null
+                        : reader.GetString("filter_predicate");
+
+                    // reloptions is NULL for an index with no WITH clause; array_to_string of
+                    // an empty array is an empty string, so both mean "none".
+                    var storageParameters = reader.IsDBNull("storage_parameters")
+                        ? null
+                        : reader.GetString("storage_parameters") is { Length: > 0 } sp ? sp : null;
+
+                    entry = new ExclusionConstraintRow(
+                        reader.GetString("index_method"),
+                        filterPredicate,
+                        storageParameters,
+                        reader.GetBoolean("is_deferrable"),
+                        reader.GetBoolean("is_initially_deferred"));
+
+                    constraintRows.Add(constraintName, entry);
+                    order.Add(constraintName);
+                }
+
+                // NULL for an expression key, whose indkey entry is 0 and so matches no column.
+                var columnName = reader.IsDBNull("column_name")
+                    ? null
+                    : reader.GetString("column_name");
+
+                var keyExpression = columnName is null
+                    ? reader.GetString("key_expression")
+                    : null;
+
+                // Only btree carries per-key ASC/DESC and NULLS ordering; other access methods
+                // report indoption 0 throughout, so surfacing an ordering for them would put
+                // into the model something the emitted DDL cannot legally carry.
+                bool? isAscending = null;
+                bool? nullsFirst = null;
+
+                if (entry.IndexMethod == "btree")
+                {
+                    // indoption bit 0x01 = DESC; bit 0x02 = NULLS FIRST.
+                    var columnOption = reader.GetFieldValue<short>("column_option");
+                    isAscending = (columnOption & 0x01) == 0;
+                    nullsFirst = (columnOption & 0x02) != 0;
+                }
+
+                var key = new PostgresModelFactory.IndexedColumn(
+                    // An expression key names no column, so the constraint's own name stands in
+                    // to give the spec a stable identity, matching the parser builder.
+                    columnName is not null
+                        ? tableSqlName.Child(columnName)
+                        : SqlName.Object(constraintName),
+                    IsAscending: isAscending,
+                    NullsFirst: nullsFirst,
+                    OperatorClass: reader.IsDBNull("operator_class")
+                        ? null
+                        : reader.GetString("operator_class"),
+                    Collation: reader.IsDBNull("collation_name")
+                        ? null
+                        : reader.GetString("collation_name"),
+                    KeyExpression: keyExpression);
+
+                entry.Elements.Add(PostgresModelFactory.CreateExclusionConstraintElement(
+                    key, reader.GetString("exclusion_operator")));
+            }
+        }
+
+        foreach (var constraintName in order)
+        {
+            var entry = constraintRows[constraintName];
+
+            // The INCLUDE columns live past indnkeyatts on the backing index, which is where a
+            // primary key's and a unique constraint's are read from too. The storage parameters
+            // that helper also returns are already read above, so only the columns are taken.
+            var (includedColumns, _) = await ExtractConstraintIndexFacetsAsync(
+                table.Schema, constraintName, tableSqlName, cancellationToken);
+
+            model.Elements.Add(PostgresModelFactory.CreateExclusionConstraint(
+                SqlName.Object(constraintName),
+                tableSqlName,
+                entry.IndexMethod,
+                entry.Elements,
+                table.Schema,
+                entry.FilterPredicate,
+                includedColumns,
+                entry.StorageParameters,
+                entry.IsDeferrable,
+                entry.IsInitiallyDeferred));
+        }
+    }
+
+    // The per-constraint facets of an EXCLUDE gathered while its element rows are read, before
+    // the whole constraint becomes one element.
+    private sealed record ExclusionConstraintRow(
+        string IndexMethod,
+        string? FilterPredicate,
+        string? StorageParameters,
+        bool IsDeferrable,
+        bool IsInitiallyDeferred)
+    {
+        public List<Element> Elements { get; } = [];
     }
 
     // Extracts the table's CHECK constraints (issue #120). pg_get_constraintdef renders the
