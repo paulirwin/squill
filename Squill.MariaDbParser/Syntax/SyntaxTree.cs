@@ -327,10 +327,26 @@ public sealed class PrimaryKeyTableConstraint(IReadOnlyList<IndexColumn> columns
     public IReadOnlyList<IndexColumn> Columns { get; } = columns;
 }
 
-public sealed class UniqueKeyTableConstraint(string? indexName, IReadOnlyList<IndexColumn> columns) : TableConstraint
+public sealed class UniqueKeyTableConstraint(string? indexName, IReadOnlyList<IndexColumn> columns)
+    : TableConstraint, IIndexOptions
 {
     public string? IndexName { get; } = indexName;
     public IReadOnlyList<IndexColumn> Columns { get; } = columns;
+
+    /// <inheritdoc />
+    public string? Comment { get; set; }
+
+    /// <inheritdoc />
+    public bool? IsInvisible { get; set; }
+
+    /// <inheritdoc />
+    public bool? IsIgnored { get; set; }
+
+    /// <inheritdoc />
+    public string? ParserName { get; set; }
+
+    /// <inheritdoc />
+    public string? KeyBlockSize { get; set; }
 }
 
 public sealed class ForeignKeyTableConstraint(
@@ -348,11 +364,69 @@ public sealed class ForeignKeyTableConstraint(
 }
 
 /// <summary>An inline INDEX/KEY declaration inside a CREATE TABLE body.</summary>
+/// <summary>
+/// The <c>indexOption</c> clauses an index may carry, shared by the two spellings that can
+/// declare one: a standalone <see cref="CreateIndexStatement"/> and an inline
+/// <see cref="IndexTableConstraint"/> (issue #211).
+///
+/// <para>
+/// The mapper used to read this list only to recover a trailing <c>USING</c>, discarding the
+/// rest without a diagnostic. An interface rather than duplicated properties so one mapping
+/// routine fills both, which is what keeps the two spellings of the same index converging on
+/// one model instead of two that cannot be compared.
+/// </para>
+///
+/// <para>
+/// Capturing an option is not the same as modeling it: <see cref="ParserName"/> and
+/// <see cref="KeyBlockSize"/> are surfaced here purely so the model builder can warn (SQ1002)
+/// rather than drop them silently. Measured, neither can round-trip.
+/// </para>
+/// </summary>
+public interface IIndexOptions
+{
+    /// <summary>The index <c>COMMENT</c>, or null when none was written.</summary>
+    string? Comment { get; set; }
+
+    /// <summary>
+    /// Whether the index was declared <c>INVISIBLE</c> (MySQL), null when neither
+    /// <c>VISIBLE</c> nor <c>INVISIBLE</c> was written.
+    ///
+    /// Kept apart from <see cref="IsIgnored"/> rather than folded into one "hidden" flag:
+    /// measured, MariaDB rejects <c>INVISIBLE</c> with a syntax error and MySQL rejects
+    /// <c>IGNORED</c>, so the two never share a spelling and each engine must script its own.
+    /// </summary>
+    bool? IsInvisible { get; set; }
+
+    /// <summary>
+    /// Whether the index was declared <c>IGNORED</c> (MariaDB), null when no
+    /// <c>IGNORED</c>/<c>NOT IGNORED</c> clause was written.
+    /// </summary>
+    bool? IsIgnored { get; set; }
+
+    /// <summary>
+    /// The full-text parser named by <c>WITH PARSER</c>, or null when none was written.
+    ///
+    /// Captured but not modeled: measured, MySQL honours it and echoes it from
+    /// <c>SHOW CREATE TABLE</c>, but reports it in no readable catalog view: the data
+    /// dictionary table that holds it rejects access outright, so the extractor cannot see it
+    /// and a modeled value would re-diff on every deploy.
+    /// </summary>
+    string? ParserName { get; set; }
+
+    /// <summary>
+    /// The <c>KEY_BLOCK_SIZE</c> value as written, or null when none was.
+    ///
+    /// Captured but not modeled: measured, MySQL's InnoDB accepts the clause and silently
+    /// discards it, so it does not survive even into <c>SHOW CREATE TABLE</c> there.
+    /// </summary>
+    string? KeyBlockSize { get; set; }
+}
+
 public sealed class IndexTableConstraint(
     string? indexName,
     string? indexMethod,
     IReadOnlyList<IndexColumn> columns,
-    string? indexKind = null) : TableConstraint
+    string? indexKind = null) : TableConstraint, IIndexOptions
 {
     public string? IndexName { get; } = indexName;
     public string? IndexMethod { get; } = indexMethod;
@@ -368,6 +442,21 @@ public sealed class IndexTableConstraint(
     /// (<c>CREATE FULLTEXT INDEX …</c>) instead.
     /// </summary>
     public string? IndexKind { get; } = indexKind;
+
+    /// <inheritdoc />
+    public string? Comment { get; set; }
+
+    /// <inheritdoc />
+    public bool? IsInvisible { get; set; }
+
+    /// <inheritdoc />
+    public bool? IsIgnored { get; set; }
+
+    /// <inheritdoc />
+    public string? ParserName { get; set; }
+
+    /// <inheritdoc />
+    public string? KeyBlockSize { get; set; }
 }
 
 /// <summary>
@@ -384,7 +473,8 @@ public sealed class IgnoredTableConstraint : TableConstraint;
 
 // ---- CREATE INDEX ----
 
-public sealed class CreateIndexStatement(string? name, QualifiedName onTable) : Statement
+public sealed class CreateIndexStatement(string? name, QualifiedName onTable)
+    : Statement, IIndexOptions
 {
     public string? Name { get; } = name;
     public QualifiedName OnTable { get; } = onTable;
@@ -400,6 +490,21 @@ public sealed class CreateIndexStatement(string? name, QualifiedName onTable) : 
     public string? IndexKind { get; set; }
 
     public IList<IndexColumn> Columns { get; } = new List<IndexColumn>();
+
+    /// <inheritdoc />
+    public string? Comment { get; set; }
+
+    /// <inheritdoc />
+    public bool? IsInvisible { get; set; }
+
+    /// <inheritdoc />
+    public bool? IsIgnored { get; set; }
+
+    /// <inheritdoc />
+    public string? ParserName { get; set; }
+
+    /// <inheritdoc />
+    public string? KeyBlockSize { get; set; }
 }
 
 /// <summary>

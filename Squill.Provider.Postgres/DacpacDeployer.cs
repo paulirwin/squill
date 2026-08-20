@@ -122,7 +122,7 @@ public static class DacpacDeployer
         protected override TargetVersion GetServerVersion(IDatabase database)
             => ((PostgresDatabase)database).GetServerVersion();
 
-        protected override IScriptGenerator CreateScriptGenerator()
+        protected override IScriptGenerator CreateScriptGenerator(ModelMetadata metadata)
             => new PostgresScriptGenerator();
 
         protected override string GetEngineName(ModelMetadata metadata) => "PostgreSQL";

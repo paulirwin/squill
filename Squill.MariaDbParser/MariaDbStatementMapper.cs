@@ -421,7 +421,11 @@ internal static class MariaDbStatementMapper
                 var columns = MapIndexColumnNames(unique.indexColumnNames());
                 // The index name (if any) is the uid that is NOT the constraint name.
                 var indexName = IndexNameFromUids(unique.CONSTRAINT() != null, unique.uid());
-                return Wrap(name, At(new UniqueKeyTableConstraint(indexName, columns), unique));
+                var uniqueConstraint = new UniqueKeyTableConstraint(indexName, columns);
+
+                ApplyIndexOptions(uniqueConstraint, unique.indexOption());
+
+                return Wrap(name, At(uniqueConstraint, unique));
             }
 
             case MariaDBParser.ForeignKeyTableConstraintContext fk:
@@ -495,7 +499,11 @@ internal static class MariaDbStatementMapper
                     .Select(option => MapIndexType(option.indexType()))
                     .FirstOrDefault(m => m is not null);
             var columns = MapIndexColumnNames(simple.indexColumnNames());
-            return new IndexTableConstraint(indexName, method, columns);
+            var constraint = new IndexTableConstraint(indexName, method, columns);
+
+            ApplyIndexOptions(constraint, simple.indexOption());
+
+            return constraint;
         }
 
         // A FULLTEXT / SPATIAL index (issue #146). The kind is carried as its own token rather
@@ -508,7 +516,13 @@ internal static class MariaDbStatementMapper
             var columns = MapIndexColumnNames(special.indexColumnNames());
 
             // No index method: these kinds take no USING clause.
-            return new IndexTableConstraint(indexName, indexMethod: null, columns, kind);
+            var specialConstraint =
+                new IndexTableConstraint(indexName, indexMethod: null, columns, kind);
+
+            // A FULLTEXT index is where WITH PARSER is written, so its options matter most here.
+            ApplyIndexOptions(specialConstraint, special.indexOption());
+
+            return specialConstraint;
         }
 
         return new IgnoredTableConstraint();
@@ -542,6 +556,8 @@ internal static class MariaDbStatementMapper
             IndexMethod = indexMethod,
             IndexKind = indexKind,
         }, createIndex);
+
+        ApplyIndexOptions(statement, createIndex.indexOption());
 
         foreach (var column in MapIndexColumnNames(createIndex.indexColumnNames()))
         {
@@ -897,6 +913,55 @@ internal static class MariaDbStatementMapper
         }
 
         return columns;
+    }
+
+    // indexOption
+    //   : KEY_BLOCK_SIZE '='? fileSizeLiteral | indexType | WITH PARSER uid
+    //   | COMMENT STRING_LITERAL | (VISIBLE | INVISIBLE)
+    //   | ENGINE_ATTRIBUTE '='? STRING_LITERAL | SECONDARY_ENGINE_ATTRIBUTE '='? STRING_LITERAL
+    //   | CLUSTERING '=' (YES | NO) | (IGNORED | NOT IGNORED)
+    //
+    // Reads every option into the shared IIndexOptions surface (issue #211). The list used to
+    // be walked only for a trailing USING, so the rest vanished with no diagnostic.
+    //
+    // indexType is deliberately not handled here: it is the one option already recovered by the
+    // caller, which has to reconcile it with a USING written before the column list instead.
+    //
+    // ENGINE_ATTRIBUTE, SECONDARY_ENGINE_ATTRIBUTE and CLUSTERING are left alone for now: they
+    // are storage-engine passthrough whose round-trip depends on the engine plugin in use, so
+    // they are out of scope for a change whose rule is that nothing is modeled unmeasured.
+    private static void ApplyIndexOptions(
+        IIndexOptions target, IEnumerable<MariaDBParser.IndexOptionContext> options)
+    {
+        foreach (var option in options)
+        {
+            if (option.COMMENT() is not null)
+            {
+                target.Comment = TrimStringLiteral(option.STRING_LITERAL().GetText());
+            }
+            else if (option.INVISIBLE() is not null)
+            {
+                target.IsInvisible = true;
+            }
+            else if (option.VISIBLE() is not null)
+            {
+                target.IsInvisible = false;
+            }
+            else if (option.IGNORED() is not null)
+            {
+                // `NOT IGNORED` shares the IGNORED token with the bare form, so the NOT is what
+                // tells them apart.
+                target.IsIgnored = option.NOT() is null;
+            }
+            else if (option.PARSER() is not null)
+            {
+                target.ParserName = UidText(option.uid());
+            }
+            else if (option.KEY_BLOCK_SIZE() is not null)
+            {
+                target.KeyBlockSize = option.fileSizeLiteral().GetText();
+            }
+        }
     }
 
     private static string? MapIndexType(MariaDBParser.IndexTypeContext? indexType)

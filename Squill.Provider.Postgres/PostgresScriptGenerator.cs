@@ -1680,6 +1680,16 @@ public class PostgresScriptGenerator : ScriptGeneratorBase
         if (columnSpec.GetProperty<string>(PostgresPropertyNames.OperatorClass) is { } operatorClass)
         {
             text += $" {operatorClass}";
+
+            // Parameters of a parameterized opclass (PostgreSQL 13+, issue #211) follow the
+            // class name in its own parentheses. Emitted only alongside a class name, never on
+            // their own: measured, PostgreSQL parses a bare `(siglen=256)` as an expression key
+            // and fails with "column siglen does not exist".
+            if (columnSpec.GetProperty<string>(PostgresPropertyNames.OperatorClassParameters)
+                is { } operatorClassParameters)
+            {
+                text += $" ({operatorClassParameters})";
+            }
         }
 
         var isAscending = columnSpec.GetProperty<bool?>(PostgresPropertyNames.IsAscending);

@@ -91,8 +91,13 @@ public static class DacpacDeployer
         protected override TargetVersion GetServerVersion(IDatabase database)
             => ((MariaDbDatabase)database).GetServerVersion();
 
-        protected override IScriptGenerator CreateScriptGenerator()
-            => new MariaDbScriptGenerator();
+        // The DACPAC's provider name decides the dialect: MariaDB and MySQL spell index
+        // visibility with keywords the other rejects outright (issue #211), so a MySQL DACPAC
+        // must script INVISIBLE and a MariaDB one IGNORED.
+        protected override IScriptGenerator CreateScriptGenerator(ModelMetadata metadata)
+            => new MariaDbScriptGenerator(
+                DatabaseSchemaProviderRegistry.Resolve(metadata.ProviderName, metadata.TargetVersion)
+                    as MariaDbFamilyDatabaseSchemaProvider);
 
         // The engine name follows the DACPAC's provider name so a MySQL DACPAC says "MySQL",
         // not "MariaDB".

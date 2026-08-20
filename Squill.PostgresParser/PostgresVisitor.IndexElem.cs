@@ -40,15 +40,31 @@ public partial class PostgresVisitor
             collation = ParseAnyName(collationName);
         }
 
-        // An operator class (e.g. vector_cosine_ops) may follow the column. The grammar
-        // exposes it as class_ within index_elem_options; only the plain class_ form (not
-        // the reloptions form) is supported here. A user may schema-qualify it
-        // (pg_catalog.text_pattern_ops) to disambiguate one shadowed by another schema's.
+        // An operator class (e.g. vector_cosine_ops) may follow the column. A user may
+        // schema-qualify it (pg_catalog.text_pattern_ops) to disambiguate one shadowed by
+        // another schema's.
+        //
+        // It reaches us by either alternative of index_elem_options. Alternative 1 spells it
+        // class_; alternative 2 is the parameterized form (PostgreSQL 13+), where the same name
+        // arrives as a bare any_name carrying a reloptions payload. Only the first was read
+        // before (issue #211), so a parameterized key lost the parameters *and* the class name
+        // itself, which is the half that makes the emitted DDL undeployable: measured,
+        // PostgreSQL rejects `gist (tsv (siglen=256))` with "column siglen does not exist".
         QualifiedName? operatorClass = null;
+        var operatorClassParameters = new List<IndexWithOption>();
 
         if (options.class_()?.any_name() is { } opClassName)
         {
             operatorClass = ParseAnyName(opClassName);
+        }
+        else if (options.any_name() is { } parameterizedClassName)
+        {
+            operatorClass = ParseAnyName(parameterizedClassName);
+
+            if (options.reloptions()?.reloption_list() is { } reloptionList)
+            {
+                AddStorageParameters(reloptionList, operatorClassParameters);
+            }
         }
 
         Expression expr;
@@ -89,6 +105,7 @@ public partial class PostgresVisitor
             throw new InvalidOperationException("Unexpected alternate for index element");
         }
 
-        return new IndexElement(expr, direction, nullOrder, operatorClass, collation);
+        return new IndexElement(
+            expr, direction, nullOrder, operatorClass, collation, operatorClassParameters);
     }
 }

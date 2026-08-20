@@ -116,7 +116,8 @@ public static class PostgresModelFactory
         bool? NullsFirst = null,
         string? OperatorClass = null,
         string? Collation = null,
-        string? KeyExpression = null);
+        string? KeyExpression = null,
+        string? OperatorClassParameters = null);
 
     public static Element CreateIndexedColumnSpecification(IndexedColumn column)
     {
@@ -157,6 +158,16 @@ public static class PostgresModelFactory
         if (column.OperatorClass is { } operatorClass)
         {
             element.Properties.Add(new Property(PostgresPropertyNames.OperatorClass, operatorClass));
+        }
+
+        // The parameters of a parameterized operator class (issue #211). Stored beside the
+        // opclass rather than folded into it so the name stays comparable on its own, and
+        // because the two are read from different catalog places: the name from pg_opclass,
+        // the parameters from pg_attribute.attoptions on the index relation.
+        if (column.OperatorClassParameters is { } operatorClassParameters)
+        {
+            element.Properties.Add(new Property(
+                PostgresPropertyNames.OperatorClassParameters, operatorClassParameters));
         }
 
         // A per-key COLLATE (issue #160), stored only when it differs from the column type's

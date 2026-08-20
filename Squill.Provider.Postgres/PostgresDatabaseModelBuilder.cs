@@ -1341,6 +1341,14 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
         // covering column is not mistaken for a key one. The opclass join is LEFT because
         // indclass has entries only for key columns (issue #160).
         //
+        // A parameterized operator class (PostgreSQL 13+, issue #211) keeps its parameters in
+        // pg_attribute.attoptions on the *index* relation, keyed by the key column's ordinal
+        // (measured), not in indclass, which holds only the opclass oid. That is why the
+        // opcdefault suppression above is conditional on there being none: measured,
+        // `gist (tsv tsvector_ops(siglen=256))` resolves to the type's *default* opclass, yet
+        // PostgreSQL rejects the parameters without an explicit class name ("column siglen does
+        // not exist"), so suppressing the name there would emit DDL the server refuses.
+        //
         // indcollation is an oidvector, which unlike a normal Postgres array is 0-based —
         // measured, indcollation[0] is the first key column — and it too spans key columns
         // only. A collation is surfaced only when it differs from the column type's own
@@ -1367,7 +1375,9 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 k.ordinality > ix.indnkeyatts AS is_included,
                 pg_get_indexdef(ix.indexrelid, k.ordinality::integer, true) AS key_expression,
                 ix.indoption[k.ordinality - 1] AS column_option,
-                CASE WHEN oc.opcdefault THEN NULL ELSE oc.opcname END AS operator_class,
+                CASE WHEN oc.opcdefault AND ia.attoptions IS NULL THEN NULL
+                     ELSE oc.opcname END AS operator_class,
+                array_to_string(ia.attoptions, ', ') AS operator_class_parameters,
                 CASE WHEN ix.indcollation[k.ordinality - 1] <> ty.typcollation
                      THEN co.collname END AS collation_name,
                 coalesce((to_jsonb(ix) ->> 'indnullsnotdistinct')::boolean, false)
@@ -1382,6 +1392,8 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             LEFT JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
             LEFT JOIN pg_type ty ON ty.oid = a.atttypid
             LEFT JOIN pg_opclass oc ON oc.oid = ix.indclass[k.ordinality - 1]
+            LEFT JOIN pg_attribute ia
+              ON ia.attrelid = ix.indexrelid AND ia.attnum = k.ordinality
             LEFT JOIN pg_collation co ON co.oid = ix.indcollation[k.ordinality - 1]
             WHERE n.nspname = @schema
               AND t.relname = @name
@@ -1474,6 +1486,10 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                     ? null
                     : reader.GetString("collation_name");
 
+                var operatorClassParameters = reader.IsDBNull("operator_class_parameters")
+                    ? null
+                    : reader.GetString("operator_class_parameters");
+
                 entry.Columns.Add(new PostgresModelFactory.IndexedColumn(
                     // An expression key names no column, so the index's own name stands in to
                     // give the spec a stable identity — matching the parser builder.
@@ -1484,7 +1500,8 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                     NullsFirst: nullsFirst,
                     OperatorClass: operatorClass,
                     Collation: collation,
-                    KeyExpression: keyExpression));
+                    KeyExpression: keyExpression,
+                    OperatorClassParameters: operatorClassParameters));
             }
         }
 
@@ -1709,7 +1726,9 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                 a.attname AS column_name,
                 pg_get_indexdef(ix.indexrelid, k.ordinality::integer, true) AS key_expression,
                 ix.indoption[k.ordinality - 1] AS column_option,
-                CASE WHEN oc.opcdefault THEN NULL ELSE oc.opcname END AS operator_class,
+                CASE WHEN oc.opcdefault AND ia.attoptions IS NULL THEN NULL
+                     ELSE oc.opcname END AS operator_class,
+                array_to_string(ia.attoptions, ', ') AS operator_class_parameters,
                 CASE WHEN ix.indcollation[k.ordinality - 1] <> ty.typcollation
                      THEN co.collname END AS collation_name,
                 CASE WHEN opn.nspname = 'pg_catalog' THEN op.oprname
@@ -1725,6 +1744,8 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
             LEFT JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
             LEFT JOIN pg_type ty ON ty.oid = a.atttypid
             LEFT JOIN pg_opclass oc ON oc.oid = ix.indclass[k.ordinality - 1]
+            LEFT JOIN pg_attribute ia
+              ON ia.attrelid = ix.indexrelid AND ia.attnum = k.ordinality
             LEFT JOIN pg_collation co ON co.oid = ix.indcollation[k.ordinality - 1]
             LEFT JOIN pg_operator op ON op.oid = c.conexclop[k.ordinality]
             LEFT JOIN pg_namespace opn ON opn.oid = op.oprnamespace
@@ -1807,6 +1828,9 @@ public class PostgresDatabaseModelBuilder : IDatabaseModelBuilder
                     OperatorClass: reader.IsDBNull("operator_class")
                         ? null
                         : reader.GetString("operator_class"),
+                    OperatorClassParameters: reader.IsDBNull("operator_class_parameters")
+                        ? null
+                        : reader.GetString("operator_class_parameters"),
                     Collation: reader.IsDBNull("collation_name")
                         ? null
                         : reader.GetString("collation_name"),

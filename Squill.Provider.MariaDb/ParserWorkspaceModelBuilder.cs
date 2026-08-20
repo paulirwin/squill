@@ -355,6 +355,20 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         AddUnmodeledTableWarnings(file, createTable, warnings, _schemaProvider);
                         AddUnmodeledTableOptionWarnings(file, createTable, warnings);
 
+                        // An index declared inline reaches the same options as a standalone
+                        // CREATE INDEX, so it warns for the unmodelable ones too (issue #211).
+                        foreach (var inlineIndex in
+                                 createTable.Elements.OfType<IIndexOptions>())
+                        {
+                            AddUnmodeledIndexOptionWarnings(
+                                file,
+                                inlineIndex,
+                                $"an index on table '{createTable.Name.Name}'",
+                                createTable.Line,
+                                createTable.Column,
+                                warnings);
+                        }
+
                         // Reported alongside the unmodeled-construct warnings, not in place of
                         // them: a construct can be both too new for the target and unmodeled,
                         // and the two say different things about what will happen (issue #142).
@@ -377,7 +391,16 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     case CreateIndexStatement createIndex:
                         validator.AddCreateIndex(file, createIndex);
 
-                        model.Elements.Add(MakeCreateIndexElement(createIndex));
+                        AddUnmodeledIndexOptionWarnings(
+                            file,
+                            createIndex,
+                            $"index '{createIndex.Name}'",
+                            createIndex.Line,
+                            createIndex.Column,
+                            warnings);
+
+                        model.Elements.Add(
+                            MakeCreateIndexElement(createIndex, _schemaProvider));
                         break;
 
                     case CreateProcedureStatement createProcedure:
@@ -547,6 +570,57 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 file.Name,
                 option.Line ?? createTable.Line,
                 option.Column ?? createTable.Column));
+        }
+    }
+
+    /// <summary>
+    /// Warns for the index options that are recognized but cannot be carried into the model
+    /// (issue #211). Both are measured findings rather than gaps waiting to be filled.
+    ///
+    /// <para>
+    /// <c>WITH PARSER</c> works and persists on MySQL, but is reported in no readable catalog
+    /// view: the data dictionary table holding it rejects access outright, and it appears
+    /// neither in <c>information_schema.STATISTICS</c> nor anywhere else the extractor can
+    /// reach. A facet the extract side cannot see would re-diff on every deploy.
+    /// </para>
+    ///
+    /// <para>
+    /// <c>KEY_BLOCK_SIZE</c> is worse than invisible on MySQL: measured, InnoDB accepts the
+    /// clause and silently discards it, so it does not even survive into
+    /// <c>SHOW CREATE TABLE</c> there. MariaDB does keep it, but modeling a facet on one engine
+    /// only would make the same source build to different models per target.
+    /// </para>
+    ///
+    /// <para>
+    /// Warned rather than rejected, because neither changes what the index <em>is</em>: it
+    /// still covers the same columns in the same order.
+    /// </para>
+    /// </summary>
+    private static void AddUnmodeledIndexOptionWarnings(IFile file,
+        IIndexOptions options,
+        string indexDescription,
+        int? line,
+        int? column,
+        List<SqlSourceDiagnostic> warnings)
+    {
+        if (options.ParserName is not null)
+        {
+            warnings.Add(new SqlSourceDiagnostic(
+                $"WITH PARSER on {indexDescription} is not modeled: the server reports it in no "
+                + "readable catalog view, so it cannot be compared; it will not be deployed.",
+                file.Name,
+                line,
+                column));
+        }
+
+        if (options.KeyBlockSize is not null)
+        {
+            warnings.Add(new SqlSourceDiagnostic(
+                $"KEY_BLOCK_SIZE on {indexDescription} is not modeled: MySQL's InnoDB accepts "
+                + "and discards it, so it cannot round-trip; it will not be deployed.",
+                file.Name,
+                line,
+                column));
         }
     }
 
@@ -1460,7 +1534,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
         var primaryKeyColumns = new List<MariaDbModelFactory.IndexedColumn>();
         var foreignKeys = new List<ForeignKeySpec>();
-        var uniqueIndexes = new List<(string? Name, IReadOnlyList<IndexColumn> Columns)>();
+        var uniqueIndexes =
+            new List<(string? Name, IReadOnlyList<IndexColumn> Columns, IIndexOptions? Options)>();
         var checkConstraints = new List<(string Name, string Expression)>();
         var specialIndexes = new List<(string Name, string Kind, IReadOnlyList<IndexColumn> Columns)>();
 
@@ -1509,7 +1584,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         // the common single-unique case in scope, use the first column's name. An unnamed one
         // leading with an expression key names no column and is rejected by the validator
         // before this runs (issue #209).
-        foreach (var (explicitName, columns) in uniqueIndexes)
+        foreach (var (explicitName, columns, options) in uniqueIndexes)
         {
             if (explicitName is null && columns[0].Column is null)
             {
@@ -1522,7 +1597,10 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 ToIndexedColumn(c, tableName, indexName, indexKind: null));
 
             yield return MariaDbModelFactory.CreateIndex(
-                indexName, tableName, isUnique: true, indexMethod: "BTREE", indexedColumns);
+                indexName, tableName, isUnique: true, indexMethod: "BTREE", indexedColumns,
+                comment: options?.Comment,
+                isHiddenFromOptimizer:
+                    options is not null && IsHiddenFromOptimizer(options, schemaProvider));
         }
 
         // Inline FULLTEXT/SPATIAL indexes (issue #146). These become ordinary SqlIndex elements
@@ -1572,7 +1650,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         SqlName tableName,
         List<MariaDbModelFactory.IndexedColumn> primaryKeyColumns,
         List<ForeignKeySpec> foreignKeys,
-        List<(string? Name, IReadOnlyList<IndexColumn> Columns)> uniqueIndexes,
+        List<(string? Name, IReadOnlyList<IndexColumn> Columns, IIndexOptions? Options)> uniqueIndexes,
         List<(string Name, string Expression)> checkConstraints,
         List<(string Name, string Kind, IReadOnlyList<IndexColumn> Columns)> specialIndexes)
     {
@@ -1603,7 +1681,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     break;
 
                 case UniqueKeyTableConstraint unique:
-                    uniqueIndexes.Add((explicitName ?? unique.IndexName, unique.Columns));
+                    uniqueIndexes.Add(
+                        (explicitName ?? unique.IndexName, unique.Columns, unique as IIndexOptions));
                     break;
 
                 case ForeignKeyTableConstraint fk:
@@ -1640,7 +1719,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         CreateTableStatement createTable,
         List<MariaDbModelFactory.IndexedColumn> primaryKeyColumns,
         List<ForeignKeySpec> foreignKeys,
-        List<(string? Name, IReadOnlyList<IndexColumn> Columns)> uniqueIndexes,
+        List<(string? Name, IReadOnlyList<IndexColumn> Columns, IIndexOptions? Options)> uniqueIndexes,
         List<(string Name, string Expression)> checkConstraints)
     {
         var columns = new Relationship(MariaDbRelationshipNames.Columns);
@@ -1686,10 +1765,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     case UniqueKeyColumnConstraint:
                         // An inline UNIQUE names its own column and can carry neither a prefix
                         // length nor an expression, so the key is the bare column.
+                        // A column-level UNIQUE has no option list of its own -- the options
+                        // are a clause of the table-level spelling -- so it contributes none.
                         uniqueIndexes.Add((null, new[]
                         {
                             new IndexColumn(columnDefinition.Name, isAscending: null)
-                        }));
+                        }, null));
                         break;
 
                     case AutoIncrementColumnConstraint:
@@ -1705,10 +1786,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     case SerialDefaultColumnConstraint:
                         isAutoIncrement = true;
                         isNullable = false;
+                        // A column-level UNIQUE has no option list of its own -- the options
+                        // are a clause of the table-level spelling -- so it contributes none.
                         uniqueIndexes.Add((null, new[]
                         {
                             new IndexColumn(columnDefinition.Name, isAscending: null)
-                        }));
+                        }, null));
                         break;
 
                     case CommentColumnConstraint comment:
@@ -1951,7 +2034,26 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 IndexColumnIsAscending(column, indexKind),
                 column.PrefixLength);
 
-    private static Element MakeCreateIndexElement(CreateIndexStatement createIndex)
+    /// <summary>
+    /// Resolves the two engines' spellings of index visibility onto the one modeled flag
+    /// (issue #211): MySQL writes <c>INVISIBLE</c>, MariaDB writes <c>IGNORED</c>.
+    ///
+    /// Only the spelling the target engine actually accepts is read. Measured, each rejects the
+    /// other's keyword with a syntax error, so honouring a foreign one would model a facet the
+    /// deploy could never produce: the source would have failed at the server first.
+    /// </summary>
+    private static bool IsHiddenFromOptimizer(
+        IIndexOptions options, MariaDbFamilyDatabaseSchemaProvider schemaProvider)
+        => schemaProvider.IndexVisibility switch
+        {
+            IndexVisibilityStyle.Invisible => options.IsInvisible == true,
+            IndexVisibilityStyle.Ignored => options.IsIgnored == true,
+            _ => false,
+        };
+
+    private static Element MakeCreateIndexElement(
+        CreateIndexStatement createIndex,
+        MariaDbFamilyDatabaseSchemaProvider schemaProvider)
     {
         if (createIndex.Name is null)
         {
@@ -1974,7 +2076,9 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
         return MariaDbModelFactory.CreateIndex(
             indexName, tableName, createIndex.Unique, indexMethod, columns,
-            indexKind: createIndex.IndexKind);
+            indexKind: createIndex.IndexKind,
+            comment: createIndex.Comment,
+            isHiddenFromOptimizer: IsHiddenFromOptimizer(createIndex, schemaProvider));
     }
 
     /// <summary>

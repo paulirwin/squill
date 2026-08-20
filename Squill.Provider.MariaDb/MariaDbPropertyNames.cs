@@ -84,6 +84,21 @@ public sealed class MariaDbPropertyNames : SqlPropertyNames
     // the omit-when-default convention.
     public const string IndexKind = nameof(IndexKind);
 
+    // NOTE: an index COMMENT (issue #211) reuses the general-purpose Comment name declared
+    // below with the event properties, rather than adding an index-specific one: it is the same
+    // concept on a different element type, and the model keys properties per element. Both
+    // engines report it in information_schema.STATISTICS.INDEX_COMMENT, which is the empty
+    // string rather than NULL when none was written, so the extractor maps empty to absent and
+    // it follows the omit-when-default convention.
+
+    // Whether the optimizer should ignore this index (issue #211): MySQL's INVISIBLE and
+    // MariaDB's IGNORED. One property for what the two engines spell differently, because it is
+    // one concept and an index means the same thing on either, the engine-specific keyword and
+    // the catalog column it is read from are chosen by
+    // MariaDbFamilyDatabaseSchemaProvider.IndexVisibility. Stored only when true, matching both
+    // catalogs' default of a visible/not-ignored index.
+    public const string IsHiddenFromOptimizer = nameof(IsHiddenFromOptimizer);
+
     // The prefix length of one index key — the 20 in `Brand(20)` (issue #161). Both engines
     // report it in information_schema.STATISTICS.SUB_PART, which is NULL for a whole-column
     // key, so this follows the omit-when-default convention and is stored only when declared.

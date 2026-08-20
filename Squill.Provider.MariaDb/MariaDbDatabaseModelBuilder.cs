@@ -49,25 +49,10 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
             ? reader.GetString(0)
             : string.Empty;
 
-        var providerName = version.Contains("MariaDB", StringComparison.OrdinalIgnoreCase)
-            ? "MariaDb"
-            : "MySql";
-
-        // Resolve the server's own major where it is supported, and fall back to the latest
-        // known one otherwise: extraction must still work against a server newer (or older)
-        // than the versions this build ships providers for, and the capabilities that matter
-        // here do not vary by major within an engine.
-        var major = MariaDbDatabase.ParseMajorVersion(version);
-
-        var schemaProvider = DatabaseSchemaProviderRegistry.All
-            .OfType<MariaDbFamilyDatabaseSchemaProvider>()
-            .FirstOrDefault(p =>
-                string.Equals(p.ProviderName, providerName, StringComparison.OrdinalIgnoreCase)
-                && p.MajorVersion == major);
-
-        return schemaProvider
-            ?? (MariaDbFamilyDatabaseSchemaProvider)
-                DatabaseSchemaProviderRegistry.ResolveLatest(providerName);
+        // Shared with the deploy side rather than duplicated: the script generator classifies
+        // the same banner, and if the two disagreed a build would extract as one engine and
+        // script as the other (issue #211).
+        return MariaDbEngineDetection.FromServerVersion(version);
     }
 
     // MariaDB information_schema stores bare identifiers; we store the canonical SqlName on
@@ -967,6 +952,17 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
         // naming it there is an unknown-column error; the capability decides (issue #161).
         var expressionColumn = SchemaProvider.SupportsFunctionalIndexKeys ? ",\n    EXPRESSION" : string.Empty;
 
+        // Index visibility is spelled and reported differently by the two engines (issue #211):
+        // MySQL has IS_VISIBLE, MariaDB has IGNORED, and neither has the other's column, so
+        // naming the wrong one is an unknown-column error, exactly as with EXPRESSION above.
+        // Both are aliased to one name so the reader below does not branch a second time.
+        var visibilityColumn = SchemaProvider.IndexVisibility switch
+        {
+            IndexVisibilityStyle.Invisible => ",\n    IS_VISIBLE AS visibility",
+            IndexVisibilityStyle.Ignored => ",\n    IGNORED AS visibility",
+            _ => string.Empty,
+        };
+
         var sql = $"""
             SELECT
                 INDEX_NAME,
@@ -975,7 +971,8 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
                 SEQ_IN_INDEX,
                 COLUMN_NAME,
                 COLLATION,
-                SUB_PART{expressionColumn}
+                INDEX_COMMENT,
+                SUB_PART{expressionColumn}{visibilityColumn}
             FROM information_schema.STATISTICS
             WHERE TABLE_SCHEMA = @db AND TABLE_NAME = @name AND INDEX_NAME <> 'PRIMARY'
             ORDER BY INDEX_NAME, SEQ_IN_INDEX;
@@ -987,7 +984,9 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
             new DatabaseParameter<string>("@name", table.BareName),
         };
 
-        var indexRows = new Dictionary<string, (bool IsUnique, string Method, List<MariaDbModelFactory.IndexedColumn> Columns)>();
+        var indexRows = new Dictionary<string,
+            (bool IsUnique, string Method, string? Comment, bool IsHidden,
+             List<MariaDbModelFactory.IndexedColumn> Columns)>();
         var order = new List<string>();
 
         await using (var reader = await _database.RunScriptReaderAsync(sql, parameters, cancellationToken))
@@ -1001,7 +1000,26 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
                     var nonUnique = reader.GetNullableInt64("NON_UNIQUE") ?? 1;
                     var indexType = reader.GetString("INDEX_TYPE").ToUpperInvariant();
 
-                    entry = (nonUnique == 0, indexType, new());
+                    // Both engines report INDEX_COMMENT as the empty string, not NULL, for an
+                    // index that declared none, so empty maps to absent, matching the source
+                    // builder's omit-when-default handling (issue #211).
+                    var comment = reader.GetStringOrNull("INDEX_COMMENT");
+
+                    // The two engines report visibility in differently-named columns holding
+                    // opposite senses: MySQL's IS_VISIBLE is 'YES' when the optimizer *uses* the
+                    // index, MariaDB's IGNORED is 'YES' when it does not. Both are folded into
+                    // the one hidden-from-optimizer flag the model stores.
+                    var isHidden = SchemaProvider.IndexVisibility switch
+                    {
+                        IndexVisibilityStyle.Invisible =>
+                            reader.GetStringOrNull("visibility") == "NO",
+                        IndexVisibilityStyle.Ignored =>
+                            reader.GetStringOrNull("visibility") == "YES",
+                        _ => false,
+                    };
+
+                    entry = (nonUnique == 0, indexType,
+                        string.IsNullOrEmpty(comment) ? null : comment, isHidden, new());
                     indexRows.Add(indexName, entry);
                     order.Add(indexName);
                 }
@@ -1039,7 +1057,7 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
                 continue;
             }
 
-            var (isUnique, method, columns) = indexRows[indexName];
+            var (isUnique, method, comment, isHidden, columns) = indexRows[indexName];
 
             // INDEX_TYPE reports FULLTEXT/SPATIAL in the same slot as the BTREE/HASH access
             // method, but they are index *kinds*, not methods: `USING FULLTEXT` is a syntax
@@ -1050,7 +1068,9 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
             model.Elements.Add(MariaDbModelFactory.CreateIndex(
                 SqlName.Object(indexName), tableSqlName, isUnique,
                 isSpecialKind ? null : method, columns,
-                indexKind: isSpecialKind ? method : null));
+                indexKind: isSpecialKind ? method : null,
+                comment: comment,
+                isHiddenFromOptimizer: isHidden));
         }
     }
 

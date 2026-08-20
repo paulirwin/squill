@@ -67,6 +67,12 @@ public sealed class PostgresPropertyNames : SqlPropertyNames
     // https://www.postgresql.org/docs/current/sql-createindex.html
     public const string OperatorClass = nameof(OperatorClass);
     public const string StorageParameters = nameof(StorageParameters);
+    // The parameters of a parameterized operator class (PostgreSQL 13+, issue #211), e.g. the
+    // siglen=256 in gist (tsv tsvector_ops(siglen=256)). Rendered as the same "name=value,
+    // name=value" string StorageParameters uses, because the catalog reports both that way:
+    // these come from pg_attribute.attoptions on the *index* relation (measured), keyed by the
+    // key column's ordinal, and reloptions is an array in the same spelling.
+    public const string OperatorClassParameters = nameof(OperatorClassParameters);
     // NULLS NOT DISTINCT on a unique index (PostgreSQL 15+, issue #160). Stored only when true,
     // matching pg_index.indnullsnotdistinct, which is a plain boolean defaulting to false — so
     // an ordinary index carries no property and does not re-diff. The column does not exist

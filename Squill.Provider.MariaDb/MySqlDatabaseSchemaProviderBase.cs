@@ -45,4 +45,9 @@ public abstract class MySqlDatabaseSchemaProviderBase : MariaDbFamilyDatabaseSch
     // though its major can. This is the build-time half of the question; the capability above
     // stays engine-level because extraction resolves it from the live server (issue #189).
     public override bool CanAuthorFunctionalIndexKeys => SupportsFeatureFrom(8, 0, 13);
+
+    // MySQL spells this INVISIBLE / VISIBLE and reports STATISTICS.IS_VISIBLE. Measured, it
+    // rejects MariaDB's IGNORED with a syntax error and has no IGNORED column.
+    // https://dev.mysql.com/doc/refman/8.4/en/invisible-indexes.html
+    public override IndexVisibilityStyle? IndexVisibility => IndexVisibilityStyle.Invisible;
 }
