@@ -1023,12 +1023,13 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                     continue;
                 }
 
-                // Only an index-backed constraint (PRIMARY KEY, UNIQUE) takes a name in the
-                // schema's relation namespace. A FOREIGN KEY or CHECK name is scoped to its
-                // table, and Postgres happily accepts the same one on two tables — so
+                // Only an index-backed constraint (PRIMARY KEY, UNIQUE, EXCLUDE) takes a name
+                // in the schema's relation namespace. A FOREIGN KEY or CHECK name is scoped to
+                // its table, and Postgres happily accepts the same one on two tables, so
                 // checking those would reject valid SQL.
                 if (constraintName is not null
-                    && constraint is PrimaryKeyTableConstraint or UniqueTableConstraint)
+                    && constraint is PrimaryKeyTableConstraint or UniqueTableConstraint
+                        or ExclusionTableConstraint)
                 {
                     CheckDuplicateConstraintName(file, line, column, schema, constraintName);
                 }
@@ -1095,6 +1096,38 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
                     AddForeignKeyReference(file, line, column, table,
                         fk.ReferencedTable, fk.ReferencedColumns.Select(c => c.Name).ToList());
+                }
+                else if (constraint is ExclusionTableConstraint exclusion)
+                {
+                    // Only plain-column keys can be checked against the table's columns; an
+                    // expression key may reference several columns (or none), exactly as a
+                    // CHECK predicate may, so it is left to the server as those are.
+                    CheckOwnColumns(file, line, column,
+                        $"Exclusion constraint on table '{table}'", table, columns,
+                        exclusion.Elements
+                            .Select(e => e.Key.Expression)
+                            .OfType<ColumnReferenceExpression>()
+                            .Select(c => c.Identifier.Name));
+
+                    CheckOwnColumns(file, line, column,
+                        $"Exclusion constraint on table '{table}'", table, columns,
+                        exclusion.IncludeColumns.Select(c => c.Name));
+
+                    // An unnamed EXCLUDE takes the derived <table>_<keys>_excl name, which the
+                    // model predicts. Two of them can derive the same name, and Postgres would
+                    // resolve that by appending a suffix the model cannot predict, so report
+                    // it rather than deploy a name that will never match.
+                    if (constraintName is null)
+                    {
+                        var derived = DeriveExclusionConstraintName(
+                            table,
+                            exclusion.Elements.Select(e => ExclusionKeyNamePart(e.Key)),
+                            exclusion.IncludeColumns.Select(c => c.Name));
+
+                        CheckUniqueConstraintNameIsPredictable(
+                            file, line, column, table, derived);
+                        CheckDuplicateConstraintName(file, line, column, schema, derived);
+                    }
                 }
             }
 
@@ -1367,6 +1400,25 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     private sealed record CheckConstraintSpec(
         string? ExplicitName, string? Column, string Expression, bool IsNoInherit = false);
 
+    // An EXCLUDE constraint gathered from a CREATE TABLE (issue #212). Elements pair each key
+    // with the operator it is compared by; AccessMethod is already defaulted to btree by the
+    // collector, because PostgreSQL reports one back for every exclusion constraint and storing
+    // the absence would re-diff every bare EXCLUDE.
+    private sealed record ExclusionConstraintSpec(
+        string? ExplicitName,
+        string AccessMethod,
+        IReadOnlyList<ExclusionElementSpec> Elements,
+        string? Predicate,
+        IReadOnlyList<string> IncludeColumns,
+        string? StorageParameters,
+        bool IsDeferrable,
+        bool IsInitiallyDeferred);
+
+    // One `key WITH operator` pair. Key is the index element the key half parses to, reused so
+    // an exclusion key gets the same ordering / opclass / collation / expression handling an
+    // index key has.
+    private sealed record ExclusionElementSpec(IndexElement Key, string Operator);
+
     // Postgres names an unnamed CHECK constraint <table>_<column>_check for one written
     // inline on a column, and <table>_check for a table-level one. Predicting the name lets
     // a parsed model hash-match one extracted from the database.
@@ -1491,6 +1543,26 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         string table, IEnumerable<string> columns, IEnumerable<string>? includeColumns = null)
         => $"{table}_{string.Join('_', columns.Concat(includeColumns ?? []))}_key";
 
+    // Postgres names an unnamed EXCLUDE constraint <table>_<keyparts>_excl. Measured, the key
+    // parts follow the same three rules a unique constraint's do, plus one of their own:
+    // a plain column contributes its name, INCLUDE columns take part as well
+    // (`EXCLUDE (a WITH =, b WITH =) INCLUDE (c)` is named <table>_a_b_c_excl), and an
+    // expression key contributes the name of its outermost function -- `lower(a)` gives
+    // "lower" -- or the literal "expr" when it is not a function call, as `(a || 'x')` is.
+    private static string DeriveExclusionConstraintName(
+        string table, IEnumerable<string> keyParts, IEnumerable<string> includeColumns)
+        => $"{table}_{string.Join('_', keyParts.Concat(includeColumns))}_excl";
+
+    // The component an exclusion key contributes to the derived constraint name.
+    private static string ExclusionKeyNamePart(IndexElement key) => key.Expression switch
+    {
+        ColumnReferenceExpression column => column.Identifier.Name,
+        // Measured: a schema-qualified call contributes only its final segment, so
+        // `pg_catalog.lower(a)` is named for "lower" exactly as a bare `lower(a)` is.
+        FunctionApplicationExpression function => function.Name.Split('.')[^1],
+        _ => "expr",
+    };
+
     private static IEnumerable<Element> MakeCreateTableElements(CreateTableStatement createTableStatement)
     {
         var (schema, tableName) = SplitSchema(createTableStatement.Name);
@@ -1505,6 +1577,10 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         var uniqueConstraints = new List<UniqueConstraintSpec>();
         var checkConstraints = new List<CheckConstraintSpec>();
 
+        // EXCLUDE constraints (issue #212). Table-level only -- there is no inline column
+        // spelling of one -- so this is filled in by CollectTableLevelConstraints alone.
+        var exclusionConstraints = new List<ExclusionConstraintSpec>();
+
         // The INCLUDE and WITH clauses of a table-level PRIMARY KEY (issue #210). Only a
         // table-level PK can carry them -- the inline column spelling has no such clause -- so
         // they are filled in by CollectTableLevelConstraints alone.
@@ -1516,7 +1592,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
         var tableLevelPkName = CollectTableLevelConstraints(
             createTableStatement, tableName, primaryKeyColumns, foreignKeys, uniqueConstraints,
-            checkConstraints, primaryKeyOptions);
+            checkConstraints, exclusionConstraints, primaryKeyOptions);
 
         // A named PK can be written inline on its column (CONSTRAINT pk_x PRIMARY KEY) or as
         // a table-level clause; at most one applies, so either source is the explicit name.
@@ -1566,10 +1642,70 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 checkName, tableName, check.Expression, schema, check.IsNoInherit);
         }
 
+        // EXCLUDE constraints follow the CHECK constraints and precede the FKs, matching the
+        // DB builder's per-table element order (issue #212).
+        foreach (var exclusion in exclusionConstraints)
+        {
+            yield return MakeExclusionConstraintElement(tableName, schema, exclusion);
+        }
+
         foreach (var foreignKey in foreignKeys)
         {
             yield return MakeForeignKeyElement(tableName, foreignKey, schema);
         }
+    }
+
+    private static Element MakeExclusionConstraintElement(
+        SqlName tableName, string schema, ExclusionConstraintSpec spec)
+    {
+        var constraintName = tableName.Sibling(spec.ExplicitName
+            ?? DeriveExclusionConstraintName(
+                tableName.UnqualifiedName,
+                spec.Elements.Select(e => ExclusionKeyNamePart(e.Key)),
+                spec.IncludeColumns));
+
+        // Only btree carries per-key ASC/DESC and NULLS ordering; measured, an exclusion
+        // constraint's backing index reports indoption exactly as an ordinary index does, so
+        // the same rule applies to the defaults filled in here.
+        var isBtree = string.Equals(spec.AccessMethod, "btree", StringComparison.OrdinalIgnoreCase);
+
+        var elements = spec.Elements.Select(e => PostgresModelFactory.CreateExclusionConstraintElement(
+            MakeIndexedColumn(e.Key, tableName, constraintName, isBtree),
+            e.Operator));
+
+        return PostgresModelFactory.CreateExclusionConstraint(
+            constraintName,
+            tableName,
+            spec.AccessMethod,
+            elements,
+            schema,
+            spec.Predicate,
+            spec.IncludeColumns.Select(c => tableName.Child(c)),
+            spec.StorageParameters,
+            spec.IsDeferrable,
+            spec.IsInitiallyDeferred);
+    }
+
+    /// <summary>
+    /// The canonical spelling of an exclusion element's operator (issue #212).
+    ///
+    /// Measured: PostgreSQL reports an operator resolved in <c>pg_catalog</c> unqualified and
+    /// any other one schema-qualified, so the three source spellings of a built-in --
+    /// <c>WITH =</c>, <c>WITH OPERATOR(=)</c> and <c>WITH OPERATOR(pg_catalog.=)</c> -- all
+    /// come back as a bare <c>=</c>. Dropping a <c>pg_catalog</c> qualifier here is what makes
+    /// them agree; any other schema is kept, because the catalog keeps it too.
+    /// </summary>
+    private static string CanonicalOperator(QualifiedName @operator)
+    {
+        var segments = @operator.Segments;
+
+        if (segments.Count > 1
+            && !string.Equals(segments[^2].Name, "pg_catalog", StringComparison.Ordinal))
+        {
+            return $"{segments[^2].Name}.{segments[^1].Name}";
+        }
+
+        return segments[^1].Name;
     }
 
     private static Element MakeForeignKeyElement(
@@ -1608,6 +1744,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         List<ForeignKeySpec> foreignKeys,
         List<UniqueConstraintSpec> uniqueConstraints,
         List<CheckConstraintSpec> checkConstraints,
+        List<ExclusionConstraintSpec> exclusionConstraints,
         IndexBackedConstraintOptions primaryKeyOptions)
     {
         string? explicitPkName = null;
@@ -1674,6 +1811,29 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                 checkConstraints.Add(new CheckConstraintSpec(
                     explicitName, Column: null, ExpressionSqlRenderer.Render(check.Expression),
                     check.IsNoInherit));
+            }
+            else if (constraint is ExclusionTableConstraint exclusion)
+            {
+                RejectNonDefaultConstraintTablespace(exclusion, table: tableName.UnqualifiedName);
+
+                exclusionConstraints.Add(new ExclusionConstraintSpec(
+                    explicitName,
+                    // btree is Postgres's implicit access method when USING is omitted, and
+                    // measured it reports one back for every exclusion constraint. Resolving
+                    // the default here rather than storing the absence is what stops a bare
+                    // EXCLUDE from re-diffing against its own database.
+                    exclusion.AccessMethod?.Name ?? "btree",
+                    exclusion.Elements
+                        .Select(e => new ExclusionElementSpec(e.Key, CanonicalOperator(e.Operator)))
+                        .ToList(),
+                    exclusion.WhereClause is { } where
+                        ? ExpressionSqlRenderer.Render(where)
+                        : null,
+                    exclusion.IncludeColumns.Select(c => c.Name).ToList(),
+                    RenderStorageParametersOrNull(exclusion.WithOptions),
+                    // The visitor has already collapsed INITIALLY DEFERRED implies DEFERRABLE.
+                    exclusion.IsDeferrable,
+                    exclusion.IsInitiallyDeferred));
             }
         }
 
@@ -2172,6 +2332,57 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         }
     }
 
+    /// <summary>
+    /// Converts one parsed index key into the model's indexed-column shape. Shared by
+    /// <c>CREATE INDEX</c> and by an EXCLUDE constraint's keys (issue #212), whose grammar rule
+    /// is literally <c>index_elem WITH ...</c> -- so both accept the same expressions,
+    /// orderings, operator classes and collations, and must reduce them the same way or the two
+    /// spellings of one key would hash differently.
+    /// </summary>
+    /// <param name="fallbackName">
+    /// Stands in as the spec's identity for an expression key, which names no column. The
+    /// index's or constraint's own name, which is unique within its schema.
+    /// </param>
+    private static PostgresModelFactory.IndexedColumn MakeIndexedColumn(
+        IndexElement indexElement, SqlName tableName, SqlName fallbackName, bool isBtree)
+    {
+        // A key that is not a plain column reference is an expression key -- e.g.
+        // CREATE INDEX ix ON people (lower(name)). Both the bare-call and parenthesized
+        // spellings reduce to the same expression here, matching PostgreSQL, which stores
+        // one canonical form for both (issue #160).
+        var columnReference = indexElement.Expression as ColumnReferenceExpression;
+
+        var keyExpression = columnReference is null
+            ? ExpressionSqlRenderer.Render(indexElement.Expression)
+            : null;
+
+        // When a btree index does not spell out a direction / null-order, Postgres
+        // applies ASC (IsAscending = true) and NULLS LAST (NullsFirst = false); the DB
+        // builder records those defaults, so the parser fills them in too. Measured, an
+        // exclusion constraint's backing index reports indoption identically, so the same
+        // rule serves both.
+        bool? isAscending = indexElement.Direction is IndexElementDirection direction
+            ? direction == IndexElementDirection.Asc
+            : isBtree ? true : null;
+
+        bool? nullsFirst = indexElement.NullOrder is IndexElementNullOrder nullOrder
+            ? nullOrder == IndexElementNullOrder.NullsFirst
+            : isBtree ? false : null;
+
+        return new PostgresModelFactory.IndexedColumn(
+            columnReference is not null
+                ? tableName.Child(columnReference.Identifier.Name)
+                : fallbackName,
+            isAscending,
+            nullsFirst,
+            // An opclass or collation may be written schema-qualified, but only the bare
+            // name is stored: pg_opclass and pg_collation report it that way, so keeping
+            // the qualifier would make a qualified source re-diff against its own database.
+            UnqualifiedNameOf(indexElement.OperatorClass),
+            UnqualifiedNameOf(indexElement.Collation),
+            keyExpression);
+    }
+
     private static Element MakeCreateIndexElement(CreateIndexStatement createIndexStatement)
     {
         if (createIndexStatement.Name is null)
@@ -2207,41 +2418,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
 
         foreach (var indexElement in createIndexStatement.Elements)
         {
-            // A key that is not a plain column reference is an expression index — e.g.
-            // CREATE INDEX ix ON people (lower(name)). Both the bare-call and parenthesized
-            // spellings reduce to the same expression here, matching PostgreSQL, which stores
-            // one canonical form for both (issue #160).
-            var columnReference = indexElement.Expression as ColumnReferenceExpression;
-
-            var keyExpression = columnReference is null
-                ? ExpressionSqlRenderer.Render(indexElement.Expression)
-                : null;
-
-            // When a btree index does not spell out a direction / null-order, Postgres
-            // applies ASC (IsAscending = true) and NULLS LAST (NullsFirst = false); the DB
-            // builder records those defaults, so the parser fills them in too.
-            bool? isAscending = indexElement.Direction is IndexElementDirection direction
-                ? direction == IndexElementDirection.Asc
-                : isBtree ? true : null;
-
-            bool? nullsFirst = indexElement.NullOrder is IndexElementNullOrder nullOrder
-                ? nullOrder == IndexElementNullOrder.NullsFirst
-                : isBtree ? false : null;
-
-            columns.Add(new PostgresModelFactory.IndexedColumn(
-                // An expression key names no column, so the index's own name stands in to give
-                // the spec a stable identity.
-                columnReference is not null
-                    ? tableName.Child(columnReference.Identifier.Name)
-                    : indexName,
-                isAscending,
-                nullsFirst,
-                // An opclass or collation may be written schema-qualified, but only the bare
-                // name is stored: pg_opclass and pg_collation report it that way, so keeping
-                // the qualifier would make a qualified source re-diff against its own database.
-                UnqualifiedNameOf(indexElement.OperatorClass),
-                UnqualifiedNameOf(indexElement.Collation),
-                keyExpression));
+            columns.Add(MakeIndexedColumn(indexElement, tableName, indexName, isBtree));
         }
 
         // INCLUDE (...) covering columns (issue #160). PostgreSQL rejects an ordering or

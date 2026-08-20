@@ -13,6 +13,14 @@ public class PostgresDatabaseDependencyAnalyzer : DatabaseDependencyAnalyzerBase
     public override bool IsExtensionElementType(string type)
         => type == PostgresElementTypes.SqlExtension;
 
+    // An EXCLUDE constraint is a dependent of its table exactly as a UNIQUE constraint is
+    // (issue #212): it is created and dropped through ALTER TABLE, so a change to one on an
+    // otherwise-unchanged table is reconciled without rebuilding the table. Postgres-only, so
+    // it is added here rather than in the shared base.
+    public override bool IsDependentElementType(string type)
+        => base.IsDependentElementType(type)
+            || type == PostgresElementTypes.SqlExclusionConstraint;
+
     public override string? GetExtensionVersion(Element extension)
         => extension.GetProperty<string>(PostgresPropertyNames.Version);
 
@@ -191,6 +199,7 @@ public class PostgresDatabaseDependencyAnalyzer : DatabaseDependencyAnalyzerBase
         if (element.Type is not (PostgresElementTypes.SqlTable
             or PostgresElementTypes.SqlIndex
             or PostgresElementTypes.SqlUniqueConstraint
+            or PostgresElementTypes.SqlExclusionConstraint
             or PostgresElementTypes.SqlPrimaryKeyConstraint
             or PostgresElementTypes.SqlForeignKeyConstraint
             or PostgresElementTypes.SqlCheckConstraint

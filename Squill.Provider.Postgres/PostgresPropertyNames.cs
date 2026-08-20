@@ -45,6 +45,16 @@ public sealed class PostgresPropertyNames : SqlPropertyNames
     // takes the column's type, while a declared sequence names its own.
     public const string SequenceDataType = nameof(SequenceDataType);
     public const string FilterPredicate = nameof(FilterPredicate);
+    // The canonical form of an EXCLUDE constraint's WHERE predicate (issue #212), paired with
+    // FilterPredicate above the way a CHECK predicate and a generated column's expression are.
+    // Measured: PostgreSQL rewrites what it is given, so a declared `WHERE (active)` comes back
+    // as `WHERE active` -- comparing the raw text would see a change that is not one. Only the
+    // canonical form takes part in identity.
+    //
+    // A partial index's filter deliberately does not use this: it is a pre-existing shape whose
+    // two sides already agree, and changing how it hashes would re-diff every partial index in
+    // every existing DACPAC.
+    public const string NormalizedFilterPredicate = nameof(NormalizedFilterPredicate);
     public const string Version = nameof(Version);
     // CASCADE on CREATE EXTENSION (issue #143): install this extension's own dependencies
     // along with it. Deploy-time behaviour rather than state — the catalog records no trace
@@ -135,4 +145,9 @@ public sealed class PostgresPropertyNames : SqlPropertyNames
     public const string Level = nameof(Level);
     public const string TriggerFunction = nameof(TriggerFunction);
     public const string FunctionArguments = nameof(FunctionArguments);
+    // EXCLUDE constraints (issue #212). ExclusionOperator is one element's comparison
+    // operator, stored canonically: measured, PostgreSQL reports an operator resolved in
+    // pg_catalog unqualified and any other one schema-qualified, so `OPERATOR(pg_catalog.=)`
+    // and a bare `=` both reduce to "=" rather than being kept apart and re-diffing forever.
+    public const string ExclusionOperator = nameof(ExclusionOperator);
 }

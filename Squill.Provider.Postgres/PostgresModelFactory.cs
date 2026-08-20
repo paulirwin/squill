@@ -345,6 +345,120 @@ public static class PostgresModelFactory
         return element;
     }
 
+    /// <summary>
+    /// One <c>key WITH operator</c> pair of an exclusion constraint (issue #212).
+    ///
+    /// The key half is a nested <see cref="PostgresElementTypes.SqlIndexedColumnSpecification"/>
+    /// rather than being flattened into this element, so an exclusion key gets the ordering,
+    /// operator class, collation and expression-versus-column handling an index key already
+    /// has, instead of a second implementation that could drift from it.
+    /// </summary>
+    public static Element CreateExclusionConstraintElement(
+        IndexedColumn key, string exclusionOperator)
+    {
+        var element = new Element(PostgresElementTypes.SqlExclusionConstraintElement)
+        {
+            Relationships =
+            {
+                new Relationship(PostgresRelationshipNames.ColumnSpecifications)
+                {
+                    CreateIndexedColumnSpecification(key),
+                },
+            },
+        };
+
+        element.Properties.Add(
+            new Property(PostgresPropertyNames.ExclusionOperator, exclusionOperator));
+
+        return element;
+    }
+
+    /// <summary>
+    /// An EXCLUDE constraint on a table (issue #212):
+    /// <c>EXCLUDE USING gist (room WITH =, during WITH &amp;&amp;)</c>.
+    ///
+    /// Backed by an index like a primary key or unique constraint, so it carries the same
+    /// INCLUDE and WITH (...) facets. Unlike those, its elements pair each key with a
+    /// comparison operator, and it accepts a WHERE predicate restricting which rows take part.
+    /// </summary>
+    /// <remarks>
+    /// The access method is required rather than optional: measured, PostgreSQL reports one
+    /// back for every exclusion constraint, so an omitted <c>USING</c> comes back as
+    /// <c>btree</c>. Storing the absence would make every bare EXCLUDE differ from the same
+    /// constraint read back out of the database, re-diffing on every deploy -- so the caller
+    /// resolves the default instead.
+    /// </remarks>
+    public static Element CreateExclusionConstraint(
+        SqlName name,
+        SqlName definingTable,
+        string indexMethod,
+        IEnumerable<Element> exclusionElements,
+        string schema = "public",
+        string? filterPredicate = null,
+        IEnumerable<SqlName>? includedColumns = null,
+        string? storageParameters = null,
+        bool isDeferrable = false,
+        bool isInitiallyDeferred = false)
+    {
+        var elements = new Relationship(PostgresRelationshipNames.ExclusionElements);
+
+        foreach (var exclusionElement in exclusionElements)
+        {
+            elements.Add(exclusionElement);
+        }
+
+        var element = new Element(PostgresElementTypes.SqlExclusionConstraint)
+        {
+            Name = name,
+            Relationships =
+            {
+                elements,
+                new Relationship(PostgresRelationshipNames.DefiningTable)
+                {
+                    new Reference(definingTable)
+                },
+                // Carried for the same reason a unique constraint carries it: it lets
+                // ALTER TABLE ... ADD/DROP CONSTRAINT qualify the table rather than resolving
+                // it against the session search_path, and it tells two same-named constraints
+                // in different schemas apart.
+                new Relationship(PostgresRelationshipNames.Schema)
+                {
+                    new Reference(schema) { ExternalSource = "BuiltIns" }
+                }
+            }
+        };
+
+        element.Properties.Add(new Property(PostgresPropertyNames.IndexMethod, indexMethod));
+
+        // The WHERE predicate selects which rows participate; it rejects none itself. Stored
+        // raw for scripting and canonically for comparison, because PostgreSQL rewrites what it
+        // is given -- the same treatment a CHECK predicate and a partial index's filter get.
+        if (filterPredicate is not null)
+        {
+            AddExpressionProperties(
+                element,
+                PostgresPropertyNames.FilterPredicate,
+                PostgresPropertyNames.NormalizedFilterPredicate,
+                filterPredicate);
+        }
+
+        AddIndexBackedConstraintFacets(element, includedColumns, storageParameters);
+
+        // NOT DEFERRABLE INITIALLY IMMEDIATE is the Postgres default, so each flag is stored
+        // only when true, matching what pg_constraint reports.
+        if (isDeferrable)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.IsDeferrable, true));
+        }
+
+        if (isInitiallyDeferred)
+        {
+            element.Properties.Add(new Property(PostgresPropertyNames.IsInitiallyDeferred, true));
+        }
+
+        return element;
+    }
+
     public static Element CreateIndex(SqlName name,
         SqlName indexedObject,
         bool isUnique,

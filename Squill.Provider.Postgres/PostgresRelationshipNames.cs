@@ -18,4 +18,16 @@ public sealed class PostgresRelationshipNames : SqlRelationshipNames
     /// operator class, and contribute nothing to a unique index's uniqueness.
     /// </summary>
     public const string IncludedColumns = nameof(IncludedColumns);
+
+    /// <summary>
+    /// The <c>key WITH operator</c> pairs of an EXCLUDE constraint (issue #212), in
+    /// declaration order.
+    ///
+    /// Held apart from <see cref="SqlRelationshipNames.ColumnSpecifications"/> because an
+    /// exclusion element is a key <em>and</em> the operator that key is compared with, so it
+    /// is one level deeper than a bare indexed-column specification. The order is significant:
+    /// it must line up with the operator order PostgreSQL records in
+    /// <c>pg_constraint.conexclop</c>.
+    /// </summary>
+    public const string ExclusionElements = nameof(ExclusionElements);
 }

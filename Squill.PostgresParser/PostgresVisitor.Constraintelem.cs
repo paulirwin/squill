@@ -84,15 +84,61 @@ public partial class PostgresVisitor
             }, context), context);
         }
 
+        if (context.EXCLUDE() is not null)
+        {
+            // EXCLUDE access_method_clause? (exclusionconstraintlist) c_include_? definition_?
+            //   optconstablespace? exclusionwhereclause? constraintattributespec
+            //
+            // The alternative parsed all along; the visitor simply had no branch for it, so a
+            // table declaring one hit the terminal throw below and could not be built at all
+            // (issue #212).
+            var elements = context.exclusionconstraintlist().exclusionconstraintelem()
+                .Select(ParseExclusionConstraintElement);
+
+            var exclusion = new ExclusionTableConstraint(elements);
+
+            // USING <method>. Optional here and in the engine; measured, an omitted method is
+            // reported back as `USING btree`, so the absence is carried as null and defaulted
+            // by the model layer rather than being invented here.
+            if (context.access_method_clause()?.name() is { } accessMethodName)
+            {
+                if (VisitName(accessMethodName) is not Identifier accessMethod)
+                {
+                    throw new PostgresParseException(
+                        "Unable to parse the access method of an EXCLUDE constraint");
+                }
+
+                exclusion.AccessMethod = accessMethod;
+            }
+
+            // WHERE (predicate) restricts which rows participate. Unlike a CHECK it rejects
+            // nothing itself, so it is kept distinct from one.
+            if (context.exclusionwhereclause()?.a_expr() is { } whereExpr)
+            {
+                if (Visit(whereExpr) is not Expression whereClause)
+                {
+                    throw new PostgresParseException(
+                        "Unable to parse the WHERE predicate of an EXCLUDE constraint");
+                }
+
+                exclusion.WhereClause = whereClause;
+            }
+
+            return At(
+                WithConstraintAttributes(WithIndexOptions(exclusion, context), context),
+                context);
+        }
+
         throw new NotImplementedException("Table constraint type not yet implemented");
     }
 
     /// <summary>
-    /// Reads the index-shaped clauses a PRIMARY KEY or UNIQUE constraint accepts alongside its
-    /// key columns (issue #210): <c>c_include_</c>, <c>definition_</c> and
-    /// <c>optconstablespace</c>. All three parsed and were then discarded, so the same
+    /// Reads the index-shaped clauses a PRIMARY KEY, UNIQUE or EXCLUDE constraint accepts
+    /// alongside its key columns (issues #210 and #212): <c>c_include_</c>, <c>definition_</c>
+    /// and <c>optconstablespace</c>. All three parsed and were then discarded, so the same
     /// declaration behaved differently depending on whether it was written as a constraint or
-    /// as a CREATE INDEX -- which already reads all three.
+    /// as a CREATE INDEX -- which already reads all three. EXCLUDE shares them because the
+    /// grammar hangs the same three off its alternative too, and it is likewise index-backed.
     ///
     /// <c>nulls_distinct</c> is deliberately not read here: the grammar threads it into
     /// <c>indexstmt</c> only, so the constraint spelling does not parse at all and there is
@@ -211,5 +257,62 @@ public partial class PostgresVisitor
         }
 
         return indexName;
+    }
+
+    /// <summary>
+    /// One <c>index_elem WITH operator</c> pair of an EXCLUDE constraint (issue #212).
+    ///
+    /// The key half reuses <see cref="VisitIndex_elem"/>, since the grammar's
+    /// <c>exclusionconstraintelem</c> is literally <c>index_elem WITH ...</c> -- an exclusion
+    /// key accepts an expression, an operator class, a collation and an ordering exactly as an
+    /// index key does.
+    /// </summary>
+    private ExclusionConstraintElement ParseExclusionConstraintElement(
+        PostgreSQLParser.ExclusionconstraintelemContext context)
+    {
+        if (VisitIndex_elem(context.index_elem()) is not IndexElement key)
+        {
+            throw new PostgresParseException("Unable to parse the key of an EXCLUDE constraint");
+        }
+
+        // Two spellings reach the same place: the bare `WITH =` and the explicit
+        // `WITH OPERATOR(schema.=)`, which exists so an operator shadowed by another schema's
+        // can be named unambiguously. The grammar gives the second its own any_operator, so
+        // whichever is present is the one to read.
+        var anyOperator = context.any_operator();
+
+        if (anyOperator is null)
+        {
+            throw new PostgresParseException(
+                "Unable to parse the operator of an EXCLUDE constraint element");
+        }
+
+        return At(new ExclusionConstraintElement(key, ParseAnyOperator(anyOperator)), context);
+    }
+
+    /// <summary>
+    /// <c>any_operator : (colid DOT)* all_op</c> -- an operator name, optionally qualified by
+    /// the schema it lives in.
+    /// </summary>
+    private QualifiedName ParseAnyOperator(PostgreSQLParser.Any_operatorContext context)
+    {
+        var segments = new List<Identifier>();
+
+        foreach (var colid in context.colid())
+        {
+            if (VisitColid(colid) is not Identifier segment)
+            {
+                throw new PostgresParseException("Unable to parse an operator's schema name");
+            }
+
+            segments.Add(segment);
+        }
+
+        // The operator token itself is punctuation, not an identifier, so it is taken as
+        // written rather than run through the identifier rules -- quoting or case-folding `&&`
+        // would change what it means.
+        segments.Add(new SimpleIdentifier(context.all_op().GetText()));
+
+        return At(new QualifiedName(segments), context);
     }
 }

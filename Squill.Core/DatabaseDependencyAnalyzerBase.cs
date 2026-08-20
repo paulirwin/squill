@@ -16,7 +16,10 @@ namespace Squill.Core;
 /// </summary>
 public abstract class DatabaseDependencyAnalyzerBase : IDatabaseDependencyAnalyzer
 {
-    public bool IsDependentElementType(string type)
+    // Virtual so a provider can add the dependent types only its engine has: an EXCLUDE
+    // constraint is a table dependent on Postgres (issue #212) and has no MariaDB equivalent,
+    // so it cannot be named in this shared vocabulary.
+    public virtual bool IsDependentElementType(string type)
         => type is SqlElementTypes.SqlPrimaryKeyConstraint
             or SqlElementTypes.SqlUniqueConstraint
             or SqlElementTypes.SqlCheckConstraint
