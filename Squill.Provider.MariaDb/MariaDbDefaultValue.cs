@@ -297,6 +297,70 @@ internal static class MariaDbDefaultValue
     /// A quoted string keeps its quotes; a bare number is normalized; anything else (a
     /// function call, NULL) returns <c>null</c>.
     /// </summary>
+    /// <summary>
+    /// The canonical form of a <c>NEXTVAL</c> column default (issue #218), or <c>null</c> if
+    /// the text is not one.
+    ///
+    /// <para>
+    /// All three source spellings (<c>NEXTVAL(s)</c>, <c>nextval(db.s)</c> and
+    /// <c>NEXT VALUE FOR s</c>) are stored by the server as one form,
+    /// <c>nextval(`db`.`seq`)</c> (measured), so they fold to a single token. The database
+    /// qualifier is deliberately dropped from the canonical form: it names the environment the
+    /// object happens to live in, and a DACPAC is environment-neutral, so keeping it would make
+    /// a project built against one database re-diff against the same schema in another.
+    /// </para>
+    ///
+    /// <para>
+    /// MariaDB-only, since MySQL has no sequences at all. The token is written in the
+    /// <c>NEXTVAL(seq)</c> spelling because it is what the server accepts back as DDL.
+    /// </para>
+    /// </summary>
+    internal static string? CanonicalNextValue(
+        string? text, MariaDbFamilyDatabaseSchemaProvider schemaProvider)
+    {
+        if (string.IsNullOrWhiteSpace(text) || !schemaProvider.SupportsSequences)
+        {
+            return null;
+        }
+
+        var trimmed = text.Trim();
+
+        string inner;
+
+        if (trimmed.StartsWith("nextval", StringComparison.OrdinalIgnoreCase)
+            && trimmed.EndsWith(')'))
+        {
+            var open = trimmed.IndexOf('(');
+
+            if (open < 0)
+            {
+                return null;
+            }
+
+            // Everything between the parentheses must be the sequence name; a nested call or
+            // an argument list is not a sequence reference and is left unmodeled.
+            inner = trimmed[(open + 1)..^1].Trim();
+        }
+        else if (trimmed.StartsWith("NEXT VALUE FOR ", StringComparison.OrdinalIgnoreCase))
+        {
+            inner = trimmed["NEXT VALUE FOR ".Length..].Trim();
+        }
+        else
+        {
+            return null;
+        }
+
+        if (inner.Length == 0 || inner.Contains('(') || inner.Contains(','))
+        {
+            return null;
+        }
+
+        // Strip the database qualifier and any backtick quoting, leaving the bare name.
+        var name = inner.Split('.')[^1].Trim().Trim('`').Trim();
+
+        return name.Length == 0 ? null : $"NEXTVAL(`{name}`)";
+    }
+
     public static string? FromSourceToken(string? token, MariaDbFamilyDatabaseSchemaProvider schemaProvider)
     {
         if (string.IsNullOrWhiteSpace(token))
@@ -311,6 +375,13 @@ internal static class MariaDbDefaultValue
         if (CanonicalCurrentTimestamp(text, schemaProvider) is { } currentTimestamp)
         {
             return currentTimestamp;
+        }
+
+        // A sequence reference, before the numeric path: it is a function call rather than a
+        // literal, and would otherwise fall through as unmodeled.
+        if (CanonicalNextValue(text, schemaProvider) is { } nextValue)
+        {
+            return nextValue;
         }
 
         // boolean is an alias for tinyint(1) on both engines, and a TRUE/FALSE default is
@@ -371,6 +442,13 @@ internal static class MariaDbDefaultValue
         if (CanonicalCurrentTimestamp(text, schemaProvider) is { } currentTimestamp)
         {
             return currentTimestamp;
+        }
+
+        // Likewise before the expression rejection, which would otherwise discard the stored
+        // nextval(`db`.`seq`) form for containing parentheses.
+        if (CanonicalNextValue(text, schemaProvider) is { } nextValue)
+        {
+            return nextValue;
         }
 
         // A string default already wrapped in single quotes (MariaDB's information_schema

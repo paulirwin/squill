@@ -82,6 +82,11 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
             return GenerateCreateEventScript(createDelta.Element);
         }
 
+        if (createDelta.Element.Type == MariaDbElementTypes.SqlSequence)
+        {
+            return GenerateCreateSequenceScript(createDelta.Element);
+        }
+
         throw new NotImplementedException(
             $"Creating an element of type {createDelta.Element.Type} is not supported.");
     }
@@ -505,6 +510,16 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
             return DropEventStatement(source) + GenerateCreateEventScript(source);
         }
 
+        // A sequence whose options changed is dropped and recreated. ALTER SEQUENCE exists on
+        // MariaDB, but changing a bound or the increment can conflict with the value the
+        // sequence has already reached, so restating the whole definition is the predictable
+        // spelling. This resets the sequence's current value, which is data rather than
+        // schema and is outside what a declarative deploy preserves.
+        if (source.Type == MariaDbElementTypes.SqlSequence)
+        {
+            return DropSequenceStatement(source) + GenerateCreateSequenceScript(source);
+        }
+
         // A constraint redefined under the same name: a CHECK whose predicate changed
         // (issue #156), or a primary or foreign key whose columns or referential actions
         // changed (issue #157). Neither engine can alter any of them in place, so each is
@@ -591,6 +606,8 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
             MariaDbElementTypes.SqlTrigger => DropTriggerStatement(element),
 
             MariaDbElementTypes.SqlEvent => DropEventStatement(element),
+
+            MariaDbElementTypes.SqlSequence => DropSequenceStatement(element),
 
             _ => throw new NotImplementedException(
                 $"Dropping an element of type {element.Type} is not supported."),
@@ -699,6 +716,64 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
     // PRESERVE] [ENABLE|DISABLE|DISABLE ON SLAVE] [COMMENT '...'] DO <body>. The clause order
     // is the one both engines' syntax requires. Facets equal to their default are absent from
     // the model, so they are simply not emitted.
+    /// <summary>
+    /// Scripts a sequence (issue #218). Only the options the model carries are emitted, which
+    /// by the omit-when-default convention are exactly those that differ from the server's own
+    /// defaults, so the DDL restates what was declared rather than a fully expanded form.
+    /// </summary>
+    private static string GenerateCreateSequenceScript(Element element)
+    {
+        var name = SqlName.UnqualifiedOf((string)element.Name!);
+
+        var sb = new StringBuilder();
+
+        sb.Append("CREATE SEQUENCE ").Append(SqlName.Object(name).Sql);
+
+        if (element.GetProperty<long?>(MariaDbPropertyNames.StartValue) is { } startValue)
+        {
+            sb.Append(" START WITH ").Append(startValue);
+        }
+
+        if (element.GetProperty<long?>(MariaDbPropertyNames.Increment) is { } increment)
+        {
+            sb.Append(" INCREMENT BY ").Append(increment);
+        }
+
+        if (element.GetProperty<long?>(MariaDbPropertyNames.MinValue) is { } minValue)
+        {
+            sb.Append(" MINVALUE ").Append(minValue);
+        }
+
+        if (element.GetProperty<long?>(MariaDbPropertyNames.MaxValue) is { } maxValue)
+        {
+            sb.Append(" MAXVALUE ").Append(maxValue);
+        }
+
+        // Zero is NOCACHE rather than a cache of no rows, and the server rejects CACHE 0 in
+        // some spellings, so it is written as the keyword it means.
+        if (element.GetProperty<long?>(MariaDbPropertyNames.CacheSize) is { } cacheSize)
+        {
+            sb.Append(cacheSize == 0 ? " NOCACHE" : $" CACHE {cacheSize}");
+        }
+
+        // Stored only when true, so presence is the flag; NOCYCLE is the default.
+        if (element.GetProperty<bool?>(MariaDbPropertyNames.IsCycling) == true)
+        {
+            sb.Append(" CYCLE");
+        }
+
+        sb.Append(';').AppendLine();
+
+        return sb.ToString();
+    }
+
+    private static string DropSequenceStatement(Element element)
+    {
+        var name = SqlName.UnqualifiedOf((string)element.Name!);
+
+        return $"DROP SEQUENCE IF EXISTS {SqlName.Object(name).Sql};{Environment.NewLine}";
+    }
+
     private static string GenerateCreateEventScript(Element element)
     {
         var name = SqlName.UnqualifiedOf((string)element.Name!);

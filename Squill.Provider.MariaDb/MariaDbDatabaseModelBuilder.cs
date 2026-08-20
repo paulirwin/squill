@@ -177,6 +177,10 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
             }
         }
 
+        // Sequences come before the tables: a column may default to NEXTVAL(seq), so the
+        // sequence has to exist first, and the parser-based builder orders them the same way.
+        await ExtractSequencesAsync(model, cancellationToken);
+
         // Emit each table immediately followed by its dependents (primary key, indexes,
         // foreign keys), so the element order matches the parser-based builder, which yields
         // a table and its dependents together. The Merkle hash is order-sensitive, so the
@@ -220,6 +224,84 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
         await ExtractEventsAsync(model, cancellationToken);
 
         return model;
+    }
+
+    /// <summary>
+    /// Reads the database's sequences (issue #218).
+    ///
+    /// <para>
+    /// Unlike every other object here, a sequence's options are not in a catalog view at all:
+    /// <c>information_schema.TABLES</c> lists it with <c>TABLE_TYPE = 'SEQUENCE'</c> and
+    /// nothing more, while the values live in the sequence's own backing table, which has to be
+    /// selected from directly (measured). The backing type is read from the type of that
+    /// table's <c>next_not_cached_value</c> column, since it governs the default bounds.
+    /// </para>
+    /// </summary>
+    private async Task ExtractSequencesAsync(Model model, CancellationToken cancellationToken = default)
+    {
+        // MySQL has no sequence object, and asking for TABLE_TYPE = 'SEQUENCE' there would be
+        // a well-formed query that always returns nothing. Skipped explicitly so the intent is
+        // stated rather than resting on that accident.
+        if (!SchemaProvider.SupportsSequences)
+        {
+            return;
+        }
+
+        const string sql =
+            """
+            SELECT t.TABLE_NAME, c.DATA_TYPE
+            FROM information_schema.TABLES t
+            JOIN information_schema.COLUMNS c
+              ON c.TABLE_SCHEMA = t.TABLE_SCHEMA
+             AND c.TABLE_NAME = t.TABLE_NAME
+             AND c.COLUMN_NAME = 'next_not_cached_value'
+            WHERE t.TABLE_SCHEMA = @db AND t.TABLE_TYPE = 'SEQUENCE'
+            ORDER BY t.TABLE_NAME;
+            """;
+
+        var dbParam = new[] { new DatabaseParameter<string>("@db", _database.Name) };
+
+        var sequences = new List<(string Name, string DataType)>();
+
+        await using (var reader = await _database.RunScriptReaderAsync(sql, dbParam, cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                sequences.Add((reader.GetString("TABLE_NAME"), reader.GetString("DATA_TYPE")));
+            }
+        }
+
+        foreach (var (name, dataType) in sequences)
+        {
+            // The options live in the sequence itself. The name cannot be parameterized here
+            // because it is an identifier rather than a value, so it is quoted instead; a
+            // backtick inside an identifier is escaped by doubling it.
+            var optionsSql =
+                $"SELECT start_value, minimum_value, maximum_value, increment, cache_size, "
+                + $"cycle_option FROM `{name.Replace("`", "``")}`;";
+
+            await using var reader = await _database.RunScriptReaderAsync(
+                optionsSql, cancellationToken: cancellationToken);
+
+            if (!await reader.ReadAsync(cancellationToken))
+            {
+                continue;
+            }
+
+            model.Elements.Add(MariaDbModelFactory.CreateSequence(
+                name,
+                dataType,
+                // GetNullableInt64 coerces the boxed value, which matters twice over here:
+                // the two engines disagree on the signedness of catalog integers, and
+                // cycle_option is a tinyint rather than a bigint, so a fixed GetFieldValue<long>
+                // would throw on it.
+                reader.GetNullableInt64("start_value"),
+                reader.GetNullableInt64("increment"),
+                reader.GetNullableInt64("minimum_value"),
+                reader.GetNullableInt64("maximum_value"),
+                reader.GetNullableInt64("cache_size"),
+                reader.GetNullableInt64("cycle_option") != 0));
+        }
     }
 
     private async Task ExtractEventsAsync(Model model, CancellationToken cancellationToken = default)

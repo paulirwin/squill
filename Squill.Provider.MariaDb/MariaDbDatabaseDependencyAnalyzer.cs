@@ -33,6 +33,12 @@ public class MariaDbDatabaseDependencyAnalyzer : DatabaseDependencyAnalyzerBase
     // comes last — as does an event, whose body may likewise touch anything.
     public override int GetCreateOrder(string type) => type switch
     {
+        // A sequence must exist before a table whose column default calls NEXTVAL() on it, so
+        // it sorts ahead of the default rank tables take (issue #218). Negative rather than
+        // shifting everything else up, so the existing ranks keep the values their comments
+        // describe. Drops invert this key, which is also what a sequence needs: it must be
+        // dropped after the tables that referenced it.
+        MariaDbElementTypes.SqlSequence => -1,
         MariaDbElementTypes.SqlView => 1,
         MariaDbElementTypes.SqlProcedure or MariaDbElementTypes.SqlFunction => 2,
         MariaDbElementTypes.SqlTrigger or MariaDbElementTypes.SqlEvent => 3,

@@ -48,6 +48,11 @@ internal static class MariaDbStatementMapper
             return MapCreateEvent(createEvent);
         }
 
+        if (ddl.createSequence() is { } createSequence)
+        {
+            return MapCreateSequence(createSequence);
+        }
+
         var description = DescribeDdl(ddl);
 
         // An authored ALTER/DROP/TRUNCATE is imperative: it has no meaning in a declarative
@@ -1014,6 +1019,90 @@ internal static class MariaDbStatementMapper
 
         return statement;
     }
+
+    // ---- CREATE SEQUENCE ----
+
+    /// <summary>
+    /// Maps a <c>CREATE SEQUENCE</c> (issue #218). Options are recorded exactly as written and
+    /// left unset when absent; the model layer applies the defaults, since they depend on the
+    /// sequence's direction and are not recoverable once substituted here.
+    /// </summary>
+    private static Statement MapCreateSequence(MariaDBParser.CreateSequenceContext createSequence)
+    {
+        var statement = At(new CreateSequenceStatement(MapQualifiedName(createSequence.fullId())),
+            createSequence);
+
+        foreach (var spec in createSequence.sequenceSpec())
+        {
+            // Each alternative is identified by its leading keyword rather than by a labeled
+            // context: the grammar leaves sequenceSpec unlabeled, so there are no generated
+            // per-alternative types to switch on.
+            if (spec.INCREMENT() is not null)
+            {
+                statement.Increment = SequenceValue(spec);
+            }
+            else if (spec.NOMINVALUE() is not null || (spec.NO() is not null && spec.MINVALUE() is not null))
+            {
+                // Asks for the type default, which is what omitting the clause already means.
+                statement.MinValue = null;
+            }
+            else if (spec.MINVALUE() is not null)
+            {
+                statement.MinValue = SequenceValue(spec);
+            }
+            else if (spec.NOMAXVALUE() is not null || (spec.NO() is not null && spec.MAXVALUE() is not null))
+            {
+                statement.MaxValue = null;
+            }
+            else if (spec.MAXVALUE() is not null)
+            {
+                statement.MaxValue = SequenceValue(spec);
+            }
+            else if (spec.START() is not null)
+            {
+                statement.StartValue = SequenceValue(spec);
+            }
+            else if (spec.NOCACHE() is not null)
+            {
+                // The server treats NOCACHE and CACHE 0 identically (measured), so they map to
+                // the same value rather than one of them meaning "unset".
+                statement.CacheSize = 0;
+            }
+            else if (spec.CACHE() is not null)
+            {
+                statement.CacheSize = SequenceValue(spec);
+            }
+            else if (spec.CYCLE() is not null)
+            {
+                statement.IsCycling = true;
+            }
+            else if (spec.NOCYCLE() is not null)
+            {
+                statement.IsCycling = false;
+            }
+            else if (spec.RESTART() is not null)
+            {
+                statement.HasRestart = true;
+            }
+        }
+
+        return statement;
+    }
+
+    /// <summary>
+    /// The numeric operand of a sequence option.
+    ///
+    /// <para>
+    /// Unsigned by construction: <c>sequenceSpec</c> takes a <c>decimalLiteral</c>, which has
+    /// no sign alternative, so a descending sequence fails to parse before reaching here (see
+    /// CreateSequenceTests). There is deliberately no sign handling to go with it, since code
+    /// for a case the grammar cannot produce could not be tested or trusted.
+    /// </para>
+    /// </summary>
+    private static long? SequenceValue(MariaDBParser.SequenceSpecContext spec)
+        => spec.decimalLiteral() is { } literal && long.TryParse(literal.GetText(), out var value)
+            ? value
+            : null;
 
     // ---- CREATE EVENT ----
 

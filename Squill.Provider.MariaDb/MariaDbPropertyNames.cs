@@ -170,4 +170,20 @@ public sealed class MariaDbPropertyNames : SqlPropertyNames
     public const string Status = nameof(Status);
     public const string PreserveOnCompletion = nameof(PreserveOnCompletion);
     public const string Comment = nameof(Comment);
+
+    // Sequences (issue #218). Names match the Postgres provider's, since both model the same
+    // concept and SSDT's SqlSequence uses them, so the two providers stay readable side by
+    // side. The values they carry are engine-specific, though: MariaDB's defaults are not
+    // Postgres's (CACHE is 1000 here, 1 there), which is why the defaults live in
+    // MariaDbSequenceDefaults rather than being shared.
+    //
+    // Omit-when-default as everywhere else: a sequence's backing table always reports every
+    // option with its defaults filled in, so an option equal to its default is not stored or
+    // the parsed model could not hash-match the extracted one.
+    public const string StartValue = nameof(StartValue);
+    public const string Increment = nameof(Increment);
+    public const string MinValue = nameof(MinValue);
+    public const string MaxValue = nameof(MaxValue);
+    public const string CacheSize = nameof(CacheSize);
+    public const string IsCycling = nameof(IsCycling);
 }

@@ -45,6 +45,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             await ProcessFile(file, model, validator, warnings, views, cancellationToken);
         }
 
+        // Sequences are lifted out before the tables are sorted, for two reasons. A sequence
+        // declared after a table would otherwise be swept into that table's group and dragged
+        // around as one of its dependents, and a column may default to NEXTVAL(seq), so the
+        // sequence has to be created first for the table's DDL to succeed.
+        MoveSequencesToFront(model);
+
         SortTablesByName(model);
 
         // Views are added after the tables are sorted (so they are not dragged around as a
@@ -163,6 +169,36 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     /// Unlike a trigger, an event's element Name is its own bare name (it is bound to no
     /// table), so it is ordered on that directly.
     /// </summary>
+    /// <summary>
+    /// Moves every sequence ahead of the tables, ordered by name (issue #218). The extraction
+    /// builder reads sequences in that order and the Merkle hash is order-sensitive, so a
+    /// parsed model must adopt the same one.
+    /// </summary>
+    private static void MoveSequencesToFront(Model model)
+    {
+        var sequences = model.Elements
+            .Where(i => i.Type == MariaDbElementTypes.SqlSequence)
+            .ToList();
+
+        if (sequences.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var element in sequences)
+        {
+            model.Elements.Remove(element);
+        }
+
+        // Ordinal, to match the database's byte-wise ordering of the same names.
+        var index = 0;
+
+        foreach (var element in sequences.OrderBy(i => (string)i.Name!, StringComparer.Ordinal))
+        {
+            model.Elements.Insert(index++, element);
+        }
+    }
+
     private static void MoveEventsToEnd(Model model)
     {
         var events = model.Elements
@@ -394,6 +430,17 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                         }
 
                         model.Elements.Add(MakeCreateEventElement(createEvent));
+                        break;
+
+                    case CreateSequenceStatement createSequence:
+                        validator.AddCreateSequence(file, createSequence);
+
+                        if (validator.IsDuplicateSequence(createSequence))
+                        {
+                            break;
+                        }
+
+                        model.Elements.Add(MakeCreateSequenceElement(createSequence, _schemaProvider));
                         break;
 
                     // An authored ALTER/DROP/DML is a mistake in the source, not a gap in
@@ -658,6 +705,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         private readonly Dictionary<string, Origin> _functionOrigins = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Origin> _triggerOrigins = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Origin> _eventOrigins = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, Origin> _sequenceOrigins = new(StringComparer.OrdinalIgnoreCase);
 
         // An index name only has to be unique within its table in MariaDB, unlike Postgres
         // where constraints and indexes share a per-schema namespace.
@@ -671,6 +719,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         private readonly HashSet<CreateFunctionStatement> _duplicateFunctions = [];
         private readonly HashSet<CreateTriggerStatement> _duplicateTriggers = [];
         private readonly HashSet<CreateEventStatement> _duplicateEvents = [];
+        private readonly HashSet<CreateSequenceStatement> _duplicateSequences = [];
 
         // The base tracks unique column sets and the FK backing-index check; the rationale for
         // recording only unique sets is MariaDB/MySQL-specific and lives at each call site
@@ -802,6 +851,33 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             }
 
             _eventOrigins[name] = new Origin(file.Name, createEvent.Line);
+        }
+
+        public bool IsDuplicateSequence(CreateSequenceStatement createSequence)
+            => _duplicateSequences.Contains(createSequence);
+
+        public void AddCreateSequence(IFile file, CreateSequenceStatement createSequence)
+        {
+            // A sequence shares the table namespace (it is a table of type SEQUENCE to the
+            // server) but is tracked separately here so its diagnostic names it a sequence.
+            var name = createSequence.Name.Name;
+
+            CheckIdentifierLength(file, createSequence.Line, createSequence.Column,
+                "Sequence", name);
+
+            if (_sequenceOrigins.TryGetValue(name, out var existing))
+            {
+                AddError(new SqlSourceException(
+                    $"Sequence '{name}' is already defined in {DescribeOrigin(existing)}.",
+                    file.Name, createSequence.Line, createSequence.Column,
+                    SqlSourceException.DuplicateDefinition));
+
+                _duplicateSequences.Add(createSequence);
+
+                return;
+            }
+
+            _sequenceOrigins[name] = new Origin(file.Name, createSequence.Line);
         }
 
         /// <summary>
@@ -2143,6 +2219,47 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             createTrigger.Timing,
             createTrigger.Event,
             body);
+    }
+
+    /// <summary>
+    /// Builds the element for a <c>CREATE SEQUENCE</c> (issue #218), rejecting the two forms
+    /// that parse but cannot be deployed.
+    /// </summary>
+    private static Element MakeCreateSequenceElement(
+        CreateSequenceStatement createSequence, MariaDbFamilyDatabaseSchemaProvider schemaProvider)
+    {
+        var name = createSequence.Name.Name;
+
+        // MySQL has no sequence object at all: CREATE SEQUENCE is a syntax error there
+        // (measured), so this is an error rather than the SQ1002 warning an unmodeled-but-valid
+        // construct gets. There is nothing to warn about deploying, because it cannot deploy.
+        if (!schemaProvider.SupportsSequences)
+        {
+            throw new NotSupportedException(
+                $"Sequence '{name}' cannot be deployed to {schemaProvider.ProviderName}, which "
+                + "has no sequence object; sequences are a MariaDB feature.");
+        }
+
+        // RESTART is an ALTER-only option that the grammar also admits on CREATE. The server
+        // rejects it there (measured), so scripting it would produce DDL that fails at deploy.
+        if (createSequence.HasRestart)
+        {
+            throw new NotSupportedException(
+                $"Sequence '{name}' declares RESTART, which MariaDB accepts only on ALTER "
+                + "SEQUENCE; remove it and use START WITH to set the initial value.");
+        }
+
+        // A sequence is not schema-scoped within a database, so a leading db qualifier is
+        // dropped from its name, exactly as for a table or an event.
+        return MariaDbModelFactory.CreateSequence(
+            name,
+            dataTypeName: null,
+            createSequence.StartValue,
+            createSequence.Increment,
+            createSequence.MinValue,
+            createSequence.MaxValue,
+            createSequence.CacheSize,
+            createSequence.IsCycling);
     }
 
     private static Element MakeCreateEventElement(CreateEventStatement createEvent)

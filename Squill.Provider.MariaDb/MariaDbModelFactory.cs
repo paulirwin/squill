@@ -472,6 +472,66 @@ public static class MariaDbModelFactory
         return element;
     }
 
+    /// <summary>
+    /// Builds a sequence element (issue #218) for <c>CREATE SEQUENCE name [options]</c>.
+    ///
+    /// <para>
+    /// Only options that differ from the MariaDB default are stored. The backing table always
+    /// reports every option with its defaults filled in, so this is what lets a parsed model
+    /// hash-match one extracted from a live server: the same omit-when-default convention used
+    /// for events and table options.
+    /// </para>
+    ///
+    /// <para>
+    /// Pass the values exactly as declared (or as extracted), leaving unwritten options null;
+    /// this method decides what to keep. The bounds depend on the backing type, so
+    /// <paramref name="dataTypeName"/> is resolved first and used even when it is itself the
+    /// default and therefore not stored.
+    /// </para>
+    /// </summary>
+    public static Element CreateSequence(
+        string sequenceName,
+        string? dataTypeName = null,
+        long? startValue = null,
+        long? increment = null,
+        long? minValue = null,
+        long? maxValue = null,
+        long? cacheSize = null,
+        bool? isCycling = null)
+    {
+        var element = new Element(MariaDbElementTypes.SqlSequence)
+        {
+            Name = SqlName.Object(sequenceName),
+        };
+
+        var typeName = dataTypeName ?? MariaDbSequenceDefaults.DefaultSequenceTypeName;
+        var (defaultStart, defaultMin, defaultMax) = MariaDbSequenceDefaults.For(typeName);
+
+        AddIfNotDefault(element, MariaDbPropertyNames.Increment,
+            increment ?? MariaDbSequenceDefaults.Increment, MariaDbSequenceDefaults.Increment);
+        AddIfNotDefault(element, MariaDbPropertyNames.MinValue, minValue ?? defaultMin, defaultMin);
+        AddIfNotDefault(element, MariaDbPropertyNames.MaxValue, maxValue ?? defaultMax, defaultMax);
+        AddIfNotDefault(element, MariaDbPropertyNames.StartValue,
+            startValue ?? defaultStart, defaultStart);
+        AddIfNotDefault(element, MariaDbPropertyNames.CacheSize,
+            cacheSize ?? MariaDbSequenceDefaults.CacheSize, MariaDbSequenceDefaults.CacheSize);
+
+        if ((isCycling ?? MariaDbSequenceDefaults.IsCycling) != MariaDbSequenceDefaults.IsCycling)
+        {
+            element.Properties.Add(new Property(MariaDbPropertyNames.IsCycling, true));
+        }
+
+        return element;
+    }
+
+    private static void AddIfNotDefault(Element element, string name, long value, long defaultValue)
+    {
+        if (value != defaultValue)
+        {
+            element.Properties.Add(new Property(name, value));
+        }
+    }
+
     /// <summary>The event status both engines report when none was declared.</summary>
     public const string EnabledStatus = "ENABLED";
 
