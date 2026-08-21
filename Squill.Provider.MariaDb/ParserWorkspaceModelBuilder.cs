@@ -39,10 +39,11 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         var validator = new SourceValidator(_schemaProvider);
         var warnings = new List<SqlSourceDiagnostic>();
         var views = new List<PendingView>();
+        var triggers = new List<PendingTrigger>();
 
         foreach (var file in _workspace.Files.Where(i => i.Kind == FileKind.Compile))
         {
-            await ProcessFile(file, model, validator, warnings, views, cancellationToken);
+            await ProcessFile(file, model, validator, warnings, views, triggers, cancellationToken);
         }
 
         // Sequences are lifted out before the tables are sorted, for two reasons. A sequence
@@ -59,6 +60,12 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         // before validation so a broken view is reported alongside every other source error
         // rather than on a later rebuild (issue #61).
         AddViews(model, validator, views, warnings, _schemaProvider);
+
+        // Triggers are added once every one of them is known, because a trigger's firing
+        // position is decided by the whole group it belongs to, not by the trigger alone
+        // (issue #215). Like views, this runs before validation so a bad FOLLOWS is reported
+        // alongside every other source error.
+        AddTriggers(model, validator, triggers);
 
         // Validated after every file so declaration order (within and across files) does
         // not matter, just like it doesn't for the deployed schema. Parse and mapping errors
@@ -77,11 +84,213 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
     // seen, kept with the file and position to report any failure against.
     private sealed record PendingView(IFile File, CreateViewStatement Statement);
 
+    // A trigger whose element cannot be built until every trigger in the workspace has been
+    // seen, since its firing position depends on the rest of its group (issue #215).
+    private sealed record PendingTrigger(IFile File, CreateTriggerStatement Statement);
+
     /// <summary>
     /// Adds every view after the tables, ordered by name. The database-extraction builder
     /// reads views in that order (information_schema has no notion of declaration order) and
     /// the Merkle hash is order-sensitive, so a parsed model must adopt the same order.
     /// </summary>
+    /// <summary>
+    /// Adds every trigger, resolving each <c>FOLLOWS</c>/<c>PRECEDES</c> clause into the firing
+    /// position both engines report as <c>information_schema.TRIGGERS.ACTION_ORDER</c>
+    /// (issue #215).
+    ///
+    /// <para>
+    /// The position is modeled rather than the clause because neither engine reports the clause
+    /// back: <c>ACTION_ORDER</c> is a dense 1-based rank within a (table, timing, event) group,
+    /// and it renumbers when a trigger in the group is dropped (measured on both). A model that
+    /// carried <c>FOLLOWS x</c> could therefore never hash-match an extracted one, and every
+    /// deploy would script a change that had not happened.
+    /// </para>
+    ///
+    /// <para>
+    /// Ordering is resolved per group. Triggers with no clause keep declaration order, which is
+    /// the creation order both engines rank them by; a clause then moves that trigger to sit
+    /// immediately after or before the one it names.
+    /// </para>
+    /// </summary>
+    private static void AddTriggers(Model model,
+        SourceValidator validator,
+        List<PendingTrigger> triggers)
+    {
+        // Grouped exactly as the engines rank them: same table, same timing, same event.
+        // Anything differing in any of the three never competes for a position.
+        var groups = triggers.GroupBy(i => (
+            Table: i.Statement.Table.Name,
+            i.Statement.Timing,
+            i.Statement.Event));
+
+        // The resolved position for each trigger, and the trigger it fires immediately after,
+        // by the statement each came from. Both are used below: the position orders the model
+        // and is recorded on the element, the predecessor is what the CREATE's FOLLOWS names.
+        var positions = new Dictionary<CreateTriggerStatement, int>();
+        var predecessors = new Dictionary<CreateTriggerStatement, string>();
+
+        foreach (var group in groups)
+        {
+            var ordered = ResolveFiringOrder(group.ToList(), validator);
+
+            // A trigger alone in its group is always position 1, which is what the catalog
+            // reports for it, so it records no position at all (omit-when-default).
+            if (ordered.Count < 2)
+            {
+                continue;
+            }
+
+            for (var i = 0; i < ordered.Count; i++)
+            {
+                positions[ordered[i]] = i + 1;
+
+                // Everything but the first fires after the trigger before it. Named here so
+                // the CREATE can say so, which is what places it correctly when the rest of
+                // the group already exists on the server.
+                if (i > 0)
+                {
+                    predecessors[ordered[i]] = ordered[i - 1].Name.Name;
+                }
+            }
+        }
+
+        // Ordered by firing position first, then by name. Deltas are scripted in model order,
+        // and a trigger's FOLLOWS clause names the one before it, so a trigger has to be
+        // created after its predecessor: both engines reject a FOLLOWS naming a trigger that
+        // does not exist yet (measured). Position is null for a lone trigger, which orders it
+        // with the first of any group.
+        //
+        // Name breaks the tie so the order is total, and the extraction side sorts by the same
+        // key so the two models agree (the Merkle hash is order-sensitive). Ordinal, to match
+        // the database's byte-wise ordering of the same names.
+        foreach (var trigger in triggers
+                     .OrderBy(i => positions.GetValueOrDefault(i.Statement, 1))
+                     .ThenBy(i => i.Statement.Name.Name, StringComparer.Ordinal))
+        {
+            try
+            {
+                model.Elements.Add(MakeCreateTriggerElement(
+                    trigger.Statement,
+                    positions.TryGetValue(trigger.Statement, out var order) ? order : null,
+                    predecessors.GetValueOrDefault(trigger.Statement)));
+            }
+            catch (Exception ex) when (ex is NotImplementedException or NotSupportedException
+                or InvalidOperationException)
+            {
+                // Recorded rather than thrown, so a build reports every broken trigger at once
+                // alongside the other source errors (issue #61).
+                validator.AddError(new SqlSourceException(
+                    ex.Message, trigger.File.Name, trigger.Statement.Line, trigger.Statement.Column,
+                    SqlSourceException.UnresolvedReference, ex));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Orders one (table, timing, event) group by applying its <c>FOLLOWS</c>/<c>PRECEDES</c>
+    /// clauses (issue #215).
+    ///
+    /// <para>
+    /// Resolved in two passes so declaration order does not matter, which is the invariant the
+    /// rest of the builder holds to: the unclaused triggers seed the order, then each clause
+    /// moves its trigger next to the one it names. A single pass would reject a clause naming a
+    /// trigger declared further down, and across files the outcome would depend on file order.
+    /// The engines do require the named trigger to exist when the <c>CREATE</c> runs, but that
+    /// is satisfied by the order the model is scripted in, not by the order it was written in.
+    /// </para>
+    ///
+    /// <para>
+    /// A clause naming a trigger outside this group is a build error rather than something to
+    /// ignore: both engines reject it too, so ignoring it would build something that cannot
+    /// deploy. The offending trigger is still placed, so one build can go on to report any
+    /// other problems.
+    /// </para>
+    /// </summary>
+    private static List<CreateTriggerStatement> ResolveFiringOrder(
+        List<PendingTrigger> group, SourceValidator validator)
+    {
+        // Pass one: the triggers that name no neighbour, in declaration order — the order the
+        // engines rank them by when nothing says otherwise.
+        var ordered = group
+            .Where(i => i.Statement.OrderPlacement is null || i.Statement.OtherTrigger is null)
+            .Select(i => i.Statement)
+            .ToList();
+
+        // Pass two: place each clause-bearing trigger next to the one it names. Applied in
+        // declaration order, so a chain (b FOLLOWS a, c FOLLOWS b) resolves link by link.
+        // A trigger whose target is itself still unplaced is deferred and retried, which is
+        // what lets a chain be written in any order; when a full round places nothing, the
+        // remainder cannot be resolved and each is reported.
+        var pending = group
+            .Where(i => i.Statement.OrderPlacement is not null && i.Statement.OtherTrigger is not null)
+            .ToList();
+
+        while (pending.Count > 0)
+        {
+            var placedThisRound = new List<PendingTrigger>();
+
+            foreach (var item in pending)
+            {
+                var target = ordered.FindIndex(i => string.Equals(
+                    i.Name.Name, item.Statement.OtherTrigger!.Name, StringComparison.OrdinalIgnoreCase));
+
+                if (target < 0)
+                {
+                    continue;
+                }
+
+                // FOLLOWS puts it immediately after the named trigger, PRECEDES immediately
+                // before.
+                ordered.Insert(
+                    item.Statement.OrderPlacement == TriggerOrderPlacement.Follows
+                        ? target + 1
+                        : target,
+                    item.Statement);
+
+                placedThisRound.Add(item);
+            }
+
+            if (placedThisRound.Count == 0)
+            {
+                // Nothing moved, so every trigger left names one that is not in this group at
+                // all, or the clauses form a cycle. Either way none can be placed.
+                // Whether each is unresolvable because its target is absent or because the
+                // clauses form a cycle, since the two need different advice. A target that is
+                // somewhere in this group but still unplaced means a cycle.
+                var names = pending
+                    .Select(i => i.Statement.Name.Name)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var item in pending)
+                {
+                    var target = item.Statement.OtherTrigger!.Name;
+
+                    validator.AddError(new SqlSourceException(
+                        names.Contains(target)
+                            ? $"Trigger '{item.Statement.Name.Name}' is ordered against trigger "
+                                + $"'{target}', which is ordered against it in turn; "
+                                + "FOLLOWS/PRECEDES must not form a cycle."
+                            // A missing trigger and one in another group get the same message,
+                            // because the fix is the same: name a trigger on the same table,
+                            // timing and event.
+                            : $"Trigger '{item.Statement.Name.Name}' is ordered against trigger "
+                                + $"'{target}', which is not declared on the same table for "
+                                + $"{item.Statement.Timing} {item.Statement.Event}.",
+                        item.File.Name, item.Statement.Line, item.Statement.Column,
+                        SqlSourceException.UnresolvedReference));
+
+                    ordered.Add(item.Statement);
+                }
+
+                break;
+            }
+
+            pending = pending.Except(placedThisRound).ToList();
+        }
+
+        return ordered;
+    }
+
     private static void AddViews(Model model,
         SourceValidator validator,
         List<PendingView> views,
@@ -238,9 +447,10 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             model.Elements.Remove(trigger);
         }
 
-        // Ordinal, to match the database's byte-wise ordering of the same names.
-        foreach (var trigger in triggers.OrderBy(
-                     i => i.GetProperty<string>(MariaDbPropertyNames.RoutineName), StringComparer.Ordinal))
+        // The order AddTriggers established is kept: triggers sort by firing position first so
+        // a FOLLOWS never names a trigger that has not been created yet (issue #215). Re-sorting
+        // by name here would undo that.
+        foreach (var trigger in triggers)
         {
             model.Elements.Add(trigger);
         }
@@ -303,6 +513,7 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         SourceValidator validator,
         List<SqlSourceDiagnostic> warnings,
         List<PendingView> views,
+        List<PendingTrigger> triggers,
         CancellationToken cancellationToken)
     {
         var text = await file.ReadAllTextAsync(cancellationToken);
@@ -442,7 +653,10 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
                             break;
                         }
 
-                        model.Elements.Add(MakeCreateTriggerElement(createTrigger));
+                        // Deferred: the firing position depends on the other triggers sharing
+                        // this one's table, timing and event, which may be declared in a later
+                        // file (issue #215).
+                        triggers.Add(new PendingTrigger(file, createTrigger));
                         break;
 
                     case CreateEventStatement createEvent:
@@ -2223,7 +2437,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             // Only INVOKER is recorded: an explicit DEFINER is indistinguishable in the
             // catalog from declaring nothing (measured on both engines).
             isSecurityInvoker: statement.SecurityType == "INVOKER",
-            algorithm);
+            algorithm,
+            statement.Definer?.Account);
     }
 
     /// <summary>
@@ -2237,17 +2452,6 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
         MariaDbFamilyDatabaseSchemaProvider schemaProvider)
     {
         var view = statement.Name.Name;
-
-        // Who owns an object is the broader question issue #221 covers. Modeling a DEFINER
-        // here would also tie a project to one server's user list, so it is warned for rather
-        // than carried.
-        if (statement.Definer is not null)
-        {
-            warnings.Add(new SqlSourceDiagnostic(
-                $"DEFINER on view '{view}' is not modeled and will not be deployed. The view "
-                + "will be created with the deploying user as its definer.",
-                file.Name, statement.Line, statement.Column));
-        }
 
         // Only where the engine cannot report it back. On MariaDB it is modeled, so there is
         // nothing to warn about.
@@ -2366,7 +2570,9 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             parameters,
             createProcedure.IsDeterministic,
             createProcedure.SqlDataAccess,
-            createProcedure.IsSecurityInvoker);
+            createProcedure.IsSecurityInvoker,
+            createProcedure.Definer?.Account,
+            createProcedure.Comment);
     }
 
     private static Element MakeCreateFunctionElement(CreateFunctionStatement createFunction)
@@ -2400,10 +2606,13 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             parameters,
             createFunction.IsDeterministic,
             createFunction.SqlDataAccess,
-            createFunction.IsSecurityInvoker);
+            createFunction.IsSecurityInvoker,
+            createFunction.Definer?.Account,
+            createFunction.Comment);
     }
 
-    private static Element MakeCreateTriggerElement(CreateTriggerStatement createTrigger)
+    private static Element MakeCreateTriggerElement(
+        CreateTriggerStatement createTrigger, int? actionOrder, string? followsTrigger)
     {
         if (createTrigger.Body is not { } body)
         {
@@ -2417,7 +2626,10 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             createTrigger.Name.Name,
             createTrigger.Timing,
             createTrigger.Event,
-            body);
+            body,
+            actionOrder,
+            createTrigger.Definer?.Account,
+            followsTrigger);
     }
 
     /// <summary>
@@ -2483,7 +2695,8 @@ public class ParserWorkspaceModelBuilder : IWorkspaceModelBuilder
             createEvent.Ends,
             createEvent.Status,
             createEvent.PreserveOnCompletion,
-            createEvent.Comment);
+            createEvent.Comment,
+            createEvent.Definer?.Account);
     }
 
     // Rejects the schedule forms the engines accept but Squill cannot model. Both engines

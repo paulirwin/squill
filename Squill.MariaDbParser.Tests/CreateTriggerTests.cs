@@ -130,4 +130,128 @@ public class CreateTriggerTests
 
         Assert.Equal("DELETE FROM film_text WHERE film_id = OLD.film_id", statement.Body);
     }
+
+    // ---- FOLLOWS / PRECEDES ordering and DEFINER (issue #215) ----
+
+    [Fact]
+    public void CreateTrigger_FollowsIsRead()
+    {
+        var statement = ParseOne(
+            "CREATE TRIGGER t2 BEFORE INSERT ON film FOR EACH ROW FOLLOWS t1 SET @x = 1;");
+
+        Assert.Equal(TriggerOrderPlacement.Follows, statement.OrderPlacement);
+        Assert.Equal("t1", statement.OtherTrigger?.Name);
+    }
+
+    [Fact]
+    public void CreateTrigger_PrecedesIsRead()
+    {
+        var statement = ParseOne(
+            "CREATE TRIGGER t0 BEFORE INSERT ON film FOR EACH ROW PRECEDES t1 SET @x = 1;");
+
+        Assert.Equal(TriggerOrderPlacement.Precedes, statement.OrderPlacement);
+        Assert.Equal("t1", statement.OtherTrigger?.Name);
+    }
+
+    [Fact]
+    public void CreateTrigger_WithoutOrderingClauseHasNoPlacement()
+    {
+        var statement = ParseOne(
+            "CREATE TRIGGER t BEFORE INSERT ON film FOR EACH ROW SET @x = 1;");
+
+        Assert.Null(statement.OrderPlacement);
+        Assert.Null(statement.OtherTrigger);
+    }
+
+    [Fact]
+    public void CreateTrigger_DefinerIsRead()
+    {
+        var statement = ParseOne(
+            "CREATE DEFINER = 'alice'@'%' TRIGGER t BEFORE INSERT ON film "
+            + "FOR EACH ROW SET @x = 1;");
+
+        Assert.Equal("alice", statement.Definer?.User);
+        Assert.Equal("%", statement.Definer?.Host);
+        Assert.False(statement.Definer?.IsCurrentUser);
+    }
+
+    [Fact]
+    public void CreateTrigger_DefinerCurrentUserIsRead()
+    {
+        // CURRENT_USER is carried as a distinct flag rather than a name: both engines resolve
+        // it to whoever ran the DDL, which is the same thing omitting DEFINER means.
+        var statement = ParseOne(
+            "CREATE DEFINER = CURRENT_USER TRIGGER t BEFORE INSERT ON film "
+            + "FOR EACH ROW SET @x = 1;");
+
+        Assert.True(statement.Definer?.IsCurrentUser);
+        Assert.Null(statement.Definer?.User);
+    }
+
+    [Theory]
+    [InlineData("'alice'@'%'")]
+    [InlineData("`alice`@`%`")]
+    [InlineData("alice@`%`")]
+    public void CreateTrigger_DefinerQuotingIsStripped(string definer)
+    {
+        // Either half may be bare, backtick-quoted or string-quoted; the catalog reports both
+        // unquoted, so every spelling reduces to the same account.
+        var statement = ParseOne(
+            $"CREATE DEFINER = {definer} TRIGGER t BEFORE INSERT ON film "
+            + "FOR EACH ROW SET @x = 1;");
+
+        Assert.Equal("alice", statement.Definer?.User);
+        Assert.Equal("%", statement.Definer?.Host);
+    }
+
+    [Fact]
+    public void CreateTrigger_DefinerWithoutHost()
+    {
+        var statement = ParseOne(
+            "CREATE DEFINER = alice TRIGGER t BEFORE INSERT ON film FOR EACH ROW SET @x = 1;");
+
+        Assert.Equal("alice", statement.Definer?.User);
+        Assert.Null(statement.Definer?.Host);
+        Assert.Equal("alice", statement.Definer?.Account);
+    }
+
+    [Fact]
+    public void CreateTrigger_QuotedCurrentUserIsAnAccountName()
+    {
+        // CURRENT_USER is a keyword that can also be an identifier, so the bare keyword is
+        // recognized by its token. A quoted 'CURRENT_USER' is an ordinary account name and must
+        // not be folded into the keyword form.
+        var statement = ParseOne(
+            "CREATE DEFINER = 'CURRENT_USER'@'localhost' TRIGGER t BEFORE INSERT ON film "
+            + "FOR EACH ROW SET @x = 1;");
+
+        Assert.False(statement.Definer?.IsCurrentUser);
+        Assert.Equal("CURRENT_USER", statement.Definer?.User);
+        Assert.Equal("localhost", statement.Definer?.Host);
+    }
+
+    [Fact]
+    public void CreateTrigger_DefinerCurrentRoleIsRead()
+    {
+        // CURRENT_ROLE is a MariaDB-only spelling and, like CURRENT_USER, is resolved to an
+        // account when the trigger is created. It is also in keywordsCanBeId, so it arrives
+        // through simpleUserName and has to be recognized by token or it would model as a
+        // literal account named "CURRENT_ROLE".
+        var statement = ParseOne(
+            "CREATE DEFINER = CURRENT_ROLE TRIGGER t BEFORE INSERT ON film "
+            + "FOR EACH ROW SET @x = 1;");
+
+        Assert.True(statement.Definer?.IsCurrentUser);
+        Assert.Null(statement.Definer?.User);
+        Assert.Null(statement.Definer?.Account);
+    }
+
+    [Fact]
+    public void CreateTrigger_WithoutDefinerHasNone()
+    {
+        var statement = ParseOne(
+            "CREATE TRIGGER t BEFORE INSERT ON film FOR EACH ROW SET @x = 1;");
+
+        Assert.Null(statement.Definer);
+    }
 }

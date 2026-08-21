@@ -283,18 +283,31 @@ public class CreateViewModelTests
     }
 
     [Fact]
-    public async Task View_Definer_IsNotModeled_AndWarns()
+    public async Task View_Definer_IsModeled()
     {
-        // Ownership is the broader question issue #221 covers; what matters here is that it
-        // does not vanish silently, which is what issue #208 reported.
-        var (_, warnings) = await BuildViewWithWarningsAsync($"""
+        // Issue #215 modeled DEFINER, which #208 had only warned about. information_schema
+        // .VIEWS reports it back on both engines, so it round-trips and takes part in the
+        // element's identity like the other execution facets.
+        var (view, warnings) = await BuildViewWithWarningsAsync($"""
             {Users}
             CREATE DEFINER=`admin`@`localhost` VIEW v AS SELECT id FROM users;
             """, new MariaDb12DatabaseSchemaProvider());
 
-        var warning = Assert.Single(warnings, w => w.Message.Contains("DEFINER"));
+        Assert.Equal("admin@localhost", view.GetRequiredProperty<string>(MariaDbPropertyNames.Definer));
+        Assert.DoesNotContain(warnings, w => w.Message.Contains("DEFINER"));
+    }
 
-        Assert.Equal(SqlSourceDiagnostic.UnmodeledConstruct, warning.Code);
+    [Fact]
+    public async Task View_DefinerCurrentUser_IsNotModeled()
+    {
+        // Measured on both engines: DEFINER = CURRENT_USER and no DEFINER at all are
+        // indistinguishable in the catalog, so neither is recorded.
+        var view = await BuildViewAsync($"""
+            {Users}
+            CREATE DEFINER=CURRENT_USER VIEW v AS SELECT id FROM users;
+            """);
+
+        Assert.Null(view.GetProperty<string>(MariaDbPropertyNames.Definer));
     }
 
     [Fact]

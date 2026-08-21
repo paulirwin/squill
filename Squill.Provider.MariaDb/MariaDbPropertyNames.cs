@@ -201,4 +201,33 @@ public sealed class MariaDbPropertyNames : SqlPropertyNames
     public const string MaxValue = nameof(MaxValue);
     public const string CacheSize = nameof(CacheSize);
     public const string IsCycling = nameof(IsCycling);
+
+    // Trigger firing order (issue #215). ActionOrder is the trigger's 1-based position among
+    // the triggers sharing its table, timing and event — which is exactly what both engines
+    // report as information_schema.TRIGGERS.ACTION_ORDER (measured; they agree).
+    //
+    // The position is modeled rather than the FOLLOWS/PRECEDES clause that produced it: neither
+    // engine reports that clause back, so a model carrying it could never hash-match an
+    // extracted one. Omit-when-default as elsewhere — a lone trigger in its group is always
+    // position 1, so only a group of two or more records the property.
+    public const string ActionOrder = nameof(ActionOrder);
+
+    // The trigger this one fires immediately after, for scripting (issue #215). A trigger
+    // added to a group that already exists on the server cannot rely on creation order to land
+    // in the right place, so its CREATE needs a FOLLOWS clause naming the trigger before it.
+    //
+    // Derived from ActionOrder rather than from the source's own FOLLOWS/PRECEDES: it names
+    // whichever trigger ends up at the preceding position, which is what the clause has to say.
+    // It takes no part in the element's identity, since ActionOrder already carries the
+    // ordering and naming the neighbour twice would make a trigger re-diff when an unrelated
+    // sibling was renamed.
+    public const string FollowsTrigger = nameof(FollowsTrigger);
+
+    // The DEFINER account (issue #215), as `user@host` or a bare user, matching the form both
+    // engines report in information_schema (DEFINER on ROUTINES/TRIGGERS/EVENTS/VIEWS).
+    //
+    // Absent means "whoever deploys". Measured on both engines: writing DEFINER = CURRENT_USER
+    // and omitting DEFINER entirely are indistinguishable in the catalog, so both are modeled
+    // as no definer rather than as two states the catalog could not tell apart.
+    public const string Definer = nameof(Definer);
 }

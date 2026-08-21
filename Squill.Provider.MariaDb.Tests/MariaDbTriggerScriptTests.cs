@@ -87,4 +87,64 @@ public class MariaDbTriggerScriptTests
         Assert.Contains("DROP TRIGGER IF EXISTS `t`;", script);
         Assert.Contains("CREATE TRIGGER `t` AFTER INSERT ON `film` FOR EACH ROW", script);
     }
+
+    // ---- Firing order and DEFINER (issue #215) ----
+
+    [Fact]
+    public async Task Script_EmitsFollowsForEveryTriggerAfterTheFirst()
+    {
+        var script = await ScriptAgainstEmptyAsync(
+            "CREATE TRIGGER a BEFORE INSERT ON film FOR EACH ROW SET @x = 1;\n"
+            + "CREATE TRIGGER b BEFORE INSERT ON film FOR EACH ROW FOLLOWS a SET @x = 2;");
+
+        // The first in the group carries no clause; the second names the one before it.
+        Assert.Contains("CREATE TRIGGER `a` BEFORE INSERT ON `film` FOR EACH ROW\n", script);
+        Assert.Contains("CREATE TRIGGER `b` BEFORE INSERT ON `film` FOR EACH ROW FOLLOWS `a`", script);
+    }
+
+    [Fact]
+    public async Task Script_CreatesEachTriggerAfterTheOneItFollows()
+    {
+        // A FOLLOWS naming a trigger that does not exist yet is an error on both engines, so
+        // the CREATE for a predecessor must be scripted first even when its name sorts later.
+        var script = await ScriptAgainstEmptyAsync(
+            "CREATE TRIGGER a_trig BEFORE INSERT ON film FOR EACH ROW SET @x = 1;\n"
+            + "CREATE TRIGGER z_trig BEFORE INSERT ON film FOR EACH ROW PRECEDES a_trig SET @x = 2;");
+
+        Assert.True(
+            script.IndexOf("CREATE TRIGGER `z_trig`", StringComparison.Ordinal)
+            < script.IndexOf("CREATE TRIGGER `a_trig`", StringComparison.Ordinal),
+            "A trigger must be created after the one it follows.");
+        Assert.Contains("CREATE TRIGGER `a_trig` BEFORE INSERT ON `film` FOR EACH ROW FOLLOWS `z_trig`", script);
+    }
+
+    [Fact]
+    public async Task Script_LoneTriggerHasNoFollowsClause()
+    {
+        var script = await ScriptAgainstEmptyAsync(
+            "CREATE TRIGGER a BEFORE INSERT ON film FOR EACH ROW SET @x = 1;");
+
+        Assert.DoesNotContain("FOLLOWS", script);
+    }
+
+    [Fact]
+    public async Task Script_EmitsDefiner()
+    {
+        var script = await ScriptAgainstEmptyAsync(
+            "CREATE DEFINER = 'alice'@'%' TRIGGER a BEFORE INSERT ON film "
+            + "FOR EACH ROW SET @x = 1;");
+
+        Assert.Contains("CREATE DEFINER = `alice`@`%` TRIGGER `a` BEFORE INSERT ON `film`", script);
+    }
+
+    [Fact]
+    public async Task Script_OmitsDefinerWhenNoneWasDeclared()
+    {
+        // An undeclared definer means the deploying user, which is what omitting the clause
+        // gives, so nothing is emitted.
+        var script = await ScriptAgainstEmptyAsync(
+            "CREATE TRIGGER a BEFORE INSERT ON film FOR EACH ROW SET @x = 1;");
+
+        Assert.DoesNotContain("DEFINER", script);
+    }
 }

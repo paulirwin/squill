@@ -30,6 +30,26 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
         ?? throw new InvalidOperationException(
             "The target engine has not been detected yet; extraction must connect first.");
 
+    /// <summary>
+    /// The account this extraction is connected as, from <c>CURRENT_USER()</c> (issue #215).
+    ///
+    /// <para>
+    /// Needed to tell a declared <c>DEFINER</c> apart from the one the engine filled in. Both
+    /// engines always report a concrete <c>DEFINER</c>, even for an object created without the
+    /// clause, so an extracted model would otherwise carry a definer the source never declared
+    /// and re-diff on every deploy. An extracted definer equal to this account is therefore
+    /// read as "none declared", matching what the parser-based builder records.
+    /// </para>
+    ///
+    /// <para>
+    /// Read from the extraction's own connection because the answer depends on it: the same
+    /// credentials report <c>root@localhost</c> over a socket and <c>root@%</c> over TCP
+    /// (measured), since it names the grant that authenticated rather than the account asked
+    /// for.
+    /// </para>
+    /// </summary>
+    private string? _currentUser;
+
     public MariaDbDatabaseModelBuilder(IDatabase database)
     {
         _database = database;
@@ -306,7 +326,7 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
                    INTERVAL_VALUE, INTERVAL_FIELD,
                    DATE_FORMAT(STARTS, '%Y-%m-%d %H:%i:%s') AS STARTS,
                    DATE_FORMAT(ENDS, '%Y-%m-%d %H:%i:%s') AS ENDS,
-                   STATUS, ON_COMPLETION, EVENT_COMMENT, EVENT_DEFINITION
+                   STATUS, ON_COMPLETION, EVENT_COMMENT, EVENT_DEFINITION, DEFINER
             FROM information_schema.EVENTS
             WHERE EVENT_SCHEMA = @db
             ORDER BY EVENT_NAME;
@@ -315,6 +335,8 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
         var dbParam = new[] { new DatabaseParameter<string>("@db", _database.Name) };
 
         var events = new List<Element>();
+
+        var currentUser = await GetCurrentUserAsync(cancellationToken);
 
         await using (var reader = await _database.RunScriptReaderAsync(sql, dbParam, cancellationToken))
         {
@@ -335,7 +357,8 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
                         "PRESERVE", StringComparison.OrdinalIgnoreCase),
                     // Both engines report an absent comment as the empty string, which the
                     // factory omits, matching a declaration that wrote no COMMENT.
-                    reader.GetStringOrNull("EVENT_COMMENT")));
+                    reader.GetStringOrNull("EVENT_COMMENT"),
+                    DefinerOrNull(reader.GetString("DEFINER"), currentUser)));
             }
         }
 
@@ -379,9 +402,11 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
         // error there, the same shape as the EXPRESSION column above.
         var algorithmColumn = SchemaProvider.ReportsViewAlgorithm ? ",\n       v.ALGORITHM" : string.Empty;
 
+        var currentUser = await GetCurrentUserAsync(cancellationToken);
+
         var sql =
             $"""
-            SELECT v.TABLE_NAME, v.CHECK_OPTION, v.SECURITY_TYPE{algorithmColumn},
+            SELECT v.TABLE_NAME, v.CHECK_OPTION, v.SECURITY_TYPE, v.DEFINER{algorithmColumn},
                    (SELECT GROUP_CONCAT(c.COLUMN_NAME ORDER BY c.ORDINAL_POSITION SEPARATOR 0x1e)
                     FROM information_schema.COLUMNS c
                     WHERE c.TABLE_SCHEMA = v.TABLE_SCHEMA
@@ -428,7 +453,8 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
                     isSecurityInvoker: string.Equals(
                         reader.GetStringOrNull("SECURITY_TYPE"), "INVOKER",
                         StringComparison.OrdinalIgnoreCase),
-                    algorithm));
+                    algorithm,
+                    DefinerOrNull(reader.GetString("DEFINER"), currentUser)));
             }
         }
 
@@ -456,7 +482,8 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
             SELECT ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_DEFINITION, IS_DETERMINISTIC,
                    SQL_DATA_ACCESS, SECURITY_TYPE,
                    DATA_TYPE, DTD_IDENTIFIER,
-                   CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE
+                   CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, DEFINER,
+                   ROUTINE_COMMENT
             FROM information_schema.ROUTINES
             WHERE ROUTINE_SCHEMA = @db AND ROUTINE_TYPE IN ('PROCEDURE', 'FUNCTION')
             ORDER BY ROUTINE_NAME;
@@ -464,8 +491,11 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
 
         var dbParam = new[] { new DatabaseParameter<string>("@db", _database.Name) };
 
+        var currentUser = await GetCurrentUserAsync(cancellationToken);
+
         var routines = new List<(string Name, bool IsFunction, string Body, string? ReturnType,
-            bool IsDeterministic, string SqlDataAccess, bool IsSecurityInvoker)>();
+            bool IsDeterministic, string SqlDataAccess, bool IsSecurityInvoker,
+            string? Definer, string? Comment)>();
 
         await using (var reader = await _database.RunScriptReaderAsync(
             routineSql, dbParam, cancellationToken))
@@ -504,7 +534,11 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
                     returnType,
                     reader.GetString("IS_DETERMINISTIC") == "YES",
                     reader.GetString("SQL_DATA_ACCESS"),
-                    reader.GetString("SECURITY_TYPE") == "INVOKER"));
+                    reader.GetString("SECURITY_TYPE") == "INVOKER",
+                    DefinerOrNull(reader.GetString("DEFINER"), currentUser),
+                    // Both engines report an absent comment as the empty string, which the
+                    // factory omits, matching a declaration that wrote no COMMENT.
+                    reader.GetStringOrNull("ROUTINE_COMMENT")));
             }
         }
 
@@ -520,16 +554,50 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
                     parameters,
                     routine.IsDeterministic,
                     routine.SqlDataAccess,
-                    routine.IsSecurityInvoker)
+                    routine.IsSecurityInvoker,
+                    routine.Definer,
+                    routine.Comment)
                 : MariaDbModelFactory.CreateProcedure(
                     SqlName.Object(routine.Name),
                     routine.Body,
                     parameters,
                     routine.IsDeterministic,
                     routine.SqlDataAccess,
-                    routine.IsSecurityInvoker));
+                    routine.IsSecurityInvoker,
+                    routine.Definer,
+                    routine.Comment));
         }
     }
+
+    /// <summary>
+    /// Reads the account the extraction is connected as, for <see cref="_currentUser"/>.
+    /// </summary>
+    private async Task<string> GetCurrentUserAsync(CancellationToken cancellationToken = default)
+    {
+        if (_currentUser is not null)
+        {
+            return _currentUser;
+        }
+
+        await using var reader = await _database.RunScriptReaderAsync(
+            "SELECT CURRENT_USER() AS current_account;", [], cancellationToken);
+
+        _currentUser = await reader.ReadAsync(cancellationToken)
+            ? reader.GetString("current_account")
+            : string.Empty;
+
+        return _currentUser;
+    }
+
+    /// <summary>
+    /// The definer to model for an object the catalog reports as owned by
+    /// <paramref name="definer"/>, or null when it matches the connected account and so was
+    /// almost certainly never declared (issue #215).
+    /// </summary>
+    private static string? DefinerOrNull(string definer, string currentUser)
+        => string.Equals(definer, currentUser, StringComparison.OrdinalIgnoreCase)
+            ? null
+            : definer;
 
     private async Task ExtractTriggersAsync(Model model, CancellationToken cancellationToken = default)
     {
@@ -538,30 +606,75 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
         // INSERT/UPDATE/DELETE), and its body (ACTION_STATEMENT, returned verbatim by both
         // engines). Ordered by name so the parser-based builder can adopt the same order — the
         // catalog has no notion of declaration order and the Merkle hash is order-sensitive.
+        //
+        // ACTION_ORDER is the trigger's firing position among those sharing its table, timing
+        // and event (issue #215) — a dense 1-based rank on both engines. It is what the source's
+        // FOLLOWS/PRECEDES resolves to, since neither engine reports that clause back.
+        //
+        // Sorted in code rather than here, because the order has to be by position first and
+        // ACTION_ORDER only ranks within a group.
         const string sql =
             """
             SELECT TRIGGER_NAME, EVENT_OBJECT_TABLE, ACTION_TIMING, EVENT_MANIPULATION,
-                   ACTION_STATEMENT
+                   ACTION_STATEMENT, ACTION_ORDER, DEFINER
             FROM information_schema.TRIGGERS
-            WHERE TRIGGER_SCHEMA = @db
-            ORDER BY TRIGGER_NAME;
+            WHERE TRIGGER_SCHEMA = @db;
             """;
 
         var dbParam = new[] { new DatabaseParameter<string>("@db", _database.Name) };
 
-        var triggers = new List<Element>();
+        var extracted = new List<(string Table, string Name, string Timing, string Event,
+            string Body, int ActionOrder, string Definer)>();
 
         await using (var reader = await _database.RunScriptReaderAsync(sql, dbParam, cancellationToken))
         {
             while (await reader.ReadAsync(cancellationToken))
             {
-                triggers.Add(MariaDbModelFactory.CreateTrigger(
-                    SqlName.Object(reader.GetString("EVENT_OBJECT_TABLE")),
+                extracted.Add((
+                    reader.GetString("EVENT_OBJECT_TABLE"),
                     reader.GetString("TRIGGER_NAME"),
                     reader.GetString("ACTION_TIMING").ToUpperInvariant(),
                     reader.GetString("EVENT_MANIPULATION").ToUpperInvariant(),
-                    reader.GetString("ACTION_STATEMENT")));
+                    reader.GetString("ACTION_STATEMENT"),
+                    reader.GetInt32Coerced("ACTION_ORDER"),
+                    reader.GetString("DEFINER")));
             }
+        }
+
+        // How many triggers share each (table, timing, event) group, so a lone trigger records
+        // no position: it is always ACTION_ORDER 1, and the parser-based builder omits it for
+        // the same reason. Storing it on one side only would re-diff on every deploy.
+        var currentUser = await GetCurrentUserAsync(cancellationToken);
+
+        var groupSizes = extracted
+            .GroupBy(i => (i.Table, i.Timing, i.Event))
+            .ToDictionary(i => i.Key, i => i.Count());
+
+        // The trigger occupying the position before each one, so an extracted model can script
+        // a CREATE that lands in the right place. Keyed by group and position.
+        var byPosition = extracted.ToDictionary(
+            i => (i.Table, i.Timing, i.Event, i.ActionOrder), i => i.Name);
+
+        var triggers = new List<Element>();
+
+        // Sorted by firing position then name, the same key the parser-based builder uses:
+        // a trigger's FOLLOWS names the one before it, so it must be created after it.
+        foreach (var trigger in extracted
+                     .OrderBy(i => i.ActionOrder)
+                     .ThenBy(i => i.Name, StringComparer.Ordinal))
+        {
+            triggers.Add(MariaDbModelFactory.CreateTrigger(
+                SqlName.Object(trigger.Table),
+                trigger.Name,
+                trigger.Timing,
+                trigger.Event,
+                trigger.Body,
+                groupSizes[(trigger.Table, trigger.Timing, trigger.Event)] > 1
+                    ? trigger.ActionOrder
+                    : null,
+                DefinerOrNull(trigger.Definer, currentUser),
+                byPosition.GetValueOrDefault(
+                    (trigger.Table, trigger.Timing, trigger.Event, trigger.ActionOrder - 1))));
         }
 
         foreach (var trigger in triggers)

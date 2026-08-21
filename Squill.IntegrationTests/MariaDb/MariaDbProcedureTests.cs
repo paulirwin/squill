@@ -295,6 +295,68 @@ public abstract class MariaDbProcedureTests
         }
     }
 
+    // ---- COMMENT and DEFINER (issue #215) ----
+
+    [Fact]
+    public async Task ProcedureComment_RoundTrips()
+    {
+        // Both engines report ROUTINE_COMMENT verbatim, so a declared comment survives the
+        // round trip. assertRedeployNoOp proves it does not re-diff.
+        var model = await AssertRoundTripAsync(
+            "CREATE PROCEDURE p() COMMENT 'what it does' BEGIN SELECT 1; END;",
+            TestContext.Current.CancellationToken);
+
+        var procedure = Assert.Single(
+            model.Elements, i => i.Type == MariaDbElementTypes.SqlProcedure);
+
+        Assert.Equal("what it does",
+            procedure.GetRequiredProperty<string>(MariaDbPropertyNames.Comment));
+    }
+
+    [Fact]
+    public async Task ProcedureWithoutComment_RoundTrips()
+    {
+        // The omit-when-default half: an absent comment is reported as the empty string, which
+        // must model as no comment or every deploy would see a change.
+        var model = await AssertRoundTripAsync(
+            "CREATE PROCEDURE p() BEGIN SELECT 1; END;",
+            TestContext.Current.CancellationToken);
+
+        var procedure = Assert.Single(
+            model.Elements, i => i.Type == MariaDbElementTypes.SqlProcedure);
+
+        Assert.Null(procedure.GetProperty<string>(MariaDbPropertyNames.Comment));
+    }
+
+    [Fact]
+    public async Task ProcedureWithExplicitDefiner_RoundTrips()
+    {
+        var model = await AssertRoundTripAsync(
+            "CREATE DEFINER = 'squill_definer'@'localhost' PROCEDURE p() BEGIN SELECT 1; END;",
+            TestContext.Current.CancellationToken);
+
+        var procedure = Assert.Single(
+            model.Elements, i => i.Type == MariaDbElementTypes.SqlProcedure);
+
+        Assert.Equal("squill_definer@localhost",
+            procedure.GetRequiredProperty<string>(MariaDbPropertyNames.Definer));
+    }
+
+    [Fact]
+    public async Task ProcedureWithoutDefiner_RoundTrips()
+    {
+        // The catalog always reports a concrete definer, so this is the case that would
+        // re-diff forever if an engine-filled definer were modeled as declared.
+        var model = await AssertRoundTripAsync(
+            "CREATE PROCEDURE p() BEGIN SELECT 1; END;",
+            TestContext.Current.CancellationToken);
+
+        var procedure = Assert.Single(
+            model.Elements, i => i.Type == MariaDbElementTypes.SqlProcedure);
+
+        Assert.Null(procedure.GetProperty<string>(MariaDbPropertyNames.Definer));
+    }
+
 }
 
 // ---- Per-engine bindings: each scenario runs once against MariaDB and once against MySQL. ----

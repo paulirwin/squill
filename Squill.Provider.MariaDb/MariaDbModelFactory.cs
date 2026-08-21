@@ -344,7 +344,9 @@ public static class MariaDbModelFactory
         IEnumerable<ProcedureParameter> parameters,
         bool isDeterministic = false,
         string? sqlDataAccess = null,
-        bool isSecurityInvoker = false)
+        bool isSecurityInvoker = false,
+        string? definer = null,
+        string? comment = null)
     {
         var element = new Element(MariaDbElementTypes.SqlProcedure)
         {
@@ -372,6 +374,18 @@ public static class MariaDbModelFactory
             element.Properties.Add(new Property(MariaDbPropertyNames.IsSecurityInvoker, true));
         }
 
+        if (definer is not null)
+        {
+            element.Properties.Add(new Property(MariaDbPropertyNames.Definer, definer));
+        }
+
+        // Both engines report ROUTINE_COMMENT verbatim, and an absent comment as the empty
+        // string, which is why the empty string is treated as none (issue #215).
+        if (!string.IsNullOrEmpty(comment))
+        {
+            element.Properties.Add(new Property(MariaDbPropertyNames.Comment, comment));
+        }
+
         return element;
     }
 
@@ -392,7 +406,9 @@ public static class MariaDbModelFactory
         IEnumerable<ProcedureParameter> parameters,
         bool isDeterministic = false,
         string? sqlDataAccess = null,
-        bool isSecurityInvoker = false)
+        bool isSecurityInvoker = false,
+        string? definer = null,
+        string? comment = null)
     {
         var element = new Element(MariaDbElementTypes.SqlFunction)
         {
@@ -419,6 +435,18 @@ public static class MariaDbModelFactory
         if (isSecurityInvoker)
         {
             element.Properties.Add(new Property(MariaDbPropertyNames.IsSecurityInvoker, true));
+        }
+
+        if (definer is not null)
+        {
+            element.Properties.Add(new Property(MariaDbPropertyNames.Definer, definer));
+        }
+
+        // Both engines report ROUTINE_COMMENT verbatim, and an absent comment as the empty
+        // string, which is why the empty string is treated as none (issue #215).
+        if (!string.IsNullOrEmpty(comment))
+        {
+            element.Properties.Add(new Property(MariaDbPropertyNames.Comment, comment));
         }
 
         return element;
@@ -452,7 +480,8 @@ public static class MariaDbModelFactory
         string? ends = null,
         string status = EnabledStatus,
         bool preserveOnCompletion = false,
-        string? comment = null)
+        string? comment = null,
+        string? definer = null)
     {
         var element = new Element(MariaDbElementTypes.SqlEvent)
         {
@@ -485,6 +514,7 @@ public static class MariaDbModelFactory
         }
 
         AddIfNotNull(element, MariaDbPropertyNames.Comment, comment);
+        AddIfNotNull(element, MariaDbPropertyNames.Definer, definer);
 
         return element;
     }
@@ -573,15 +603,25 @@ public static class MariaDbModelFactory
     /// stay distinct in the model and a trigger sorts alongside its table; the bare trigger
     /// name is recovered from the trailing segment when scripting. The table it fires on is
     /// carried as a relationship so the trigger follows its table on deploy.
+    ///
+    /// <para>
+    /// <paramref name="actionOrder"/> is the trigger's position among those sharing its table,
+    /// timing and event (issue #215) — the <c>ACTION_ORDER</c> both engines report. The source
+    /// spells that as <c>FOLLOWS</c>/<c>PRECEDES</c>, but neither engine reports the clause
+    /// back, so the resolved position is what round-trips.
+    /// </para>
     /// </summary>
     public static Element CreateTrigger(
         SqlName table,
         string triggerName,
         string timing,
         string @event,
-        string body)
+        string body,
+        int? actionOrder = null,
+        string? definer = null,
+        string? followsTrigger = null)
     {
-        return new Element(MariaDbElementTypes.SqlTrigger)
+        var element = new Element(MariaDbElementTypes.SqlTrigger)
         {
             Name = table.Sibling($"{table.UnqualifiedName}.{triggerName}"),
             Relationships =
@@ -599,6 +639,31 @@ public static class MariaDbModelFactory
                 new Property(MariaDbPropertyNames.Body, body),
             },
         };
+
+        // Only a trigger that shares its table, timing and event with another records a
+        // position: a lone trigger is always ACTION_ORDER 1 on both engines, so storing that
+        // would be recording a default. See MariaDbPropertyNames.ActionOrder.
+        if (actionOrder is { } order)
+        {
+            element.Properties.Add(new Property(MariaDbPropertyNames.ActionOrder, order));
+        }
+
+        // Carried for scripting only. ActionOrder already states the position, so including
+        // the neighbour's name in the hash would make this trigger differ whenever an
+        // unrelated sibling was renamed.
+        if (followsTrigger is not null)
+        {
+            element.Properties.Add(new Property(
+                MariaDbPropertyNames.FollowsTrigger, followsTrigger,
+                participatesInIdentity: false));
+        }
+
+        if (definer is not null)
+        {
+            element.Properties.Add(new Property(MariaDbPropertyNames.Definer, definer));
+        }
+
+        return element;
     }
 
     /// <summary>
@@ -626,7 +691,8 @@ public static class MariaDbModelFactory
         string? definition,
         string? checkOption = null,
         bool isSecurityInvoker = false,
-        string? algorithm = null)
+        string? algorithm = null,
+        string? definer = null)
     {
         var columns = new Relationship(MariaDbRelationshipNames.Columns);
 
@@ -675,6 +741,11 @@ public static class MariaDbModelFactory
         if (algorithm is not null)
         {
             element.Properties.Add(new Property(MariaDbPropertyNames.ViewAlgorithm, algorithm));
+        }
+
+        if (definer is not null)
+        {
+            element.Properties.Add(new Property(MariaDbPropertyNames.Definer, definer));
         }
 
         return element;
