@@ -88,6 +88,12 @@ public static class MariaDbTypeNormalizer
             // CHARACTER is a plain synonym for CHAR; the VARYING spellings are resolved to
             // varchar/nvarchar earlier, by the parser.
             "character" => "char",
+            // LONG and LONG VARCHAR are synonyms for MEDIUMTEXT, and LONG VARBINARY for
+            // MEDIUMBLOB (measured on both engines, all supported majors). The parser resolves
+            // the two-word spellings to these names; a bare LONG arrives as written. Without
+            // the fold the type name was the bare first token, `long`, which neither engine
+            // has, the generated DDL was rejected outright rather than merely re-diffing.
+            "long" => "mediumtext",
             // REAL is a documented synonym for DOUBLE unless REAL_AS_FLOAT is set, which is not
             // the default on either engine — so a column written REAL comes back as double and
             // would otherwise re-diff on every deploy (issue #162).

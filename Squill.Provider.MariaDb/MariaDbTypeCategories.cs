@@ -28,4 +28,14 @@ internal static class MariaDbTypeCategories
     // display-width modifier that is not a fractional-seconds precision, so it is absent too.
     public static bool IsTemporalPrecisionType(string typeName)
         => typeName is "datetime" or "timestamp" or "time";
+
+    // A vector's dimension is part of its type: both engines report COLUMN_TYPE as `vector(3)`
+    // and neither accepts a bare `vector` (issue #217).
+    //
+    // It is its own category rather than one of the length types above because the catalog does
+    // not report the dimension as a length. Measured, a `VECTOR(3)` column reports
+    // CHARACTER_MAXIMUM_LENGTH 12, the storage size in bytes, four per float, so reading it
+    // the way a varchar's length is read would model `vector(12)` against a declared `vector(3)`
+    // and re-diff on every deploy. The dimension is recovered from COLUMN_TYPE instead.
+    public static bool IsVectorType(string typeName) => typeName is "vector";
 }

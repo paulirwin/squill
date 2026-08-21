@@ -25,6 +25,11 @@ public sealed class MySql9DatabaseSchemaProvider : MySqlDatabaseSchemaProviderBa
     /// <summary>Measured on 9: unchanged from MySQL 8.</summary>
     public override string DefaultCollation => "utf8mb4_0900_ai_ci";
 
+    /// <inheritdoc />
+    // Measured on 9: unchanged from 8.
+    protected override (string Utf8Mb3, string Utf8Mb4) DefaultUnicodeCollations
+        => ("utf8mb3_general_ci", "utf8mb4_0900_ai_ci");
+
     /// <summary>
     /// Measured: MySQL's <c>information_schema.VIEWS</c> has no <c>ALGORITHM</c> column at all,
     /// so a declared algorithm cannot be read back and is left unmodeled with a warning. The

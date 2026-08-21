@@ -160,6 +160,20 @@ public sealed class DataType(string typeName)
     /// </para>
     /// </summary>
     public string? Collation { get; set; }
+
+    /// <summary>
+    /// Whether the type carried a <c>BINARY</c> suffix, as in <c>VARCHAR(10) BINARY</c>
+    /// (issue #217).
+    ///
+    /// <para>
+    /// Not a character set and not a type of its own: it selects the binary collation of
+    /// whichever character set the column ends up with, so it is resolved against
+    /// <see cref="CharacterSet"/>, or, when none is declared, against the collation the column
+    /// inherits from its table. The grammar admits it in two positions, before and after the
+    /// character set, and both mean the same thing.
+    /// </para>
+    /// </summary>
+    public bool IsBinary { get; set; }
 }
 
 // ---- Column constraints ----

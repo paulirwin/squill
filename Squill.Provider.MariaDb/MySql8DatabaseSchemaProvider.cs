@@ -29,6 +29,12 @@ public sealed class MySql8DatabaseSchemaProvider : MySqlDatabaseSchemaProviderBa
     /// <summary>Measured on 8.4: MySQL 8.0 moved the default here from latin1_swedish_ci.</summary>
     public override string DefaultCollation => "utf8mb4_0900_ai_ci";
 
+    /// <inheritdoc />
+    // Measured on 8.4. The two sets diverge here: utf8mb4 takes the 0900 collation
+    // while utf8mb3 keeps the legacy _general_ci, so neither can stand in for the other.
+    protected override (string Utf8Mb3, string Utf8Mb4) DefaultUnicodeCollations
+        => ("utf8mb3_general_ci", "utf8mb4_0900_ai_ci");
+
     /// <summary>
     /// Measured: MySQL's <c>information_schema.VIEWS</c> has no <c>ALGORITHM</c> column at all,
     /// so a declared algorithm cannot be read back and is left unmodeled with a warning. The

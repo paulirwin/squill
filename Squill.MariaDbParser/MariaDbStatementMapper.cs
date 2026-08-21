@@ -1409,6 +1409,7 @@ internal static class MariaDbStatementMapper
             IsZerofill = Zerofill(dataType),
             CharacterSet = CharacterSetName(dataType),
             Collation = CollationName(dataType),
+            IsBinary = BinarySuffix(dataType),
         };
 
         foreach (var dimension in dimensions)
@@ -1470,6 +1471,18 @@ internal static class MariaDbStatementMapper
             case MariaDBParser.NationalVaryingStringDataTypeContext v:
                 return ("nvarchar", Dimensions(v.lengthOneDimension()), false);
 
+            // LONG / LONG VARCHAR and LONG VARBINARY (issue #217). Both alternatives begin with
+            // the LONG token, so the default branch below named each of them `long`, not a type
+            // either engine has, and one that collapsed the character and binary spellings onto
+            // each other. Measured on both engines: LONG and LONG VARCHAR store as mediumtext,
+            // LONG VARBINARY as mediumblob. The names are resolved here rather than in the
+            // normalizer's alias table because only the parse tree still distinguishes them.
+            case MariaDBParser.LongVarcharDataTypeContext:
+                return ("mediumtext", Array.Empty<long>(), false);
+
+            case MariaDBParser.LongVarbinaryDataTypeContext:
+                return ("mediumblob", Array.Empty<long>(), false);
+
             // Spatial, collection, long-varchar, uuid, etc.: use the raw text of the type,
             // without modifiers. These are carried verbatim so the DB extractor (which reads
             // the same canonical name) can still hash-match for the simple cases; complex ones
@@ -1502,14 +1515,42 @@ internal static class MariaDbStatementMapper
     private static string? CollationText(MariaDBParser.CollationNameContext? collation)
         => collation is null ? null : TrimStringLiteral(collation.GetText());
 
-    private static string? CharacterSetName(MariaDBParser.DataTypeContext dataType)
+    /// <summary>
+    /// Whether the type carried a <c>BINARY</c> suffix (issue #217).
+    ///
+    /// <para>
+    /// The alternatives that admit one write it in two places, <c>stringDataType</c> is
+    /// <c>… BINARY? (charSet charsetName)? (COLLATE collationName | BINARY)?</c>, so the count
+    /// of BINARY tokens is asked rather than any single accessor. Both spellings mean the same
+    /// thing, and one of the two positions is shared with COLLATE, which is why a type may
+    /// carry a BINARY suffix or a collation but not both.
+    /// </para>
+    /// </summary>
+    private static bool BinarySuffix(MariaDBParser.DataTypeContext dataType)
         => dataType switch
         {
-            MariaDBParser.StringDataTypeContext s => s.charsetName()?.GetText(),
-            MariaDBParser.CollectionDataTypeContext c => c.charsetName()?.GetText(),
-            MariaDBParser.LongVarcharDataTypeContext l => l.charsetName()?.GetText(),
-            _ => null,
+            MariaDBParser.StringDataTypeContext s => s.BINARY().Length > 0,
+            MariaDBParser.NationalStringDataTypeContext n => n.BINARY() is not null,
+            MariaDBParser.NationalVaryingStringDataTypeContext v => v.BINARY() is not null,
+            MariaDBParser.LongVarcharDataTypeContext l => l.BINARY() is not null,
+            _ => false,
         };
+
+    private static string? CharacterSetName(MariaDBParser.DataTypeContext dataType)
+        => CharacterSetText(dataType switch
+        {
+            MariaDBParser.StringDataTypeContext s => s.charsetName(),
+            MariaDBParser.CollectionDataTypeContext c => c.charsetName(),
+            MariaDBParser.LongVarcharDataTypeContext l => l.charsetName(),
+            _ => null,
+        });
+
+    // A character set may be written bare, single-quoted or backtick-quoted (charsetName admits
+    // all three); the value is the name either way, so the quotes are stripped as they are for a
+    // collation. Without this, `CHARACTER SET 'latin1'` and `CHARACTER SET latin1` name the same
+    // character set but only one of them resolves (issue #217).
+    private static string? CharacterSetText(MariaDBParser.CharsetNameContext? charset)
+        => charset is null ? null : TrimStringLiteral(charset.GetText()).Trim('`');
 
     // A trailing VARYING turns a fixed-width character type into its varying counterpart, which
     // the grammar carries as a separate token rather than folding into typeName (issue #162).

@@ -750,6 +750,15 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
                 typeElement.Properties.Add(
                     new Property(MariaDbPropertyNames.Scale, (long)(numericScale ?? 0)));
             }
+            else if (MariaDbTypeCategories.IsVectorType(dataType)
+                     && VectorDimension(columnType) is { } dimension)
+            {
+                // A vector's dimension (issue #217), read back out of COLUMN_TYPE. It is not
+                // taken from CHARACTER_MAXIMUM_LENGTH, which reports the storage size in bytes
+                // (measured: a `VECTOR(3)` column reports 12) and would not match the declared
+                // dimension the parser side records.
+                typeElement.Properties.Add(new Property(MariaDbPropertyNames.Length, dimension));
+            }
             else if (MariaDbTypeCategories.IsTemporalPrecisionType(dataType)
                      && datetimePrecision > 0)
             {
@@ -1254,4 +1263,19 @@ public class MariaDbDatabaseModelBuilder : IDatabaseModelBuilder
 
     private static bool IsDecimalType(string dataType)
         => MariaDbTypeCategories.IsDecimalType(dataType);
+
+    /// <summary>
+    /// The declared dimension of a <c>vector(n)</c> column, parsed out of its
+    /// <c>COLUMN_TYPE</c> (issue #217), or <c>null</c> if it carries none.
+    /// </summary>
+    private static int? VectorDimension(string columnType)
+    {
+        var open = columnType.IndexOf('(');
+        var close = columnType.IndexOf(')');
+
+        return open >= 0 && close > open
+               && int.TryParse(columnType[(open + 1)..close], out var dimension)
+            ? dimension
+            : null;
+    }
 }
