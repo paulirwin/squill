@@ -599,6 +599,10 @@ public sealed class CreateProcedureStatement(QualifiedName name, bool orReplace)
     /// (the opposite of PostgreSQL), so the invoker case is the one worth recording.
     /// </summary>
     public bool IsSecurityInvoker { get; set; }
+    /// <summary>The <c>DEFINER</c> clause, or null when none was written (issue #215).</summary>
+    public Definer? Definer { get; set; }
+    /// <summary>The <c>COMMENT</c> clause, or null when none was written (issue #215).</summary>
+    public string? Comment { get; set; }
 }
 
 /// <summary>
@@ -693,12 +697,8 @@ public sealed class CreateViewStatement(QualifiedName name, bool orReplace) : St
     /// </summary>
     public string? Algorithm { get; set; }
 
-    /// <summary>
-    /// The <c>DEFINER</c> clause as written, or null when absent. Carried so the model builder
-    /// can warn rather than let it vanish; who owns an object is the broader question issue
-    /// #221 covers, and is deliberately not modeled here.
-    /// </summary>
-    public string? Definer { get; set; }
+    /// <summary>The <c>DEFINER</c> clause, or null when none was written (issue #215).</summary>
+    public Definer? Definer { get; set; }
 }
 
 /// <summary>
@@ -798,9 +798,53 @@ public sealed class CreateFunctionStatement(QualifiedName name, DataType returnT
     /// Whether SQL SECURITY INVOKER was written. DEFINER is the default on both engines.
     /// </summary>
     public bool IsSecurityInvoker { get; set; }
+    /// <summary>The <c>DEFINER</c> clause, or null when none was written (issue #215).</summary>
+    public Definer? Definer { get; set; }
+    /// <summary>The <c>COMMENT</c> clause, or null when none was written (issue #215).</summary>
+    public string? Comment { get; set; }
 }
 
 // ---- CREATE TRIGGER ----
+
+/// <summary>
+/// The <c>DEFINER = user</c> clause on a routine, trigger or event (issue #215). Together with
+/// <c>SQL SECURITY DEFINER</c> this decides whose privileges the body runs under, so dropping it
+/// silently would move a privilege boundary without saying so.
+///
+/// <para>
+/// <c>CURRENT_USER</c> (and MariaDB's <c>CURRENT_ROLE</c>) is carried as <see cref="IsCurrentUser"/>
+/// rather than as a name, because both engines resolve it when the object is created and store the
+/// resulting account. Measured on both: writing <c>DEFINER = CURRENT_USER</c> and omitting
+/// <c>DEFINER</c> entirely are indistinguishable in the catalog — each reports whoever ran the DDL —
+/// so the two mean the same thing and neither is modeled as a definer.
+/// </para>
+/// </summary>
+/// <param name="User">The account name, or null for the <c>CURRENT_USER</c> form.</param>
+/// <param name="Host">The host part of <c>user@host</c>, null when none was written.</param>
+/// <param name="IsCurrentUser">Whether the clause was <c>CURRENT_USER</c> or <c>CURRENT_ROLE</c>.</param>
+public sealed record Definer(string? User, string? Host, bool IsCurrentUser)
+{
+    /// <summary>
+    /// The account as the engines report it in the catalog: <c>user@host</c>, or just the user
+    /// when no host was written. Null for the <c>CURRENT_USER</c> form, which names no account.
+    /// </summary>
+    public string? Account => IsCurrentUser
+        ? null
+        : Host is null ? User : $"{User}@{Host}";
+}
+
+/// <summary>
+/// Which side of <see cref="CreateTriggerStatement.OtherTrigger"/> a trigger is placed on
+/// (issue #215), from the MySQL/MariaDB <c>FOLLOWS</c> / <c>PRECEDES</c> clause.
+/// </summary>
+public enum TriggerOrderPlacement
+{
+    /// <summary>The trigger fires after the named one.</summary>
+    Follows,
+
+    /// <summary>The trigger fires before the named one.</summary>
+    Precedes,
+}
 
 /// <summary>
 /// A <c>CREATE [OR REPLACE] TRIGGER name {BEFORE|AFTER} {INSERT|UPDATE|DELETE} ON table
@@ -839,6 +883,20 @@ public sealed class CreateTriggerStatement(
 
     /// <summary>The trigger body, verbatim as written in the source.</summary>
     public string? Body { get; set; }
+
+    /// <summary>
+    /// The <c>FOLLOWS</c> / <c>PRECEDES</c> side, or null when no ordering clause was written
+    /// (issue #215). Paired with <see cref="OtherTrigger"/>: both are set or neither is.
+    /// </summary>
+    public TriggerOrderPlacement? OrderPlacement { get; set; }
+
+    /// <summary>
+    /// The trigger this one is placed relative to, or null when no ordering clause was written.
+    /// </summary>
+    public QualifiedName? OtherTrigger { get; set; }
+
+    /// <summary>The <c>DEFINER</c> clause, or null when none was written (issue #215).</summary>
+    public Definer? Definer { get; set; }
 }
 
 // ---- CREATE EVENT ----
@@ -955,6 +1013,8 @@ public sealed class CreateEventStatement(QualifiedName name, string eventType) :
 
     /// <summary>The event body, verbatim as written in the source.</summary>
     public string? Body { get; set; }
+    /// <summary>The <c>DEFINER</c> clause, or null when none was written (issue #215).</summary>
+    public Definer? Definer { get; set; }
 }
 
 /// <summary>

@@ -210,4 +210,37 @@ public class CreateProcedureModelTests
 
         Assert.Equal(MariaDbElementTypes.SqlProcedure, model.Elements[^1].Type);
     }
+
+    [Fact]
+    public async Task Procedure_Comment_IsModeled()
+    {
+        // Issue #215: ROUTINE_COMMENT is reported verbatim by both engines (measured), so a
+        // declared comment round-trips instead of being discarded.
+        var procedure = await BuildProcedureAsync(
+            "CREATE PROCEDURE p() COMMENT 'what it does' BEGIN SELECT 1; END;");
+
+        Assert.Equal("what it does",
+            procedure.GetRequiredProperty<string>(MariaDbPropertyNames.Comment));
+    }
+
+    [Fact]
+    public async Task Procedure_WithoutComment_RecordsNone()
+    {
+        // Both engines report an absent comment as the empty string, which records nothing, so
+        // a declaration that omits COMMENT matches what is extracted.
+        var procedure = await BuildProcedureAsync(
+            "CREATE PROCEDURE p() BEGIN SELECT 1; END;");
+
+        Assert.Null(procedure.GetProperty<string>(MariaDbPropertyNames.Comment));
+    }
+
+    [Fact]
+    public async Task Procedure_CommentWithAQuote_IsModeledUnescaped()
+    {
+        var procedure = await BuildProcedureAsync(
+            "CREATE PROCEDURE p() COMMENT 'it''s here' BEGIN SELECT 1; END;");
+
+        Assert.Equal("it's here",
+            procedure.GetRequiredProperty<string>(MariaDbPropertyNames.Comment));
+    }
 }

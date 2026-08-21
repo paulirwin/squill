@@ -602,7 +602,7 @@ internal static class MariaDbStatementMapper
 
         if (createView.ownerStatement() is { } owner)
         {
-            statement.Definer = SourceText(owner);
+            statement.Definer = MapDefiner(owner);
         }
 
         // CHECK is the whole of the clause: `checkOption` labels only the optional
@@ -1015,7 +1015,13 @@ internal static class MariaDbStatementMapper
             ApplyRoutineOption(option,
                 deterministic => statement.IsDeterministic = deterministic,
                 dataAccess => statement.SqlDataAccess = dataAccess,
-                securityInvoker => statement.IsSecurityInvoker = securityInvoker);
+                securityInvoker => statement.IsSecurityInvoker = securityInvoker,
+                comment => statement.Comment = comment);
+        }
+
+        if (createProcedure.ownerStatement() is { } procedureOwner)
+        {
+            statement.Definer = MapDefiner(procedureOwner);
         }
 
         statement.Body = SourceText(createProcedure.routineBody());
@@ -1049,11 +1055,17 @@ internal static class MariaDbStatementMapper
             ApplyRoutineOption(option,
                 deterministic => statement.IsDeterministic = deterministic,
                 dataAccess => statement.SqlDataAccess = dataAccess,
-                securityInvoker => statement.IsSecurityInvoker = securityInvoker);
+                securityInvoker => statement.IsSecurityInvoker = securityInvoker,
+                comment => statement.Comment = comment);
         }
 
         // A function body is either a routine body (BEGIN ... END) or a bare RETURN statement.
         // Both engines report ROUTINE_DEFINITION as whichever was written, verbatim.
+        if (createFunction.ownerStatement() is { } functionOwner)
+        {
+            statement.Definer = MapDefiner(functionOwner);
+        }
+
         statement.Body = createFunction.routineBody() is { } body
             ? SourceText(body)
             : SourceText(createFunction.returnStatement());
@@ -1077,6 +1089,23 @@ internal static class MariaDbStatementMapper
                 MapQualifiedName(createTrigger.tableName().fullId()),
                 createTrigger.orReplace() is not null),
             createTrigger);
+
+        // FOLLOWS / PRECEDES (issue #215). The clause decides where this trigger lands among
+        // the others on the same table, timing and event; the model builder turns it into the
+        // position both engines report as ACTION_ORDER, since neither reports the clause back.
+        if (createTrigger.triggerPlace is { } triggerPlace)
+        {
+            statement.OrderPlacement = triggerPlace.Type == MariaDBParser.PRECEDES
+                ? TriggerOrderPlacement.Precedes
+                : TriggerOrderPlacement.Follows;
+
+            statement.OtherTrigger = MapQualifiedName(createTrigger.otherTrigger);
+        }
+
+        if (createTrigger.ownerStatement() is { } owner)
+        {
+            statement.Definer = MapDefiner(owner);
+        }
 
         // The body — a BEGIN ... END block or a single statement — is held verbatim, exactly
         // as ACTION_STATEMENT reports it, so a parsed model hash-matches an extracted one.
@@ -1191,6 +1220,11 @@ internal static class MariaDbStatementMapper
         if (createEvent.STRING_LITERAL() is { } comment)
         {
             statement.Comment = TrimStringLiteral(comment.GetText());
+        }
+
+        if (createEvent.ownerStatement() is { } eventOwner)
+        {
+            statement.Definer = MapDefiner(eventOwner);
         }
 
         // The body is held verbatim, exactly as EVENT_DEFINITION reports it, so a parsed
@@ -1331,6 +1365,80 @@ internal static class MariaDbStatementMapper
         return text[1..^1].Replace($"{quote}{quote}", $"{quote}");
     }
 
+    /// <summary>
+    /// Maps a <c>DEFINER = user</c> clause (issue #215). The grammar's <c>ownerStatement</c>
+    /// covers three forms: a plain <c>user</c>, a <c>user@host</c> pair, and the
+    /// <c>CURRENT_USER</c> / <c>CURRENT_ROLE</c> keywords.
+    ///
+    /// <para>
+    /// The keyword forms are recorded as <see cref="Definer.IsCurrentUser"/> rather than as a
+    /// name: both engines resolve them when the object is created and store the resulting
+    /// account, so there is no name to keep. Measured on both engines, that makes them
+    /// indistinguishable from omitting <c>DEFINER</c> altogether.
+    /// </para>
+    ///
+    /// <para>
+    /// A quoted account (<c>'alice'@'%'</c>) is unquoted here so it matches what the catalog
+    /// reports back, which is always bare. <c>hostName</c> is a single token carrying its own
+    /// leading <c>@</c>, so that character is stripped before the host is unquoted.
+    /// </para>
+    /// </summary>
+    private static Definer MapDefiner(MariaDBParser.OwnerStatementContext owner)
+    {
+        if (owner.CURRENT_ROLE() is not null || owner.currentUserExpression() is not null)
+        {
+            return new Definer(User: null, Host: null, IsCurrentUser: true);
+        }
+
+        var userName = owner.userName();
+
+        // userName has its own currentUserExpression alternative, distinct from the one on
+        // ownerStatement above; CURRENT_USER can arrive through either.
+        if (userName?.currentUserExpression() is not null)
+        {
+            return new Definer(User: null, Host: null, IsCurrentUser: true);
+        }
+
+        if (userName?.simpleUserName() is not { } simpleUser)
+        {
+            // Not reachable through the grammar's alternatives, but the accessors are nullable
+            // and a silently-dropped definer is the outcome this issue exists to prevent.
+            throw new NotSupportedException(
+                $"Unsupported DEFINER clause '{SourceText(owner)}'.");
+        }
+
+        // CURRENT_USER and CURRENT_ROLE are both members of keywordsCanBeId, so ANTLR resolves
+        // a bare one through simpleUserName rather than through the ownerStatement alternative
+        // that names it — the two overlap and alternative order decides. They are recognized by
+        // token here rather than by rule, so neither keyword is mistaken for an account
+        // literally named after it. A quoted 'CURRENT_USER' is a real account name and keeps
+        // its STRING_LITERAL token, so it is unaffected.
+        //
+        // Both resolve to an account when the object is created, so both mean "whoever
+        // deploys". Missing CURRENT_ROLE here made it model as a literal account of that name,
+        // which then deployed as a definer naming a user that does not exist.
+        if (simpleUser.keywordsCanBeId() is { } keyword
+            && keyword.Start.Type is MariaDBParser.CURRENT_USER or MariaDBParser.CURRENT_ROLE)
+        {
+            return new Definer(User: null, Host: null, IsCurrentUser: true);
+        }
+
+        var host = owner.userName().hostName() is { } hostName
+            ? TrimAccountPart(hostName.GetText().TrimStart('@'))
+            : null;
+
+        return new Definer(
+            TrimAccountPart(simpleUser.GetText()),
+            host,
+            IsCurrentUser: false);
+    }
+
+    // One half of a DEFINER account. Either half may be written bare, backtick-quoted or
+    // string-quoted -- `admin`@`localhost` and 'admin'@'localhost' name the same account --
+    // and the catalog reports both unquoted, so either spelling is reduced to the bare name.
+    private static string TrimAccountPart(string text)
+        => IsQuotedLiteral(text) ? TrimStringLiteral(text) : TrimIdentifier(text);
+
     private static ParameterMode MapParameterMode(IToken? direction)
         => direction?.Type switch
         {
@@ -1346,10 +1454,17 @@ internal static class MariaDbStatementMapper
         MariaDBParser.RoutineOptionContext option,
         Action<bool> setDeterministic,
         Action<string> setSqlDataAccess,
-        Action<bool> setSecurityInvoker)
+        Action<bool> setSecurityInvoker,
+        Action<string> setComment)
     {
         switch (option)
         {
+            case MariaDBParser.RoutineCommentContext comment:
+                // Issue #215. Both engines report a routine's comment verbatim as
+                // information_schema.ROUTINES.ROUTINE_COMMENT (measured), so it round-trips.
+                setComment(TrimStringLiteral(comment.STRING_LITERAL().GetText()));
+                break;
+
             case MariaDBParser.RoutineBehaviorContext behavior:
                 // `NOT DETERMINISTIC` is the default; only a bare DETERMINISTIC sets it.
                 setDeterministic(behavior.NOT() is null);
@@ -1363,9 +1478,8 @@ internal static class MariaDbStatementMapper
                 setSecurityInvoker(security.context?.Type == MariaDBParser.INVOKER);
                 break;
 
-            // A COMMENT or LANGUAGE SQL clause does not participate in the model: LANGUAGE
-            // SQL is the only language either engine supports, and a comment is not a
-            // schema facet Squill tracks.
+            // LANGUAGE SQL does not participate in the model: it is the only language either
+            // engine supports, so it says nothing a deployed routine could differ in.
         }
     }
 

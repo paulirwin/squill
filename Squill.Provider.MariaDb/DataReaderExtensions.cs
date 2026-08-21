@@ -16,6 +16,15 @@ internal static class DataReaderExtensions
     public static int GetInt32(this DbDataReader reader, string name)
         => reader.GetInt32(reader.GetOrdinal(name));
 
+    /// <summary>
+    /// Reads an integer column whose CLR type differs between the engines, coercing whatever
+    /// the driver returns. <c>information_schema.TRIGGERS.ACTION_ORDER</c> is the case this
+    /// exists for: MariaDB types it <c>bigint</c> and MySQL <c>int unsigned</c> (measured), so
+    /// a plain <c>GetInt32</c> throws on one engine or the other.
+    /// </summary>
+    public static int GetInt32Coerced(this DbDataReader reader, string name)
+        => Convert.ToInt32(reader.GetValue(reader.GetOrdinal(name)));
+
     public static bool IsDBNull(this DbDataReader reader, string name)
         => reader.IsDBNull(reader.GetOrdinal(name));
 

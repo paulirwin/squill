@@ -688,7 +688,7 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
 
         var sb = new StringBuilder();
 
-        sb.Append("CREATE ");
+        sb.Append("CREATE ").Append(DefinerClause(view));
 
         // Issue #208. ALGORITHM and SQL SECURITY come before the VIEW keyword, in the order
         // both engines accept them; WITH CHECK OPTION trails the query.
@@ -750,6 +750,34 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
     // is emitted verbatim, exactly as ACTION_STATEMENT reports it. CREATE OR REPLACE is not
     // used: it is MariaDB-only syntax and this generator targets MySQL too, so a changed
     // trigger is scripted as DROP + CREATE.
+    /// <summary>
+    /// The <c>DEFINER = user@host </c> clause for an element that records one, or the empty
+    /// string when it does not (issue #215).
+    ///
+    /// <para>
+    /// An element records no definer when the source declared none, in which case the clause is
+    /// omitted and the engine binds the object to the deploying user — which is exactly what an
+    /// undeclared definer means. Both halves are backtick-quoted, the spelling both engines
+    /// accept for any account name, including one holding a dot or a hyphen.
+    /// </para>
+    /// </summary>
+    private static string DefinerClause(Element element)
+    {
+        if (element.GetProperty<string>(MariaDbPropertyNames.Definer) is not { } definer)
+        {
+            return string.Empty;
+        }
+
+        // The catalog reports an account as user@host. A user name may itself contain '@', so
+        // the split is on the last one.
+        var separator = definer.LastIndexOf('@');
+
+        return separator < 0
+            ? $"DEFINER = {SqlName.Object(definer).Sql} "
+            : $"DEFINER = {SqlName.Object(definer[..separator]).Sql}"
+                + $"@{SqlName.Object(definer[(separator + 1)..]).Sql} ";
+    }
+
     private static string GenerateCreateTriggerScript(Element trigger)
     {
         var triggerName = trigger.GetRequiredProperty<string>(MariaDbPropertyNames.RoutineName);
@@ -759,10 +787,22 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
 
         var sb = new StringBuilder();
 
-        sb.Append("CREATE TRIGGER ").Append(SqlName.Object(triggerName).Sql)
+        sb.Append("CREATE ").Append(DefinerClause(trigger))
+            .Append("TRIGGER ").Append(SqlName.Object(triggerName).Sql)
             .Append(' ').Append(timing).Append(' ').Append(@event)
             .Append(" ON ").Append(TriggerTableName(trigger))
-            .Append(" FOR EACH ROW").AppendLine();
+            .Append(" FOR EACH ROW");
+
+        // FOLLOWS places this trigger after the one it names (issue #215). Emitted whenever the
+        // model records a predecessor: creating the group from scratch in model order would
+        // happen to produce the right order anyway, but a trigger added to a group that already
+        // exists on the server would otherwise land last rather than where it belongs.
+        if (trigger.GetProperty<string>(MariaDbPropertyNames.FollowsTrigger) is { } follows)
+        {
+            sb.Append(" FOLLOWS ").Append(SqlName.Object(follows).Sql);
+        }
+
+        sb.AppendLine();
 
         // The body is emitted verbatim and the statement is not terminated with a semicolon:
         // a BEGIN ... END body contains its own, and each delta is sent to the server as a
@@ -841,7 +881,8 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
 
         var sb = new StringBuilder();
 
-        sb.Append("CREATE EVENT ").Append(SqlName.Object(name).Sql)
+        sb.Append("CREATE ").Append(DefinerClause(element))
+            .Append("EVENT ").Append(SqlName.Object(name).Sql)
             .Append(" ON SCHEDULE ").Append(EventScheduleClause(element));
 
         // GetProperty<bool> would unbox a null Value, so the flag is read by presence: it is
@@ -972,7 +1013,8 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
 
         var sb = new StringBuilder();
 
-        sb.Append("CREATE PROCEDURE ").Append(SqlName.Parse(name).Sql)
+        sb.Append("CREATE ").Append(DefinerClause(procedure))
+            .Append("PROCEDURE ").Append(SqlName.Parse(name).Sql)
             .Append('(').Append(arguments).AppendLine(")");
 
         // Only non-default characteristics are stored on the element, so each is written
@@ -990,6 +1032,11 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
         if (procedure.GetProperty<bool?>(MariaDbPropertyNames.IsSecurityInvoker) == true)
         {
             sb.AppendLine("    SQL SECURITY INVOKER");
+        }
+
+        if (procedure.GetProperty<string>(MariaDbPropertyNames.Comment) is { } procedureComment)
+        {
+            sb.Append("    COMMENT ").AppendLine(QuoteLiteral(procedureComment));
         }
 
         // The body is emitted verbatim and the statement is not terminated with a semicolon:
@@ -1023,7 +1070,8 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
 
         var sb = new StringBuilder();
 
-        sb.Append("CREATE FUNCTION ").Append(SqlName.Parse(name).Sql)
+        sb.Append("CREATE ").Append(DefinerClause(function))
+            .Append("FUNCTION ").Append(SqlName.Parse(name).Sql)
             .Append('(').Append(FunctionArguments(arguments)).Append(')')
             .Append(" RETURNS ").AppendLine(returnType);
 
@@ -1042,6 +1090,11 @@ public class MariaDbScriptGenerator : ScriptGeneratorBase
         if (function.GetProperty<bool?>(MariaDbPropertyNames.IsSecurityInvoker) == true)
         {
             sb.AppendLine("    SQL SECURITY INVOKER");
+        }
+
+        if (function.GetProperty<string>(MariaDbPropertyNames.Comment) is { } functionComment)
+        {
+            sb.Append("    COMMENT ").AppendLine(QuoteLiteral(functionComment));
         }
 
         // The body — a RETURN ... or a BEGIN ... END — is emitted verbatim, and the statement
